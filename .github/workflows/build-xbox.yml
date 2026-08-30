@@ -56,28 +56,44 @@ jobs:
             C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
           }
 
+      - name: Create short Windows build root
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path 'S:\') {
+            subst S: /D 2>$null
+          }
+          subst S: "$env:GITHUB_WORKSPACE"
+          New-Item -ItemType Directory -Force 'S:\tmp' | Out-Null
+          "TPR_SRC=S:\s" >> $env:GITHUB_ENV
+          "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
+          "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
+          "TMP=S:\tmp" >> $env:GITHUB_ENV
+          "TEMP=S:\tmp" >> $env:GITHUB_ENV
+          Write-Host 'Short build root: S:\'
+
       - name: Verify custom identity and artwork
         shell: powershell
         run: python "$env:TPR_KIT\scripts\verify_static.py"
 
       - name: Assemble pinned randomizer plus UWP source
         shell: powershell
-        run: python "$env:TPR_KIT\scripts\assemble_port.py" --output "$env:GITHUB_WORKSPACE\work\TwilightPrincessRandomizer"
+        run: python "$env:TPR_KIT\scripts\assemble_port.py" --output "$env:TPR_SRC"
 
       - name: Verify assembled source
         shell: powershell
-        run: python "$env:TPR_KIT\scripts\verify_static.py" "$env:GITHUB_WORKSPACE\work\TwilightPrincessRandomizer"
+        run: python "$env:TPR_KIT\scripts\verify_static.py" "$env:TPR_SRC"
 
       - name: Configure randomizer static feed
         shell: powershell
-        working-directory: work/TwilightPrincessRandomizer
         run: |
-          cmake -S . -B build/uwp-feed -G Ninja `
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_C_COMPILER=cl `
             -DCMAKE_CXX_COMPILER=cl `
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
             -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
             -DDUSK_UWP=ON `
             -DDUSK_ENABLE_UPDATE_CHECKER=OFF `
             -DDUSK_ENABLE_DISCORD=OFF `
@@ -87,18 +103,17 @@ jobs:
 
       - name: Build randomizer static feed
         shell: powershell
-        working-directory: work/TwilightPrincessRandomizer
-        run: cmake --build build/uwp-feed --config RelWithDebInfo --parallel 2
+        run: cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
 
       - name: Configure fresh UWP package project
         shell: powershell
-        working-directory: work/TwilightPrincessRandomizer
         run: |
-          cmake -S platforms/uwp -B build/uwp-package `
+          cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
             -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_SYSTEM_NAME=WindowsStore `
             -DCMAKE_SYSTEM_VERSION=10.0 `
-            -DDUSK_DIR="$env:GITHUB_WORKSPACE/work/TwilightPrincessRandomizer/build/uwp-feed"
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_DIR="$env:TPR_FEED"
 
       - name: Create sideload certificate
         id: cert
@@ -123,9 +138,8 @@ jobs:
 
       - name: Build signed UWP package
         shell: powershell
-        working-directory: work/TwilightPrincessRandomizer
         run: |
-          cmake --build build/uwp-package --config RelWithDebInfo --parallel 2 -- `
+          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
             /p:AppxPackageSigningEnabled=true `
             /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
             /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
@@ -140,7 +154,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
           New-Item -ItemType Directory -Force $packageDir | Out-Null
-          $buildRoot = "$env:GITHUB_WORKSPACE\work\TwilightPrincessRandomizer\build\uwp-package"
+          $buildRoot = "$env:TPR_PKG"
           $packages = Get-ChildItem $buildRoot -Recurse -File | Where-Object { $_.Extension -in '.appx','.msix','.appxbundle','.msixbundle' }
           if (-not $packages) {
             Get-ChildItem $buildRoot -Recurse | Select-Object FullName
@@ -153,6 +167,12 @@ jobs:
           Copy-Item "$env:TPR_KIT\APP_IDENTITY.json" $packageDir -Force
           if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") { Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force }
           Compress-Archive -Path "$packageDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\Twilight-Princess-Randomizer-UWP-1.4.1.627-Xbox.zip" -Force
+
+      - name: Release short build drive
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path 'S:\') { subst S: /D }
 
       - name: Upload Xbox package
         uses: actions/upload-artifact@v7
