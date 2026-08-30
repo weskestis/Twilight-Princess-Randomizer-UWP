@@ -25,28 +25,50 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
           $picked = Get-ChildItem "$env:GITHUB_WORKSPACE" -Filter 'Twilight-Princess-Randomizer-UWP-Checkpoint-*.zip' | ForEach-Object {
             if ($_.BaseName -match 'Checkpoint-(\d+)$') {
-              [PSCustomObject]@{ File = $_; Number = [int]$Matches[1] }
+              [PSCustomObject]@{
+                File = $_
+                Number = [int]$Matches[1]
+              }
             }
           } | Sort-Object Number -Descending | Select-Object -First 1
-          if (-not $picked) { throw 'Checkpoint ZIP not found in repository root.' }
+
+          if (-not $picked) {
+            throw 'Checkpoint ZIP not found in repository root.'
+          }
+
           $zip = $picked.File
           $hash = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+
           Write-Host "Using checkpoint: $($zip.Name)"
+          Write-Host "Checkpoint number: $($picked.Number)"
           Write-Host "SHA-256: $hash"
+
           "number=$($picked.Number)" >> $env:GITHUB_OUTPUT
           "sha256=$hash" >> $env:GITHUB_OUTPUT
+
           $extract = "$env:GITHUB_WORKSPACE\checkpoint"
-          if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
+
+          if (Test-Path $extract) {
+            Remove-Item $extract -Recurse -Force
+          }
+
           Expand-Archive -Path $zip.FullName -DestinationPath $extract -Force
+
           $kit = Join-Path $extract 'Twilight-Princess-Randomizer-UWP'
-          if (-not (Test-Path "$kit\scripts\assemble_port.py")) { throw 'Checkpoint contents are not in the expected layout.' }
+
+          if (-not (Test-Path "$kit\scripts\assemble_port.py")) {
+            throw 'Checkpoint contents are not in the expected layout.'
+          }
+
           "TPR_KIT=$kit" >> $env:GITHUB_ENV
 
       - name: Enable long Git paths
         shell: powershell
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
 
       - name: Enable MSVC x64
         uses: ilammy/msvc-dev-cmd@v1
@@ -56,55 +78,121 @@ jobs:
       - name: Install Ninja and native dependencies
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
+
           choco install ninja -y --no-progress
+
           if (Test-Path 'C:\vcpkg\vcpkg.exe') {
-            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
+            C:\vcpkg\vcpkg.exe install `
+              freetype:x64-windows-static `
+              zstd:x64-windows-static
           }
 
       - name: Create short Windows build root
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          if (Test-Path 'S:\') { subst S: /D 2>$null }
+
+          if (Test-Path 'S:\') {
+            subst S: /D 2>$null
+          }
+
           subst S: "$env:GITHUB_WORKSPACE"
+
           New-Item -ItemType Directory -Force 'S:\tmp' | Out-Null
+
           "TPR_SRC=S:\s" >> $env:GITHUB_ENV
           "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
           "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
           "TMP=S:\tmp" >> $env:GITHUB_ENV
           "TEMP=S:\tmp" >> $env:GITHUB_ENV
-          Write-Host 'Short build root: S:\'
+
+          Write-Host 'Short build root created at S:\'
 
       - name: Verify port kit
         shell: powershell
-        run: python "$env:TPR_KIT\scripts\verify_static.py"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_KIT\scripts\verify_static.py"
 
       - name: Assemble integrated randomizer UWP source
         shell: powershell
-        run: python "$env:TPR_KIT\scripts\assemble_port.py" --output "$env:TPR_SRC"
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (Test-Path "$env:TPR_SRC") {
+            Remove-Item "$env:TPR_SRC" -Recurse -Force
+          }
+
+          python "$env:TPR_KIT\scripts\assemble_port.py" `
+            --output "$env:TPR_SRC"
 
       - name: Verify integrated source
         shell: powershell
-        run: python "$env:TPR_KIT\scripts\verify_static.py" "$env:TPR_SRC"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_KIT\scripts\verify_static.py" "$env:TPR_SRC"
 
       - name: Freeze integrated source snapshot
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
           $stage = "$env:GITHUB_WORKSPACE\TPR-Integrated-Source"
-          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+
+          if (Test-Path $stage) {
+            Remove-Item $stage -Recurse -Force
+          }
+
           New-Item -ItemType Directory -Force $stage | Out-Null
-          & robocopy "$env:TPR_SRC" $stage /E /XD .git build .vs /XF .git | Out-Host
-          if ($LASTEXITCODE -gt 7) { throw "robocopy failed with exit code $LASTEXITCODE" }
+
+          & robocopy "$env:TPR_SRC" $stage /E /XD .git build .vs /XF .git
+          $robocopyExit = $LASTEXITCODE
+
+          Write-Host "Robocopy exit code: $robocopyExit"
+
+          if ($robocopyExit -gt 7) {
+            throw "Robocopy failed with exit code $robocopyExit"
+          }
+
+          Write-Host 'Robocopy completed successfully.'
+
           $meta = @"
           Twilight Princess Randomizer UWP integrated source
           Source checkpoint: ${{ steps.checkpoint.outputs.number }}
           Checkpoint SHA-256: ${{ steps.checkpoint.outputs.sha256 }}
-          Generated by GitHub Actions from the pinned randomizer + forward-ported UWP integration.
-          This snapshot is intentionally free of Git metadata and build output.
+          Generated by GitHub Actions from the pinned randomizer and forward-ported UWP integration.
+          This snapshot intentionally excludes Git metadata and build output.
           "@
-          Set-Content -Path "$stage\INTEGRATED_SOURCE_BUILD.txt" -Value $meta -Encoding UTF8
-          Compress-Archive -Path "$stage\*" -DestinationPath "$env:GITHUB_WORKSPACE\Twilight-Princess-Randomizer-UWP-Integrated-Source.zip" -Force
+
+          Set-Content `
+            -Path "$stage\INTEGRATED_SOURCE_BUILD.txt" `
+            -Value $meta `
+            -Encoding UTF8
+
+          $outputZip = "$env:GITHUB_WORKSPACE\Twilight-Princess-Randomizer-UWP-Integrated-Source.zip"
+
+          if (Test-Path $outputZip) {
+            Remove-Item $outputZip -Force
+          }
+
+          Compress-Archive `
+            -Path "$stage\*" `
+            -DestinationPath $outputZip `
+            -Force
+
+          if (-not (Test-Path $outputZip)) {
+            throw 'Integrated source ZIP was not created.'
+          }
+
+          $zipSize = (Get-Item $outputZip).Length
+          $zipHash = (Get-FileHash $outputZip -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          Write-Host 'Integrated source ZIP created successfully.'
+          Write-Host "Size: $zipSize bytes"
+          Write-Host "SHA-256: $zipHash"
+
+          exit 0
 
       - name: Upload integrated source snapshot
         uses: actions/upload-artifact@v7
@@ -117,7 +205,12 @@ jobs:
       - name: Configure randomizer static feed
         shell: powershell
         run: |
-          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+          $ErrorActionPreference = 'Stop'
+
+          cmake `
+            -S "$env:TPR_SRC" `
+            -B "$env:TPR_FEED" `
+            -G Ninja `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_C_COMPILER=cl `
             -DCMAKE_CXX_COMPILER=cl `
@@ -136,11 +229,20 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Continue'
+
           $log = "$env:GITHUB_WORKSPACE\TPR-static-feed-build.log"
-          & cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2 -- -k 100 2>&1 | Tee-Object -FilePath $log
+
+          & cmake `
+            --build "$env:TPR_FEED" `
+            --config RelWithDebInfo `
+            --parallel 2 `
+            -- -k 100 2>&1 | Tee-Object -FilePath $log
+
           $code = $LASTEXITCODE
-          "exit_code=$code" >> $env:GITHUB_OUTPUT
+
           Write-Host "Static-feed build exit code: $code"
+          "exit_code=$code" >> $env:GITHUB_OUTPUT
+
           exit 0
 
       - name: Summarize static-feed compiler failures
@@ -148,15 +250,41 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
           $log = "$env:GITHUB_WORKSPACE\TPR-static-feed-build.log"
           $summary = "$env:GITHUB_WORKSPACE\TPR-static-feed-errors.txt"
-          $matches = Select-String -Path $log -Pattern 'fatal error|error C[0-9]{4}|error LNK[0-9]{4}|undefined reference|unresolved external|FAILED:' -CaseSensitive:$false
+
+          $matches = Select-String `
+            -Path $log `
+            -Pattern 'fatal error|error C[0-9]{4}|error LNK[0-9]{4}|undefined reference|unresolved external|FAILED:' `
+            -CaseSensitive:$false
+
           if ($matches) {
-            $matches | ForEach-Object { $_.Line } | Set-Content $summary -Encoding UTF8
+            $matches |
+              ForEach-Object { $_.Line } |
+              Set-Content $summary -Encoding UTF8
+
             Write-Host '========== COLLECTED BUILD ERRORS =========='
             Get-Content $summary
-          } else {
-            Set-Content $summary 'Build failed, but no standard compiler/linker error signature was matched.' -Encoding UTF8
+          }
+          else {
+            Set-Content `
+              $summary `
+              'Build failed, but no standard compiler or linker error signature was matched.' `
+              -Encoding UTF8
+          }
+
+      - name: Ensure diagnostics summary exists
+        if: always()
+        shell: powershell
+        run: |
+          $summary = "$env:GITHUB_WORKSPACE\TPR-static-feed-errors.txt"
+
+          if (-not (Test-Path $summary)) {
+            Set-Content `
+              $summary `
+              'Static-feed build completed without collected compiler errors.' `
+              -Encoding UTF8
           }
 
       - name: Upload static-feed diagnostics
@@ -173,13 +301,19 @@ jobs:
       - name: Stop after collected static-feed failures
         if: steps.feedbuild.outputs.exit_code != '0'
         shell: powershell
-        run: throw 'Static-feed compile failed. All reachable compiler errors were collected above and the integrated source snapshot was uploaded.'
+        run: |
+          throw 'Static-feed compilation failed. The integrated source and full diagnostic artifacts were uploaded.'
 
       - name: Configure fresh UWP package project
         shell: powershell
         run: |
-          cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
-            -G "Visual Studio 17 2022" -A x64 `
+          $ErrorActionPreference = 'Stop'
+
+          cmake `
+            -S "$env:TPR_SRC\platforms\uwp" `
+            -B "$env:TPR_PKG" `
+            -G "Visual Studio 17 2022" `
+            -A x64 `
             -DCMAKE_SYSTEM_NAME=WindowsStore `
             -DCMAKE_SYSTEM_VERSION=10.0 `
             -DCMAKE_OBJECT_PATH_MAX=180 `
@@ -190,8 +324,10 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
           $password = [Guid]::NewGuid().ToString('N')
           $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+
           $cert = New-SelfSignedCertificate `
             -Type Custom `
             -Subject 'CN=TwilightPrincessRandomizer' `
@@ -201,15 +337,29 @@ jobs:
             -KeyExportPolicy Exportable `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
-          Export-PfxCertificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Password $securePassword | Out-Null
-          Export-Certificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+
+          Export-PfxCertificate `
+            -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            -Password $securePassword | Out-Null
+
+          Export-Certificate `
+            -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "password=$password" >> $env:GITHUB_OUTPUT
 
       - name: Build signed UWP package
         shell: powershell
         run: |
-          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
+          $ErrorActionPreference = 'Stop'
+
+          cmake `
+            --build "$env:TPR_PKG" `
+            --config RelWithDebInfo `
+            --parallel 2 `
+            -- `
             /p:AppxPackageSigningEnabled=true `
             /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
             /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
@@ -222,20 +372,72 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
           $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
+
+          if (Test-Path $packageDir) {
+            Remove-Item $packageDir -Recurse -Force
+          }
+
           New-Item -ItemType Directory -Force $packageDir | Out-Null
-          $packages = Get-ChildItem "$env:TPR_PKG" -Recurse -File | Where-Object { $_.Extension -in '.appx','.msix','.appxbundle','.msixbundle' }
+
+          $packages = Get-ChildItem "$env:TPR_PKG" -Recurse -File |
+            Where-Object {
+              $_.Extension -in '.appx', '.msix', '.appxbundle', '.msixbundle'
+            }
+
           if (-not $packages) {
             Get-ChildItem "$env:TPR_PKG" -Recurse | Select-Object FullName
             throw 'UWP build did not produce an AppX/MSIX package.'
           }
-          foreach ($pkg in $packages) { Copy-Item $pkg.FullName $packageDir -Force }
-          Get-ChildItem "$env:TPR_PKG" -Recurse -File -Include *.cer,*.appxsym | ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
-          Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
-          Copy-Item "$env:TPR_KIT\INSTALL_XBOX.md" $packageDir -Force
-          Copy-Item "$env:TPR_KIT\APP_IDENTITY.json" $packageDir -Force
-          if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") { Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force }
-          Compress-Archive -Path "$packageDir\*" -DestinationPath "$env:GITHUB_WORKSPACE\Twilight-Princess-Randomizer-UWP-1.4.1.627-Xbox.zip" -Force
+
+          foreach ($pkg in $packages) {
+            Copy-Item $pkg.FullName $packageDir -Force
+          }
+
+          Get-ChildItem "$env:TPR_PKG" -Recurse -File -Include *.cer,*.appxsym |
+            ForEach-Object {
+              Copy-Item $_.FullName $packageDir -Force
+            }
+
+          Copy-Item `
+            "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
+            $packageDir `
+            -Force
+
+          Copy-Item `
+            "$env:TPR_KIT\INSTALL_XBOX.md" `
+            $packageDir `
+            -Force
+
+          Copy-Item `
+            "$env:TPR_KIT\APP_IDENTITY.json" `
+            $packageDir `
+            -Force
+
+          if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") {
+            Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
+          }
+
+          $output = "$env:GITHUB_WORKSPACE\Twilight-Princess-Randomizer-UWP-1.4.1.627-Xbox.zip"
+
+          if (Test-Path $output) {
+            Remove-Item $output -Force
+          }
+
+          Compress-Archive `
+            -Path "$packageDir\*" `
+            -DestinationPath $output `
+            -Force
+
+          if (-not (Test-Path $output)) {
+            throw 'Final Xbox package ZIP was not created.'
+          }
+
+          $hash = (Get-FileHash $output -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          Write-Host 'Xbox package created successfully.'
+          Write-Host "SHA-256: $hash"
 
       - name: Upload Xbox package
         uses: actions/upload-artifact@v7
@@ -245,9 +447,12 @@ jobs:
             Twilight-Princess-Randomizer-UWP-1.4.1.627-Xbox.zip
             TPR-Xbox-Package/
           if-no-files-found: error
+          retention-days: 14
 
       - name: Release short build drive
         if: always()
         shell: powershell
         run: |
-          if (Test-Path 'S:\') { subst S: /D }
+          if (Test-Path 'S:\') {
+            subst S: /D
+          }
