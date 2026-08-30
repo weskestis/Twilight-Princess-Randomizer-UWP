@@ -53,7 +53,7 @@ jobs:
 
       - name: Verify custom identity and artwork
         shell: powershell
-        run: python "$env:TPR_KIT\scripts\verify_static.py" "$env:TPR_KIT"
+        run: python "$env:TPR_KIT\scripts\verify_static.py"
 
       - name: Assemble pinned randomizer plus UWP source
         shell: powershell
