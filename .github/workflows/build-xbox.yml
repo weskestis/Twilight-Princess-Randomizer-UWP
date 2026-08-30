@@ -24,8 +24,13 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $zip = Get-ChildItem "$env:GITHUB_WORKSPACE" -Filter 'Twilight-Princess-Randomizer-UWP-Checkpoint-*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $zip = Get-ChildItem "$env:GITHUB_WORKSPACE" -Filter 'Twilight-Princess-Randomizer-UWP-Checkpoint-*.zip' | ForEach-Object {
+            if ($_.BaseName -match 'Checkpoint-(\d+)$') {
+              [PSCustomObject]@{ File = $_; Number = [int]$Matches[1] }
+            }
+          } | Sort-Object Number -Descending | Select-Object -First 1
           if (-not $zip) { throw 'Checkpoint ZIP not found in repository root.' }
+          $zip = $zip.File
           Write-Host "Using checkpoint: $($zip.Name)"
           $extract = "$env:GITHUB_WORKSPACE\checkpoint"
           if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
