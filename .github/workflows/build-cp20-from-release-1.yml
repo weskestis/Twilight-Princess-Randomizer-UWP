@@ -117,9 +117,11 @@ jobs:
             throw 'Could not inspect release tpr-cp20-build-assets.'
           }
           $releaseAssets = @($release.assets)
+
           function Get-AssetKey([string]$name) {
             return ($name.ToLowerInvariant() -replace '[^a-z0-9]', '')
           }
+
           foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
             $assetKey = Get-AssetKey $asset.name
             $matches = @($releaseAssets | Where-Object { (Get-AssetKey $_.name) -eq $assetKey })
@@ -127,6 +129,7 @@ jobs:
               $available = ($releaseAssets.name | Sort-Object) -join ', '
               throw "Release tpr-cp20-build-assets must contain exactly one normalized match for '$($asset.name)'; found $($matches.Count). Available assets: $available"
             }
+
             $remoteAsset = $matches[0]
             $expectedPath = Join-Path $env:TPR_MOD_INPUT $asset.name
             & curl.exe `
@@ -146,6 +149,7 @@ jobs:
             if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
               throw "Downloaded optional-mod asset '$($remoteAsset.name)' is missing."
             }
+
             $downloadedBytes = (Get-Item -LiteralPath $expectedPath).Length
             if ($downloadedBytes -ne [int64]$remoteAsset.size) {
               throw "Downloaded optional-mod asset '$($remoteAsset.name)' has $downloadedBytes bytes; expected $($remoteAsset.size)."
@@ -174,18 +178,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Generated optional mod verification failed with exit code $LASTEXITCODE."
           }
+
           if ($catalogReport.activation_default -ne 'disabled') {
             throw 'Optional mod catalog must be disabled by default.'
           }
+
           Write-Host ("Early optional-mod preflight passed: {0} selectable entries, all disabled by default." -f `
             $catalogReport.counts.selectable_mod_entries)
           Remove-Item $env:TPR_MOD_INPUT -Recurse -Force
 
       - name: Create and preflight sideload signing certificate
         id: cert
+        timeout-minutes: 2
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          Write-Host 'Creating temporary sideload signing certificate...'
+
           $password = [Guid]::NewGuid().ToString('N')
           $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
           $cert = New-SelfSignedCertificate `
@@ -197,26 +206,48 @@ jobs:
             -KeyExportPolicy Exportable `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
-          Export-PfxCertificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Password $securePassword | Out-Null
-          Export-Certificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
 
-          Import-Certificate `
-            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
-            -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
-          Import-Certificate `
-            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
-            -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+          Write-Host 'Exporting certificate files...'
+          Export-PfxCertificate `
+            -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            -Password $securePassword | Out-Null
+          Export-Certificate `
+            -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
 
-          $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
-          $chain.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
-          if (-not $chain.Build($cert)) {
-            $issues = ($chain.ChainStatus | ForEach-Object { $_.StatusInformation.Trim() }) -join '; '
-            throw "Signing certificate trust preflight failed: $issues"
+          function Add-CertificateToCurrentUserStore(
+            [string] $storeName,
+            [System.Security.Cryptography.X509Certificates.X509Certificate2] $certificate
+          ) {
+            $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+              $storeName,
+              [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
+            )
+            try {
+              $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+              $store.Add($certificate)
+            }
+            finally {
+              $store.Close()
+            }
           }
+
+          Write-Host 'Adding certificate to CurrentUser trust stores...'
+          Add-CertificateToCurrentUserStore 'TrustedPeople' $cert
+          Add-CertificateToCurrentUserStore 'Root' $cert
+
+          if (-not (Test-Path -LiteralPath "Cert:\CurrentUser\TrustedPeople\$($cert.Thumbprint)")) {
+            throw 'Signing certificate was not added to CurrentUser TrustedPeople.'
+          }
+          if (-not (Test-Path -LiteralPath "Cert:\CurrentUser\Root\$($cert.Thumbprint)")) {
+            throw 'Signing certificate was not added to CurrentUser Root.'
+          }
+
           Write-Output "::add-mask::$password"
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "password=$password" >> $env:GITHUB_OUTPUT
-          Write-Host 'Signing certificate trust preflight passed.'
+          Write-Host 'Signing certificate trust stores are ready.'
 
       - name: Assemble pinned randomizer plus UWP source
         shell: powershell
@@ -276,14 +307,19 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $layoutCandidates = @(
             Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter AppxManifest.xml |
-              Where-Object { Test-Path (Join-Path $_.Directory.FullName 'TwilightPrincessRandomizer.exe') } |
+              Where-Object {
+                Test-Path (Join-Path $_.Directory.FullName 'TwilightPrincessRandomizer.exe')
+              } |
               ForEach-Object { $_.Directory.FullName } |
               Sort-Object -Unique
           )
+
           if ($layoutCandidates.Count -ne 1) {
-            Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter AppxManifest.xml | Select-Object FullName
+            Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter AppxManifest.xml |
+              Select-Object FullName
             throw "Expected exactly one compiled AppX layout; found $($layoutCandidates.Count)."
           }
+
           Remove-Item "$env:TPR_LAYOUT" -Recurse -Force -ErrorAction SilentlyContinue
           Move-Item -LiteralPath $layoutCandidates[0] -Destination "$env:TPR_LAYOUT"
           if (-not (Test-Path "$env:TPR_LAYOUT\AppxManifest.xml")) {
@@ -297,22 +333,34 @@ jobs:
               $_.Extension -in '.appx','.msix','.appxbundle','.msixbundle' -and
               $_.FullName -match '[\\/]Dependencies[\\/]'
             } |
-            ForEach-Object { Copy-Item $_.FullName "$env:TPR_SUPPORT" -Force }
+            ForEach-Object {
+              Copy-Item $_.FullName "$env:TPR_SUPPORT" -Force
+            }
 
-          Remove-Item "$env:TPR_SRC","$env:TPR_FEED","$env:TPR_PKG" -Recurse -Force -ErrorAction SilentlyContinue
-          Write-Host ("Free disk before textures: {0:N2} GiB" -f ((Get-PSDrive C).Free / 1GB))
+          Remove-Item `
+            "$env:TPR_SRC", `
+            "$env:TPR_FEED", `
+            "$env:TPR_PKG" `
+            -Recurse -Force -ErrorAction SilentlyContinue
+
+          Write-Host ("Free disk before textures: {0:N2} GiB" -f `
+            ((Get-PSDrive C).Free / 1GB))
 
       - name: Inject prevalidated selectable optional mods disabled by default
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $report = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
+          $report = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw |
+            ConvertFrom-Json
+
           if (-not (Test-Path -LiteralPath $env:TPR_MOD_BUILD -PathType Container)) {
             throw 'Prevalidated optional mod output is missing.'
           }
+
           $layoutMods = "$env:TPR_LAYOUT\mods"
           Remove-Item $layoutMods -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $layoutMods | Out-Null
+
           foreach ($mod in $report.mods) {
             $source = Join-Path $env:TPR_MOD_BUILD $mod.file
             $destination = Join-Path $layoutMods $mod.file
@@ -321,6 +369,7 @@ jobs:
             }
             Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
           }
+
           python scripts/build_optional_mod_catalog.py `
             --verify-output-only `
             --output-dir $layoutMods `
@@ -328,13 +377,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "AppX optional mod verification failed with exit code $LASTEXITCODE."
           }
+
           $installedMods = @(
             Get-ChildItem $layoutMods |
-              Where-Object { ($_.PSIsContainer -and (Test-Path (Join-Path $_.FullName 'mod.json'))) -or $_.Extension -eq '.dusk' }
+              Where-Object {
+                ($_.PSIsContainer -and (Test-Path (Join-Path $_.FullName 'mod.json'))) -or
+                $_.Extension -eq '.dusk'
+              }
           )
+
           if ($installedMods.Count -ne $report.counts.selectable_mod_entries) {
             throw "AppX layout has $($installedMods.Count) optional mods; expected $($report.counts.selectable_mod_entries)."
           }
+
           Write-Host ("Optional mod catalog ready: {0} selectable entries, all disabled by default." -f `
             $installedMods.Count)
           Remove-Item 'S:\m' -Recurse -Force
@@ -350,8 +405,19 @@ jobs:
           $auditDir = "$env:GITHUB_WORKSPACE\TPR-Texture-Audit"
           $baseInputReport = "$auditDir\CP20_WIIU_HD_INPUT.json"
           $overlayInputReport = "$auditDir\CP20_HENRIKO_4K_INPUT.json"
-          Remove-Item $baseAssetDir,$overlayAssetDir,$env:TPR_TEX_WORK,$auditDir -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $baseAssetDir,$env:TPR_TEX_WORK,$auditDir | Out-Null
+
+          Remove-Item `
+            $baseAssetDir, `
+            $overlayAssetDir, `
+            $env:TPR_TEX_WORK, `
+            $auditDir `
+            -Recurse -Force -ErrorAction SilentlyContinue
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $baseAssetDir,$env:TPR_TEX_WORK,$auditDir | Out-Null
+
           $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
 
           gh release download tpr-cp20-build-assets `
@@ -361,9 +427,11 @@ jobs:
             --pattern 'GZ2.part2.rar' `
             --pattern 'GZ2.part3.rar' `
             --clobber
+
           if (-not (Get-ChildItem $baseAssetDir -File)) {
             throw 'Release tpr-cp20-build-assets has no Wii U HD archive assets.'
           }
+
           python scripts/build_layered_texture_pack.py prepare `
             --pack wiiu_hd_base `
             --input $baseAssetDir `
@@ -375,17 +443,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Wii U HD preparation failed with exit code $LASTEXITCODE."
           }
-          Remove-Item $baseAssetDir -Recurse -Force -ErrorAction SilentlyContinue
 
+          Remove-Item $baseAssetDir -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $overlayAssetDir | Out-Null
+
           gh release download tpr-cp20-build-assets `
             --repo "$env:GITHUB_REPOSITORY" `
             --dir $overlayAssetDir `
             --pattern 'GZ2.part??.rar' `
             --clobber
+
           if (-not (Get-ChildItem $overlayAssetDir -File)) {
             throw 'Release tpr-cp20-build-assets has no Henriko 4K archive assets.'
           }
+
           python scripts/build_layered_texture_pack.py prepare `
             --pack henriko_4k `
             --input $overlayAssetDir `
@@ -397,6 +468,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Henriko 4K preparation failed with exit code $LASTEXITCODE."
           }
+
           Remove-Item $overlayAssetDir -Recurse -Force -ErrorAction SilentlyContinue
 
           python scripts/build_layered_texture_pack.py `
@@ -416,41 +488,53 @@ jobs:
             throw "Layered texture builder failed with exit code $LASTEXITCODE."
           }
 
-          $report = Get-Content "$auditDir\CP20_TEXTURE_LAYER_REPORT.json" -Raw | ConvertFrom-Json
+          $report = Get-Content "$auditDir\CP20_TEXTURE_LAYER_REPORT.json" -Raw |
+            ConvertFrom-Json
           $bakedFiles = @(
             Get-ChildItem "$env:TPR_LAYOUT\texture_replacements\GZ2" -Recurse -File |
               Where-Object { $_.Extension -in '.dds','.png' }
           )
+
           if ($bakedFiles.Count -ne $report.counts.final_texture_files) {
             throw "AppX layout has $($bakedFiles.Count) textures; expected $($report.counts.final_texture_files)."
           }
+
           Write-Host ("Layered AppX layout ready: {0} files / {1:N2} GiB; {2} matches; {3} additions; {4} conflicts." -f `
             $report.counts.final_texture_files, `
             ($report.counts.final_texture_bytes / 1GB), `
             $report.counts.matched_override_keys, `
             $report.counts.unique_overlay_addition_keys, `
             $report.counts.conflicting_overlay_duplicate_keys)
+
           Remove-Item "$env:TPR_TEX_WORK" -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Pack and sign layered UWP package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
           function Find-WindowsSdkTool([string] $name) {
             $command = Get-Command $name -ErrorAction SilentlyContinue
-            if ($command) { return $command.Source }
+            if ($command) {
+              return $command.Source
+            }
+
             $sdkBin = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
             $candidate = Get-ChildItem $sdkBin -Recurse -File -Filter $name |
               Where-Object { $_.Directory.Name -eq 'x64' } |
               Sort-Object FullName -Descending |
               Select-Object -First 1
-            if (-not $candidate) { throw "Windows SDK tool not found: $name" }
+
+            if (-not $candidate) {
+              throw "Windows SDK tool not found: $name"
+            }
             return $candidate.FullName
           }
 
           $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
           Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $packageDir | Out-Null
+
           $package = "$packageDir\TwilightPrincessRandomizer_1.4.1.627_x64.msix"
           $makeAppx = Find-WindowsSdkTool 'MakeAppx.exe'
           $signTool = Find-WindowsSdkTool 'SignTool.exe'
@@ -459,6 +543,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "MakeAppx failed with exit code $LASTEXITCODE."
           }
+
           & $signTool sign /fd SHA256 /a `
             /f "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
             /p "${{ steps.cert.outputs.password }}" `
@@ -466,33 +551,55 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "SignTool failed with exit code $LASTEXITCODE."
           }
+
           & $signTool verify /pa /v $package
           if ($LASTEXITCODE -ne 0) {
             throw "Signed MSIX verification failed with exit code $LASTEXITCODE."
           }
+
           if ((Get-Item $package).Length -gt 25GB) {
             throw 'The final MSIX exceeds the current 25 GB Windows package limit.'
           }
 
           Remove-Item "$env:TPR_LAYOUT" -Recurse -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\TPR-Texture-Audit" "$packageDir\Texture-Audit" -Recurse -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\mod_audit" "$packageDir\Mod-Audit" -Recurse -Force
+
+          Copy-Item `
+            "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
+            $packageDir -Force
+          Copy-Item `
+            "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" `
+            $packageDir -Force
+          Copy-Item `
+            "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" `
+            $packageDir -Force
+          Copy-Item `
+            "$env:GITHUB_WORKSPACE\TPR-Texture-Audit" `
+            "$packageDir\Texture-Audit" `
+            -Recurse -Force
+          Copy-Item `
+            "$env:GITHUB_WORKSPACE\mod_audit" `
+            "$packageDir\Mod-Audit" `
+            -Recurse -Force
+
           if (Test-Path "$env:TPR_SUPPORT") {
             Get-ChildItem "$env:TPR_SUPPORT" -File |
-              ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
+              ForEach-Object {
+                Copy-Item $_.FullName $packageDir -Force
+              }
             Remove-Item "$env:TPR_SUPPORT" -Recurse -Force
           }
+
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
-          Write-Host ("Signed layered MSIX: {0:N2} GiB" -f ((Get-Item $package).Length / 1GB))
+          Write-Host ("Signed layered MSIX: {0:N2} GiB" -f `
+            ((Get-Item $package).Length / 1GB))
 
       - name: Release short build drive
         if: always()
         shell: powershell
         run: |
-          if (Test-Path 'S:\') { subst S: /D }
+          if (Test-Path 'S:\') {
+            subst S: /D
+          }
 
       - name: Upload Xbox MSIX directly
         uses: actions/upload-artifact@v7
