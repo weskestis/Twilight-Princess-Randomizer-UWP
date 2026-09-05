@@ -100,6 +100,87 @@ jobs:
           python scripts/test_optional_mod_catalog.py
           python scripts/build_optional_mod_catalog.py --verify-only
 
+      - name: Preflight and build optional mods before compilation
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item 'S:\m' -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $env:TPR_MOD_INPUT,$env:TPR_MOD_BUILD | Out-Null
+          Copy-Item "$env:GITHUB_WORKSPACE\optional_mod_inputs\*.zip" $env:TPR_MOD_INPUT -Force
+          $catalogReport = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
+          $release = gh api `
+            "repos/$env:GITHUB_REPOSITORY/releases/tags/tpr-cp20-build-assets" |
+            ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not inspect release tpr-cp20-build-assets.'
+          }
+          $releaseAssets = @($release.assets)
+          function Get-AssetKey([string]$name) {
+            return ($name.ToLowerInvariant() -replace '[^a-z0-9]', '')
+          }
+          foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
+            $assetKey = Get-AssetKey $asset.name
+            $matches = @($releaseAssets | Where-Object { (Get-AssetKey $_.name) -eq $assetKey })
+            if ($matches.Count -ne 1) {
+              $available = ($releaseAssets.name | Sort-Object) -join ', '
+              throw "Release tpr-cp20-build-assets must contain exactly one normalized match for '$($asset.name)'; found $($matches.Count). Available assets: $available"
+            }
+            $remoteAsset = $matches[0]
+            $expectedPath = Join-Path $env:TPR_MOD_INPUT $asset.name
+            & curl.exe `
+              --fail `
+              --location `
+              --retry 3 `
+              --retry-delay 2 `
+              --silent `
+              --show-error `
+              --header "Accept: application/octet-stream" `
+              --header "Authorization: Bearer $env:GH_TOKEN" `
+              --output "$expectedPath" `
+              "$($remoteAsset.url)"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Could not download optional-mod release asset '$($asset.name)'."
+            }
+            if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
+              throw "Downloaded optional-mod asset '$($remoteAsset.name)' is missing."
+            }
+            $downloadedBytes = (Get-Item -LiteralPath $expectedPath).Length
+            if ($downloadedBytes -ne [int64]$remoteAsset.size) {
+              throw "Downloaded optional-mod asset '$($remoteAsset.name)' has $downloadedBytes bytes; expected $($remoteAsset.size)."
+            }
+          }
+
+          $generatedReport = 'S:\m\CP20_OPTIONAL_MOD_REPORT.json'
+          python scripts/build_optional_mod_catalog.py `
+            --input-dir $env:TPR_MOD_INPUT `
+            --output-dir $env:TPR_MOD_BUILD `
+            --report $generatedReport
+          if ($LASTEXITCODE -ne 0) {
+            throw "Optional mod catalog generation failed with exit code $LASTEXITCODE."
+          }
+
+          python -c "import json,sys; expected=json.load(open(sys.argv[1], encoding='utf-8')); actual=json.load(open(sys.argv[2], encoding='utf-8')); raise SystemExit(0 if actual == expected else 1)" `
+            'mod_audit\CP20_OPTIONAL_MOD_REPORT.json' $generatedReport
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Generated optional mod catalog content does not match the audited report.'
+          }
+
+          python scripts/build_optional_mod_catalog.py `
+            --verify-output-only `
+            --output-dir $env:TPR_MOD_BUILD `
+            --report 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Generated optional mod verification failed with exit code $LASTEXITCODE."
+          }
+          if ($catalogReport.activation_default -ne 'disabled') {
+            throw 'Optional mod catalog must be disabled by default.'
+          }
+          Write-Host ("Early optional-mod preflight passed: {0} selectable entries, all disabled by default." -f `
+            $catalogReport.counts.selectable_mod_entries)
+          Remove-Item $env:TPR_MOD_INPUT -Recurse -Force
+
       - name: Assemble pinned randomizer plus UWP source
         shell: powershell
         run: python scripts/assemble_port.py --output "$env:TPR_SRC"
@@ -204,100 +285,26 @@ jobs:
             } |
             ForEach-Object { Copy-Item $_.FullName "$env:TPR_SUPPORT" -Force }
 
-          # Compilation and the 6+ GiB texture staging phase never coexist. This
-          # keeps the job inside the standard Windows runner's 14 GB scratch disk.
           Remove-Item "$env:TPR_SRC","$env:TPR_FEED","$env:TPR_PKG" -Recurse -Force -ErrorAction SilentlyContinue
           Write-Host ("Free disk before textures: {0:N2} GiB" -f ((Get-PSDrive C).Free / 1GB))
 
-      - name: Inject selectable optional mods disabled by default
+      - name: Inject prevalidated selectable optional mods disabled by default
         shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          Remove-Item 'S:\m' -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force $env:TPR_MOD_INPUT,$env:TPR_MOD_BUILD | Out-Null
-          Copy-Item "$env:GITHUB_WORKSPACE\optional_mod_inputs\*.zip" $env:TPR_MOD_INPUT -Force
-          $catalogReport = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
-          $release = gh api `
-            "repos/$env:GITHUB_REPOSITORY/releases/tags/tpr-cp20-build-assets" |
-            ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not inspect release tpr-cp20-build-assets.'
+          $report = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
+          if (-not (Test-Path -LiteralPath $env:TPR_MOD_BUILD -PathType Container)) {
+            throw 'Prevalidated optional mod output is missing.'
           }
-          $releaseAssets = @($release.assets)
-          function Get-AssetKey([string]$name) {
-            return ($name.ToLowerInvariant() -replace '[^a-z0-9]', '')
-          }
-          foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
-            # GitHub may rewrite spaces, punctuation, or parentheses in uploaded
-            # release filenames. Resolve the exact remote name by a normalized
-            # alphanumeric key, then restore the audited original local name.
-            $assetKey = Get-AssetKey $asset.name
-            $matches = @($releaseAssets | Where-Object { (Get-AssetKey $_.name) -eq $assetKey })
-            if ($matches.Count -ne 1) {
-              $available = ($releaseAssets.name | Sort-Object) -join ', '
-              throw "Release tpr-cp20-build-assets must contain exactly one normalized match for '$($asset.name)'; found $($matches.Count). Available assets: $available"
-            }
-            $remoteAsset = $matches[0]
-            $remoteName = $remoteAsset.name
-            $expectedPath = Join-Path $env:TPR_MOD_INPUT $asset.name
-            # Download the resolved asset directly by its REST asset URL. This
-            # bypasses gh release download's glob matcher completely.
-            & curl.exe `
-              --fail `
-              --location `
-              --retry 3 `
-              --retry-delay 2 `
-              --silent `
-              --show-error `
-              --header "Accept: application/octet-stream" `
-              --header "Authorization: Bearer $env:GH_TOKEN" `
-              --output "$expectedPath" `
-              "$($remoteAsset.url)"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Could not download optional-mod release asset '$($asset.name)'."
-            }
-            if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
-              throw "Downloaded optional-mod asset '$remoteName' is missing."
-            }
-            $downloadedBytes = (Get-Item -LiteralPath $expectedPath).Length
-            if ($downloadedBytes -ne [int64]$remoteAsset.size) {
-              throw "Downloaded optional-mod asset '$remoteName' has $downloadedBytes bytes; expected $($remoteAsset.size)."
-            }
-          }
-
-          $generatedReport = 'S:\m\CP20_OPTIONAL_MOD_REPORT.json'
-          python scripts/build_optional_mod_catalog.py `
-            --input-dir $env:TPR_MOD_INPUT `
-            --output-dir $env:TPR_MOD_BUILD `
-            --report $generatedReport
-          if ($LASTEXITCODE -ne 0) {
-            throw "Optional mod catalog generation failed with exit code $LASTEXITCODE."
-          }
-          $report = $catalogReport
-          if ($report.activation_default -ne 'disabled') {
-            throw 'Optional mod catalog must be disabled by default.'
-          }
-          $generatedHash = (Get-FileHash $generatedReport -Algorithm SHA256).Hash
-          $expectedHash = (Get-FileHash 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json' -Algorithm SHA256).Hash
-          if ($generatedHash -ne $expectedHash) {
-            throw 'Generated optional mod catalog does not match the audited report.'
-          }
-          python scripts/build_optional_mod_catalog.py `
-            --verify-output-only `
-            --output-dir $env:TPR_MOD_BUILD `
-            --report 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json'
-          if ($LASTEXITCODE -ne 0) {
-            throw "Generated optional mod verification failed with exit code $LASTEXITCODE."
-          }
-
           $layoutMods = "$env:TPR_LAYOUT\mods"
           Remove-Item $layoutMods -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $layoutMods | Out-Null
           foreach ($mod in $report.mods) {
             $source = Join-Path $env:TPR_MOD_BUILD $mod.file
             $destination = Join-Path $layoutMods $mod.file
+            if (-not (Test-Path -LiteralPath $source)) {
+              throw "Prevalidated optional mod '$($mod.file)' is missing."
+            }
             Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
           }
           python scripts/build_optional_mod_catalog.py `
@@ -333,9 +340,6 @@ jobs:
           New-Item -ItemType Directory -Force -Path $baseAssetDir,$env:TPR_TEX_WORK,$auditDir | Out-Null
           $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
 
-          # Extract and consume the smaller base before downloading the overlay.
-          # The two compressed packs therefore never share disk with both full
-          # extracted trees.
           gh release download tpr-cp20-build-assets `
             --repo "$env:GITHUB_REPOSITORY" `
             --dir $baseAssetDir `
@@ -456,8 +460,6 @@ jobs:
             throw 'The final MSIX exceeds the current 25 GB Windows package limit.'
           }
 
-          # Once MakeAppx has emitted the package, remove its 6+ GiB input layout
-          # before Actions creates the downloadable artifact stream.
           Remove-Item "$env:TPR_LAYOUT" -Recurse -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
@@ -465,7 +467,8 @@ jobs:
           Copy-Item "$env:GITHUB_WORKSPACE\TPR-Texture-Audit" "$packageDir\Texture-Audit" -Recurse -Force
           Copy-Item "$env:GITHUB_WORKSPACE\mod_audit" "$packageDir\Mod-Audit" -Recurse -Force
           if (Test-Path "$env:TPR_SUPPORT") {
-            Get-ChildItem "$env:TPR_SUPPORT" -File | ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
+            Get-ChildItem "$env:TPR_SUPPORT" -File |
+              ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
             Remove-Item "$env:TPR_SUPPORT" -Recurse -Force
           }
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
