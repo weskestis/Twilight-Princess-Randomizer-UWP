@@ -219,34 +219,42 @@ jobs:
           New-Item -ItemType Directory -Force $env:TPR_MOD_INPUT,$env:TPR_MOD_BUILD | Out-Null
           Copy-Item "$env:GITHUB_WORKSPACE\optional_mod_inputs\*.zip" $env:TPR_MOD_INPUT -Force
           $catalogReport = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
+          $release = gh release view tpr-cp20-build-assets `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --json assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not inspect release tpr-cp20-build-assets.'
+          }
+          $releaseAssets = @($release.assets)
+          function Get-AssetKey([string]$name) {
+            return ($name.ToLowerInvariant() -replace '[^a-z0-9]', '')
+          }
           foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
-            # GitHub sanitizes spaces and parentheses in release-asset filenames.
-            # Match the uploaded safe name, then restore the audited original name
-            # before hashing and deterministic catalog generation.
-            $assetPattern = switch -Exact ($asset.name) {
-              'HourOfTwilight - Patron Build v1 GC.zip' { 'HourOfTwilight*Patron*Build*v1*GC.zip'; break }
-              'tunic packs.zip' { 'tunic*packs.zip'; break }
-              'woof_woof (1).zip' { 'woof_woof*1*.zip'; break }
-              default { $asset.name }
+            # GitHub may rewrite spaces, punctuation, or parentheses in uploaded
+            # release filenames. Resolve the exact remote name by a normalized
+            # alphanumeric key, then restore the audited original local name.
+            $assetKey = Get-AssetKey $asset.name
+            $matches = @($releaseAssets | Where-Object { (Get-AssetKey $_.name) -eq $assetKey })
+            if ($matches.Count -ne 1) {
+              $available = ($releaseAssets.name | Sort-Object) -join ', '
+              throw "Release tpr-cp20-build-assets must contain exactly one normalized match for '$($asset.name)'; found $($matches.Count). Available assets: $available"
             }
+            $remoteName = $matches[0].name
             gh release download tpr-cp20-build-assets `
               --repo "$env:GITHUB_REPOSITORY" `
               --dir $env:TPR_MOD_INPUT `
-              --pattern $assetPattern `
+              --pattern $remoteName `
               --clobber
             if ($LASTEXITCODE -ne 0) {
               throw "Could not download optional-mod release asset '$($asset.name)'."
             }
-            $downloaded = @(
-              Get-ChildItem -LiteralPath $env:TPR_MOD_INPUT -File |
-                Where-Object { $_.Name -like $assetPattern }
-            )
-            if ($downloaded.Count -ne 1) {
-              throw "Release tpr-cp20-build-assets must contain exactly one match for '$assetPattern'; found $($downloaded.Count)."
+            $downloaded = Join-Path $env:TPR_MOD_INPUT $remoteName
+            if (-not (Test-Path -LiteralPath $downloaded -PathType Leaf)) {
+              throw "Downloaded optional-mod asset '$remoteName' is missing."
             }
             $expectedPath = Join-Path $env:TPR_MOD_INPUT $asset.name
-            if ($downloaded[0].FullName -ne $expectedPath) {
-              Move-Item -LiteralPath $downloaded[0].FullName -Destination $expectedPath -Force
+            if ($downloaded -ne $expectedPath) {
+              Move-Item -LiteralPath $downloaded -Destination $expectedPath -Force
             }
           }
 
