@@ -1,0 +1,470 @@
+name: Build Twilight Princess Randomizer UWP CP20
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xbox-uwp-x64:
+    name: Xbox UWP x64
+    runs-on: windows-2022
+    timeout-minutes: 360
+
+    steps:
+      - name: Load verified Checkpoint 20 source release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Checkpoint-20.zip'
+          $expectedHash = '79dd0351ba3f473175e60e96ac8b4d60fb19ee503adc0c462e8c1b9b4ef46d89'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-cp20-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-cp20-extract'
+          New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
+
+          gh release download tpr-cp20-source `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $archiveName `
+            --dir $downloadDir
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not download $archiveName from release tpr-cp20-source."
+          }
+
+          $archive = Join-Path $downloadDir $archiveName
+          if (-not (Test-Path -LiteralPath $archive)) {
+            throw "Release tpr-cp20-source is missing $archiveName."
+          }
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) {
+            throw "Checkpoint 20 SHA-256 mismatch: expected $expectedHash; got $actualHash."
+          }
+
+          Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
+          $sourceRoot = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
+          if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'scripts\verify_static.py'))) {
+            throw 'Checkpoint 20 archive root or source files are invalid.'
+          }
+          Get-ChildItem -LiteralPath $sourceRoot -Force |
+            Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
+          Write-Host "Verified and loaded Checkpoint 20: $actualHash"
+
+      - name: Enable long Git paths
+        shell: powershell
+        run: git config --global core.longpaths true
+
+      - name: Enable MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Ninja and native dependencies
+        shell: powershell
+        run: |
+          choco install ninja 7zip -y --no-progress
+          if (Test-Path 'C:\vcpkg\vcpkg.exe') {
+            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
+          }
+
+      - name: Create short Windows build root
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path 'S:\') { subst S: /D 2>$null }
+          subst S: "$env:GITHUB_WORKSPACE"
+          New-Item -ItemType Directory -Force 'S:\tmp' | Out-Null
+          "TPR_SRC=S:\s" >> $env:GITHUB_ENV
+          "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
+          "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
+          "TPR_LAYOUT=S:\l" >> $env:GITHUB_ENV
+          "TPR_SUPPORT=S:\u" >> $env:GITHUB_ENV
+          "TPR_TEX_WORK=S:\t" >> $env:GITHUB_ENV
+          "TPR_MOD_INPUT=S:\m\i" >> $env:GITHUB_ENV
+          "TPR_MOD_BUILD=S:\m\o" >> $env:GITHUB_ENV
+          "TMP=S:\tmp" >> $env:GITHUB_ENV
+          "TEMP=S:\tmp" >> $env:GITHUB_ENV
+
+      - name: Verify custom identity and artwork
+        shell: powershell
+        run: python scripts/verify_static.py
+
+      - name: Test Aurora-key texture layering
+        shell: powershell
+        run: python scripts/test_layered_texture_pack.py
+
+      - name: Verify checked-in optional mod catalog
+        shell: powershell
+        run: |
+          python scripts/test_optional_mod_catalog.py
+          python scripts/build_optional_mod_catalog.py --verify-only
+
+      - name: Assemble pinned randomizer plus UWP source
+        shell: powershell
+        run: python scripts/assemble_port.py --output "$env:TPR_SRC"
+
+      - name: Verify assembled source
+        shell: powershell
+        run: python scripts/verify_static.py "$env:TPR_SRC"
+
+      - name: Configure randomizer static feed
+        shell: powershell
+        run: |
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_UWP=ON `
+            -DDUSK_ENABLE_UPDATE_CHECKER=OFF `
+            -DDUSK_ENABLE_DISCORD=OFF `
+            -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
+            -DDUSK_ENABLE_CODE_MODS=OFF `
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp
+
+      - name: Build randomizer static feed
+        shell: powershell
+        run: cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
+
+      - name: Configure fresh UWP package project
+        shell: powershell
+        run: |
+          cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_SYSTEM_NAME=WindowsStore `
+            -DCMAKE_SYSTEM_VERSION=10.0 `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_DIR="$env:TPR_FEED"
+
+      - name: Create sideload signing certificate
+        id: cert
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $password = [Guid]::NewGuid().ToString('N')
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=TwilightPrincessRandomizer' `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -KeyExportPolicy Exportable `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+          Export-PfxCertificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Password $securePassword | Out-Null
+          Export-Certificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+          Import-Certificate -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          Write-Output "::add-mask::$password"
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+          "password=$password" >> $env:GITHUB_OUTPUT
+
+      - name: Build base UWP package layout
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
+            /p:AppxPackageSigningEnabled=false `
+            /p:AppxBundle=Never `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:GenerateAppxPackageOnBuild=true
+          if ($LASTEXITCODE -ne 0) {
+            throw "Base UWP layout build failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Preserve AppX layout and release compiler disk
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $layoutCandidates = @(
+            Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter AppxManifest.xml |
+              Where-Object { Test-Path (Join-Path $_.Directory.FullName 'TwilightPrincessRandomizer.exe') } |
+              ForEach-Object { $_.Directory.FullName } |
+              Sort-Object -Unique
+          )
+          if ($layoutCandidates.Count -ne 1) {
+            Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter AppxManifest.xml | Select-Object FullName
+            throw "Expected exactly one compiled AppX layout; found $($layoutCandidates.Count)."
+          }
+          Remove-Item "$env:TPR_LAYOUT" -Recurse -Force -ErrorAction SilentlyContinue
+          Move-Item -LiteralPath $layoutCandidates[0] -Destination "$env:TPR_LAYOUT"
+          if (-not (Test-Path "$env:TPR_LAYOUT\AppxManifest.xml")) {
+            throw 'Preserved AppX layout has no AppxManifest.xml.'
+          }
+
+          Remove-Item "$env:TPR_SUPPORT" -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force "$env:TPR_SUPPORT" | Out-Null
+          Get-ChildItem "$env:TPR_PKG" -Recurse -File |
+            Where-Object {
+              $_.Extension -in '.appx','.msix','.appxbundle','.msixbundle' -and
+              $_.FullName -match '[\\/]Dependencies[\\/]'
+            } |
+            ForEach-Object { Copy-Item $_.FullName "$env:TPR_SUPPORT" -Force }
+
+          # Compilation and the 6+ GiB texture staging phase never coexist. This
+          # keeps the job inside the standard Windows runner's 14 GB scratch disk.
+          Remove-Item "$env:TPR_SRC","$env:TPR_FEED","$env:TPR_PKG" -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host ("Free disk before textures: {0:N2} GiB" -f ((Get-PSDrive C).Free / 1GB))
+
+      - name: Inject selectable optional mods disabled by default
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item 'S:\m' -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $env:TPR_MOD_INPUT,$env:TPR_MOD_BUILD | Out-Null
+          Copy-Item "$env:GITHUB_WORKSPACE\optional_mod_inputs\*.zip" $env:TPR_MOD_INPUT -Force
+          $catalogReport = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
+          foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
+            # GitHub sanitizes spaces and parentheses in release-asset filenames.
+            # Match the uploaded safe name, then restore the audited original name
+            # before hashing and deterministic catalog generation.
+            $assetPattern = switch -Exact ($asset.name) {
+              'HourOfTwilight - Patron Build v1 GC.zip' { 'HourOfTwilight*Patron*Build*v1*GC.zip'; break }
+              'tunic packs.zip' { 'tunic*packs.zip'; break }
+              'woof_woof (1).zip' { 'woof_woof*1*.zip'; break }
+              default { $asset.name }
+            }
+            gh release download tpr-cp20-build-assets `
+              --repo "$env:GITHUB_REPOSITORY" `
+              --dir $env:TPR_MOD_INPUT `
+              --pattern $assetPattern `
+              --clobber
+            if ($LASTEXITCODE -ne 0) {
+              throw "Could not download optional-mod release asset '$($asset.name)'."
+            }
+            $downloaded = @(
+              Get-ChildItem -LiteralPath $env:TPR_MOD_INPUT -File |
+                Where-Object { $_.Name -like $assetPattern }
+            )
+            if ($downloaded.Count -ne 1) {
+              throw "Release tpr-cp20-build-assets must contain exactly one match for '$assetPattern'; found $($downloaded.Count)."
+            }
+            $expectedPath = Join-Path $env:TPR_MOD_INPUT $asset.name
+            if ($downloaded[0].FullName -ne $expectedPath) {
+              Move-Item -LiteralPath $downloaded[0].FullName -Destination $expectedPath -Force
+            }
+          }
+
+          $generatedReport = 'S:\m\CP20_OPTIONAL_MOD_REPORT.json'
+          python scripts/build_optional_mod_catalog.py `
+            --input-dir $env:TPR_MOD_INPUT `
+            --output-dir $env:TPR_MOD_BUILD `
+            --report $generatedReport
+          if ($LASTEXITCODE -ne 0) {
+            throw "Optional mod catalog generation failed with exit code $LASTEXITCODE."
+          }
+          $report = $catalogReport
+          if ($report.activation_default -ne 'disabled') {
+            throw 'Optional mod catalog must be disabled by default.'
+          }
+          $generatedHash = (Get-FileHash $generatedReport -Algorithm SHA256).Hash
+          $expectedHash = (Get-FileHash 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json' -Algorithm SHA256).Hash
+          if ($generatedHash -ne $expectedHash) {
+            throw 'Generated optional mod catalog does not match the audited report.'
+          }
+          python scripts/build_optional_mod_catalog.py `
+            --verify-output-only `
+            --output-dir $env:TPR_MOD_BUILD `
+            --report 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Generated optional mod verification failed with exit code $LASTEXITCODE."
+          }
+
+          $layoutMods = "$env:TPR_LAYOUT\mods"
+          Remove-Item $layoutMods -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $layoutMods | Out-Null
+          foreach ($mod in $report.mods) {
+            $source = Join-Path $env:TPR_MOD_BUILD $mod.file
+            $destination = Join-Path $layoutMods $mod.file
+            Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
+          }
+          python scripts/build_optional_mod_catalog.py `
+            --verify-output-only `
+            --output-dir $layoutMods `
+            --report 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json'
+          if ($LASTEXITCODE -ne 0) {
+            throw "AppX optional mod verification failed with exit code $LASTEXITCODE."
+          }
+          $installedMods = @(
+            Get-ChildItem $layoutMods |
+              Where-Object { ($_.PSIsContainer -and (Test-Path (Join-Path $_.FullName 'mod.json'))) -or $_.Extension -eq '.dusk' }
+          )
+          if ($installedMods.Count -ne $report.counts.selectable_mod_entries) {
+            throw "AppX layout has $($installedMods.Count) optional mods; expected $($report.counts.selectable_mod_entries)."
+          }
+          Write-Host ("Optional mod catalog ready: {0} selectable entries, all disabled by default." -f `
+            $installedMods.Count)
+          Remove-Item 'S:\m' -Recurse -Force
+
+      - name: Build layered Wii U HD plus Henriko 4K texture pack
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baseAssetDir = "$env:GITHUB_WORKSPACE\tpr-wiiu-hd-assets"
+          $overlayAssetDir = "$env:GITHUB_WORKSPACE\tpr-henriko-4k-assets"
+          $auditDir = "$env:GITHUB_WORKSPACE\TPR-Texture-Audit"
+          $baseInputReport = "$auditDir\CP20_WIIU_HD_INPUT.json"
+          $overlayInputReport = "$auditDir\CP20_HENRIKO_4K_INPUT.json"
+          Remove-Item $baseAssetDir,$overlayAssetDir,$env:TPR_TEX_WORK,$auditDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $baseAssetDir,$env:TPR_TEX_WORK,$auditDir | Out-Null
+          $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
+
+          # Extract and consume the smaller base before downloading the overlay.
+          # The two compressed packs therefore never share disk with both full
+          # extracted trees.
+          gh release download tpr-cp20-build-assets `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --dir $baseAssetDir `
+            --pattern 'GZ2.part1.rar' `
+            --pattern 'GZ2.part2.rar' `
+            --pattern 'GZ2.part3.rar' `
+            --clobber
+          if (-not (Get-ChildItem $baseAssetDir -File)) {
+            throw 'Release tpr-cp20-build-assets has no Wii U HD archive assets.'
+          }
+          python scripts/build_layered_texture_pack.py prepare `
+            --pack wiiu_hd_base `
+            --input $baseAssetDir `
+            --work-dir "$env:TPR_TEX_WORK\base-extract" `
+            --output "$env:TPR_TEX_WORK\base\GZ2" `
+            --archive-report $baseInputReport `
+            --extractor $sevenZip `
+            --delete-source-archives
+          if ($LASTEXITCODE -ne 0) {
+            throw "Wii U HD preparation failed with exit code $LASTEXITCODE."
+          }
+          Remove-Item $baseAssetDir -Recurse -Force -ErrorAction SilentlyContinue
+
+          New-Item -ItemType Directory -Force -Path $overlayAssetDir | Out-Null
+          gh release download tpr-cp20-build-assets `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --dir $overlayAssetDir `
+            --pattern 'GZ2.part??.rar' `
+            --clobber
+          if (-not (Get-ChildItem $overlayAssetDir -File)) {
+            throw 'Release tpr-cp20-build-assets has no Henriko 4K archive assets.'
+          }
+          python scripts/build_layered_texture_pack.py prepare `
+            --pack henriko_4k `
+            --input $overlayAssetDir `
+            --work-dir "$env:TPR_TEX_WORK\overlay-extract" `
+            --output "$env:TPR_TEX_WORK\overlay\GZ2" `
+            --archive-report $overlayInputReport `
+            --extractor $sevenZip `
+            --delete-source-archives
+          if ($LASTEXITCODE -ne 0) {
+            throw "Henriko 4K preparation failed with exit code $LASTEXITCODE."
+          }
+          Remove-Item $overlayAssetDir -Recurse -Force -ErrorAction SilentlyContinue
+
+          python scripts/build_layered_texture_pack.py `
+            --base-input "$env:TPR_TEX_WORK\base\GZ2" `
+            --overlay-input "$env:TPR_TEX_WORK\overlay\GZ2" `
+            --base-archive-report $baseInputReport `
+            --overlay-archive-report $overlayInputReport `
+            --work-dir "$env:TPR_TEX_WORK\layer" `
+            --output "$env:TPR_LAYOUT\texture_replacements\GZ2" `
+            --report-json "$auditDir\CP20_TEXTURE_LAYER_REPORT.json" `
+            --report-md "$auditDir\CP20_TEXTURE_LAYER_REPORT.md" `
+            --inventory-csv "$auditDir\CP20_TEXTURE_INVENTORY.csv" `
+            --decisions-csv "$auditDir\CP20_TEXTURE_DECISIONS.csv" `
+            --expectations "texture_audit\CP20_TEXTURE_EXPECTATIONS.json" `
+            --link-mode move
+          if ($LASTEXITCODE -ne 0) {
+            throw "Layered texture builder failed with exit code $LASTEXITCODE."
+          }
+
+          $report = Get-Content "$auditDir\CP20_TEXTURE_LAYER_REPORT.json" -Raw | ConvertFrom-Json
+          $bakedFiles = @(
+            Get-ChildItem "$env:TPR_LAYOUT\texture_replacements\GZ2" -Recurse -File |
+              Where-Object { $_.Extension -in '.dds','.png' }
+          )
+          if ($bakedFiles.Count -ne $report.counts.final_texture_files) {
+            throw "AppX layout has $($bakedFiles.Count) textures; expected $($report.counts.final_texture_files)."
+          }
+          Write-Host ("Layered AppX layout ready: {0} files / {1:N2} GiB; {2} matches; {3} additions; {4} conflicts." -f `
+            $report.counts.final_texture_files, `
+            ($report.counts.final_texture_bytes / 1GB), `
+            $report.counts.matched_override_keys, `
+            $report.counts.unique_overlay_addition_keys, `
+            $report.counts.conflicting_overlay_duplicate_keys)
+          Remove-Item "$env:TPR_TEX_WORK" -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Pack and sign layered UWP package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Find-WindowsSdkTool([string] $name) {
+            $command = Get-Command $name -ErrorAction SilentlyContinue
+            if ($command) { return $command.Source }
+            $sdkBin = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+            $candidate = Get-ChildItem $sdkBin -Recurse -File -Filter $name |
+              Where-Object { $_.Directory.Name -eq 'x64' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $candidate) { throw "Windows SDK tool not found: $name" }
+            return $candidate.FullName
+          }
+
+          $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
+          Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $packageDir | Out-Null
+          $package = "$packageDir\TwilightPrincessRandomizer_1.4.1.627_x64.msix"
+          $makeAppx = Find-WindowsSdkTool 'MakeAppx.exe'
+          $signTool = Find-WindowsSdkTool 'SignTool.exe'
+
+          & $makeAppx pack /o /h SHA256 /d "$env:TPR_LAYOUT" /p $package
+          if ($LASTEXITCODE -ne 0) {
+            throw "MakeAppx failed with exit code $LASTEXITCODE."
+          }
+          & $signTool sign /fd SHA256 /a `
+            /f "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            /p "${{ steps.cert.outputs.password }}" `
+            $package
+          if ($LASTEXITCODE -ne 0) {
+            throw "SignTool failed with exit code $LASTEXITCODE."
+          }
+          & $signTool verify /pa /v $package
+          if ($LASTEXITCODE -ne 0) {
+            throw "Signed MSIX verification failed with exit code $LASTEXITCODE."
+          }
+          if ((Get-Item $package).Length -gt 25GB) {
+            throw 'The final MSIX exceeds the current 25 GB Windows package limit.'
+          }
+
+          # Once MakeAppx has emitted the package, remove its 6+ GiB input layout
+          # before Actions creates the downloadable artifact stream.
+          Remove-Item "$env:TPR_LAYOUT" -Recurse -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\TPR-Texture-Audit" "$packageDir\Texture-Audit" -Recurse -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\mod_audit" "$packageDir\Mod-Audit" -Recurse -Force
+          if (Test-Path "$env:TPR_SUPPORT") {
+            Get-ChildItem "$env:TPR_SUPPORT" -File | ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
+            Remove-Item "$env:TPR_SUPPORT" -Recurse -Force
+          }
+          Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
+          Write-Host ("Signed layered MSIX: {0:N2} GiB" -f ((Get-Item $package).Length / 1GB))
+
+      - name: Release short build drive
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path 'S:\') { subst S: /D }
+
+      - name: Upload Xbox/UWP package
+        uses: actions/upload-artifact@v7
+        with:
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.627-Xbox
+          path: TPR-Xbox-Package/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
