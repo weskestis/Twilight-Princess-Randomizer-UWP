@@ -220,7 +220,7 @@ jobs:
           Copy-Item "$env:GITHUB_WORKSPACE\optional_mod_inputs\*.zip" $env:TPR_MOD_INPUT -Force
           $catalogReport = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
           foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
-            gh release download tpr-optional-mod-assets `
+            gh release download tpr-cp20-source `
               --repo "$env:GITHUB_REPOSITORY" `
               --dir $env:TPR_MOD_INPUT `
               --pattern $asset.name `
@@ -229,7 +229,7 @@ jobs:
               throw "Could not download optional-mod release asset '$($asset.name)'."
             }
             if (-not (Test-Path -LiteralPath (Join-Path $env:TPR_MOD_INPUT $asset.name))) {
-              throw "Private release tpr-optional-mod-assets is missing '$($asset.name)'."
+              throw "Release tpr-cp20-source is missing '$($asset.name)'."
             }
           }
 
@@ -302,12 +302,15 @@ jobs:
           # Extract and consume the smaller base before downloading the overlay.
           # The two compressed packs therefore never share disk with both full
           # extracted trees.
-          gh release download tpr-wiiu-hd-textures `
+          gh release download tpr-cp20-source `
             --repo "$env:GITHUB_REPOSITORY" `
             --dir $baseAssetDir `
+            --pattern 'GZ2.part1.rar' `
+            --pattern 'GZ2.part2.rar' `
+            --pattern 'GZ2.part3.rar' `
             --clobber
           if (-not (Get-ChildItem $baseAssetDir -File)) {
-            throw 'Release tpr-wiiu-hd-textures has no archive assets.'
+            throw 'Release tpr-cp20-source has no Wii U HD archive assets.'
           }
           python scripts/build_layered_texture_pack.py prepare `
             --pack wiiu_hd_base `
@@ -323,12 +326,13 @@ jobs:
           Remove-Item $baseAssetDir -Recurse -Force -ErrorAction SilentlyContinue
 
           New-Item -ItemType Directory -Force -Path $overlayAssetDir | Out-Null
-          gh release download tpr-henriko-4k-textures `
+          gh release download tpr-cp20-source `
             --repo "$env:GITHUB_REPOSITORY" `
             --dir $overlayAssetDir `
+            --pattern 'GZ2.part??.rar' `
             --clobber
           if (-not (Get-ChildItem $overlayAssetDir -File)) {
-            throw 'Release tpr-henriko-4k-textures has no archive assets.'
+            throw 'Release tpr-cp20-source has no Henriko 4K archive assets.'
           }
           python scripts/build_layered_texture_pack.py prepare `
             --pack henriko_4k `
