@@ -125,6 +125,7 @@ jobs:
           foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
             $assetKey = Get-AssetKey $asset.name
             $matches = @($releaseAssets | Where-Object { (Get-AssetKey $_.name) -eq $assetKey })
+
             if ($matches.Count -ne 1) {
               $available = ($releaseAssets.name | Sort-Object) -join ', '
               throw "Release tpr-cp20-build-assets must contain exactly one normalized match for '$($asset.name)'; found $($matches.Count). Available assets: $available"
@@ -146,6 +147,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw "Could not download optional-mod release asset '$($asset.name)'."
             }
+
             if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
               throw "Downloaded optional-mod asset '$($remoteAsset.name)' is missing."
             }
@@ -208,46 +210,32 @@ jobs:
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
 
           Write-Host 'Exporting certificate files...'
+          $pfxPath = "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx"
+          $cerPath = "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer"
           Export-PfxCertificate `
             -Cert $cert `
-            -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            -FilePath $pfxPath `
             -Password $securePassword | Out-Null
           Export-Certificate `
             -Cert $cert `
-            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+            -FilePath $cerPath | Out-Null
 
-          function Add-CertificateToCurrentUserStore(
-            [string] $storeName,
-            [System.Security.Cryptography.X509Certificates.X509Certificate2] $certificate
-          ) {
-            $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
-              $storeName,
-              [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
-            )
-            try {
-              $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-              $store.Add($certificate)
-            }
-            finally {
-              $store.Close()
-            }
+          if (-not (Test-Path -LiteralPath $pfxPath -PathType Leaf)) {
+            throw 'Signing PFX export is missing.'
+          }
+          if (-not (Test-Path -LiteralPath $cerPath -PathType Leaf)) {
+            throw 'Public signing certificate export is missing.'
           }
 
-          Write-Host 'Adding certificate to CurrentUser trust stores...'
-          Add-CertificateToCurrentUserStore 'TrustedPeople' $cert
-          Add-CertificateToCurrentUserStore 'Root' $cert
-
-          if (-not (Test-Path -LiteralPath "Cert:\CurrentUser\TrustedPeople\$($cert.Thumbprint)")) {
-            throw 'Signing certificate was not added to CurrentUser TrustedPeople.'
-          }
-          if (-not (Test-Path -LiteralPath "Cert:\CurrentUser\Root\$($cert.Thumbprint)")) {
-            throw 'Signing certificate was not added to CurrentUser Root.'
+          $exportedPublicCert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($cerPath)
+          if ($exportedPublicCert.Thumbprint -ne $cert.Thumbprint) {
+            throw 'Exported public certificate thumbprint does not match the signing certificate.'
           }
 
           Write-Output "::add-mask::$password"
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "password=$password" >> $env:GITHUB_OUTPUT
-          Write-Host 'Signing certificate trust stores are ready.'
+          Write-Host 'Signing certificate files passed preflight without modifying trust stores.'
 
       - name: Assemble pinned randomizer plus UWP source
         shell: powershell
@@ -328,6 +316,7 @@ jobs:
 
           Remove-Item "$env:TPR_SUPPORT" -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force "$env:TPR_SUPPORT" | Out-Null
+
           Get-ChildItem "$env:TPR_PKG" -Recurse -File |
             Where-Object {
               $_.Extension -in '.appx','.msix','.appxbundle','.msixbundle' -and
@@ -552,9 +541,49 @@ jobs:
             throw "SignTool failed with exit code $LASTEXITCODE."
           }
 
-          & $signTool verify /pa /v $package
-          if ($LASTEXITCODE -ne 0) {
-            throw "Signed MSIX verification failed with exit code $LASTEXITCODE."
+          $previousErrorActionPreference = $ErrorActionPreference
+          try {
+            $ErrorActionPreference = 'Continue'
+            $verifyLines = @(& $signTool verify /pa /v $package 2>&1)
+            $verifyExitCode = $LASTEXITCODE
+          }
+          finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+          }
+
+          $verifyText = $verifyLines -join [Environment]::NewLine
+          Write-Host $verifyText
+
+          if ($verifyExitCode -ne 0) {
+            $isExpectedUntrustedRoot = (
+              $verifyText -match '0x800B0109' -or
+              $verifyText -match 'terminated in a root certificate which is not trusted'
+            )
+            $hasExactlyOneError = $verifyText -match 'Number of errors:\s*1'
+            $hasOtherSignatureFailure = (
+              $verifyText -match 'hash.*does not match' -or
+              $verifyText -match 'No signature found' -or
+              $verifyText -match 'not digitally signed' -or
+              $verifyText -match 'file format cannot be verified'
+            )
+
+            if (-not $isExpectedUntrustedRoot -or -not $hasExactlyOneError -or $hasOtherSignatureFailure) {
+              throw "Signed MSIX verification failed with exit code $verifyExitCode."
+            }
+
+            Write-Host 'MSIX signature verified; the only expected warning is the runner not trusting the temporary self-signed root.'
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($package)
+          try {
+            $signatureEntry = $packageArchive.GetEntry('AppxSignature.p7x')
+            if (-not $signatureEntry -or $signatureEntry.Length -le 0) {
+              throw 'Signed MSIX is missing AppxSignature.p7x.'
+            }
+          }
+          finally {
+            $packageArchive.Dispose()
           }
 
           if ((Get-Item $package).Length -gt 25GB) {
@@ -562,24 +591,11 @@ jobs:
           }
 
           Remove-Item "$env:TPR_LAYOUT" -Recurse -Force
-
-          Copy-Item `
-            "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
-            $packageDir -Force
-          Copy-Item `
-            "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" `
-            $packageDir -Force
-          Copy-Item `
-            "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" `
-            $packageDir -Force
-          Copy-Item `
-            "$env:GITHUB_WORKSPACE\TPR-Texture-Audit" `
-            "$packageDir\Texture-Audit" `
-            -Recurse -Force
-          Copy-Item `
-            "$env:GITHUB_WORKSPACE\mod_audit" `
-            "$packageDir\Mod-Audit" `
-            -Recurse -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\TPR-Texture-Audit" "$packageDir\Texture-Audit" -Recurse -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\mod_audit" "$packageDir\Mod-Audit" -Recurse -Force
 
           if (Test-Path "$env:TPR_SUPPORT") {
             Get-ChildItem "$env:TPR_SUPPORT" -File |
