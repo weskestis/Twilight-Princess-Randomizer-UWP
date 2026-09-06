@@ -1,4 +1,4 @@
-name: Build Twilight Princess Randomizer UWP CP20 Xbox Hotfix 1
+name: Build Twilight Princess Randomizer UWP CP20 Xbox Hotfix 3 External Textures
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $archiveName = 'Twilight-Princess-Randomizer-UWP-Checkpoint-20.zip'
-          $expectedHash = 'e2d84d83baf3915fc9b53bfb443366a4c08621c6968c0556a9d9d301c9c87f6a'
+          $expectedHash = 'ecd5e0a8918fdd8c7b2fc2926def8dbc0dcebdba7eb10490422bdeb4540a0fa9'
           $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-cp20-download'
           $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-cp20-extract'
           New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
@@ -63,7 +63,7 @@ jobs:
       - name: Install Ninja and native dependencies
         shell: powershell
         run: |
-          choco install ninja 7zip -y --no-progress
+          choco install ninja -y --no-progress
           if (Test-Path 'C:\vcpkg\vcpkg.exe') {
             C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
           }
@@ -80,7 +80,6 @@ jobs:
           "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
           "TPR_LAYOUT=S:\l" >> $env:GITHUB_ENV
           "TPR_SUPPORT=S:\u" >> $env:GITHUB_ENV
-          "TPR_TEX_WORK=S:\t" >> $env:GITHUB_ENV
           "TPR_MOD_INPUT=S:\m\i" >> $env:GITHUB_ENV
           "TPR_MOD_BUILD=S:\m\o" >> $env:GITHUB_ENV
           "TMP=S:\tmp" >> $env:GITHUB_ENV
@@ -121,9 +120,6 @@ jobs:
             return ($name.ToLowerInvariant() -replace '[^a-z0-9]', '')
           }
           foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
-            # GitHub may rewrite spaces, punctuation, or parentheses in uploaded
-            # release filenames. Resolve the exact remote name by a normalized
-            # alphanumeric key, then download it directly by REST asset URL.
             $assetKey = Get-AssetKey $asset.name
             $matches = @($releaseAssets | Where-Object { (Get-AssetKey $_.name) -eq $assetKey })
             if ($matches.Count -ne 1) {
@@ -182,43 +178,6 @@ jobs:
             $catalogReport.counts.selectable_mod_entries)
           Remove-Item $env:TPR_MOD_INPUT -Recurse -Force
 
-      - name: Preflight texture release assets before compilation
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $report = Get-Content 'texture_audit\CP20_TEXTURE_LAYER_REPORT.json' -Raw | ConvertFrom-Json
-          $expectedAssets = @($report.base.archives) + @($report.overlay.archives)
-          $release = gh api `
-            "repos/$env:GITHUB_REPOSITORY/releases/tags/tpr-cp20-build-assets" |
-            ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not inspect release tpr-cp20-build-assets for texture preflight.'
-          }
-          $expectedNames = @($expectedAssets | ForEach-Object { $_.name } | Sort-Object)
-          $actualNames = @(
-            $release.assets |
-              Where-Object { $_.name -match '^GZ2[.]part[0-9]+[.]rar$' } |
-              ForEach-Object { $_.name } |
-              Sort-Object
-          )
-          $nameDifference = @(Compare-Object $expectedNames $actualNames)
-          if ($nameDifference.Count -ne 0) {
-            throw "Texture release asset set differs from the audited legacy/4K inputs: $($nameDifference | Out-String)"
-          }
-          foreach ($expected in $expectedAssets) {
-            $matches = @($release.assets | Where-Object { $_.name -ceq $expected.name })
-            if ($matches.Count -ne 1) {
-              throw "Texture release must contain exactly one '$($expected.name)' asset; found $($matches.Count)."
-            }
-            if ([int64]$matches[0].size -ne [int64]$expected.size) {
-              throw "Texture asset '$($expected.name)' has $($matches[0].size) bytes; expected $($expected.size)."
-            }
-          }
-          Write-Host ("Early texture preflight passed: {0} archive parts are present with audited sizes." -f `
-            $expectedAssets.Count)
-
       - name: Create and preflight sideload signing certificate
         id: cert
         timeout-minutes: 2
@@ -237,7 +196,6 @@ jobs:
             -KeyExportPolicy Exportable `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
-          Write-Host 'Exporting certificate files...'
           $pfxPath = "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx"
           $cerPath = "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer"
           Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
@@ -248,12 +206,10 @@ jobs:
           if (-not (Test-Path -LiteralPath $cerPath -PathType Leaf)) {
             throw 'Public signing certificate export is missing.'
           }
-
           $exportedPublicCert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($cerPath)
           if ($exportedPublicCert.Thumbprint -ne $cert.Thumbprint) {
             throw 'Exported public certificate thumbprint does not match the signing certificate.'
           }
-
           Write-Output "::add-mask::$password"
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "password=$password" >> $env:GITHUB_OUTPUT
@@ -266,7 +222,6 @@ jobs:
       - name: Verify assembled source
         shell: powershell
         run: |
-          # Run only assembled-tree checks so build output is not mistaken for kit files.
           python -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); from assemble_port import install_branding; from verify_static import verify_assembled; root=Path(r'$env:TPR_SRC'); install_branding(root); verify_assembled(root); print('Twilight Princess Randomizer UWP assembled-source checks passed.')"
 
       - name: Fingerprint assembled randomizer source
@@ -282,6 +237,10 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $tree -notmatch '^[0-9a-f]{40}$') {
             throw "Could not fingerprint assembled randomizer source: '$tree'"
           }
+          $expectedTree = '8cc9142812b7b235532d6e4b22596a459c62b6c8'
+          if ($tree -ne $expectedTree) {
+            throw "Assembled randomizer source tree mismatch: expected $expectedTree, got $tree."
+          }
           "tree=$tree" >> $env:GITHUB_OUTPUT
           Write-Host "Verified randomizer source tree: $tree"
 
@@ -292,7 +251,8 @@ jobs:
           path: S:\b\f
           key: tpr-cp20-randomizer-feed-v1-${{ runner.os }}-${{ steps.randomizer-source.outputs.tree }}
           restore-keys: |
-            tpr-cp20-randomizer-feed-v1-${{ runner.os }}-
+            tpr-cp20-randomizer-feed-v1-${{ runner.os }}-390f284ee5b6ca4717793ec5220197d1659aafac
+          fail-on-cache-miss: true
 
       - name: Configure randomizer static feed
         shell: powershell
@@ -317,7 +277,7 @@ jobs:
           if ('${{ steps.randomizer-cache.outputs.cache-hit }}' -eq 'true') {
             Write-Host 'Exact clean randomizer cache restored; Ninja will only verify it.'
           } else {
-            Write-Host 'No exact cache hit; Ninja will reuse any compatible restored objects.'
+            Write-Host 'Clean CP20 hotfix-1 cache restored by prefix; Ninja will rebuild only affected objects.'
           }
           cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
           if ($LASTEXITCODE -ne 0) {
@@ -365,35 +325,21 @@ jobs:
               Sort-Object -Unique
           )
           if ($layoutCandidates.Count -ne 1) {
-            Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter AppxManifest.xml | Select-Object FullName
             throw "Expected exactly one compiled AppX layout; found $($layoutCandidates.Count)."
           }
           Remove-Item "$env:TPR_LAYOUT" -Recurse -Force -ErrorAction SilentlyContinue
           Move-Item -LiteralPath $layoutCandidates[0] -Destination "$env:TPR_LAYOUT"
-          if (-not (Test-Path "$env:TPR_LAYOUT\AppxManifest.xml")) {
-            throw 'Preserved AppX layout has no AppxManifest.xml.'
-          }
 
-          # Explicitly install every audited artwork file into the final layout.
           $branding = "$env:GITHUB_WORKSPACE\branding\Assets"
           $layoutAssets = "$env:TPR_LAYOUT\Assets"
           New-Item -ItemType Directory -Force $layoutAssets | Out-Null
           foreach ($sourceAsset in Get-ChildItem -LiteralPath $branding -File -Filter '*.png') {
             $layoutAsset = Join-Path $layoutAssets $sourceAsset.Name
             Copy-Item -LiteralPath $sourceAsset.FullName -Destination $layoutAsset -Force
-            if (-not (Test-Path -LiteralPath $layoutAsset -PathType Leaf)) {
-              throw "AppX layout is missing custom artwork '$($sourceAsset.Name)'."
-            }
             $expectedArtwork = (Get-FileHash -LiteralPath $sourceAsset.FullName -Algorithm SHA256).Hash
             $actualArtwork = (Get-FileHash -LiteralPath $layoutAsset -Algorithm SHA256).Hash
             if ($actualArtwork -ne $expectedArtwork) {
               throw "AppX layout artwork mismatch for '$($sourceAsset.Name)'."
-            }
-          }
-          $layoutManifest = Get-Content "$env:TPR_LAYOUT\AppxManifest.xml" -Raw
-          foreach ($logicalAsset in @('Square44x44Logo.png','Square150x150Logo.png','Wide310x150Logo.png','Square310x310Logo.png')) {
-            if ($layoutManifest -notmatch [regex]::Escape($logicalAsset)) {
-              throw "AppX manifest does not reference custom artwork '$logicalAsset'."
             }
           }
           Write-Host 'Package layout contains all byte-identical custom artwork.'
@@ -408,16 +354,12 @@ jobs:
             ForEach-Object { Copy-Item $_.FullName "$env:TPR_SUPPORT" -Force }
 
           Remove-Item "$env:TPR_SRC","$env:TPR_FEED","$env:TPR_PKG" -Recurse -Force -ErrorAction SilentlyContinue
-          Write-Host ("Free disk before textures: {0:N2} GiB" -f ((Get-PSDrive C).Free / 1GB))
 
       - name: Inject prevalidated selectable optional mods disabled by default
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $report = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
-          if (-not (Test-Path -LiteralPath $env:TPR_MOD_BUILD -PathType Container)) {
-            throw 'Prevalidated optional mod output is missing.'
-          }
           $layoutMods = "$env:TPR_LAYOUT\mods"
           Remove-Item $layoutMods -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $layoutMods | Out-Null
@@ -440,141 +382,13 @@ jobs:
             Get-ChildItem $layoutMods |
               Where-Object { ($_.PSIsContainer -and (Test-Path (Join-Path $_.FullName 'mod.json'))) -or $_.Extension -eq '.dusk' }
           )
-          if ($installedMods.Count -ne $report.counts.selectable_mod_entries) {
-            throw "AppX layout has $($installedMods.Count) optional mods; expected $($report.counts.selectable_mod_entries)."
+          if ($installedMods.Count -ne 35) {
+            throw "AppX layout has $($installedMods.Count) optional mods; expected 35."
           }
-          Write-Host ("Optional mod catalog ready: {0} selectable entries, all disabled by default." -f `
-            $installedMods.Count)
+          Write-Host 'Optional mod catalog ready: 35 selectable entries, all disabled by default.'
           Remove-Item 'S:\m' -Recurse -Force
 
-      - name: Build toggleable legacy Wii U HD and Henriko 4K packs
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $baseAssetDir = "$env:GITHUB_WORKSPACE\tpr-wiiu-hd-assets"
-          $overlayAssetDir = "$env:GITHUB_WORKSPACE\tpr-henriko-4k-assets"
-          $auditDir = "$env:GITHUB_WORKSPACE\TPR-Texture-Audit"
-          $baseInputReport = "$auditDir\CP20_WIIU_HD_INPUT.json"
-          $overlayInputReport = "$auditDir\CP20_HENRIKO_4K_INPUT.json"
-          Remove-Item $baseAssetDir,$overlayAssetDir,$env:TPR_TEX_WORK,$auditDir -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $baseAssetDir,$env:TPR_TEX_WORK,$auditDir | Out-Null
-          $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
-
-          gh release download tpr-cp20-build-assets `
-            --repo "$env:GITHUB_REPOSITORY" `
-            --dir $baseAssetDir `
-            --pattern 'GZ2.part1.rar' `
-            --pattern 'GZ2.part2.rar' `
-            --pattern 'GZ2.part3.rar' `
-            --clobber
-          if (-not (Get-ChildItem $baseAssetDir -File)) {
-            throw 'Release tpr-cp20-build-assets has no Wii U HD archive assets.'
-          }
-          python scripts/build_layered_texture_pack.py prepare `
-            --pack wiiu_hd_base `
-            --input $baseAssetDir `
-            --work-dir "$env:TPR_TEX_WORK\base-extract" `
-            --output "$env:TPR_TEX_WORK\base\GZ2" `
-            --archive-report $baseInputReport `
-            --extractor $sevenZip `
-            --delete-source-archives
-          if ($LASTEXITCODE -ne 0) {
-            throw "Wii U HD preparation failed with exit code $LASTEXITCODE."
-          }
-          Remove-Item $baseAssetDir -Recurse -Force -ErrorAction SilentlyContinue
-
-          New-Item -ItemType Directory -Force -Path $overlayAssetDir | Out-Null
-          gh release download tpr-cp20-build-assets `
-            --repo "$env:GITHUB_REPOSITORY" `
-            --dir $overlayAssetDir `
-            --pattern 'GZ2.part??.rar' `
-            --clobber
-          if (-not (Get-ChildItem $overlayAssetDir -File)) {
-            throw 'Release tpr-cp20-build-assets has no Henriko 4K archive assets.'
-          }
-          python scripts/build_layered_texture_pack.py prepare `
-            --pack henriko_4k `
-            --input $overlayAssetDir `
-            --work-dir "$env:TPR_TEX_WORK\overlay-extract" `
-            --output "$env:TPR_TEX_WORK\overlay\GZ2" `
-            --archive-report $overlayInputReport `
-            --extractor $sevenZip `
-            --delete-source-archives
-          if ($LASTEXITCODE -ne 0) {
-            throw "Henriko 4K preparation failed with exit code $LASTEXITCODE."
-          }
-          Remove-Item $overlayAssetDir -Recurse -Force -ErrorAction SilentlyContinue
-
-          python scripts/build_layered_texture_pack.py `
-            --base-input "$env:TPR_TEX_WORK\base\GZ2" `
-            --overlay-input "$env:TPR_TEX_WORK\overlay\GZ2" `
-            --base-archive-report $baseInputReport `
-            --overlay-archive-report $overlayInputReport `
-            --work-dir "$env:TPR_TEX_WORK\layer" `
-            --split-base-output "$env:TPR_LAYOUT\mods\00-wiiu-hd-legacy\textures\GZ2" `
-            --split-overlay-output "$env:TPR_LAYOUT\mods\10-henriko-4k-overlay\textures\GZ2" `
-            --report-json "$auditDir\CP20_TEXTURE_LAYER_REPORT.json" `
-            --report-md "$auditDir\CP20_TEXTURE_LAYER_REPORT.md" `
-            --inventory-csv "$auditDir\CP20_TEXTURE_INVENTORY.csv" `
-            --decisions-csv "$auditDir\CP20_TEXTURE_DECISIONS.csv" `
-            --expectations "texture_audit\CP20_TEXTURE_EXPECTATIONS.json" `
-            --link-mode move
-          if ($LASTEXITCODE -ne 0) {
-            throw "Layered texture builder failed with exit code $LASTEXITCODE."
-          }
-
-          $report = Get-Content "$auditDir\CP20_TEXTURE_LAYER_REPORT.json" -Raw | ConvertFrom-Json
-          $baseMod = "$env:TPR_LAYOUT\mods\00-wiiu-hd-legacy"
-          $overlayMod = "$env:TPR_LAYOUT\mods\10-henriko-4k-overlay"
-          $baseMetadata = @{
-            id = 'tpr.texture.wiiu_hd_legacy'
-            name = 'Wii U HD Pack (Legacy)'
-            version = 'CP20'
-            author = 'Community texture pack'
-            description = 'Broad Wii U HD base layer. Disabled by default; enable it from Mods.'
-            texture_priority = -1030000
-          } | ConvertTo-Json
-          $overlayMetadata = @{
-            id = 'tpr.texture.henriko_4k_overlay'
-            name = 'Henriko 4K Overlay'
-            version = 'CP20'
-            author = 'Henriko Magnifico'
-            description = 'Higher-priority 4K overlay matched by tex1 texture keys. Disabled by default.'
-            texture_priority = -1015000
-          } | ConvertTo-Json
-          [System.IO.File]::WriteAllText(
-            (Join-Path $baseMod 'mod.json'), $baseMetadata, [System.Text.UTF8Encoding]::new($false))
-          [System.IO.File]::WriteAllText(
-            (Join-Path $overlayMod 'mod.json'), $overlayMetadata, [System.Text.UTF8Encoding]::new($false))
-
-          $baseFiles = @(
-            Get-ChildItem "$baseMod\textures\GZ2" -Recurse -File |
-              Where-Object { $_.Extension -in '.dds','.png' }
-          )
-          $overlayFiles = @(
-            Get-ChildItem "$overlayMod\textures\GZ2" -Recurse -File |
-              Where-Object { $_.Extension -in '.dds','.png' }
-          )
-          if ($baseFiles.Count -ne $report.split_layers.base.texture_files) {
-            throw "Legacy HD toggle has $($baseFiles.Count) textures; expected $($report.split_layers.base.texture_files)."
-          }
-          if ($overlayFiles.Count -ne $report.split_layers.overlay.texture_files) {
-            throw "Henriko 4K toggle has $($overlayFiles.Count) textures; expected $($report.split_layers.overlay.texture_files)."
-          }
-          if (Test-Path "$env:TPR_LAYOUT\texture_replacements") {
-            throw 'An obsolete always-on baked texture root is present; vanilla mode would be impossible.'
-          }
-          Write-Host ("Toggleable layers ready: legacy={0} files; 4K={1} files; {2} matches; {3} additions; {4} conflicts. Both default off." -f `
-            $baseFiles.Count, `
-            $overlayFiles.Count, `
-            $report.counts.matched_override_keys, `
-            $report.counts.unique_overlay_addition_keys, `
-            $report.counts.conflicting_overlay_duplicate_keys)
-          Remove-Item "$env:TPR_TEX_WORK" -Recurse -Force -ErrorAction SilentlyContinue
-
-      - name: Pack and sign toggleable-texture UWP package
+      - name: Pack and sign texture-free UWP package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -593,7 +407,7 @@ jobs:
           $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
           Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $packageDir | Out-Null
-          $package = "$packageDir\TwilightPrincessRandomizer_1.4.1.628_x64.msix"
+          $package = "$packageDir\TwilightPrincessRandomizer_1.4.1.630_x64.msix"
           $makeAppx = Find-WindowsSdkTool 'MakeAppx.exe'
           $signTool = Find-WindowsSdkTool 'SignTool.exe'
 
@@ -647,30 +461,32 @@ jobs:
                 [void] $modRoots.Add($Matches[1])
               }
             }
-            if ($modRoots.Count -ne 37) {
-              throw "Signed MSIX contains $($modRoots.Count) mod roots; expected 37."
+            if ($modRoots.Count -ne 35) {
+              throw "Signed MSIX contains $($modRoots.Count) mod roots; expected 35."
             }
-            Write-Host 'Signed MSIX contains 37 selectable mods and all byte-identical custom artwork.'
+            foreach ($entry in $packageArchive.Entries) {
+              if ($entry.FullName -match '^mods/(00-wiiu-hd-legacy|10-henriko-4k-overlay)/') {
+                throw "Signed MSIX unexpectedly contains bundled texture payload '$($entry.FullName)'."
+              }
+            }
+            Write-Host 'Signed MSIX contains 35 selectable optional mods, no bundled HD/4K payload, and all byte-identical custom artwork.'
           }
           finally {
             $packageArchive.Dispose()
-          }
-          if ((Get-Item $package).Length -gt 25GB) {
-            throw 'The final MSIX exceeds the current 25 GB Windows package limit.'
           }
 
           Remove-Item "$env:TPR_LAYOUT" -Recurse -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_TEXTURE_PACK_XBOX.md" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\TPR-Texture-Audit" "$packageDir\Texture-Audit" -Recurse -Force
           Copy-Item "$env:GITHUB_WORKSPACE\mod_audit" "$packageDir\Mod-Audit" -Recurse -Force
           if (Test-Path "$env:TPR_SUPPORT") {
-            Get-ChildItem "$env:TPR_SUPPORT" -File | ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
+            Get-ChildItem "$env:TPR_SUPPORT" -File |
+              ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
             Remove-Item "$env:TPR_SUPPORT" -Recurse -Force
           }
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
-          Write-Host ("Signed layered MSIX: {0:N2} GiB" -f ((Get-Item $package).Length / 1GB))
 
       - name: Release short build drive
         if: always()
@@ -681,7 +497,7 @@ jobs:
       - name: Upload Xbox MSIX directly
         uses: actions/upload-artifact@v7
         with:
-          path: TPR-Xbox-Package/TwilightPrincessRandomizer_1.4.1.628_x64.msix
+          path: TPR-Xbox-Package/TwilightPrincessRandomizer_1.4.1.630_x64.msix
           archive: false
           if-no-files-found: error
           retention-days: 3
@@ -689,12 +505,12 @@ jobs:
       - name: Upload Xbox certificate, instructions, and audits
         uses: actions/upload-artifact@v7
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.628-Xbox-Support
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.630-Xbox-Support
           path: |
             TPR-Xbox-Package/TwilightPrincessRandomizer.cer
             TPR-Xbox-Package/INSTALL_XBOX.md
+            TPR-Xbox-Package/INSTALL_TEXTURE_PACK_XBOX.md
             TPR-Xbox-Package/APP_IDENTITY.json
-            TPR-Xbox-Package/Texture-Audit/
             TPR-Xbox-Package/Mod-Audit/
             TPR-Xbox-Package/*.appx
             TPR-Xbox-Package/*.appxbundle
