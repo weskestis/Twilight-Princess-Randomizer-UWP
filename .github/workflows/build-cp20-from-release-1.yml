@@ -1,4 +1,4 @@
-name: Build Twilight Princess Randomizer UWP CP20 Xbox Hotfix 3 External Textures
+name: Build Working 627 + Direct Texture ZIP Loader
 
 on:
   workflow_dispatch:
@@ -10,19 +10,19 @@ jobs:
   xbox-uwp-x64:
     name: Xbox UWP x64
     runs-on: windows-2022
-    timeout-minutes: 360
+    timeout-minutes: 240
 
     steps:
-      - name: Load verified Checkpoint 20 source release
+      - name: Load verified working .627 ZIP-hotfix source
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $archiveName = 'Twilight-Princess-Randomizer-UWP-Checkpoint-20.zip'
-          $expectedHash = 'ecd5e0a8918fdd8c7b2fc2926def8dbc0dcebdba7eb10490422bdeb4540a0fa9'
-          $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-cp20-download'
-          $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-cp20-extract'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Zip-Hotfix.zip'
+          $expectedHash = '1201a028da11577fc97408289f3c92df459e805036f447880295cc911e5eb45f'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-extract'
           New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
 
           gh release download tpr-cp20-source `
@@ -34,22 +34,22 @@ jobs:
           }
 
           $archive = Join-Path $downloadDir $archiveName
-          if (-not (Test-Path -LiteralPath $archive)) {
+          if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
             throw "Release tpr-cp20-source is missing $archiveName."
           }
           $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualHash -ne $expectedHash) {
-            throw "Checkpoint 20 SHA-256 mismatch: expected $expectedHash; got $actualHash."
+            throw "Working .627 ZIP-hotfix source SHA-256 mismatch: expected $expectedHash; got $actualHash."
           }
 
           Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
           $sourceRoot = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
-          if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'scripts\verify_static.py'))) {
-            throw 'Checkpoint 20 archive root or source files are invalid.'
+          if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'scripts\assemble_port.py'))) {
+            throw 'Source archive root or assembler is invalid.'
           }
           Get-ChildItem -LiteralPath $sourceRoot -Force |
             Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
-          Write-Host "Verified and loaded Checkpoint 20: $actualHash"
+          Write-Host "Verified and loaded ZIP-only source: $actualHash"
 
       - name: Enable long Git paths
         shell: powershell
@@ -78,142 +78,12 @@ jobs:
           "TPR_SRC=S:\s" >> $env:GITHUB_ENV
           "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
           "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
-          "TPR_LAYOUT=S:\l" >> $env:GITHUB_ENV
-          "TPR_SUPPORT=S:\u" >> $env:GITHUB_ENV
-          "TPR_MOD_INPUT=S:\m\i" >> $env:GITHUB_ENV
-          "TPR_MOD_BUILD=S:\m\o" >> $env:GITHUB_ENV
           "TMP=S:\tmp" >> $env:GITHUB_ENV
           "TEMP=S:\tmp" >> $env:GITHUB_ENV
 
-      - name: Verify custom identity and artwork
+      - name: Quick verify identity, artwork, and isolated ZIP patch
         shell: powershell
         run: python scripts/verify_static.py
-
-      - name: Test Aurora-key texture layering
-        shell: powershell
-        run: python scripts/test_layered_texture_pack.py
-
-      - name: Verify checked-in optional mod catalog
-        shell: powershell
-        run: |
-          python scripts/test_optional_mod_catalog.py
-          python scripts/build_optional_mod_catalog.py --verify-only
-
-      - name: Preflight and build optional mods before compilation
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Remove-Item 'S:\m' -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force $env:TPR_MOD_INPUT,$env:TPR_MOD_BUILD | Out-Null
-          Copy-Item "$env:GITHUB_WORKSPACE\optional_mod_inputs\*.zip" $env:TPR_MOD_INPUT -Force
-          $catalogReport = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
-          $release = gh api `
-            "repos/$env:GITHUB_REPOSITORY/releases/tags/tpr-cp20-build-assets" |
-            ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not inspect release tpr-cp20-build-assets.'
-          }
-          $releaseAssets = @($release.assets)
-          function Get-AssetKey([string]$name) {
-            return ($name.ToLowerInvariant() -replace '[^a-z0-9]', '')
-          }
-          foreach ($asset in @($catalogReport.source_archives | Where-Object { $_.delivery -eq 'private_release' })) {
-            $assetKey = Get-AssetKey $asset.name
-            $matches = @($releaseAssets | Where-Object { (Get-AssetKey $_.name) -eq $assetKey })
-            if ($matches.Count -ne 1) {
-              $available = ($releaseAssets.name | Sort-Object) -join ', '
-              throw "Release tpr-cp20-build-assets must contain exactly one normalized match for '$($asset.name)'; found $($matches.Count). Available assets: $available"
-            }
-            $remoteAsset = $matches[0]
-            $expectedPath = Join-Path $env:TPR_MOD_INPUT $asset.name
-            & curl.exe `
-              --fail `
-              --location `
-              --retry 3 `
-              --retry-delay 2 `
-              --silent `
-              --show-error `
-              --header "Accept: application/octet-stream" `
-              --header "Authorization: Bearer $env:GH_TOKEN" `
-              --output "$expectedPath" `
-              "$($remoteAsset.url)"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Could not download optional-mod release asset '$($asset.name)'."
-            }
-            if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
-              throw "Downloaded optional-mod asset '$($remoteAsset.name)' is missing."
-            }
-            $downloadedBytes = (Get-Item -LiteralPath $expectedPath).Length
-            if ($downloadedBytes -ne [int64]$remoteAsset.size) {
-              throw "Downloaded optional-mod asset '$($remoteAsset.name)' has $downloadedBytes bytes; expected $($remoteAsset.size)."
-            }
-          }
-
-          $generatedReport = 'S:\m\CP20_OPTIONAL_MOD_REPORT.json'
-          python scripts/build_optional_mod_catalog.py `
-            --input-dir $env:TPR_MOD_INPUT `
-            --output-dir $env:TPR_MOD_BUILD `
-            --report $generatedReport
-          if ($LASTEXITCODE -ne 0) {
-            throw "Optional mod catalog generation failed with exit code $LASTEXITCODE."
-          }
-          python -c "import json,sys; expected=json.load(open(sys.argv[1], encoding='utf-8')); actual=json.load(open(sys.argv[2], encoding='utf-8')); raise SystemExit(0 if actual == expected else 1)" `
-            'mod_audit\CP20_OPTIONAL_MOD_REPORT.json' $generatedReport
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Generated optional mod catalog content does not match the audited report.'
-          }
-          python scripts/build_optional_mod_catalog.py `
-            --verify-output-only `
-            --output-dir $env:TPR_MOD_BUILD `
-            --report 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json'
-          if ($LASTEXITCODE -ne 0) {
-            throw "Generated optional mod verification failed with exit code $LASTEXITCODE."
-          }
-          if ($catalogReport.activation_default -ne 'disabled') {
-            throw 'Optional mod catalog must be disabled by default.'
-          }
-          Write-Host ("Early optional-mod preflight passed: {0} selectable entries, all disabled by default." -f `
-            $catalogReport.counts.selectable_mod_entries)
-          Remove-Item $env:TPR_MOD_INPUT -Recurse -Force
-
-      - name: Create and preflight sideload signing certificate
-        id: cert
-        timeout-minutes: 2
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Write-Host 'Creating temporary sideload signing certificate...'
-          $password = [Guid]::NewGuid().ToString('N')
-          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
-          $cert = New-SelfSignedCertificate `
-            -Type Custom `
-            -Subject 'CN=TwilightPrincessRandomizer' `
-            -KeyAlgorithm RSA `
-            -KeyLength 2048 `
-            -HashAlgorithm SHA256 `
-            -KeyExportPolicy Exportable `
-            -CertStoreLocation 'Cert:\CurrentUser\My' `
-            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
-          $pfxPath = "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx"
-          $cerPath = "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer"
-          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
-          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-          if (-not (Test-Path -LiteralPath $pfxPath -PathType Leaf)) {
-            throw 'Signing PFX export is missing.'
-          }
-          if (-not (Test-Path -LiteralPath $cerPath -PathType Leaf)) {
-            throw 'Public signing certificate export is missing.'
-          }
-          $exportedPublicCert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($cerPath)
-          if ($exportedPublicCert.Thumbprint -ne $cert.Thumbprint) {
-            throw 'Exported public certificate thumbprint does not match the signing certificate.'
-          }
-          Write-Output "::add-mask::$password"
-          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
-          "password=$password" >> $env:GITHUB_OUTPUT
-          Write-Host 'Signing certificate files passed preflight without modifying trust stores.'
 
       - name: Assemble pinned randomizer plus UWP source
         shell: powershell
@@ -221,40 +91,9 @@ jobs:
 
       - name: Verify assembled source
         shell: powershell
-        run: |
-          python -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); from assemble_port import install_branding; from verify_static import verify_assembled; root=Path(r'$env:TPR_SRC'); install_branding(root); verify_assembled(root); print('Twilight Princess Randomizer UWP assembled-source checks passed.')"
+        run: python scripts/verify_static.py "$env:TPR_SRC"
 
-      - name: Fingerprint assembled randomizer source
-        id: randomizer-source
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          git -C "$env:TPR_SRC" diff --exit-code
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Assembled randomizer worktree changed after verification.'
-          }
-          $tree = (git -C "$env:TPR_SRC" rev-parse 'HEAD^{tree}').Trim()
-          if ($LASTEXITCODE -ne 0 -or $tree -notmatch '^[0-9a-f]{40}$') {
-            throw "Could not fingerprint assembled randomizer source: '$tree'"
-          }
-          $expectedTree = '8cc9142812b7b235532d6e4b22596a459c62b6c8'
-          if ($tree -ne $expectedTree) {
-            throw "Assembled randomizer source tree mismatch: expected $expectedTree, got $tree."
-          }
-          "tree=$tree" >> $env:GITHUB_OUTPUT
-          Write-Host "Verified randomizer source tree: $tree"
-
-      - name: Restore clean randomizer compile cache
-        id: randomizer-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: S:\b\f
-          key: tpr-cp20-randomizer-feed-v1-${{ runner.os }}-${{ steps.randomizer-source.outputs.tree }}
-          restore-keys: |
-            tpr-cp20-randomizer-feed-v1-${{ runner.os }}-390f284ee5b6ca4717793ec5220197d1659aafac
-          fail-on-cache-miss: true
-
-      - name: Configure randomizer static feed
+      - name: Configure working .627 game core
         shell: powershell
         run: |
           cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
@@ -269,27 +108,11 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-cp20-hf1
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-ziponly
 
-      - name: Build or verify randomizer static feed
+      - name: Compile working .627 game core (required)
         shell: powershell
-        run: |
-          if ('${{ steps.randomizer-cache.outputs.cache-hit }}' -eq 'true') {
-            Write-Host 'Exact clean randomizer cache restored; Ninja will only verify it.'
-          } else {
-            Write-Host 'Clean CP20 hotfix-1 cache restored by prefix; Ninja will rebuild only affected objects.'
-          }
-          cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
-          if ($LASTEXITCODE -ne 0) {
-            throw "Randomizer static feed build failed with exit code $LASTEXITCODE."
-          }
-
-      - name: Save clean randomizer compile cache
-        if: steps.randomizer-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: S:\b\f
-          key: tpr-cp20-randomizer-feed-v1-${{ runner.os }}-${{ steps.randomizer-source.outputs.tree }}
+        run: cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
 
       - name: Configure fresh UWP package project
         shell: powershell
@@ -301,192 +124,112 @@ jobs:
             -DCMAKE_OBJECT_PATH_MAX=180 `
             -DDUSK_DIR="$env:TPR_FEED"
 
-      - name: Build base UWP package layout
+      - name: Create sideload signing certificate
+        id: cert
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $password = [Guid]::NewGuid().ToString('N')
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=TwilightPrincessRandomizer' `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -KeyExportPolicy Exportable `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+          Export-PfxCertificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Password $securePassword | Out-Null
+          Export-Certificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+          "password=$password" >> $env:GITHUB_OUTPUT
+
+      - name: Build signed UWP package
+        shell: powershell
+        run: |
           cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
-            /p:AppxPackageSigningEnabled=false `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
+            /p:PackageCertificateThumbprint="${{ steps.cert.outputs.thumbprint }}" `
             /p:AppxBundle=Never `
             /p:UapAppxPackageBuildMode=SideloadOnly `
             /p:GenerateAppxPackageOnBuild=true
-          if ($LASTEXITCODE -ne 0) {
-            throw "Base UWP layout build failed with exit code $LASTEXITCODE."
-          }
 
-      - name: Preserve AppX layout and release compiler disk
+      - name: Verify and collect direct Xbox MSIX
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $layoutCandidates = @(
-            Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter AppxManifest.xml |
-              Where-Object { Test-Path (Join-Path $_.Directory.FullName 'TwilightPrincessRandomizer.exe') } |
-              ForEach-Object { $_.Directory.FullName } |
-              Sort-Object -Unique
-          )
-          if ($layoutCandidates.Count -ne 1) {
-            throw "Expected exactly one compiled AppX layout; found $($layoutCandidates.Count)."
-          }
-          Remove-Item "$env:TPR_LAYOUT" -Recurse -Force -ErrorAction SilentlyContinue
-          Move-Item -LiteralPath $layoutCandidates[0] -Destination "$env:TPR_LAYOUT"
-
-          $branding = "$env:GITHUB_WORKSPACE\branding\Assets"
-          $layoutAssets = "$env:TPR_LAYOUT\Assets"
-          New-Item -ItemType Directory -Force $layoutAssets | Out-Null
-          foreach ($sourceAsset in Get-ChildItem -LiteralPath $branding -File -Filter '*.png') {
-            $layoutAsset = Join-Path $layoutAssets $sourceAsset.Name
-            Copy-Item -LiteralPath $sourceAsset.FullName -Destination $layoutAsset -Force
-            $expectedArtwork = (Get-FileHash -LiteralPath $sourceAsset.FullName -Algorithm SHA256).Hash
-            $actualArtwork = (Get-FileHash -LiteralPath $layoutAsset -Algorithm SHA256).Hash
-            if ($actualArtwork -ne $expectedArtwork) {
-              throw "AppX layout artwork mismatch for '$($sourceAsset.Name)'."
-            }
-          }
-          Write-Host 'Package layout contains all byte-identical custom artwork.'
-
-          Remove-Item "$env:TPR_SUPPORT" -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force "$env:TPR_SUPPORT" | Out-Null
-          Get-ChildItem "$env:TPR_PKG" -Recurse -File |
-            Where-Object {
-              $_.Extension -in '.appx','.msix','.appxbundle','.msixbundle' -and
-              $_.FullName -match '[\\/]Dependencies[\\/]'
-            } |
-            ForEach-Object { Copy-Item $_.FullName "$env:TPR_SUPPORT" -Force }
-
-          Remove-Item "$env:TPR_SRC","$env:TPR_FEED","$env:TPR_PKG" -Recurse -Force -ErrorAction SilentlyContinue
-
-      - name: Inject prevalidated selectable optional mods disabled by default
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $report = Get-Content "mod_audit\CP20_OPTIONAL_MOD_REPORT.json" -Raw | ConvertFrom-Json
-          $layoutMods = "$env:TPR_LAYOUT\mods"
-          Remove-Item $layoutMods -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force $layoutMods | Out-Null
-          foreach ($mod in $report.mods) {
-            $source = Join-Path $env:TPR_MOD_BUILD $mod.file
-            $destination = Join-Path $layoutMods $mod.file
-            if (-not (Test-Path -LiteralPath $source)) {
-              throw "Prevalidated optional mod '$($mod.file)' is missing."
-            }
-            Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
-          }
-          python scripts/build_optional_mod_catalog.py `
-            --verify-output-only `
-            --output-dir $layoutMods `
-            --report 'mod_audit\CP20_OPTIONAL_MOD_REPORT.json'
-          if ($LASTEXITCODE -ne 0) {
-            throw "AppX optional mod verification failed with exit code $LASTEXITCODE."
-          }
-          $installedMods = @(
-            Get-ChildItem $layoutMods |
-              Where-Object { ($_.PSIsContainer -and (Test-Path (Join-Path $_.FullName 'mod.json'))) -or $_.Extension -eq '.dusk' }
-          )
-          if ($installedMods.Count -ne 35) {
-            throw "AppX layout has $($installedMods.Count) optional mods; expected 35."
-          }
-          Write-Host 'Optional mod catalog ready: 35 selectable entries, all disabled by default.'
-          Remove-Item 'S:\m' -Recurse -Force
-
-      - name: Pack and sign texture-free UWP package
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          function Find-WindowsSdkTool([string] $name) {
-            $command = Get-Command $name -ErrorAction SilentlyContinue
-            if ($command) { return $command.Source }
-            $sdkBin = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
-            $candidate = Get-ChildItem $sdkBin -Recurse -File -Filter $name |
-              Where-Object { $_.Directory.Name -eq 'x64' } |
-              Sort-Object FullName -Descending |
-              Select-Object -First 1
-            if (-not $candidate) { throw "Windows SDK tool not found: $name" }
-            return $candidate.FullName
-          }
-
           $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
           Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $packageDir | Out-Null
-          $package = "$packageDir\TwilightPrincessRandomizer_1.4.1.630_x64.msix"
-          $makeAppx = Find-WindowsSdkTool 'MakeAppx.exe'
-          $signTool = Find-WindowsSdkTool 'SignTool.exe'
-
-          & $makeAppx pack /o /h SHA256 /d "$env:TPR_LAYOUT" /p $package
-          if ($LASTEXITCODE -ne 0) {
-            throw "MakeAppx failed with exit code $LASTEXITCODE."
+          $buildRoot = "$env:TPR_PKG"
+          $sourcePackage = Get-ChildItem $buildRoot -Recurse -File -Filter '*.msix' |
+            Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          if (-not $sourcePackage) {
+            Get-ChildItem $buildRoot -Recurse | Select-Object FullName
+            throw 'UWP build did not produce the expected MSIX package.'
           }
-          & $signTool sign /fd SHA256 /a `
-            /f "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
-            /p "${{ steps.cert.outputs.password }}" `
-            $package
-          if ($LASTEXITCODE -ne 0) {
-            throw "SignTool failed with exit code $LASTEXITCODE."
-          }
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.631_x64.msix'
+          Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($package)
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($package)
           try {
-            $signatureEntry = $packageArchive.GetEntry('AppxSignature.p7x')
-            if (-not $signatureEntry -or $signatureEntry.Length -le 0) {
-              throw 'Signed MSIX is missing AppxSignature.p7x.'
+            $manifestEntry = $archive.GetEntry('AppxManifest.xml')
+            if (-not $manifestEntry) { throw 'Signed MSIX has no AppxManifest.xml.' }
+            $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
+            try { $manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            if ($manifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
+                $manifest -notmatch 'Version="1[.]4[.]1[.]631"') {
+              throw 'Signed MSIX identity/version is not the expected .631 in-place update.'
             }
 
-            $branding = "$env:GITHUB_WORKSPACE\branding\Assets"
-            foreach ($sourceAsset in Get-ChildItem -LiteralPath $branding -File -Filter '*.png') {
-              $artEntry = $packageArchive.GetEntry("Assets/$($sourceAsset.Name)")
-              if (-not $artEntry) {
-                throw "Signed MSIX is missing custom artwork '$($sourceAsset.Name)'."
-              }
-              $artStream = $artEntry.Open()
-              $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
+            if (-not $exeEntry) { throw 'Signed MSIX has no TwilightPrincessRandomizer.exe.' }
+            $memory = [System.IO.MemoryStream]::new()
+            $exeStream = $exeEntry.Open()
+            try { $exeStream.CopyTo($memory) } finally { $exeStream.Dispose() }
+            $exeText = [System.Text.Encoding]::ASCII.GetString($memory.ToArray())
+            $memory.Dispose()
+            if (-not $exeText.Contains('Texture ZIP loading complete')) {
+              throw 'Compiled executable is missing the direct texture-ZIP loader marker.'
+            }
+
+            foreach ($sourceAsset in Get-ChildItem "$env:GITHUB_WORKSPACE\branding\Assets" -File -Filter '*.png') {
+              $entry = $archive.GetEntry("Assets/$($sourceAsset.Name)")
+              if (-not $entry) { throw "Signed MSIX is missing custom artwork '$($sourceAsset.Name)'." }
+              $entryStream = $entry.Open()
+              $sha = [System.Security.Cryptography.SHA256]::Create()
               try {
-                $actualArtwork = ([BitConverter]::ToString($sha256.ComputeHash($artStream))).Replace('-', '')
+                $actual = ([BitConverter]::ToString($sha.ComputeHash($entryStream))).Replace('-', '')
+              } finally {
+                $sha.Dispose()
+                $entryStream.Dispose()
               }
-              finally {
-                $sha256.Dispose()
-                $artStream.Dispose()
-              }
-              $expectedArtwork = (Get-FileHash -LiteralPath $sourceAsset.FullName -Algorithm SHA256).Hash
-              if ($actualArtwork -ne $expectedArtwork) {
-                throw "Signed MSIX artwork mismatch for '$($sourceAsset.Name)'."
-              }
+              $expected = (Get-FileHash $sourceAsset.FullName -Algorithm SHA256).Hash
+              if ($actual -ne $expected) { throw "Artwork hash mismatch: $($sourceAsset.Name)." }
             }
-
-            $modRoots = [System.Collections.Generic.HashSet[string]]::new(
-              [System.StringComparer]::OrdinalIgnoreCase)
-            foreach ($entry in $packageArchive.Entries) {
-              if ($entry.FullName -match '^mods/([^/]+\.dusk)$') {
-                [void] $modRoots.Add($Matches[1])
-              } elseif ($entry.FullName -match '^mods/([^/]+)/mod\.json$') {
-                [void] $modRoots.Add($Matches[1])
-              }
-            }
-            if ($modRoots.Count -ne 35) {
-              throw "Signed MSIX contains $($modRoots.Count) mod roots; expected 35."
-            }
-            foreach ($entry in $packageArchive.Entries) {
-              if ($entry.FullName -match '^mods/(00-wiiu-hd-legacy|10-henriko-4k-overlay)/') {
-                throw "Signed MSIX unexpectedly contains bundled texture payload '$($entry.FullName)'."
-              }
-            }
-            Write-Host 'Signed MSIX contains 35 selectable optional mods, no bundled HD/4K payload, and all byte-identical custom artwork.'
+          } finally {
+            $archive.Dispose()
           }
-          finally {
-            $packageArchive.Dispose()
+          if ((Get-Item $package).Length -gt 100MB) {
+            throw 'ZIP-only MSIX is unexpectedly larger than 100 MiB; texture payload may have leaked in.'
           }
 
-          Remove-Item "$env:TPR_LAYOUT" -Recurse -Force
+          Get-ChildItem $buildRoot -Recurse -File | Where-Object {
+            $_.Extension -in '.appx','.appxbundle','.msixbundle' -and
+            $_.FullName -match '[\\/]Dependencies[\\/]'
+          } | ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_TEXTURE_PACK_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_TEXTURE_ZIPS_XBOX.md" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\mod_audit" "$packageDir\Mod-Audit" -Recurse -Force
-          if (Test-Path "$env:TPR_SUPPORT") {
-            Get-ChildItem "$env:TPR_SUPPORT" -File |
-              ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
-            Remove-Item "$env:TPR_SUPPORT" -Recurse -Force
-          }
-          Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
+          if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") { Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force }
+          Write-Host "Verified ZIP-only MSIX: $((Get-Item $package).Length) bytes"
 
       - name: Release short build drive
         if: always()
@@ -497,24 +240,22 @@ jobs:
       - name: Upload Xbox MSIX directly
         uses: actions/upload-artifact@v7
         with:
-          path: TPR-Xbox-Package/TwilightPrincessRandomizer_1.4.1.630_x64.msix
+          path: TPR-Xbox-Package/TwilightPrincessRandomizer_1.4.1.631_x64.msix
           archive: false
           if-no-files-found: error
           retention-days: 3
 
-      - name: Upload Xbox certificate, instructions, and audits
+      - name: Upload certificate and install instructions
         uses: actions/upload-artifact@v7
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.630-Xbox-Support
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.631-Xbox-Support
           path: |
             TPR-Xbox-Package/TwilightPrincessRandomizer.cer
             TPR-Xbox-Package/INSTALL_XBOX.md
-            TPR-Xbox-Package/INSTALL_TEXTURE_PACK_XBOX.md
+            TPR-Xbox-Package/INSTALL_TEXTURE_ZIPS_XBOX.md
             TPR-Xbox-Package/APP_IDENTITY.json
-            TPR-Xbox-Package/Mod-Audit/
             TPR-Xbox-Package/*.appx
             TPR-Xbox-Package/*.appxbundle
             TPR-Xbox-Package/*.msixbundle
           if-no-files-found: error
-          compression-level: 6
           retention-days: 3
