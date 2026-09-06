@@ -271,7 +271,11 @@ jobs:
 
       - name: Verify assembled source
         shell: powershell
-        run: python scripts/verify_static.py "$env:TPR_SRC"
+        run: |
+          # The assembled tree lives under S:\s, which maps inside GITHUB_WORKSPACE.
+          # Import the verifier and run only its assembled-tree checks here so the
+          # checkpoint inventory check does not mistake build output for kit files.
+          python -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); from assemble_port import install_branding; from verify_static import verify_assembled; root=Path(r'$env:TPR_SRC'); install_branding(root); verify_assembled(root); print('Twilight Princess Randomizer UWP assembled-source checks passed.')"
 
       - name: Fingerprint assembled randomizer source
         id: randomizer-source
