@@ -19,7 +19,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Zip-Hotfix.zip'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Zip-Hotfix-1.zip'
           $expectedHash = '1201a028da11577fc97408289f3c92df459e805036f447880295cc911e5eb45f'
           $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-download'
           $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-extract'
@@ -37,6 +37,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
             throw "Release tpr-cp20-source is missing $archiveName."
           }
+
           $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualHash -ne $expectedHash) {
             throw "Working .627 ZIP-hotfix source SHA-256 mismatch: expected $expectedHash; got $actualHash."
@@ -47,8 +48,10 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'scripts\assemble_port.py'))) {
             throw 'Source archive root or assembler is invalid.'
           }
+
           Get-ChildItem -LiteralPath $sourceRoot -Force |
             Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
+
           Write-Host "Verified and loaded ZIP-only source: $actualHash"
 
       - name: Enable long Git paths
@@ -72,9 +75,13 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          if (Test-Path 'S:\') { subst S: /D 2>$null }
+          if (Test-Path 'S:\') {
+            subst S: /D 2>$null
+          }
+
           subst S: "$env:GITHUB_WORKSPACE"
           New-Item -ItemType Directory -Force 'S:\tmp' | Out-Null
+
           "TPR_SRC=S:\s" >> $env:GITHUB_ENV
           "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
           "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
@@ -131,6 +138,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $password = [Guid]::NewGuid().ToString('N')
           $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+
           $cert = New-SelfSignedCertificate `
             -Type Custom `
             -Subject 'CN=TwilightPrincessRandomizer' `
@@ -140,8 +148,16 @@ jobs:
             -KeyExportPolicy Exportable `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
-          Export-PfxCertificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Password $securePassword | Out-Null
-          Export-Certificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+
+          Export-PfxCertificate `
+            -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            -Password $securePassword | Out-Null
+
+          Export-Certificate `
+            -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "password=$password" >> $env:GITHUB_OUTPUT
 
@@ -162,80 +178,126 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
+
           Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $packageDir | Out-Null
+
           $buildRoot = "$env:TPR_PKG"
           $sourcePackage = Get-ChildItem $buildRoot -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending |
             Select-Object -First 1
+
           if (-not $sourcePackage) {
             Get-ChildItem $buildRoot -Recurse | Select-Object FullName
             throw 'UWP build did not produce the expected MSIX package.'
           }
+
           $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.631_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $archive = [System.IO.Compression.ZipFile]::OpenRead($package)
+
           try {
             $manifestEntry = $archive.GetEntry('AppxManifest.xml')
-            if (-not $manifestEntry) { throw 'Signed MSIX has no AppxManifest.xml.' }
+            if (-not $manifestEntry) {
+              throw 'Signed MSIX has no AppxManifest.xml.'
+            }
+
             $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
-            try { $manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            try {
+              $manifest = $reader.ReadToEnd()
+            }
+            finally {
+              $reader.Dispose()
+            }
+
             if ($manifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
                 $manifest -notmatch 'Version="1[.]4[.]1[.]631"') {
               throw 'Signed MSIX identity/version is not the expected .631 in-place update.'
             }
 
             $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
-            if (-not $exeEntry) { throw 'Signed MSIX has no TwilightPrincessRandomizer.exe.' }
+            if (-not $exeEntry) {
+              throw 'Signed MSIX has no TwilightPrincessRandomizer.exe.'
+            }
+
             $memory = [System.IO.MemoryStream]::new()
             $exeStream = $exeEntry.Open()
-            try { $exeStream.CopyTo($memory) } finally { $exeStream.Dispose() }
+
+            try {
+              $exeStream.CopyTo($memory)
+            }
+            finally {
+              $exeStream.Dispose()
+            }
+
             $exeText = [System.Text.Encoding]::ASCII.GetString($memory.ToArray())
             $memory.Dispose()
+
             if (-not $exeText.Contains('Texture ZIP loading complete')) {
               throw 'Compiled executable is missing the direct texture-ZIP loader marker.'
             }
 
             foreach ($sourceAsset in Get-ChildItem "$env:GITHUB_WORKSPACE\branding\Assets" -File -Filter '*.png') {
               $entry = $archive.GetEntry("Assets/$($sourceAsset.Name)")
-              if (-not $entry) { throw "Signed MSIX is missing custom artwork '$($sourceAsset.Name)'." }
+              if (-not $entry) {
+                throw "Signed MSIX is missing custom artwork '$($sourceAsset.Name)'."
+              }
+
               $entryStream = $entry.Open()
               $sha = [System.Security.Cryptography.SHA256]::Create()
+
               try {
                 $actual = ([BitConverter]::ToString($sha.ComputeHash($entryStream))).Replace('-', '')
-              } finally {
+              }
+              finally {
                 $sha.Dispose()
                 $entryStream.Dispose()
               }
+
               $expected = (Get-FileHash $sourceAsset.FullName -Algorithm SHA256).Hash
-              if ($actual -ne $expected) { throw "Artwork hash mismatch: $($sourceAsset.Name)." }
+              if ($actual -ne $expected) {
+                throw "Artwork hash mismatch: $($sourceAsset.Name)."
+              }
             }
-          } finally {
+          }
+          finally {
             $archive.Dispose()
           }
+
           if ((Get-Item $package).Length -gt 100MB) {
             throw 'ZIP-only MSIX is unexpectedly larger than 100 MiB; texture payload may have leaked in.'
           }
 
-          Get-ChildItem $buildRoot -Recurse -File | Where-Object {
-            $_.Extension -in '.appx','.appxbundle','.msixbundle' -and
-            $_.FullName -match '[\\/]Dependencies[\\/]'
-          } | ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
+          Get-ChildItem $buildRoot -Recurse -File |
+            Where-Object {
+              $_.Extension -in '.appx','.appxbundle','.msixbundle' -and
+              $_.FullName -match '[\\/]Dependencies[\\/]'
+            } |
+            ForEach-Object {
+              Copy-Item $_.FullName $packageDir -Force
+            }
+
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_TEXTURE_ZIPS_XBOX.md" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
-          if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") { Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force }
+
+          if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") {
+            Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
+          }
+
           Write-Host "Verified ZIP-only MSIX: $((Get-Item $package).Length) bytes"
 
       - name: Release short build drive
         if: always()
         shell: powershell
         run: |
-          if (Test-Path 'S:\') { subst S: /D }
+          if (Test-Path 'S:\') {
+            subst S: /D
+          }
 
       - name: Upload Xbox MSIX directly
         uses: actions/upload-artifact@v7
