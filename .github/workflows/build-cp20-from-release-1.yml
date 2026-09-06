@@ -146,8 +146,13 @@ jobs:
             -KeyLength 2048 `
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'Twilight Princess Randomizer Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
-            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+            -TextExtension @(
+              '2.5.29.37={text}1.3.6.1.5.5.7.3.3',
+              '2.5.29.19={text}'
+            )
 
           Export-PfxCertificate `
             -Cert $cert `
@@ -158,7 +163,6 @@ jobs:
             -Cert $cert `
             -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
 
-          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "password=$password" >> $env:GITHUB_OUTPUT
 
       - name: Build signed UWP package
@@ -168,7 +172,7 @@ jobs:
             /p:AppxPackageSigningEnabled=true `
             /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
             /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
-            /p:PackageCertificateThumbprint="${{ steps.cert.outputs.thumbprint }}" `
+            '/p:PackageCertificateThumbprint=' `
             /p:AppxBundle=Never `
             /p:UapAppxPackageBuildMode=SideloadOnly `
             /p:GenerateAppxPackageOnBuild=true
