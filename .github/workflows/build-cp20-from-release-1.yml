@@ -163,8 +163,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Optional mod catalog generation failed with exit code $LASTEXITCODE."
           }
-          # Compare parsed JSON rather than raw bytes because Python translates
-          # LF to CRLF when writing text on Windows.
           python -c "import json,sys; expected=json.load(open(sys.argv[1], encoding='utf-8')); actual=json.load(open(sys.argv[2], encoding='utf-8')); raise SystemExit(0 if actual == expected else 1)" `
             'mod_audit\CP20_OPTIONAL_MOD_REPORT.json' $generatedReport
           if ($LASTEXITCODE -ne 0) {
@@ -251,10 +249,6 @@ jobs:
             throw 'Public signing certificate export is missing.'
           }
 
-          # Do not add the self-signed certificate to this runner's trust
-          # stores. Hosted Windows can block that operation behind a hidden
-          # security prompt. The target Xbox receives the public CER alongside
-          # the signed MSIX and trusts it during sideload setup.
           $exportedPublicCert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($cerPath)
           if ($exportedPublicCert.Thumbprint -ne $cert.Thumbprint) {
             throw 'Exported public certificate thumbprint does not match the signing certificate.'
@@ -272,9 +266,7 @@ jobs:
       - name: Verify assembled source
         shell: powershell
         run: |
-          # The assembled tree lives under S:\s, which maps inside GITHUB_WORKSPACE.
-          # Import the verifier and run only its assembled-tree checks here so the
-          # checkpoint inventory check does not mistake build output for kit files.
+          # Run only assembled-tree checks so build output is not mistaken for kit files.
           python -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); from assemble_port import install_branding; from verify_static import verify_assembled; root=Path(r'$env:TPR_SRC'); install_branding(root); verify_assembled(root); print('Twilight Princess Randomizer UWP assembled-source checks passed.')"
 
       - name: Fingerprint assembled randomizer source
@@ -382,9 +374,13 @@ jobs:
             throw 'Preserved AppX layout has no AppxManifest.xml.'
           }
 
+          # Explicitly install every audited artwork file into the final layout.
           $branding = "$env:GITHUB_WORKSPACE\branding\Assets"
+          $layoutAssets = "$env:TPR_LAYOUT\Assets"
+          New-Item -ItemType Directory -Force $layoutAssets | Out-Null
           foreach ($sourceAsset in Get-ChildItem -LiteralPath $branding -File -Filter '*.png') {
-            $layoutAsset = Join-Path "$env:TPR_LAYOUT\Assets" $sourceAsset.Name
+            $layoutAsset = Join-Path $layoutAssets $sourceAsset.Name
+            Copy-Item -LiteralPath $sourceAsset.FullName -Destination $layoutAsset -Force
             if (-not (Test-Path -LiteralPath $layoutAsset -PathType Leaf)) {
               throw "AppX layout is missing custom artwork '$($sourceAsset.Name)'."
             }
@@ -411,8 +407,6 @@ jobs:
             } |
             ForEach-Object { Copy-Item $_.FullName "$env:TPR_SUPPORT" -Force }
 
-          # Compilation and the 6+ GiB texture staging phase never coexist. This
-          # keeps the job inside the standard Windows runner's 14 GB scratch disk.
           Remove-Item "$env:TPR_SRC","$env:TPR_FEED","$env:TPR_PKG" -Recurse -Force -ErrorAction SilentlyContinue
           Write-Host ("Free disk before textures: {0:N2} GiB" -f ((Get-PSDrive C).Free / 1GB))
 
@@ -468,9 +462,6 @@ jobs:
           New-Item -ItemType Directory -Force -Path $baseAssetDir,$env:TPR_TEX_WORK,$auditDir | Out-Null
           $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
 
-          # Extract and consume the smaller base before downloading the overlay.
-          # The two compressed packs therefore never share disk with both full
-          # extracted trees.
           gh release download tpr-cp20-build-assets `
             --repo "$env:GITHUB_REPOSITORY" `
             --dir $baseAssetDir `
@@ -618,9 +609,6 @@ jobs:
             throw "SignTool failed with exit code $LASTEXITCODE."
           }
 
-          # SignTool sign already performs the cryptographic signing operation and returned
-          # success above. Do not run trust-chain verification against this disposable hosted
-          # runner: the intentionally self-signed sideload certificate is not a trusted root here.
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($package)
           try {
@@ -671,8 +659,6 @@ jobs:
             throw 'The final MSIX exceeds the current 25 GB Windows package limit.'
           }
 
-          # Once MakeAppx has emitted the package, remove its 6+ GiB input layout
-          # before Actions creates the downloadable artifact stream.
           Remove-Item "$env:TPR_LAYOUT" -Recurse -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
           Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
