@@ -1,4 +1,4 @@
-name: Build Working 627 + ZIP + Heart + Cursor + Tracker
+name: Build Working 627 + Seed Safety + Colors
 
 on:
   workflow_dispatch:
@@ -13,16 +13,16 @@ jobs:
     timeout-minutes: 240
 
     steps:
-      - name: Load verified working .627 cursor-tracker hotfix source
+      - name: Load verified working .627 seed-safety/color hotfix source
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Zip-Cursor-Tracker-Hotfix-3.zip'
-          $expectedHash = '3a12402f2c6e91bbdf653997ce9292932a6e6dd0d91fd079c7527cbf367f4972'
-          $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-download'
-          $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-extract'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
+          $expectedHash = 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-seedfix-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-seedfix-extract'
           New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
 
           gh release download tpr-cp20-source `
@@ -40,7 +40,7 @@ jobs:
 
           $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualHash -ne $expectedHash) {
-            throw "Working .627 cursor-tracker hotfix source SHA-256 mismatch: expected $expectedHash; got $actualHash."
+            throw "Working .627 seed-safety/color hotfix source SHA-256 mismatch: expected $expectedHash; got $actualHash."
           }
 
           Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
@@ -52,7 +52,7 @@ jobs:
           Get-ChildItem -LiteralPath $sourceRoot -Force |
             Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
 
-          Write-Host "Verified and loaded cursor-tracker hotfix source: $actualHash"
+          Write-Host "Verified and loaded seed-safety/color hotfix source: $actualHash"
 
       - name: Enable long Git paths
         shell: powershell
@@ -88,7 +88,7 @@ jobs:
           "TMP=S:\tmp" >> $env:GITHUB_ENV
           "TEMP=S:\tmp" >> $env:GITHUB_ENV
 
-      - name: Quick verify identity, artwork, ZIP loader, heart, cursor, and tracker
+      - name: Quick verify identity, artwork, features, and seed safety
         shell: powershell
         run: python scripts/verify_static.py
 
@@ -115,7 +115,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-zip-heart-cursor-tracker
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-zip-heart-cursor-tracker-seedfix
 
       - name: Compile working .627 game core (required)
         shell: powershell
@@ -197,7 +197,7 @@ jobs:
             throw 'UWP build did not produce the expected MSIX package.'
           }
 
-          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.633_x64.msix'
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.634_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -218,8 +218,8 @@ jobs:
             }
 
             if ($manifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
-                $manifest -notmatch 'Version="1[.]4[.]1[.]633"') {
-              throw 'Signed MSIX identity/version is not the expected .633 in-place update.'
+                $manifest -notmatch 'Version="1[.]4[.]1[.]634"') {
+              throw 'Signed MSIX identity/version is not the expected .634 in-place update.'
             }
 
             $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
@@ -244,8 +244,18 @@ jobs:
               throw 'Compiled executable is missing the direct texture-ZIP loader marker.'
             }
             if (-not $exeText.Contains('Heart Color') -or
-                -not $exeText.Contains('cosmetics.heartColor')) {
-              throw 'Compiled executable is missing the CP15 heart-color UI/settings markers.'
+                -not $exeText.Contains('cosmetics.heartColor') -or
+                -not $exeText.Contains('58a866')) {
+              throw 'Compiled executable is missing the heart-color UI/settings/Green markers.'
+            }
+            if (-not $exeText.Contains('Menu Accent Color') -or
+                -not $exeText.Contains('Menu Background Color') -or
+                -not $exeText.Contains('Menu Text Color') -or
+                -not $exeText.Contains('Menu Border Color') -or
+                -not $exeText.Contains('Randomize All Per Seed') -or
+                -not $exeText.Contains('Randomize This Color Per Seed') -or
+                -not $exeText.Contains('tpr-user-menu-theme')) {
+              throw 'Compiled executable is missing menu/per-seed cosmetic markers.'
             }
             if (-not $exeText.Contains('CURSOR MODE ON') -or
                 -not $exeText.Contains('Controller Cursor Speed') -or
@@ -256,6 +266,12 @@ jobs:
                 -not $exeText.Contains('Toggle Item & Check Tracker') -or
                 -not $exeText.Contains('randomizerTrackerOpacity')) {
               throw 'Compiled executable is missing resizable item/check tracker markers.'
+            }
+            if (-not $exeText.Contains('Committed verified seed data') -or
+                -not $exeText.Contains('Seed data file is empty') -or
+                -not $exeText.Contains('Seed data is invalid or incomplete') -or
+                -not $exeText.Contains('Seed generation stopped safely')) {
+              throw 'Compiled executable is missing checked/non-fatal seed I/O markers.'
             }
 
             foreach ($sourceAsset in Get-ChildItem "$env:GITHUB_WORKSPACE\branding\Assets" -File -Filter '*.png') {
@@ -324,7 +340,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $packageDir = Join-Path $env:GITHUB_WORKSPACE 'TPR-Xbox-Package'
           $supportDir = Join-Path $packageDir 'Support'
-          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.633-Xbox-Support.zip'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.634-Xbox-Support.zip'
 
           New-Item -ItemType Directory -Force $supportDir | Out-Null
           Copy-Item @(
@@ -341,9 +357,9 @@ jobs:
           Compress-Archive -Path (Join-Path $supportDir '*') -DestinationPath $supportZip -CompressionLevel Optimal -Force
 
           gh release upload tpr-cp20-source `
-            (Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.633_x64.msix') `
+            (Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.634_x64.msix') `
             $supportZip `
             --repo "$env:GITHUB_REPOSITORY"
           if ($LASTEXITCODE -ne 0) {
-            throw 'Could not upload the verified .633 Xbox package to release tpr-cp20-source.'
+            throw 'Could not upload the verified .634 Xbox package to release tpr-cp20-source.'
           }
