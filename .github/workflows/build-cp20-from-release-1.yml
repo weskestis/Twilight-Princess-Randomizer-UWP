@@ -1,4 +1,4 @@
-name: Build Working 627 + Direct Texture ZIP Loader
+name: Build Working 627 + Direct Texture ZIP + Heart Color
 
 on:
   workflow_dispatch:
@@ -13,14 +13,14 @@ jobs:
     timeout-minutes: 240
 
     steps:
-      - name: Load verified working .627 ZIP-hotfix source
+      - name: Load verified working .627 ZIP + heart-color source
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Zip-Hotfix-1.zip'
-          $expectedHash = '1201a028da11577fc97408289f3c92df459e805036f447880295cc911e5eb45f'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Zip-Heart-Hotfix-2.zip'
+          $expectedHash = '696cd9e3cb089eee739398cb5e082bf5ecc3a620f60fd648a75f749993e5d49d'
           $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-download'
           $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-zip-extract'
           New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
@@ -40,7 +40,7 @@ jobs:
 
           $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualHash -ne $expectedHash) {
-            throw "Working .627 ZIP-hotfix source SHA-256 mismatch: expected $expectedHash; got $actualHash."
+            throw "Working .627 ZIP + heart-color source SHA-256 mismatch: expected $expectedHash; got $actualHash."
           }
 
           Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
@@ -52,7 +52,7 @@ jobs:
           Get-ChildItem -LiteralPath $sourceRoot -Force |
             Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
 
-          Write-Host "Verified and loaded ZIP-only source: $actualHash"
+          Write-Host "Verified and loaded ZIP + heart-color source: $actualHash"
 
       - name: Enable long Git paths
         shell: powershell
@@ -88,7 +88,7 @@ jobs:
           "TMP=S:\tmp" >> $env:GITHUB_ENV
           "TEMP=S:\tmp" >> $env:GITHUB_ENV
 
-      - name: Quick verify identity, artwork, and isolated ZIP patch
+      - name: Quick verify identity, artwork, ZIP loader, and heart color
         shell: powershell
         run: python scripts/verify_static.py
 
@@ -115,7 +115,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-ziponly
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-zip-heart
 
       - name: Compile working .627 game core (required)
         shell: powershell
@@ -197,7 +197,7 @@ jobs:
             throw 'UWP build did not produce the expected MSIX package.'
           }
 
-          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.631_x64.msix'
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.632_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -218,8 +218,8 @@ jobs:
             }
 
             if ($manifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
-                $manifest -notmatch 'Version="1[.]4[.]1[.]631"') {
-              throw 'Signed MSIX identity/version is not the expected .631 in-place update.'
+                $manifest -notmatch 'Version="1[.]4[.]1[.]632"') {
+              throw 'Signed MSIX identity/version is not the expected .632 in-place update.'
             }
 
             $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
@@ -242,6 +242,10 @@ jobs:
 
             if (-not $exeText.Contains('Texture ZIP loading complete')) {
               throw 'Compiled executable is missing the direct texture-ZIP loader marker.'
+            }
+            if (-not $exeText.Contains('Heart Color') -or
+                -not $exeText.Contains('cosmetics.heartColor')) {
+              throw 'Compiled executable is missing the CP15 heart-color UI/settings markers.'
             }
 
             foreach ($sourceAsset in Get-ChildItem "$env:GITHUB_WORKSPACE\branding\Assets" -File -Filter '*.png') {
@@ -306,7 +310,7 @@ jobs:
       - name: Upload Xbox MSIX directly
         uses: actions/upload-artifact@v7
         with:
-          path: TPR-Xbox-Package/TwilightPrincessRandomizer_1.4.1.631_x64.msix
+          path: TPR-Xbox-Package/TwilightPrincessRandomizer_1.4.1.632_x64.msix
           archive: false
           if-no-files-found: error
           retention-days: 3
@@ -314,7 +318,7 @@ jobs:
       - name: Upload certificate and install instructions
         uses: actions/upload-artifact@v7
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.631-Xbox-Support
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.632-Xbox-Support
           path: |
             TPR-Xbox-Package/TwilightPrincessRandomizer.cer
             TPR-Xbox-Package/INSTALL_XBOX.md
