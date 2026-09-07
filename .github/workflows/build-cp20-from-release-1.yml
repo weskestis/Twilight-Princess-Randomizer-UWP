@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   xbox-uwp-x64:
@@ -306,26 +306,34 @@ jobs:
           if (Test-Path 'S:\') {
             subst S: /D
           }
+      - name: Upload Xbox MSIX and support package to release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'TPR-Xbox-Package'
+          $supportDir = Join-Path $packageDir 'Support'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.632-Xbox-Support.zip'
 
-      - name: Upload Xbox MSIX directly
-        uses: actions/upload-artifact@v7
-        with:
-          path: TPR-Xbox-Package/TwilightPrincessRandomizer_1.4.1.632_x64.msix
-          archive: false
-          if-no-files-found: error
-          retention-days: 3
+          New-Item -ItemType Directory -Force $supportDir | Out-Null
+          Copy-Item @(
+            (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
+            (Join-Path $packageDir 'INSTALL_XBOX.md'),
+            (Join-Path $packageDir 'INSTALL_TEXTURE_ZIPS_XBOX.md'),
+            (Join-Path $packageDir 'APP_IDENTITY.json')
+          ) -Destination $supportDir -Force
 
-      - name: Upload certificate and install instructions
-        uses: actions/upload-artifact@v7
-        with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.632-Xbox-Support
-          path: |
-            TPR-Xbox-Package/TwilightPrincessRandomizer.cer
-            TPR-Xbox-Package/INSTALL_XBOX.md
-            TPR-Xbox-Package/INSTALL_TEXTURE_ZIPS_XBOX.md
-            TPR-Xbox-Package/APP_IDENTITY.json
-            TPR-Xbox-Package/*.appx
-            TPR-Xbox-Package/*.appxbundle
-            TPR-Xbox-Package/*.msixbundle
-          if-no-files-found: error
-          retention-days: 3
+          Get-ChildItem $packageDir -File |
+            Where-Object { $_.Extension -in '.appx','.appxbundle','.msixbundle' } |
+            ForEach-Object { Copy-Item $_.FullName $supportDir -Force }
+
+          Compress-Archive -Path (Join-Path $supportDir '*') -DestinationPath $supportZip -CompressionLevel Optimal -Force
+
+          gh release upload tpr-cp20-source `
+            (Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.632_x64.msix') `
+            $supportZip `
+            --repo "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not upload the verified .632 Xbox package to release tpr-cp20-source.'
+          }
