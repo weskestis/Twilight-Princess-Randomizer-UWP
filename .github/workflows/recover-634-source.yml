@@ -1,0 +1,37 @@
+name: Recover exact .634 source
+
+on:
+  push:
+    branches:
+      - codex/recover-634-source
+
+permissions:
+  contents: read
+
+jobs:
+  recover-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download and verify exact working source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p recovered
+          gh release download tpr-cp20-source \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' \
+            --dir recovered
+          echo 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2  recovered/Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' |
+            sha256sum --check
+
+      - name: Upload verified source for recovery
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpr-working-634-source-recovery
+          path: recovered/Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
