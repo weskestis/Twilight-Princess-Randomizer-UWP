@@ -1,5 +1,5 @@
 diff --git a/files.cmake b/files.cmake
-index c2ea15713c11deba7fa3900bab8a11c1aa882f91..e739c67c1c6150192484ae0f8888e23a57736a21 100644
+index c2ea15713c..e739c67c1c 100644
 --- a/files.cmake
 +++ b/files.cmake
 @@ -1687,6 +1687,8 @@ set(DUSK_FILES
@@ -12,7 +12,7 @@ index c2ea15713c11deba7fa3900bab8a11c1aa882f91..e739c67c1c6150192484ae0f8888e23a
          src/dusk/randomizer/generator/seedgen/config.cpp
          src/dusk/randomizer/generator/seedgen/config.hpp
 diff --git a/platforms/uwp/Package.appxmanifest b/platforms/uwp/Package.appxmanifest
-index 011f4db9d49a216517f0c89ddf7381a1c68cd434..1d9922f5d3506e374790be0fd526dc3247632e1b 100644
+index 011f4db9d4..1d9922f5d3 100644
 --- a/platforms/uwp/Package.appxmanifest
 +++ b/platforms/uwp/Package.appxmanifest
 @@ -10,7 +10,7 @@
@@ -25,7 +25,7 @@ index 011f4db9d49a216517f0c89ddf7381a1c68cd434..1d9922f5d3506e374790be0fd526dc32
    <mp:PhoneIdentity PhoneProductId="e3b5e8e8-c7e7-5c3d-affa-0500675ffa0d" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
  
 diff --git a/src/d/actor/d_a_movie_player.cpp b/src/d/actor/d_a_movie_player.cpp
-index a830f1440fdfb115e4f1c547bd6e254e278c95d2..96b955ec5c8bd7c407c014a9dc17dc42202ab8a7 100644
+index a830f1440f..96b955ec5c 100644
 --- a/src/d/actor/d_a_movie_player.cpp
 +++ b/src/d/actor/d_a_movie_player.cpp
 @@ -14,7 +14,10 @@
@@ -828,7 +828,7 @@ index a830f1440fdfb115e4f1c547bd6e254e278c95d2..96b955ec5c8bd7c407c014a9dc17dc42
      if ((u32)temp_r3 <= 1) {
          return 0;
 diff --git a/src/d/actor/d_a_obj_carry.cpp b/src/d/actor/d_a_obj_carry.cpp
-index d00b06b10aa7aecd579c6a0d0aec1546c8c1c2c6..623858e166fb7951f63b54c208711dd1a09f2879 100644
+index d00b06b10a..623858e166 100644
 --- a/src/d/actor/d_a_obj_carry.cpp
 +++ b/src/d/actor/d_a_obj_carry.cpp
 @@ -22,6 +22,10 @@
@@ -900,7 +900,7 @@ index d00b06b10aa7aecd579c6a0d0aec1546c8c1c2c6..623858e166fb7951f63b54c208711dd1
  
      if (i_cancelCarry) {
 diff --git a/src/d/actor/d_a_obj_item.cpp b/src/d/actor/d_a_obj_item.cpp
-index 4d8ba898910a85f9eedb15682934b66c5731e2d3..e2b2cc461e25add99945aa55393c4bc78f1991d0 100644
+index 4d8ba89891..e2b2cc461e 100644
 --- a/src/d/actor/d_a_obj_item.cpp
 +++ b/src/d/actor/d_a_obj_item.cpp
 @@ -20,6 +20,7 @@
@@ -988,7 +988,7 @@ index 4d8ba898910a85f9eedb15682934b66c5731e2d3..e2b2cc461e25add99945aa55393c4bc7
  }
  #endif
 diff --git a/src/d/actor/d_a_obj_life_container.cpp b/src/d/actor/d_a_obj_life_container.cpp
-index 425faa361c0722cb58d4ed261fd7b9a1928b1088..3a75a57819f637800deecaddb37b6f560f59f69b 100644
+index 425faa361c..3a75a57819 100644
 --- a/src/d/actor/d_a_obj_life_container.cpp
 +++ b/src/d/actor/d_a_obj_life_container.cpp
 @@ -15,6 +15,7 @@
@@ -1038,7 +1038,7 @@ index 425faa361c0722cb58d4ed261fd7b9a1928b1088..3a75a57819f637800deecaddb37b6f56
      endEffect00();
      endEffect02();
 diff --git a/src/d/actor/d_a_obj_pumpkin.cpp b/src/d/actor/d_a_obj_pumpkin.cpp
-index c5c3d015045957a672e97d1733ae8297d5ad335d..66afabd09df80fb3cb487e9f0a50ee90652e0292 100644
+index c5c3d01504..66afabd09d 100644
 --- a/src/d/actor/d_a_obj_pumpkin.cpp
 +++ b/src/d/actor/d_a_obj_pumpkin.cpp
 @@ -11,6 +11,9 @@
@@ -1116,7 +1116,7 @@ index c5c3d015045957a672e97d1733ae8297d5ad335d..66afabd09df80fb3cb487e9f0a50ee90
          if (field_0xBA8 == 0) {
              mpModel->getModelData()->getMaterialNodePointer(0)->getShape()->hide();
 diff --git a/src/d/d_resorce.cpp b/src/d/d_resorce.cpp
-index b2243439832ac1ed54ce8da4fcb3c6188491e926..02c14833023005e4adf098878b540c99a2275d90 100644
+index b224343983..02c1483302 100644
 --- a/src/d/d_resorce.cpp
 +++ b/src/d/d_resorce.cpp
 @@ -20,6 +20,10 @@
@@ -1151,7 +1151,7 @@ index b2243439832ac1ed54ce8da4fcb3c6188491e926..02c14833023005e4adf098878b540c99
          if (mDataHeap != NULL) {
              mDoExt_destroySolidHeap(mDataHeap);
 diff --git a/src/d/d_s_play.cpp b/src/d/d_s_play.cpp
-index d55b6eae210482523cd20351ee65a7f72e1ae65b..70f8953195b0f25832f484754ba0e28c920aaeab 100644
+index d55b6eae21..70f8953195 100644
 --- a/src/d/d_s_play.cpp
 +++ b/src/d/d_s_play.cpp
 @@ -44,7 +44,10 @@
@@ -1195,7 +1195,7 @@ index d55b6eae210482523cd20351ee65a7f72e1ae65b..70f8953195b0f25832f484754ba0e28c
          int layer = dComIfG_play_c::getLayerNo_common_common(dComIfGp_getStartStageName(), dComIfGp_getStartStageRoomNo(), dComIfGp_getStartStageLayer());
          if (layer < 0) {
 diff --git a/src/dusk/config_var.hpp b/src/dusk/config_var.hpp
-index c4d3ac1d6b33b53daa19dc7fe7fb6ee1ad7c7b95..54eaf41eb3fe5a833c07af4a8dba2c4614bcb959 100644
+index c4d3ac1d6b..54eaf41eb3 100644
 --- a/src/dusk/config_var.hpp
 +++ b/src/dusk/config_var.hpp
 @@ -203,6 +203,7 @@ class ConfigVar : public ConfigVarBase {
@@ -1253,7 +1253,7 @@ index c4d3ac1d6b33b53daa19dc7fe7fb6ee1ad7c7b95..54eaf41eb3fe5a833c07af4a8dba2c46
          checkRegistered();
          if (layer == ConfigVarLayer::Speedrun) {
 diff --git a/src/dusk/cosmetics/texture_utils.cpp b/src/dusk/cosmetics/texture_utils.cpp
-index be582775fcd01313c13fdec795daa6ca9dea019b..03c7c0d278e318db910f805df6a35b7344ceb0c5 100644
+index be582775fc..03c7c0d278 100644
 --- a/src/dusk/cosmetics/texture_utils.cpp
 +++ b/src/dusk/cosmetics/texture_utils.cpp
 @@ -11,10 +11,48 @@
@@ -1508,7 +1508,7 @@ index be582775fcd01313c13fdec795daa6ca9dea019b..03c7c0d278e318db910f805df6a35b73
 +    }
 +}
 diff --git a/src/dusk/cosmetics/texture_utils.hpp b/src/dusk/cosmetics/texture_utils.hpp
-index db7ef3dfec67447526c42ac0cfce622e983a8590..6e0a53dfb7e15ce54faea7a352258a73d47f258a 100644
+index db7ef3dfec..6e0a53dfb7 100644
 --- a/src/dusk/cosmetics/texture_utils.hpp
 +++ b/src/dusk/cosmetics/texture_utils.hpp
 @@ -6,20 +6,28 @@
@@ -1542,7 +1542,7 @@ index db7ef3dfec67447526c42ac0cfce622e983a8590..6e0a53dfb7e15ce54faea7a352258a73
 +void clear_loaded_texture_overrides() noexcept;
  } // namespace dusk::cosmetics
 diff --git a/src/dusk/imgui/ImGuiCameraOverlay.cpp b/src/dusk/imgui/ImGuiCameraOverlay.cpp
-index 320c41ec92a8647b917f41659b016c7ad42ebd9c..0b56ec671db9cebd3b80059c0efaab13336b8211 100644
+index 320c41ec92..0b56ec671d 100644
 --- a/src/dusk/imgui/ImGuiCameraOverlay.cpp
 +++ b/src/dusk/imgui/ImGuiCameraOverlay.cpp
 @@ -23,14 +23,16 @@ namespace dusk {
@@ -1565,7 +1565,7 @@ index 320c41ec92a8647b917f41659b016c7ad42ebd9c..0b56ec671db9cebd3b80059c0efaab13
          if (!ImGui::Begin("Camera Debug", nullptr, windowFlags)) {
              ImGui::End();
 diff --git a/src/dusk/imgui/ImGuiConsole.cpp b/src/dusk/imgui/ImGuiConsole.cpp
-index 1e1b090ff8dd475adf49889b34bd558e2a03dcb7..ed3e2bf3ff383ffddfe74d73f711fb4dcb9a08a7 100644
+index 1e1b090ff8..ed3e2bf3ff 100644
 --- a/src/dusk/imgui/ImGuiConsole.cpp
 +++ b/src/dusk/imgui/ImGuiConsole.cpp
 @@ -376,6 +376,7 @@ namespace dusk {
@@ -1577,7 +1577,7 @@ index 1e1b090ff8dd475adf49889b34bd558e2a03dcb7..ed3e2bf3ff383ffddfe74d73f711fb4d
      }
  
 diff --git a/src/dusk/imgui/ImGuiControllerOverlay.cpp b/src/dusk/imgui/ImGuiControllerOverlay.cpp
-index ad07978a8b3f34e9bb6c8219093f4d92fe7e98fa..d6dfbdd9e41f9b874e2a7b57e0103c95d8e5107a 100644
+index ad07978a8b..d6dfbdd9e4 100644
 --- a/src/dusk/imgui/ImGuiControllerOverlay.cpp
 +++ b/src/dusk/imgui/ImGuiControllerOverlay.cpp
 @@ -1,298 +1,586 @@
@@ -2437,7 +2437,7 @@ index ad07978a8b3f34e9bb6c8219093f4d92fe7e98fa..d6dfbdd9e41f9b874e2a7b57e0103c95
 +
  }  // namespace dusk
 diff --git a/src/dusk/imgui/ImGuiMenuRandomizer.cpp b/src/dusk/imgui/ImGuiMenuRandomizer.cpp
-index 6083011a98b62a81e02fa8acfee998718584b8a8..8ea7cb01946d2fb2180df43c14e478fb743f3d91 100644
+index 6083011a98..e8d004c6d0 100644
 --- a/src/dusk/imgui/ImGuiMenuRandomizer.cpp
 +++ b/src/dusk/imgui/ImGuiMenuRandomizer.cpp
 @@ -14,15 +14,23 @@
@@ -2590,7 +2590,7 @@ index 6083011a98b62a81e02fa8acfee998718584b8a8..8ea7cb01946d2fb2180df43c14e478fb
  
          ImGui::SetNextWindowBgAlpha(0.5f);
          if (ImGui::BeginChild("ScrollRegion", ImVec2(0, 0), true))
-@@ -534,6 +566,206 @@ namespace dusk {
+@@ -534,6 +566,207 @@ namespace dusk {
          ImGui::End();
      }
  
@@ -2724,7 +2724,8 @@ index 6083011a98b62a81e02fa8acfee998718584b8a8..8ea7cb01946d2fb2180df43c14e478fb
 +            const ImTextureID texture = get_tracker_item_texture(slot.iconItem);
 +            const ImVec4 tint = owned ? ImVec4(1, 1, 1, 1) : ImVec4(0.18f, 0.18f, 0.18f, 0.60f);
 +            if (texture != ImTextureID{}) {
-+                ImGui::Image(texture, ImVec2(iconSize, iconSize), ImVec2(0, 0), ImVec2(1, 1), tint);
++                ImGui::ImageWithBg(texture, ImVec2(iconSize, iconSize), ImVec2(0, 0),
++                    ImVec2(1, 1), ImVec4(0, 0, 0, 0), tint);
 +            } else {
 +                ImGui::Dummy(ImVec2(iconSize, iconSize));
 +            }
@@ -2797,7 +2798,7 @@ index 6083011a98b62a81e02fa8acfee998718584b8a8..8ea7cb01946d2fb2180df43c14e478fb
      randomizer::Randomizer* ImGuiMenuRandomizer::getTrackerRando() {
          static randomizer::Randomizer trackerRando{ui::GetRandomizerPath()};
          return &trackerRando;
-@@ -860,6 +1092,7 @@ namespace dusk {
+@@ -860,6 +1093,7 @@ namespace dusk {
          auto locations = world->GetAllLocations();
  
          m_LocationInfo.clear();
@@ -2805,7 +2806,7 @@ index 6083011a98b62a81e02fa8acfee998718584b8a8..8ea7cb01946d2fb2180df43c14e478fb
  
          m_numProgressionLocations = std::ranges::count_if(locations, [](auto* location) {return location->IsProgression();});
          m_numAvailableLocations = std::ranges::count_if(m_currentSearch._visitedLocations, [](auto* location) {return location->IsProgression();});
-@@ -878,14 +1111,18 @@ namespace dusk {
+@@ -878,14 +1112,18 @@ namespace dusk {
  
              int itemId = getLocationItem(location);
  
@@ -2825,7 +2826,7 @@ index 6083011a98b62a81e02fa8acfee998718584b8a8..8ea7cb01946d2fb2180df43c14e478fb
  
              info.hidden = std::ranges::find(m_HiddenChecks, info.locationName) != m_HiddenChecks.end();
  
-@@ -906,7 +1143,5 @@ namespace dusk {
+@@ -906,7 +1144,5 @@ namespace dusk {
              }
          }
  
@@ -2836,7 +2837,7 @@ index 6083011a98b62a81e02fa8acfee998718584b8a8..8ea7cb01946d2fb2180df43c14e478fb
 \ No newline at end of file
 +} // namespace dusk
 diff --git a/src/dusk/imgui/ImGuiMenuRandomizer.hpp b/src/dusk/imgui/ImGuiMenuRandomizer.hpp
-index 652b59c2ca1ad336a450c26b171aaaa9827bdcde..25aa159f00d24fff6d62ab0e88310deb9ea5d1ab 100644
+index 652b59c2ca..25aa159f00 100644
 --- a/src/dusk/imgui/ImGuiMenuRandomizer.hpp
 +++ b/src/dusk/imgui/ImGuiMenuRandomizer.hpp
 @@ -20,6 +20,7 @@ public:
@@ -2896,7 +2897,7 @@ index 652b59c2ca1ad336a450c26b171aaaa9827bdcde..25aa159f00d24fff6d62ab0e88310deb
  }
  
 diff --git a/src/dusk/imgui/ImGuiMenuTools.cpp b/src/dusk/imgui/ImGuiMenuTools.cpp
-index b9ad5eb021eacc2b5cbf61e8bb23914ea52d14c0..a6e2f8a52acb63a4de6facb047f733d47674c19a 100644
+index b9ad5eb021..a6e2f8a52a 100644
 --- a/src/dusk/imgui/ImGuiMenuTools.cpp
 +++ b/src/dusk/imgui/ImGuiMenuTools.cpp
 @@ -129,8 +129,7 @@ namespace dusk {
@@ -2940,7 +2941,7 @@ index b9ad5eb021eacc2b5cbf61e8bb23914ea52d14c0..a6e2f8a52acb63a4de6facb047f733d4
          if (ImGui::Begin("Player Info", nullptr, windowFlags)) {
              daAlink_c* player = (daAlink_c*)dComIfGp_getPlayer(0);
 diff --git a/src/dusk/imgui/ImGuiMenuTools.hpp b/src/dusk/imgui/ImGuiMenuTools.hpp
-index 61fab81f7970f5b836586bb6b95c9a30ace73a67..f1d39df1bc20fd235222db961882c67346483cd8 100644
+index 61fab81f79..f1d39df1bc 100644
 --- a/src/dusk/imgui/ImGuiMenuTools.hpp
 +++ b/src/dusk/imgui/ImGuiMenuTools.hpp
 @@ -56,7 +56,7 @@ namespace dusk {
@@ -2953,7 +2954,7 @@ index 61fab81f7970f5b836586bb6b95c9a30ace73a67..f1d39df1bc20fd235222db961882c673
      };
  }
 diff --git a/src/dusk/imgui/ImGuiSaveEditor.cpp b/src/dusk/imgui/ImGuiSaveEditor.cpp
-index ec2802de449150bf73af0be720f380dd3aecd630..994347a5f45b53c4de22de39b758dbb2463487d7 100644
+index ec2802de44..994347a5f4 100644
 --- a/src/dusk/imgui/ImGuiSaveEditor.cpp
 +++ b/src/dusk/imgui/ImGuiSaveEditor.cpp
 @@ -413,11 +413,10 @@ namespace dusk {
@@ -2973,7 +2974,7 @@ index ec2802de449150bf73af0be720f380dd3aecd630..994347a5f45b53c4de22de39b758dbb2
          if (ImGui::Begin("Save Editor", &open, windowFlags)) {
              if (ImGui::BeginTabBar("SaveEditorTabBar", ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) {
 diff --git a/src/dusk/imgui/ImGuiStateShare.cpp b/src/dusk/imgui/ImGuiStateShare.cpp
-index 27c6c7451718d9a5247723e62134b0d751603d5a..35e6953c079226c1311c67e550290a57b04fdde5 100644
+index 27c6c74517..35e6953c07 100644
 --- a/src/dusk/imgui/ImGuiStateShare.cpp
 +++ b/src/dusk/imgui/ImGuiStateShare.cpp
 @@ -271,8 +271,11 @@ void ImGuiStateShare::draw(bool& open) {
@@ -2991,7 +2992,7 @@ index 27c6c7451718d9a5247723e62134b0d751603d5a..35e6953c079226c1311c67e550290a57
          return;
      }
 diff --git a/src/dusk/mods/svc/save.cpp b/src/dusk/mods/svc/save.cpp
-index 9930129be53bdfe9a3cacb7ae388c1005e1c1d1f..363cd63af5bd998e8a7a567e98dd8d2ddaa89116 100644
+index 9930129be5..363cd63af5 100644
 --- a/src/dusk/mods/svc/save.cpp
 +++ b/src/dusk/mods/svc/save.cpp
 @@ -23,6 +23,7 @@ static_assert(kQuestLogSize == QUEST_LOG_SIZE);
@@ -3226,7 +3227,7 @@ index 9930129be53bdfe9a3cacb7ae388c1005e1c1d1f..363cd63af5bd998e8a7a567e98dd8d2d
  
  namespace {
 diff --git a/src/dusk/mods/svc/save.hpp b/src/dusk/mods/svc/save.hpp
-index 89460af14657d2d8a3899ebbc25b5308ed2d6fa2..91cafddeedd4cc6371225ae053f28321bb60c169 100644
+index 89460af146..91cafddeed 100644
 --- a/src/dusk/mods/svc/save.hpp
 +++ b/src/dusk/mods/svc/save.hpp
 @@ -1,6 +1,10 @@
@@ -3254,7 +3255,7 @@ index 89460af14657d2d8a3899ebbc25b5308ed2d6fa2..91cafddeedd4cc6371225ae053f28321
  }  // namespace dusk::mods::svc
 diff --git a/src/dusk/randomizer/game/breakables.cpp b/src/dusk/randomizer/game/breakables.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..d02a95813b058114e1a89ccab04285280d5ff6c8
+index 0000000000..d02a95813b
 --- /dev/null
 +++ b/src/dusk/randomizer/game/breakables.cpp
 @@ -0,0 +1,589 @@
@@ -3849,7 +3850,7 @@ index 0000000000000000000000000000000000000000..d02a95813b058114e1a89ccab0428528
 +}  // namespace randomizer::breakables
 diff --git a/src/dusk/randomizer/game/breakables.hpp b/src/dusk/randomizer/game/breakables.hpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..7e30805d41dd12b727a9f756e607c5081595bab4
+index 0000000000..7e30805d41
 --- /dev/null
 +++ b/src/dusk/randomizer/game/breakables.hpp
 @@ -0,0 +1,75 @@
@@ -3929,7 +3930,7 @@ index 0000000000000000000000000000000000000000..7e30805d41dd12b727a9f756e607c508
 +
 +}  // namespace randomizer::breakables
 diff --git a/src/dusk/randomizer/game/randomizer_context.cpp b/src/dusk/randomizer/game/randomizer_context.cpp
-index ad151c8679639b06ae008b6a63e31791533bb802..b2005911e28b378ca60771e81aeadc06b9bc35d2 100644
+index ad151c8679..b2005911e2 100644
 --- a/src/dusk/randomizer/game/randomizer_context.cpp
 +++ b/src/dusk/randomizer/game/randomizer_context.cpp
 @@ -6,6 +6,7 @@
@@ -4048,7 +4049,7 @@ index ad151c8679639b06ae008b6a63e31791533bb802..b2005911e28b378ca60771e81aeadc06
 \ No newline at end of file
 +}
 diff --git a/src/dusk/randomizer/game/randomizer_context.hpp b/src/dusk/randomizer/game/randomizer_context.hpp
-index acce792acd55731db6669370bfb4ea277b9163d6..72aa39aa4087886bdd10f460a08e331b52394814 100644
+index acce792acd..72aa39aa40 100644
 --- a/src/dusk/randomizer/game/randomizer_context.hpp
 +++ b/src/dusk/randomizer/game/randomizer_context.hpp
 @@ -42,6 +42,14 @@ public:
@@ -4075,7 +4076,7 @@ index acce792acd55731db6669370bfb4ea277b9163d6..72aa39aa4087886bdd10f460a08e331b
      u8 mStartHour{0};
      u8 mMapBits{};
 diff --git a/src/dusk/randomizer/game/tools.cpp b/src/dusk/randomizer/game/tools.cpp
-index ee47060ae894b47cf3d083e7d570202736eccfdb..d1e635d3880f34ddb76389f3d9cedb6b41db07b8 100644
+index ee47060ae8..d1e635d388 100644
 --- a/src/dusk/randomizer/game/tools.cpp
 +++ b/src/dusk/randomizer/game/tools.cpp
 @@ -5,12 +5,18 @@
@@ -4239,7 +4240,7 @@ index ee47060ae894b47cf3d083e7d570202736eccfdb..d1e635d3880f34ddb76389f3d9cedb6b
 +}
 diff --git a/src/dusk/randomizer/generator/breakable_data.cpp b/src/dusk/randomizer/generator/breakable_data.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..d972bff7e418ed4634d2a641cff5eba5e649e7cd
+index 0000000000..d972bff7e4
 --- /dev/null
 +++ b/src/dusk/randomizer/generator/breakable_data.cpp
 @@ -0,0 +1,47 @@
@@ -4292,7 +4293,7 @@ index 0000000000000000000000000000000000000000..d972bff7e418ed4634d2a641cff5eba5
 +}  // namespace randomizer::breakables
 diff --git a/src/dusk/randomizer/generator/breakable_data.hpp b/src/dusk/randomizer/generator/breakable_data.hpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..35a5aa464dfc8699c078ba0ebd69e9fc8ac6c7b3
+index 0000000000..35a5aa464d
 --- /dev/null
 +++ b/src/dusk/randomizer/generator/breakable_data.hpp
 @@ -0,0 +1,14 @@
@@ -4312,7 +4313,7 @@ index 0000000000000000000000000000000000000000..35a5aa464dfc8699c078ba0ebd69e9fc
 +}  // namespace randomizer::breakables
 diff --git a/src/dusk/randomizer/generator/breakable_data.inc b/src/dusk/randomizer/generator/breakable_data.inc
 new file mode 100644
-index 0000000000000000000000000000000000000000..a41fddb6f244a0325f1056af2587fc05bfc5b1ea
+index 0000000000..a41fddb6f2
 --- /dev/null
 +++ b/src/dusk/randomizer/generator/breakable_data.inc
 @@ -0,0 +1,1332 @@
@@ -5649,7 +5650,7 @@ index 0000000000000000000000000000000000000000..a41fddb6f244a0325f1056af2587fc05
 +    StaticDefinition{0xd04c5a195bdb9468ULL, 65, 2, Kind::Pumpkin, 0x0000, true, true},
 +    StaticDefinition{0xd369aad8a8c0e063ULL, 65, 2, Kind::Pumpkin, 0x0000, true, true},
 diff --git a/src/dusk/randomizer/generator/data/macros.yaml b/src/dusk/randomizer/generator/data/macros.yaml
-index a5766aaa397eb86a066f03653400c3204b33541d..0477e45e20dfcc59de454fd6f4a72997d13c428a 100644
+index a5766aaa39..e0004ba381 100644
 --- a/src/dusk/randomizer/generator/data/macros.yaml
 +++ b/src/dusk/randomizer/generator/data/macros.yaml
 @@ -22,6 +22,15 @@ Can Midna Jump: Wolf_Link
@@ -5661,15 +5662,15 @@ index a5766aaa397eb86a066f03653400c3204b33541d..0477e45e20dfcc59de454fd6f4a72997
 +# underwater, gated, and projectile-only pots which share a room with easier
 +# props. This guarantees required items cannot be placed in a prop the player
 +# cannot physically reach or break.
-+Can Collect Every Breakable: Human_Link and Progressive_Sword and Progressive_Bow and Gale_Boomerang and
-+                             count(Progressive_Clawshot, 2) and Ball_and_Chain and Iron_Boots and Spinner and
-+                             Bomb_Bag and Lantern and Zora_Armor and count(Progressive_Dominion_Rod, 2)
++Can Collect Every Breakable: Shadow_Crystal and Sword and Bow and Gale_Boomerang and Double_Clawshots and
++                             Ball_and_Chain and Iron_Boots and Spinner and Bombs and Lantern and Zora_Armor and
++                             Restored_Dominion_Rod
 +
  Slingshot: Slingshot and 'Can_Refill_Slingshot_Seeds' and Human_Link
  Lantern: Lantern and 'Can_Refill_Lantern_Oil' and Human_Link
  Gale Boomerang: Gale_Boomerang and Human_Link
 diff --git a/src/dusk/randomizer/generator/data/settings_list.yaml b/src/dusk/randomizer/generator/data/settings_list.yaml
-index 11f346855e5c2dffea95b8f5a3494b92ab5e8db2..e46694cc60aad804d9426046f9cdd4caa02e6a73 100644
+index 11f346855e..e46694cc60 100644
 --- a/src/dusk/randomizer/generator/data/settings_list.yaml
 +++ b/src/dusk/randomizer/generator/data/settings_list.yaml
 @@ -141,6 +141,24 @@
@@ -5705,7 +5706,7 @@ index 11f346855e5c2dffea95b8f5a3494b92ab5e8db2..e46694cc60aad804d9426046f9cdd4ca
 \ No newline at end of file
 +    - "On": "Ball and Chain may be required to break webs."
 diff --git a/src/dusk/randomizer/generator/logic/area.cpp b/src/dusk/randomizer/generator/logic/area.cpp
-index 96f173f7a1f553b94f56e8f3767aae88b84348ad..3b98d19e0139e4163c0a4e393bc358b2b997ce3d 100644
+index 96f173f7a1..3b98d19e01 100644
 --- a/src/dusk/randomizer/generator/logic/area.cpp
 +++ b/src/dusk/randomizer/generator/logic/area.cpp
 @@ -95,6 +95,11 @@ namespace randomizer::logic::area
@@ -5721,7 +5722,7 @@ index 96f173f7a1f553b94f56e8f3767aae88b84348ad..3b98d19e0139e4163c0a4e393bc358b2
      {
          std::list<LocationAccess*> locations;
 diff --git a/src/dusk/randomizer/generator/logic/area.hpp b/src/dusk/randomizer/generator/logic/area.hpp
-index 628c7bc8258c07af7eb3211c99e1cc095e981d3a..5be8b783241b67a6139f45d5ba368ebd6af2edc2 100644
+index 628c7bc825..5be8b78324 100644
 --- a/src/dusk/randomizer/generator/logic/area.hpp
 +++ b/src/dusk/randomizer/generator/logic/area.hpp
 @@ -70,6 +70,7 @@ namespace randomizer::logic::area
@@ -5733,7 +5734,7 @@ index 628c7bc8258c07af7eb3211c99e1cc095e981d3a..5be8b783241b67a6139f45d5ba368ebd
          void SetExits(std::list<std::unique_ptr<entrance::Entrance>>& exits);
          std::list<entrance::Entrance*> GetExits() const;
 diff --git a/src/dusk/randomizer/generator/logic/world.cpp b/src/dusk/randomizer/generator/logic/world.cpp
-index 544220d5cce40da1a358c92c02860330cf86e4ac..65715ff73f4c6880f0a7eb2f0a684640a299476b 100644
+index 544220d5cc..65715ff73f 100644
 --- a/src/dusk/randomizer/generator/logic/world.cpp
 +++ b/src/dusk/randomizer/generator/logic/world.cpp
 @@ -11,12 +11,290 @@
@@ -6145,7 +6146,7 @@ index 544220d5cce40da1a358c92c02860330cf86e4ac..65715ff73f4c6880f0a7eb2f0a684640
      {
          LOG_TO_DEBUG("Loading Macros for World " + std::to_string(this->GetID()));
 diff --git a/src/dusk/randomizer/generator/logic/world.hpp b/src/dusk/randomizer/generator/logic/world.hpp
-index 464e974b58179b110dd120e32095bc2e9c2e0b37..8fd2980c657bfcac0526515e00ed432bfe183e01 100644
+index 464e974b58..8fd2980c65 100644
 --- a/src/dusk/randomizer/generator/logic/world.hpp
 +++ b/src/dusk/randomizer/generator/logic/world.hpp
 @@ -7,6 +7,7 @@
@@ -6175,7 +6176,7 @@ index 464e974b58179b110dd120e32095bc2e9c2e0b37..8fd2980c657bfcac0526515e00ed432b
          item_pool::ItemPool _startingItemPool = {};
          std::unordered_map<entrance::Entrance*, int> _exitTimeFormCache = {};
 diff --git a/src/dusk/randomizer/generator/randomizer.cpp b/src/dusk/randomizer/generator/randomizer.cpp
-index 7fbc8fcb8d9fc3a75d3d5dde47a27860608ddc59..b42cf7d0a61247ffe11fc92179e6c232561e0c21 100644
+index 7fbc8fcb8d..b42cf7d0a6 100644
 --- a/src/dusk/randomizer/generator/randomizer.cpp
 +++ b/src/dusk/randomizer/generator/randomizer.cpp
 @@ -8,11 +8,16 @@
@@ -6262,7 +6263,7 @@ index 7fbc8fcb8d9fc3a75d3d5dde47a27860608ddc59..b42cf7d0a61247ffe11fc92179e6c232
              this->_worlds.emplace_back(std::move(world));
          }
 diff --git a/src/dusk/settings.cpp b/src/dusk/settings.cpp
-index 210bf180c5bb8b7535aeadf5945833401b1fc9d8..a82daa3f5c350ebf6c9671a444eb598bd07c84e3 100644
+index 210bf180c5..a82daa3f5c 100644
 --- a/src/dusk/settings.cpp
 +++ b/src/dusk/settings.cpp
 @@ -160,7 +160,13 @@ UserSettings g_userSettings = {
@@ -6312,7 +6313,7 @@ index 210bf180c5bb8b7535aeadf5945833401b1fc9d8..a82daa3f5c350ebf6c9671a444eb598b
  }
  
 diff --git a/src/dusk/settings.h b/src/dusk/settings.h
-index 0ed75d5ba3e3bbce27e3b08c2bacf8e9ae1fd82c..eafd1f67c78d1eddf6769aa195f4f43908d2b086 100644
+index 0ed75d5ba3..eafd1f67c7 100644
 --- a/src/dusk/settings.h
 +++ b/src/dusk/settings.h
 @@ -290,6 +290,12 @@ struct UserSettings {
@@ -6338,7 +6339,7 @@ index 0ed75d5ba3e3bbce27e3b08c2bacf8e9ae1fd82c..eafd1f67c78d1eddf6769aa195f4f439
      } cosmetics;
  };
 diff --git a/src/dusk/ui/cosmetics.cpp b/src/dusk/ui/cosmetics.cpp
-index 165b70bf9333201b9961c566d731a38e52b9b4ae..83a10af878d09ed37fea00c10f99ce2d2615af23 100644
+index 165b70bf93..83a10af878 100644
 --- a/src/dusk/ui/cosmetics.cpp
 +++ b/src/dusk/ui/cosmetics.cpp
 @@ -2,6 +2,7 @@
@@ -6988,7 +6989,7 @@ index 165b70bf9333201b9961c566d731a38e52b9b4ae..83a10af878d09ed37fea00c10f99ce2d
      });
  
 diff --git a/src/dusk/ui/cosmetics.hpp b/src/dusk/ui/cosmetics.hpp
-index d76def13c1146ceb6d33a18a5d03a2c00be8abee..07ae88381ee46333dccb47dc8dea4b4ec8671fbc 100644
+index d76def13c1..07ae88381e 100644
 --- a/src/dusk/ui/cosmetics.hpp
 +++ b/src/dusk/ui/cosmetics.hpp
 @@ -8,6 +8,10 @@ namespace dusk::ui {
@@ -7008,7 +7009,7 @@ index d76def13c1146ceb6d33a18a5d03a2c00be8abee..07ae88381ee46333dccb47dc8dea4b4e
  }
 -
 diff --git a/src/dusk/ui/icon_provider.cpp b/src/dusk/ui/icon_provider.cpp
-index b8307b92f72d946a56c8beb28b4827608aa55e16..1ac7dc9782828993babbae7a5352e04a1c27e249 100644
+index b8307b92f7..1ac7dc9782 100644
 --- a/src/dusk/ui/icon_provider.cpp
 +++ b/src/dusk/ui/icon_provider.cpp
 @@ -750,6 +750,22 @@ std::optional<aurora::rmlui::RuntimeTexture> meter_texture_provider(std::string_
@@ -7045,7 +7046,7 @@ index b8307b92f72d946a56c8beb28b4827608aa55e16..1ac7dc9782828993babbae7a5352e04a
  }  // namespace dusk::ui
  
 diff --git a/src/dusk/ui/icon_provider.hpp b/src/dusk/ui/icon_provider.hpp
-index a77c518992ddb6b8214c5c071fc6145044137257..e80a4e49cb1e9994366bd27f0014e0ce0a175e85 100644
+index a77c518992..e80a4e49cb 100644
 --- a/src/dusk/ui/icon_provider.hpp
 +++ b/src/dusk/ui/icon_provider.hpp
 @@ -5,11 +5,18 @@
@@ -7075,7 +7076,7 @@ index a77c518992ddb6b8214c5c071fc6145044137257..e80a4e49cb1e9994366bd27f0014e0ce
  
  }  // namespace dusk::ui
 diff --git a/src/dusk/ui/rando_config.cpp b/src/dusk/ui/rando_config.cpp
-index 345ebdbb6ce0f1fb0eb206aee5ff39bb952ae344..f3f90480f0ccb1c9bff5eaa5501bffc0f9dcffa4 100644
+index 345ebdbb6c..f3f90480f0 100644
 --- a/src/dusk/ui/rando_config.cpp
 +++ b/src/dusk/ui/rando_config.cpp
 @@ -996,6 +996,8 @@ RandomizerWindow::RandomizerWindow(dFile_select_c* fileSelect /*= nullptr*/) : m
@@ -7088,7 +7089,7 @@ index 345ebdbb6ce0f1fb0eb206aee5ff39bb952ae344..f3f90480f0ccb1c9bff5eaa5501bffc0
          rando_config_button(leftPane, rightPane, "Poe Souls");
          rando_config_button(leftPane, rightPane, "Ilia Memory Quest");
 diff --git a/src/dusk/ui/settings.cpp b/src/dusk/ui/settings.cpp
-index 9e94cc586d05195077cde1a9c17161ecbc73de54..4266b5c736cfab93816b286cc9ff0ca9c1783385 100644
+index 9e94cc586d..4266b5c736 100644
 --- a/src/dusk/ui/settings.cpp
 +++ b/src/dusk/ui/settings.cpp
 @@ -1517,7 +1517,8 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
@@ -7153,7 +7154,7 @@ index 9e94cc586d05195077cde1a9c17161ecbc73de54..4266b5c736cfab93816b286cc9ff0ca9
          leftPane.register_control(
              leftPane.add_select_button({
 diff --git a/src/dusk/ui/ui.cpp b/src/dusk/ui/ui.cpp
-index 3422e87772fab34bc677a20f34f240e0d52057b9..c08a23828b92bc8b6dab50d6212bffd4287695d6 100644
+index 3422e87772..c08a23828b 100644
 --- a/src/dusk/ui/ui.cpp
 +++ b/src/dusk/ui/ui.cpp
 @@ -302,6 +302,10 @@ Document* top_document() noexcept {
@@ -7169,7 +7170,7 @@ index 3422e87772fab34bc677a20f34f240e0d52057b9..c08a23828b92bc8b6dab50d6212bffd4
      }
 diff --git a/tools/build_breakable_data.py b/tools/build_breakable_data.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..caa926ac896638b556a79394a430c7e2639aa7da
+index 0000000000..caa926ac89
 --- /dev/null
 +++ b/tools/build_breakable_data.py
 @@ -0,0 +1,165 @@
@@ -7340,7 +7341,7 @@ index 0000000000000000000000000000000000000000..caa926ac896638b556a79394a430c7e2
 +    main()
 diff --git a/tools/extract_breakables_from_iso.py b/tools/extract_breakables_from_iso.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..202aa05522b5b385449ba1802db7d154e9012747
+index 0000000000..202aa05522
 --- /dev/null
 +++ b/tools/extract_breakables_from_iso.py
 @@ -0,0 +1,624 @@
@@ -7970,10 +7971,10 @@ index 0000000000000000000000000000000000000000..202aa05522b5b385449ba1802db7d154
 +    raise SystemExit(main())
 diff --git a/tools/tests/test_breakable_logic_map.py b/tools/tests/test_breakable_logic_map.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..6e6a0aa36c5fc72c0b3e870dabbeebd851f03ba7
+index 0000000000..e1451e00d9
 --- /dev/null
 +++ b/tools/tests/test_breakable_logic_map.py
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,125 @@
 +import re
 +import unittest
 +from pathlib import Path
@@ -7983,6 +7984,7 @@ index 0000000000000000000000000000000000000000..6e6a0aa36c5fc72c0b3e870dabbeebd8
 +WORLD_CPP = REPO / "src/dusk/randomizer/generator/logic/world.cpp"
 +DEFINITIONS = REPO / "src/dusk/randomizer/generator/breakable_data.inc"
 +WORLD_DATA = REPO / "src/dusk/randomizer/generator/data/world"
++MACROS = REPO / "src/dusk/randomizer/generator/data/macros.yaml"
 +
 +
 +class BreakableLogicMapTests(unittest.TestCase):
@@ -8072,12 +8074,35 @@ index 0000000000000000000000000000000000000000..6e6a0aa36c5fc72c0b3e870dabbeebd8
 +            if item["stage"] in transient_boss_stages
 +        ))
 +
++    def test_conservative_breakable_macro_requires_forms_ammo_and_full_tools(self):
++        text = MACROS.read_text(encoding="utf-8")
++        start = text.index("Can Collect Every Breakable:")
++        stop = text.index("\n\n", start)
++        requirement = text[start:stop]
++        for token in (
++            "Shadow_Crystal",
++            "Sword",
++            "Bow",
++            "Gale_Boomerang",
++            "Double_Clawshots",
++            "Ball_and_Chain",
++            "Iron_Boots",
++            "Spinner",
++            "Bombs",
++            "Lantern",
++            "Zora_Armor",
++            "Restored_Dominion_Rod",
++        ):
++            self.assertIn(token, requirement)
++        self.assertNotIn("Progressive_Bow", requirement)
++        self.assertNotIn("Bomb_Bag", requirement)
++
 +
 +if __name__ == "__main__":
 +    unittest.main()
 diff --git a/tools/tests/test_extract_breakables_from_iso.py b/tools/tests/test_extract_breakables_from_iso.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..f67bba03bc2e7de58728c941933e9d3576ae54f8
+index 0000000000..f67bba03bc
 --- /dev/null
 +++ b/tools/tests/test_extract_breakables_from_iso.py
 @@ -0,0 +1,150 @@

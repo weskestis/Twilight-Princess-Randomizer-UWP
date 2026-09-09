@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   xbox-uwp-x64:
@@ -421,11 +421,45 @@ jobs:
             subst S: /D
           }
 
-      - name: Upload private test artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: TPR-UWP-1.4.1.635-pre-dungeon-test
-          path: TPR-Xbox-Package/*
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 9
+      - name: Upload private draft test package
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'TPR-Xbox-Package'
+          $assets = @(Get-ChildItem -LiteralPath $packageDir -File | Sort-Object Name)
+          if ($assets.Count -eq 0) {
+            throw 'No verified package files are available for private handoff.'
+          }
+
+          $tag = "tpr-uwp-1.4.1.635-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer UWP 1.4.1.635 Private Test'
+          $notes = @'
+          PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
+
+          Built from the verified 1.4.1.634 / working .627 runtime baseline.
+          Contains the requested pre-dungeon feature set only.
+          Random dungeon entrance functionality is intentionally excluded.
+          '@
+
+          $draftUrl = gh release create $tag `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --draft `
+            --target "$env:GITHUB_SHA" `
+            --title $title `
+            --notes $notes
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not create the private draft test release.'
+          }
+
+          foreach ($asset in $assets) {
+            gh release upload $tag $asset.FullName --repo "$env:GITHUB_REPOSITORY"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Could not upload private test asset $($asset.Name)."
+            }
+          }
+
+          Write-Host "TPR_PRIVATE_DRAFT_URL=$draftUrl"
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" `
+            --json url,name,isDraft,tagName
