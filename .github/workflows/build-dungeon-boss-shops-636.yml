@@ -224,7 +224,10 @@ jobs:
 
       - name: Run focused extraction, logic, entrance, and shop tests
         shell: powershell
-        run: python -m unittest discover -s "$env:TPR_SRC\tools\tests" -v
+        run: |
+          python -m pip install --disable-pip-version-check PyYAML==6.0.2
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install the pinned PyYAML test dependency.' }
+          python -m unittest discover -s "$env:TPR_SRC\tools\tests" -v
 
       - name: Verify requested feature boundaries
         shell: powershell
