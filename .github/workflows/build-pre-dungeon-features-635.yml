@@ -123,6 +123,24 @@ jobs:
             Pop-Location
           }
 
+      - name: Normalize verified EOF patch anchors
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $paths = @(
+            'src/dusk/cosmetics/texture_utils.cpp',
+            'src/dusk/imgui/ImGuiMenuRandomizer.cpp',
+            'src/dusk/randomizer/game/randomizer_context.cpp',
+            'src/dusk/randomizer/game/tools.cpp',
+            'src/dusk/randomizer/generator/data/settings_list.yaml'
+          )
+          foreach ($relative in $paths) {
+            $path = Join-Path $env:TPR_SRC $relative
+            $text = [IO.File]::ReadAllText($path)
+            [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+          }
+
       - name: Apply reviewed pre-dungeon feature patch
         shell: powershell
         run: |
