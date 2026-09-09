@@ -70,14 +70,6 @@ jobs:
         with:
           arch: x64
 
-      - name: Install Ninja and native dependencies
-        shell: powershell
-        run: |
-          choco install ninja -y --no-progress
-          if (Test-Path 'C:\vcpkg\vcpkg.exe') {
-            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
-          }
-
       - name: Create short Windows build root
         shell: powershell
         run: |
@@ -167,14 +159,21 @@ jobs:
             Pop-Location
           }
 
-      - name: Upload patch mismatch diagnostics
+      - name: Emit patch mismatch diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: TPR-635-patch-diagnostics
-          path: TPR-Patch-Diagnostics/*
-          if-no-files-found: error
-          retention-days: 1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+          Get-ChildItem -LiteralPath $diagnostics -File | Sort-Object Name | ForEach-Object {
+            Write-Host "TPR_DIAG_BEGIN:$($_.Name)"
+            $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName))
+            for ($offset = 0; $offset -lt $encoded.Length; $offset += 12000) {
+              $length = [Math]::Min(12000, $encoded.Length - $offset)
+              Write-Host $encoded.Substring($offset, $length)
+            }
+            Write-Host "TPR_DIAG_END:$($_.Name)"
+          }
 
       - name: Run breakable extraction and logic tests
         shell: powershell
@@ -211,6 +210,14 @@ jobs:
             if ($patchText.Contains('diff --git a/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp')) {
               throw 'Random dungeon entrance implementation is outside this update.'
             }
+          }
+
+      - name: Install Ninja and native dependencies
+        shell: powershell
+        run: |
+          choco install ninja -y --no-progress
+          if (Test-Path 'C:\vcpkg\vcpkg.exe') {
+            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
           }
 
       - name: Configure working .627 game core
