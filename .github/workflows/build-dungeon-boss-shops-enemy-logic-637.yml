@@ -1,0 +1,608 @@
+name: Build Dungeon Boss Shops Enemy Logic 637
+
+on:
+  push:
+    branches:
+      - codex/dungeon-boss-shops-enemy-logic-637-build
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  xbox-uwp-x64:
+    name: Xbox UWP x64 test package
+    runs-on: windows-2022
+    timeout-minutes: 240
+
+    steps:
+      - name: Check out private build controls
+        uses: actions/checkout@v4
+        with:
+          path: _control
+
+      - name: Load verified working .627/.634 source
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
+          $expectedHash = 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-seedfix-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-seedfix-extract'
+          New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
+
+          gh release download tpr-cp20-source `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $archiveName `
+            --dir $downloadDir
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not download $archiveName from release tpr-cp20-source."
+          }
+
+          $archive = Join-Path $downloadDir $archiveName
+          if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+            throw "Release tpr-cp20-source is missing $archiveName."
+          }
+
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) {
+            throw "Working .627/.634 source SHA-256 mismatch: expected $expectedHash; got $actualHash."
+          }
+
+          Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
+          $sourceRoot = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
+          if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'scripts\assemble_port.py'))) {
+            throw 'Source archive root or assembler is invalid.'
+          }
+
+          Get-ChildItem -LiteralPath $sourceRoot -Force |
+            Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
+          Write-Host "Verified and loaded working .627/.634 source: $actualHash"
+
+      - name: Enable long Git paths
+        shell: powershell
+        run: git config --global core.longpaths true
+
+      - name: Enable MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Create short Windows build root
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path 'S:\') {
+            subst S: /D 2>$null
+          }
+          subst S: "$env:GITHUB_WORKSPACE"
+          New-Item -ItemType Directory -Force 'S:\tmp' | Out-Null
+          "TPR_SRC=S:\s" >> $env:GITHUB_ENV
+          "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
+          "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
+          "TMP=S:\tmp" >> $env:GITHUB_ENV
+          "TEMP=S:\tmp" >> $env:GITHUB_ENV
+
+      - name: Verify exact .634 baseline controls
+        shell: powershell
+        run: python scripts/verify_static.py
+
+      - name: Assemble pinned working .627 runtime source
+        shell: powershell
+        run: python scripts/assemble_port.py --output "$env:TPR_SRC"
+
+      - name: Verify assembled .634 baseline before patching
+        shell: powershell
+        run: python scripts/verify_static.py "$env:TPR_SRC"
+
+      - name: Stage exact .634 patch context
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+          New-Item -ItemType Directory -Force $diagnostics | Out-Null
+          $paths = @(
+            'src/dusk/cosmetics/texture_utils.cpp',
+            'src/dusk/imgui/ImGuiMenuRandomizer.cpp',
+            'src/dusk/randomizer/game/randomizer_context.cpp',
+            'src/dusk/randomizer/game/tools.cpp',
+            'src/dusk/randomizer/generator/data/settings_list.yaml'
+          )
+          foreach ($relative in $paths) {
+            $source = Join-Path $env:TPR_SRC $relative
+            $name = $relative.Replace('/', '__')
+            Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $name) -Force
+          }
+          Push-Location $env:TPR_SRC
+          try {
+            git rev-parse HEAD | Set-Content (Join-Path $diagnostics 'assembled-head.txt') -Encoding ASCII
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .636 feature patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\dungeon-boss-shops-636.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 4) {
+            throw "Expected four .636 patch chunks; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'dungeon-boss-shops-636.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'd2f3cf64cb18a1f4d9dcaade7080c6b1646c6b7cb9172f3a4b616f01ec4e8154') {
+            throw "Compressed .636 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'dungeon-boss-shops-636.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'b90f078e91b8a12b04ce19480ad9a6ee9d43366c3e514957d28b473244d2f932') {
+            throw "Decoded .636 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            $checkOutput = git apply --check $patch 2>&1
+            $checkExit = $LASTEXITCODE
+            $checkOutput | ForEach-Object { Write-Host $_ }
+            if ($checkExit -ne 0) {
+              $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+              New-Item -ItemType Directory -Force $diagnostics | Out-Null
+              $checkOutput | Set-Content (Join-Path $diagnostics 'git-apply-check.txt') -Encoding UTF8
+              $paths = @(
+                'src/dusk/cosmetics/texture_utils.cpp',
+                'src/dusk/imgui/ImGuiMenuRandomizer.cpp',
+                'src/dusk/randomizer/game/randomizer_context.cpp',
+                'src/dusk/randomizer/game/tools.cpp',
+                'src/dusk/randomizer/generator/data/settings_list.yaml'
+              )
+              foreach ($relative in $paths) {
+                $source = Join-Path $env:TPR_SRC $relative
+                $name = $relative.Replace('/', '__')
+                Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $name) -Force
+              }
+              git rev-parse HEAD | Set-Content (Join-Path $diagnostics 'assembled-head.txt') -Encoding ASCII
+              throw 'Feature patch does not match the verified .634 baseline.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) { throw 'Feature patch could not be applied.' }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .637 enemy-defeat logic patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\enemy-defeat-logic-637.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .637 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'enemy-defeat-logic-637.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '950f43a6ff3d5c167a278ab91c6d163acebcbad10e93a7ad6b575ed6ceb2ffdb') {
+            throw "Compressed .637 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'enemy-defeat-logic-637.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '393e520c85db623db9ce4045a45522248894ef77f8f278e285d1dd945558966d') {
+            throw "Decoded .637 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy-defeat logic patch does not match the verified .636 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy-defeat logic patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Advance private package identity to .637
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
+          $manifest = [IO.File]::ReadAllText($manifestPath)
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]636"') {
+            throw 'Verified .636 package identity was not present before the .637 version advance.'
+          }
+          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.637"')
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
+
+      - name: Emit patch mismatch diagnostics
+        if: failure()
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+          Get-ChildItem -LiteralPath $diagnostics -File | Sort-Object Name | ForEach-Object {
+            Write-Host "TPR_DIAG_BEGIN:$($_.Name)"
+            $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName))
+            for ($offset = 0; $offset -lt $encoded.Length; $offset += 12000) {
+              $length = [Math]::Min(12000, $encoded.Length - $offset)
+              Write-Host $encoded.Substring($offset, $length)
+            }
+            Write-Host "TPR_DIAG_END:$($_.Name)"
+          }
+
+      - name: Run focused extraction, logic, entrance, and shop tests
+        shell: powershell
+        run: |
+          python -m pip install --disable-pip-version-check PyYAML==6.0.2
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install the pinned PyYAML test dependency.' }
+          python -m unittest discover -s "$env:TPR_SRC\tools\tests" -v
+
+      - name: Verify requested feature boundaries
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content "$env:TPR_SRC\platforms\uwp\Package.appxmanifest" -Raw
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]637"') {
+            throw 'Assembled package identity is not 1.4.1.637.'
+          }
+
+          $checks = @(
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='Randomize All Colors on Every Load Screen' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='Rainbow Color Rotation Speed' },
+            @{ Path='src\dusk\randomizer\game\breakables.cpp'; Text='randomizer.breakables.v2' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Pots' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Pumpkins' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='Visual Item Tracker' },
+            @{ Path='src\dusk\imgui\ImGuiControllerOverlay.cpp'; Text='Input Viewer Layout' },
+            @{ Path='src\d\actor\d_a_movie_player.cpp'; Text='Malformed JPEG data in THP frame' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance.hpp'; Text='GameTransitionData' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='Dungeon entrance shuffle did not produce a complete permutation' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='Boss entrance shuffle did not produce a complete permutation' },
+            @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='randomizer.expanded_shops.v1' },
+            @{ Path='src\dusk\randomizer\generator\shop_item_data.cpp'; Text='Castle Town Malo Mart Bomblings' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- "All": "The established shop items' },
+            @{ Path='src\dusk\randomizer\generator\data\enemy_defeat_requirements.yaml'; Text='Gate Policy: Mandatory Only' },
+            @{ Path='src\dusk\randomizer\generator\logic\enemy_requirements.cpp'; Text='Boss entrance shuffle did not preserve every enemy defeat requirement' },
+            @{ Path='src\dusk\randomizer\generator\data\macros.yaml'; Text='Can Defeat Ganondorf' }
+          )
+          foreach ($check in $checks) {
+            $path = Join-Path $env:TPR_SRC $check.Path
+            if (-not (Select-String -LiteralPath $path -SimpleMatch $check.Text -Quiet)) {
+              throw "Missing required marker '$($check.Text)' in $($check.Path)."
+            }
+          }
+
+      - name: Install Ninja and native dependencies
+        shell: powershell
+        run: |
+          choco install ninja -y --no-progress
+          if (Test-Path 'C:\vcpkg\vcpkg.exe') {
+            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
+          }
+
+      - name: Configure working .627 game core
+        shell: powershell
+        run: |
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_UWP=ON `
+            -DDUSK_ENABLE_UPDATE_CHECKER=OFF `
+            -DDUSK_ENABLE_DISCORD=OFF `
+            -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
+            -DDUSK_ENABLE_CODE_MODS=OFF `
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-dungeon-boss-shops-enemy-logic-637
+
+      - name: Compile working .627 game core
+        shell: powershell
+        run: cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
+
+      - name: Configure fresh UWP package project
+        shell: powershell
+        run: |
+          cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_SYSTEM_NAME=WindowsStore `
+            -DCMAKE_SYSTEM_VERSION=10.0 `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_DIR="$env:TPR_FEED"
+
+      - name: Create sideload signing certificate
+        id: cert
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $password = [Guid]::NewGuid().ToString('N')
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=TwilightPrincessRandomizer' `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'Twilight Princess Randomizer Sideload Signing' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @(
+              '2.5.29.37={text}1.3.6.1.5.5.7.3.3',
+              '2.5.29.19={text}'
+            )
+          Export-PfxCertificate -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            -Password $securePassword | Out-Null
+          Export-Certificate -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+          "password=$password" >> $env:GITHUB_OUTPUT
+
+      - name: Build signed UWP package
+        shell: powershell
+        run: |
+          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
+            '/p:PackageCertificateThumbprint=' `
+            /p:AppxBundle=Never `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:GenerateAppxPackageOnBuild=true
+
+      - name: Verify and collect private .637 test package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
+          Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $packageDir | Out-Null
+
+          $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
+            Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          if (-not $sourcePackage) {
+            throw 'UWP build did not produce an MSIX package.'
+          }
+
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.637_x64.msix'
+          Copy-Item $sourcePackage.FullName $package -Force
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($package)
+          try {
+            $manifestEntry = $archive.GetEntry('AppxManifest.xml')
+            if (-not $manifestEntry) { throw 'Signed MSIX has no AppxManifest.xml.' }
+            $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
+            try { $packageManifest = $reader.ReadToEnd() }
+            finally { $reader.Dispose() }
+            if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
+                $packageManifest -notmatch 'Version="1[.]4[.]1[.]637"') {
+              throw 'Signed MSIX identity/version is not the expected .637 in-place update.'
+            }
+
+            $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
+            if (-not $exeEntry) { throw 'Signed MSIX has no TwilightPrincessRandomizer.exe.' }
+            $memory = [System.IO.MemoryStream]::new()
+            $exeStream = $exeEntry.Open()
+            try { $exeStream.CopyTo($memory) }
+            finally { $exeStream.Dispose() }
+            $exeText = [System.Text.Encoding]::ASCII.GetString($memory.ToArray())
+            $memory.Dispose()
+
+            $markers = @(
+              'Texture ZIP loading complete',
+              'Committed verified seed data',
+              'Randomize All Colors on Every Load Screen',
+              'Rainbow Color Rotation Speed',
+              'randomizer.breakables.v2',
+              'Loading authored pot and pumpkin checks',
+              'Visual Item Tracker',
+              'Input Viewer Layout',
+              'Malformed JPEG data in THP frame',
+              'Dungeon entrance shuffle did not produce a complete permutation',
+              'Boss entrance shuffle did not produce a complete permutation',
+              'randomizer.expanded_shops.v1',
+              'Castle Town Malo Mart Bomblings',
+              'Boss entrance shuffle did not preserve every enemy defeat requirement',
+              'Enemy defeat requirement catalog is empty'
+            )
+            foreach ($marker in $markers) {
+              if (-not $exeText.Contains($marker)) {
+                throw "Compiled executable is missing marker '$marker'."
+              }
+            }
+          }
+          finally {
+            $archive.Dispose()
+          }
+
+          if ((Get-Item $package).Length -gt 100MB) {
+            throw 'ZIP-only MSIX is unexpectedly larger than 100 MiB.'
+          }
+
+          Get-ChildItem "$env:TPR_PKG" -Recurse -File |
+            Where-Object {
+              $_.Extension -in '.appx','.appxbundle','.msixbundle' -and
+              $_.FullName -match '[\\/]Dependencies[\\/]'
+            } |
+            ForEach-Object { Copy-Item $_.FullName $packageDir -Force }
+
+          $identity = Get-Content "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Raw |
+            ConvertFrom-Json
+          $identity.version = '1.4.1.637'
+          $identity | ConvertTo-Json | Set-Content `
+            "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
+          $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
+          $installGuide = $installGuide.Replace(
+            'Do **not** uninstall `.633`. Deploy `.634` over it',
+            'Do **not** uninstall `.636`. Deploy `.637` over it')
+          $installGuide = $installGuide.Replace(
+            'Do **not** uninstall `.635`. Deploy `.636` over it',
+            'Do **not** uninstall `.636`. Deploy `.637` over it')
+          if (-not $installGuide.Contains('Do **not** uninstall `.636`. Deploy `.637` over it')) {
+            throw 'Xbox install guide could not be advanced to the .637 in-place update instructions.'
+          }
+          Set-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $installGuide -Encoding UTF8
+
+          Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_TEXTURE_ZIPS_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
+
+          $supportDir = Join-Path $packageDir 'Support'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.637-Xbox-Support.zip'
+          New-Item -ItemType Directory -Force $supportDir | Out-Null
+          Copy-Item @(
+            (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
+            (Join-Path $packageDir 'INSTALL_XBOX.md'),
+            (Join-Path $packageDir 'INSTALL_TEXTURE_ZIPS_XBOX.md'),
+            (Join-Path $packageDir 'APP_IDENTITY.json')
+          ) -Destination $supportDir -Force
+          Get-ChildItem $packageDir -File |
+            Where-Object { $_.Extension -in '.appx','.appxbundle','.msixbundle' } |
+            ForEach-Object { Copy-Item $_.FullName $supportDir -Force }
+          Compress-Archive -Path (Join-Path $supportDir '*') `
+            -DestinationPath $supportZip -CompressionLevel Optimal -Force
+
+          if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") {
+            Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
+          }
+          Get-FileHash $package -Algorithm SHA256
+
+      - name: Release short build drive
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path 'S:\') {
+            subst S: /D
+          }
+
+      - name: Upload verified .637 test artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.637-Private-Test
+          path: TPR-Xbox-Package/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload private draft test package
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'TPR-Xbox-Package'
+          $assets = @(Get-ChildItem -LiteralPath $packageDir -File | Sort-Object Name)
+          if ($assets.Count -eq 0) {
+            throw 'No verified package files are available for private handoff.'
+          }
+
+          $tag = "tpr-uwp-1.4.1.637-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer UWP 1.4.1.637 Private Test'
+          $notes = @'
+          PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
+
+          Built from the verified 1.4.1.634 / working .627 runtime baseline,
+          with the compile-tested .636 dungeon, boss-entrance, and expanded-shop feature set.
+          Adds a 73-encounter, data-driven enemy defeat-requirement catalog and validates
+          shuffled boss destinations against the item logic for the boss actually fought.
+          This is the reusable logic foundation for future enemy-randomization settings.
+          This is an unpublished test candidate, not a public release.
+          '@
+
+          $draftUrl = gh release create $tag `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --draft `
+            --target "$env:GITHUB_SHA" `
+            --title $title `
+            --notes $notes
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not create the private draft test release.'
+          }
+
+          foreach ($asset in $assets) {
+            gh release upload $tag $asset.FullName --repo "$env:GITHUB_REPOSITORY"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Could not upload private test asset $($asset.Name)."
+            }
+          }
+
+          Write-Host "TPR_PRIVATE_DRAFT_URL=$draftUrl"
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" `
+            --json url,name,isDraft,tagName
