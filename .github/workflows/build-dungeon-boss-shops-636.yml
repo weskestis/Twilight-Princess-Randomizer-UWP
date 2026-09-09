@@ -138,7 +138,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'dungeon-boss-shops-636.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne 'e313503f1c6543e9020aeaf082e84f5d49ae396d90bfaa3ef1e745fb4a93b97f') {
+          if ($gzipHash -ne 'd2f3cf64cb18a1f4d9dcaade7080c6b1646c6b7cb9172f3a4b616f01ec4e8154') {
             throw "Compressed .636 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -157,7 +157,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne 'c63487bbeba6ab7a6ba426da8f54715c79d85818d60fbb20bf760eedbd55a484') {
+          if ($patchHash -ne 'b90f078e91b8a12b04ce19480ad9a6ee9d43366c3e514957d28b473244d2f932') {
             throw "Decoded .636 patch SHA-256 mismatch: $patchHash"
           }
 
