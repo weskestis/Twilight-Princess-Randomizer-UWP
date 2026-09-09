@@ -21,7 +21,7 @@ float ImGuiScale();
 
 namespace {
 
-// TPR UWP: primary layered input viewer. The original simple viewer is retained
+// TPR UWP: primary layered input viewer. A compact simple viewer is retained
 // below only as an automatic compatibility fallback for invalid drawing bounds.
 constexpr float kViewerDesignWidth = 600.0f;
 constexpr float kViewerDesignHeight = 310.0f;
