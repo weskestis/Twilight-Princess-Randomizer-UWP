@@ -1,0 +1,37 @@
+name: Stage exact .634 source on recovery branch
+
+on:
+  push:
+    branches:
+      - codex/recover-634-source
+
+permissions:
+  contents: write
+
+jobs:
+  stage-source:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out recovery branch
+        uses: actions/checkout@v4
+
+      - name: Download, verify, and stage exact working source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p recovered
+          gh release download tpr-cp20-source \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' \
+            --dir recovered
+          echo 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2  recovered/Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' |
+            sha256sum --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add recovered/Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip
+          git commit -m 'Stage verified .634 source for recovery'
+          git push origin HEAD:codex/recover-634-source
