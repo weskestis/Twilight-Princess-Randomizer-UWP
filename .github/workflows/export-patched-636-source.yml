@@ -1,0 +1,111 @@
+name: Export Patched 636 Source
+
+on:
+  push:
+    branches:
+      - codex/enemy-defeat-logic-637-source
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out build controls
+        uses: actions/checkout@v4
+        with:
+          path: _control
+
+      - name: Load verified working source
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
+          $expectedHash = 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'baseline-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'baseline-extract'
+          New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
+          gh release download tpr-cp20-source --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $archiveName --dir $downloadDir
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download verified baseline.' }
+          $archive = Join-Path $downloadDir $archiveName
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) { throw "Baseline hash mismatch: $actualHash" }
+          Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
+          $sourceRoot = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
+          Get-ChildItem -LiteralPath $sourceRoot -Force |
+            Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
+
+      - name: Assemble pinned source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python scripts/verify_static.py
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline control verification failed.' }
+          python scripts/assemble_port.py --output "$env:GITHUB_WORKSPACE\assembled"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned source assembly failed.' }
+          python scripts/verify_static.py "$env:GITHUB_WORKSPACE\assembled"
+          if ($LASTEXITCODE -ne 0) { throw 'Assembled source verification failed.' }
+
+      - name: Apply exact 636 patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem "$env:GITHUB_WORKSPACE\_control\patches\dungeon-boss-shops-636.patch.gz.b64.part*" -File | Sort-Object Name)
+          if ($parts.Count -ne 4) { throw "Expected four patch chunks; found $($parts.Count)." }
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'features.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'd2f3cf64cb18a1f4d9dcaade7080c6b1646c6b7cb9172f3a4b616f01ec4e8154') {
+            throw "Compressed patch hash mismatch: $gzipHash"
+          }
+          $patchPath = Join-Path $env:RUNNER_TEMP 'features.patch'
+          $input = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patchPath)
+              try { $decoder.CopyTo($output) } finally { $output.Dispose() }
+            } finally { $decoder.Dispose() }
+          } finally { $input.Dispose() }
+          $patchHash = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'b90f078e91b8a12b04ce19480ad9a6ee9d43366c3e514957d28b473244d2f932') {
+            throw "Decoded patch hash mismatch: $patchHash"
+          }
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patchPath).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patchPath, $patchText, $utf8NoBom)
+          Push-Location "$env:GITHUB_WORKSPACE\assembled"
+          try {
+            git apply --check $patchPath
+            if ($LASTEXITCODE -ne 0) { throw '636 patch check failed.' }
+            git apply $patchPath
+            if ($LASTEXITCODE -ne 0) { throw '636 patch apply failed.' }
+          } finally { Pop-Location }
+
+      - name: Package relevant patched source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = "$env:GITHUB_WORKSPACE\assembled"
+          $export = "$env:GITHUB_WORKSPACE\export"
+          New-Item -ItemType Directory -Force "$export\src\dusk\randomizer","$export\tools" | Out-Null
+          Copy-Item "$root\src\dusk\randomizer\*" "$export\src\dusk\randomizer" -Recurse -Force
+          Copy-Item "$root\tools\tests" "$export\tools\tests" -Recurse -Force
+          Copy-Item "$root\files.cmake" "$export\files.cmake" -Force
+          git -C $root diff --binary | Set-Content "$export\applied-636.patch" -Encoding UTF8
+          Compress-Archive -Path "$export\*" -DestinationPath "$env:GITHUB_WORKSPACE\patched-636-source.zip" -CompressionLevel Optimal
+
+      - name: Upload patched source
+        uses: actions/upload-artifact@v4
+        with:
+          name: patched-636-source
+          path: patched-636-source.zip
+          if-no-files-found: error
+          retention-days: 1
