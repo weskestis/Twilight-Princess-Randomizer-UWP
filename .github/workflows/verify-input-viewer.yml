@@ -1,0 +1,133 @@
+name: Verify layered input viewer (no package)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/input-viewer-635
+    paths:
+      - 'input-viewer-patch/**'
+      - '.github/workflows/verify-input-viewer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile-input-viewer:
+    name: Compile changed UWP objects
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - name: Check out implementation branch
+        uses: actions/checkout@v4
+
+      - name: Enable long Git paths
+        shell: powershell
+        run: git config --global core.longpaths true
+
+      - name: Enable MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Ninja and native dependencies
+        shell: powershell
+        run: |
+          choco install ninja -y --no-progress
+          if (Test-Path 'C:\vcpkg\vcpkg.exe') {
+            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
+          }
+
+      - name: Create short verification root
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path 'S:\') { subst S: /D 2>$null }
+          subst S: "$env:GITHUB_WORKSPACE"
+          New-Item -ItemType Directory -Force 'S:\tmp' | Out-Null
+          "TPR_SRC=S:\s" >> $env:GITHUB_ENV
+          "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
+          "TMP=S:\tmp" >> $env:GITHUB_ENV
+          "TEMP=S:\tmp" >> $env:GITHUB_ENV
+
+      - name: Recover exact .634 source kit
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = 'S:\tmp\Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
+          gh release download tpr-cp20-source `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' `
+            --dir 'S:\tmp'
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2') {
+            throw "Recovered source SHA-256 mismatch: $actual"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath 'S:\kit' -Force
+          $kit = Get-ChildItem 'S:\kit' -Directory |
+            Where-Object { Test-Path (Join-Path $_.FullName 'scripts\assemble_port.py') } |
+            Select-Object -First 1
+          if (-not $kit) { throw 'Recovered source kit root was not found.' }
+          "TPR_KIT=$($kit.FullName)" >> $env:GITHUB_ENV
+
+      - name: Overlay input viewer implementation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Copy-Item 'S:\input-viewer-patch\scripts\assemble_port.py' "$env:TPR_KIT\scripts\assemble_port.py" -Force
+          Copy-Item 'S:\input-viewer-patch\scripts\verify_static.py' "$env:TPR_KIT\scripts\verify_static.py" -Force
+          New-Item -ItemType Directory -Force "$env:TPR_KIT\patches" | Out-Null
+          Copy-Item 'S:\input-viewer-patch\patches\ImGuiControllerOverlay.cpp' `
+            "$env:TPR_KIT\patches\ImGuiControllerOverlay.cpp" -Force
+
+      - name: Verify and assemble pinned .627 runtime
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location $env:TPR_KIT
+          try {
+            python scripts/verify_static.py
+            python scripts/assemble_port.py --output "$env:TPR_SRC"
+            python scripts/verify_static.py "$env:TPR_SRC"
+          } finally {
+            Pop-Location
+          }
+
+      - name: Configure working .627 game core
+        shell: powershell
+        run: |
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_UWP=ON `
+            -DDUSK_ENABLE_UPDATE_CHECKER=OFF `
+            -DDUSK_ENABLE_DISCORD=OFF `
+            -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
+            -DDUSK_ENABLE_CODE_MODS=OFF `
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-input-viewer-check
+
+      - name: Compile changed input-viewer objects
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $targets = @(
+            'CMakeFiles/dusklight.dir/src/dusk/imgui/ImGuiControllerOverlay.cpp.obj',
+            'CMakeFiles/dusklight.dir/src/dusk/settings.cpp.obj',
+            'CMakeFiles/dusklight.dir/src/dusk/ui/settings.cpp.obj'
+          )
+          foreach ($target in $targets) {
+            & ninja -C "$env:TPR_FEED" $target
+            if ($LASTEXITCODE -ne 0) { throw "Failed to compile $target" }
+          }
+
+      - name: Release short verification drive
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path 'S:\') { subst S: /D }
