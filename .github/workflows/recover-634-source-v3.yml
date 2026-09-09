@@ -24,10 +24,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p recovered/chunks
-          gh release download tpr-cp20-source \
-            --repo "${GITHUB_REPOSITORY}" \
-            --pattern 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' \
-            --dir recovered
+          if [[ ! -f recovered/Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip ]]; then
+            gh release download tpr-cp20-source \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' \
+              --dir recovered
+          fi
           echo 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2  recovered/Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip' |
             sha256sum --check
           base64 -w 0 recovered/Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip > recovered/chunks/source.b64
