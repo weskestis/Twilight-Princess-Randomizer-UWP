@@ -105,6 +105,32 @@ jobs:
         shell: powershell
         run: python scripts/verify_static.py "$env:TPR_SRC"
 
+      - name: Stage exact .634 patch context
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+          New-Item -ItemType Directory -Force $diagnostics | Out-Null
+          $paths = @(
+            'src/dusk/cosmetics/texture_utils.cpp',
+            'src/dusk/imgui/ImGuiMenuRandomizer.cpp',
+            'src/dusk/randomizer/game/randomizer_context.cpp',
+            'src/dusk/randomizer/game/tools.cpp',
+            'src/dusk/randomizer/generator/data/settings_list.yaml'
+          )
+          foreach ($relative in $paths) {
+            $source = Join-Path $env:TPR_SRC $relative
+            $name = $relative.Replace('/', '__')
+            Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $name) -Force
+          }
+          Push-Location $env:TPR_SRC
+          try {
+            git rev-parse HEAD | Set-Content (Join-Path $diagnostics 'assembled-head.txt') -Encoding ASCII
+          }
+          finally {
+            Pop-Location
+          }
+
       - name: Apply reviewed pre-dungeon feature patch
         shell: powershell
         run: |
