@@ -1,0 +1,23 @@
+name: Probe GitHub Hosted Runners 641
+
+on:
+  push:
+    branches:
+      - codex/runner-probe-641
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Ubuntu allocation probe
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm Linux runner
+        run: echo "Ubuntu runner allocated"
+
+  windows:
+    name: Windows allocation probe
+    runs-on: windows-latest
+    steps:
+      - name: Confirm Windows runner
+        shell: powershell
+        run: Write-Host "Windows runner allocated"
