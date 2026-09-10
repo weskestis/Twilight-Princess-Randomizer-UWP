@@ -422,7 +422,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'transparent-input-viewer-macro-loader-640.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne 'df71176e65e69a492c1de70639682d314089a501a6d2c90e537550fb2e7c735a') {
+          if ($gzipHash -ne 'c10ea4932a9d0d93474ac3b5ec09bbf0d9470d115319241c14cf9ce93b185d71') {
             throw "Compressed .640 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -441,7 +441,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne 'd450e921ddb4756737f46fe158796dd64180690596d9f142291099275987969c') {
+          if ($patchHash -ne '4b1ab3c49f0081736121e384e9e98a01c9257f828422ee831c2fd5c988c7fb27') {
             throw "Decoded .640 patch SHA-256 mismatch: $patchHash"
           }
 
