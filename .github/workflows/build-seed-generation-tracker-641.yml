@@ -489,7 +489,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'seed-generation-tracker-641.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne 'c2c15799f516d6d0599f73e633b5b26ac6a7629ce6d4afc0f1d590d8ff787aeb') {
+          if ($gzipHash -ne '91a93928086d0754c1c64ece52cd09f744fbae535ca51413cd8e59c7cbfff7ed') {
             throw "Compressed .641 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -508,7 +508,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne 'fbc0071d5880d411f67f73c7489fd9642606cac8e700a09419a54309c2545dce') {
+          if ($patchHash -ne 'c8deee9a770043fe39242e9ede182a46726017b1bf81a9d3077337759520a392') {
             throw "Decoded .641 patch SHA-256 mismatch: $patchHash"
           }
 
@@ -589,9 +589,14 @@ jobs:
           $checks = @(
             @{ Path='src\dusk\ui\cosmetics.cpp'; Text='Randomize All Colors on Every Load Screen' },
             @{ Path='src\dusk\ui\cosmetics.cpp'; Text='Rainbow Color Rotation Speed' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='kRainbowHexAnchors' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='kRainbowFrameMilliseconds = 50' },
+            @{ Path='src\dusk\cosmetics\midna_hair_color.cpp'; Text='set_midna_hair_rainbow_phase' },
             @{ Path='src\dusk\ui\cosmetics.cpp'; Text='cosmetics.menuPalette.contrast.v1' },
             @{ Path='src\dusk\ui\cosmetics.cpp'; Text='kFixedTextBoxBackground = "11100a"' },
             @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_twenty_thousand_load_palette_inputs_all_pass' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_complete_rainbow_menu_fade_stays_readable_at_every_step' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_consecutive_heart_loads_cannot_share_or_neighbor_a_hue_family' },
             @{ Path='src\dusk\randomizer\game\breakables.cpp'; Text='randomizer.breakables.v2' },
             @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Pots' },
             @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Pumpkins' },
@@ -752,6 +757,7 @@ jobs:
               'Committed verified seed data',
               'Randomize All Colors on Every Load Screen',
               'Rainbow Color Rotation Speed',
+              'blend smoothly through red, orange, yellow',
               'cosmetics.menuPalette.contrast.v1',
               'input { background-color: #',
               'randomizer.breakables.v2',
@@ -888,6 +894,11 @@ jobs:
           Menu palettes generated per seed or per load scene now pass WCAG contrast checks
           against every normal, hover, and selected surface before use. Text-entry text still
           follows the menu text color, while text-entry backgrounds stay fixed and opaque.
+          Rainbow selections now continuously fade through eight real hue anchors instead of
+          snapping between preset entries; Xbox updates are capped at 20 per second, complete
+          menu themes stay contrast-safe throughout the fade, and all nine Midna hair color
+          registers interpolate together. Per-load hearts cannot repeat the same or either
+          neighboring hue family, guaranteeing a visibly different base palette after a load.
           The Input Viewer now uses a permanently transparent Ship-style presentation: no blue
           panel, controller-name strip, opaque window body, or randomized window border.
           Seed generation now registers every logic macro name before parsing requirements,
