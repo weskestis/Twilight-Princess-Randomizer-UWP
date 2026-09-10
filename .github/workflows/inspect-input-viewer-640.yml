@@ -518,7 +518,7 @@ jobs:
             } |
             Sort-Object FullName |
             ForEach-Object {
-              $relative = [IO.Path]::GetRelativePath($env:TPR_SRC, $_.FullName)
+              $relative = $_.FullName.Substring($env:TPR_SRC.Length).TrimStart([char[]]'\\/')
               Write-Host ($relative + ' | ' + $_.Length)
             }
           Write-Host 'TPR_INPUT_VIEWER_PATHS_END'
