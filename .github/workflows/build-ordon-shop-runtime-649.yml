@@ -1,5 +1,5 @@
 name: Build Ordon Shop + Ship-Style Overlays 649
-# Build control revision: sera-direct-shop-runtime-and-transparent-overlays-v2
+# Build control revision: sera-direct-shop-runtime-and-transparent-overlays-v3
 
 on:
   push:
@@ -1026,7 +1026,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'ordon-shop-runtime-649.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne '1b179f9114f77215645a0a016b3d94621326e657fe3b64e12a6b19a3cd12386f') {
+          if ($gzipHash -ne '2c13c5b1de490ab30a6db96c32095fb3004129a01694aa13cc87687cb1fbed63') {
             throw "Compressed .649 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -1045,7 +1045,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '18cf5cf96b0410cd9502aed398a692d5b74f8fc8cc53104dede8e306f1a7c96b') {
+          if ($patchHash -ne '55517735ea548da670cb4a7d3e8e5346f8c5a31469b28e3b4466b6564b8bd24c') {
             throw "Decoded .649 patch SHA-256 mismatch: $patchHash"
           }
 
