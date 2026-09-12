@@ -1,0 +1,1663 @@
+name: Build Ordon Shop + Ship-Style Overlays 649
+# Build control revision: sera-direct-shop-runtime-and-transparent-overlays-v2
+
+on:
+  push:
+    branches:
+      - codex/ordon-shop-runtime-649-build
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  xbox-uwp-x64:
+    name: Xbox UWP x64 test package
+    runs-on: windows-2022
+    timeout-minutes: 240
+
+    steps:
+      - name: Check out private build controls
+        uses: actions/checkout@v4
+        with:
+          path: _control
+
+      - name: Load verified working .627/.634 source
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
+          $expectedHash = 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-seedfix-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'tpr-working627-seedfix-extract'
+          New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
+
+          gh release download tpr-cp20-source `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $archiveName `
+            --dir $downloadDir
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not download $archiveName from release tpr-cp20-source."
+          }
+
+          $archive = Join-Path $downloadDir $archiveName
+          if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+            throw "Release tpr-cp20-source is missing $archiveName."
+          }
+
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) {
+            throw "Working .627/.634 source SHA-256 mismatch: expected $expectedHash; got $actualHash."
+          }
+
+          Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
+          $sourceRoot = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
+          if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'scripts\assemble_port.py'))) {
+            throw 'Source archive root or assembler is invalid.'
+          }
+
+          Get-ChildItem -LiteralPath $sourceRoot -Force |
+            Copy-Item -Destination $env:GITHUB_WORKSPACE -Recurse -Force
+          Write-Host "Verified and loaded working .627/.634 source: $actualHash"
+
+      - name: Enable long Git paths
+        shell: powershell
+        run: git config --global core.longpaths true
+
+      - name: Enable MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Create short Windows build root
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path 'S:\') {
+            subst S: /D 2>$null
+          }
+          subst S: "$env:GITHUB_WORKSPACE"
+          New-Item -ItemType Directory -Force 'S:\tmp' | Out-Null
+          "TPR_SRC=S:\s" >> $env:GITHUB_ENV
+          "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
+          "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
+          "TMP=S:\tmp" >> $env:GITHUB_ENV
+          "TEMP=S:\tmp" >> $env:GITHUB_ENV
+
+      - name: Verify exact .634 baseline controls
+        shell: powershell
+        run: python scripts/verify_static.py
+
+      - name: Assemble pinned working .627 runtime source
+        shell: powershell
+        run: python scripts/assemble_port.py --output "$env:TPR_SRC"
+
+      - name: Verify assembled .634 baseline before patching
+        shell: powershell
+        run: python scripts/verify_static.py "$env:TPR_SRC"
+
+      - name: Stage exact .634 patch context
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+          New-Item -ItemType Directory -Force $diagnostics | Out-Null
+          $paths = @(
+            'src/dusk/cosmetics/texture_utils.cpp',
+            'src/dusk/imgui/ImGuiMenuRandomizer.cpp',
+            'src/dusk/randomizer/game/randomizer_context.cpp',
+            'src/dusk/randomizer/game/tools.cpp',
+            'src/dusk/randomizer/generator/data/settings_list.yaml'
+          )
+          foreach ($relative in $paths) {
+            $source = Join-Path $env:TPR_SRC $relative
+            $name = $relative.Replace('/', '__')
+            Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $name) -Force
+          }
+          Push-Location $env:TPR_SRC
+          try {
+            git rev-parse HEAD | Set-Content (Join-Path $diagnostics 'assembled-head.txt') -Encoding ASCII
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .636 feature patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\dungeon-boss-shops-636.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 4) {
+            throw "Expected four .636 patch chunks; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'dungeon-boss-shops-636.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'd2f3cf64cb18a1f4d9dcaade7080c6b1646c6b7cb9172f3a4b616f01ec4e8154') {
+            throw "Compressed .636 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'dungeon-boss-shops-636.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'b90f078e91b8a12b04ce19480ad9a6ee9d43366c3e514957d28b473244d2f932') {
+            throw "Decoded .636 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            $checkOutput = git apply --check $patch 2>&1
+            $checkExit = $LASTEXITCODE
+            $checkOutput | ForEach-Object { Write-Host $_ }
+            if ($checkExit -ne 0) {
+              $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+              New-Item -ItemType Directory -Force $diagnostics | Out-Null
+              $checkOutput | Set-Content (Join-Path $diagnostics 'git-apply-check.txt') -Encoding UTF8
+              $paths = @(
+                'src/dusk/cosmetics/texture_utils.cpp',
+                'src/dusk/imgui/ImGuiMenuRandomizer.cpp',
+                'src/dusk/randomizer/game/randomizer_context.cpp',
+                'src/dusk/randomizer/game/tools.cpp',
+                'src/dusk/randomizer/generator/data/settings_list.yaml'
+              )
+              foreach ($relative in $paths) {
+                $source = Join-Path $env:TPR_SRC $relative
+                $name = $relative.Replace('/', '__')
+                Copy-Item -LiteralPath $source -Destination (Join-Path $diagnostics $name) -Force
+              }
+              git rev-parse HEAD | Set-Content (Join-Path $diagnostics 'assembled-head.txt') -Encoding ASCII
+              throw 'Feature patch does not match the verified .634 baseline.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) { throw 'Feature patch could not be applied.' }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .637 enemy-defeat logic patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\enemy-defeat-logic-637.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .637 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'enemy-defeat-logic-637.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '950f43a6ff3d5c167a278ab91c6d163acebcbad10e93a7ad6b575ed6ceb2ffdb') {
+            throw "Compressed .637 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'enemy-defeat-logic-637.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '393e520c85db623db9ce4045a45522248894ef77f8f278e285d1dd945558966d') {
+            throw "Decoded .637 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy-defeat logic patch does not match the verified .636 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy-defeat logic patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .638 enemy-randomization patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\enemy-randomization-638.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .638 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'enemy-randomization-638.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '2e099d403462e8545688ba8d241028447eeb68a1192d945462274cc2d2db5388') {
+            throw "Compressed .638 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'enemy-randomization-638.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '848ffccdf92d2dbcaf6396f3bc47643960439f46e2ef5979481442e9587ac3ea') {
+            throw "Decoded .638 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy-randomization patch does not match the verified .637 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy-randomization patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .639 menu-color safety patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\menu-color-safety-639.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .639 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'menu-color-safety-639.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '97941abc74f6144ba234ecab69387b4cbac71f2ce887e4a6ab45be58273668ca') {
+            throw "Compressed .639 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'menu-color-safety-639.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'e494bcd5e650878c81a4277ce4c9013e04fa4bd65a11ff7121fc730675521922') {
+            throw "Decoded .639 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Menu-color safety patch does not match the verified .638 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Menu-color safety patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .640 transparent-viewer and macro-loader patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\transparent-input-viewer-macro-loader-640.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .640 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'transparent-input-viewer-macro-loader-640.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'c10ea4932a9d0d93474ac3b5ec09bbf0d9470d115319241c14cf9ce93b185d71') {
+            throw "Compressed .640 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'transparent-input-viewer-macro-loader-640.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '4b1ab3c49f0081736121e384e9e98a01c9257f828422ee831c2fd5c988c7fb27') {
+            throw "Decoded .640 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Transparent-viewer and macro-loader patch does not match the verified .639 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Transparent-viewer and macro-loader patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .641 seed-generation and tracker hotfix
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\seed-generation-tracker-641.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .641 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'seed-generation-tracker-641.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '91a93928086d0754c1c64ece52cd09f744fbae535ca51413cd8e59c7cbfff7ed') {
+            throw "Compressed .641 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'seed-generation-tracker-641.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'c8deee9a770043fe39242e9ede182a46726017b1bf81a9d3077337759520a392') {
+            throw "Decoded .641 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Seed-generation and tracker hotfix does not match the verified .640 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Seed-generation and tracker hotfix could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .642 breakable runtime item safety patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\breakable-runtime-item-safety-642.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .642 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'breakable-runtime-item-safety-642.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'bbe720f07fd018b653daafcbe8a40d081f5e783fc42b6d2effd0ce320b1da5e3') {
+            throw "Compressed .642 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'breakable-runtime-item-safety-642.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'a482a2196686fd2a4e599e7829bb8f429e1ce6c95d782ea2091f04537d0ecd02') {
+            throw "Decoded .642 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Breakable runtime item safety patch does not match the verified .641 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Breakable runtime item safety patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .643 shop coverage and Rainbow pool patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\shop-rainbow-pool-643.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .643 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'shop-rainbow-pool-643.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '2917059641235ddadfd0b6c46876315274a1805db17718a0582ab37e0db9d942') {
+            throw "Compressed .643 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'shop-rainbow-pool-643.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'af94546744cc3e8b189744c40b58cf953cecb745bff123734ee5728c16a115da') {
+            throw "Decoded .643 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Shop coverage and Rainbow pool patch does not match the verified .642 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Shop coverage and Rainbow pool patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .644 runtime enemy and heart-family patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\runtime-enemy-heart-644.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .644 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'runtime-enemy-heart-644.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'cfb0cd56370b3934392cb24b91d6aa1505b513911add85e14dc082f25b6317df') {
+            throw "Compressed .644 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'runtime-enemy-heart-644.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '38260d1a15ef80c5e6b959c8fff5730ec117e1ceb9105d371dd75dd0c9c878f6') {
+            throw "Decoded .644 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Runtime enemy and heart-family patch does not match the verified .643 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Runtime enemy and heart-family patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .645 compact seed-storage patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\compact-seed-storage-645.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .645 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'compact-seed-storage-645.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'a87f03809f81b806f894e122c665d1e3d41c4a1a563e5222b874c346cf9e6496') {
+            throw "Compressed .645 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'compact-seed-storage-645.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '480d611b64bc288e32bce302d3423fb976bce4564c8b2b4d68ecbd1136b410d3') {
+            throw "Decoded .645 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Compact seed-storage patch does not match the verified .644 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Compact seed-storage patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .646 runtime-metadata and pure-tracker patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\runtime-metadata-tracker-646.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .646 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'runtime-metadata-tracker-646.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'ff732222de2bcd937668e54dc78965ad62c92f01c3f8b72ffd63ac145e5803c1') {
+            throw "Compressed .646 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'runtime-metadata-tracker-646.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'ebebfeda53c356036ffe9e2975e49694fd4045053ebdf25bdcc5928d3768fb4e') {
+            throw "Decoded .646 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Runtime metadata and pure-tracker patch does not match the verified .645 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Runtime metadata and pure-tracker patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .647 shop, pumpkin, tracker, and storage patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\shop-pumpkin-tracker-storage-647.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .647 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'shop-pumpkin-tracker-storage-647.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'a736afe48ad350784265a445cb7cd893cbef748c190b52e29709140b308987f7') {
+            throw "Compressed .647 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'shop-pumpkin-tracker-storage-647.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '7653b9b36a3dd5b3a9d2f788a69804c2110710e66df763c369e7ca1f3fe4dd5f') {
+            throw "Decoded .647 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Shop, pumpkin, tracker, and storage patch does not match the verified .646 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Shop, pumpkin, tracker, and storage patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .648 Ship-inspired feature patch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\ship-inspired-648.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 2) {
+            throw "Expected two .648 patch chunks; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'ship-inspired-648.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne 'c1c96e5a2b7b1b5a3421753bd40421ac460cac8340460cfa041f4d5edc517176') {
+            throw "Compressed .648 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'ship-inspired-648.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'd54436d176cd162400c31055ef7add57af8f818d45998a7d8a702f7f3a187c03') {
+            throw "Decoded .648 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Ship-inspired feature patch does not match the verified .647 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Ship-inspired feature patch could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Apply reviewed .649 Ordon shop and transparent-overlay hotfix
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\ordon-shop-runtime-649.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .649 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'ordon-shop-runtime-649.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '1b179f9114f77215645a0a016b3d94621326e657fe3b64e12a6b19a3cd12386f') {
+            throw "Compressed .649 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'ordon-shop-runtime-649.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '18cf5cf96b0410cd9502aed398a692d5b74f8fc8cc53104dede8e306f1a7c96b') {
+            throw "Decoded .649 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Ordon shop and transparent-overlay hotfix does not match the verified .648 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Ordon shop and transparent-overlay hotfix could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Advance private package identity to .649
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
+          $manifest = [IO.File]::ReadAllText($manifestPath)
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]636"') {
+            throw 'Verified .636 package identity was not present before the .649 version advance.'
+          }
+          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.649"')
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
+
+      - name: Emit patch mismatch diagnostics
+        if: failure()
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'TPR-Patch-Diagnostics'
+          Get-ChildItem -LiteralPath $diagnostics -File | Sort-Object Name | ForEach-Object {
+            Write-Host "TPR_DIAG_BEGIN:$($_.Name)"
+            $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName))
+            for ($offset = 0; $offset -lt $encoded.Length; $offset += 12000) {
+              $length = [Math]::Min(12000, $encoded.Length - $offset)
+              Write-Host $encoded.Substring($offset, $length)
+            }
+            Write-Host "TPR_DIAG_END:$($_.Name)"
+          }
+
+      - name: Run the complete .649 regression and feature-contract suite
+        shell: powershell
+        run: |
+          python -m pip install --disable-pip-version-check PyYAML==6.0.2
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install the pinned PyYAML test dependency.' }
+          python -m unittest discover -s "$env:TPR_SRC\tools\tests" -v
+
+      - name: Verify requested feature boundaries
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content "$env:TPR_SRC\platforms\uwp\Package.appxmanifest" -Raw
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]649"') {
+            throw 'Assembled package identity is not 1.4.1.649.'
+          }
+
+          $checks = @(
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='Randomize All Colors on Every Load Screen' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='Rainbow Color Rotation Speed' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='Rainbow All Colors' },
+            @{ Path='src\dusk\settings.cpp'; Text='cosmetics.rainbowAllColors' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='cosmetics.menuPalette.rainbow.v1' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='state.everyLoadRainbowTargets[targetIndex] = rainbow' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='kRainbowHexAnchors' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='kRainbowFrameMilliseconds = 50' },
+            @{ Path='src\dusk\cosmetics\midna_hair_color.cpp'; Text='set_midna_hair_rainbow_phase' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='cosmetics.menuPalette.contrast.v1' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='kFixedTextBoxBackground = "11100a"' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_twenty_thousand_load_palette_inputs_all_pass' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_complete_rainbow_menu_fade_stays_readable_at_every_step' },
+            @{ Path='src\dusk\ui\cosmetics.cpp'; Text='kHeartLoadFamilyCycle' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_fixed_heart_loads_visit_all_families_before_repeating' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_rainbow_all_is_a_persisted_exclusive_master_toggle' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_seed_and_load_random_pools_can_select_rainbow' },
+            @{ Path='tools\tests\test_cosmetic_color_safety.py'; Text='test_any_menu_rainbow_uses_one_coherent_safe_theme' },
+            @{ Path='src\dusk\randomizer\game\breakables.cpp'; Text='randomizer.breakables.v2' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Pots' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Pumpkins' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='ForbidUnencodableRuntimeItems' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='itemId < 0 || itemId > 0xFE' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='Pot or pumpkin location has an unencodable shuffled item' },
+            @{ Path='tools\tests\test_breakable_logic_map.py'; Text='test_runtime_byte_locations_forbid_logical_only_item_ids' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='kCompressedSeedMagic' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='CompressSeedPayload(rawPayload)' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='DecodeSeedPayload(seedBytes)' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='kCompressedSeedMagicV2' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='ZSTD_compress(' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='ZSTD_decompress(' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='mz_uncompress(' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='bytes reported free' },
+            @{ Path='tools\tests\test_seed_storage.py'; Text='test_compact_format_round_trip_model' },
+            @{ Path='tools\tests\test_seed_storage.py'; Text='test_new_writes_use_v2_but_v1_miniz_seeds_still_decode' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='metadata["Breakable"]["Kind"] = static_cast<int>' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='physical["Item"] = static_cast<int>' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='ReadRuntimeMetadataInteger' },
+            @{ Path='tools\tests\test_breakable_logic_map.py'; Text='test_breakable_runtime_metadata_uses_integer_yaml_scalars' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_expanded_shop_metadata_uses_integer_yaml_scalars' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='Pure Item Tracker' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='Pure Item Tracker###PureItemTrackerV3' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='trackerDesignSize(440.0f, 500.0f)' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='ImVec4(1.0f, 1.0f, 1.0f, 0.20f)' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='ImGuiWindowFlags_NoBackground' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='drawVisualInventoryGrid(trackerScale)' },
+            @{ Path='src\dusk\settings.cpp'; Text='game.pureItemTrackerIconSize' },
+            @{ Path='src\dusk\ui\settings.cpp'; Text='Reset Pure Tracker Layout' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='###DeathCounterOverlayV1' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='###GameTimerOverlayV1' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='randomizer.active_game_time.v1' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='dComIfGp_getGameoverStatus() == 0' },
+            @{ Path='src\dusk\ui\settings.cpp'; Text='Transparent Run Overlays' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Toggle Death Counter' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Toggle Game Timer' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='Checks: %d accessible | %d seen | %d remaining | %d checked | %d total' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Toggle Pure Item Tracker' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.hpp'; Text='mShowVisualItemTracker' },
+            @{ Path='src\dusk\imgui\ImGuiControllerOverlay.cpp'; Text='Input Viewer Layout' },
+            @{ Path='src\dusk\imgui\ImGuiControllerOverlay.cpp'; Text='ImGuiWindowFlags_NoBackground' },
+            @{ Path='src\dusk\imgui\ImGuiControllerOverlay.cpp'; Text='SetNextWindowBgAlpha(0.0f)' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='Register every name before parsing any requirement' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='Logic macro preregistration invariant failed' },
+            @{ Path='tools\tests\test_transparent_input_viewer_and_macro_loader.py'; Text='test_reproduces_the_forward_sword_reference_that_failed_on_xbox' },
+            @{ Path='tools\tests\test_transparent_input_viewer_and_macro_loader.py'; Text='test_same_name_item_macros_cannot_resolve_to_themselves' },
+            @{ Path='tools\tests\test_transparent_input_viewer_and_macro_loader.py'; Text='test_tracker_window_is_icon_only_for_an_active_existing_seed' },
+            @{ Path='tools\tests\test_transparent_input_viewer_and_macro_loader.py'; Text='test_pure_tracker_matches_ships_transparent_icon_grid' },
+            @{ Path='tools\tests\test_transparent_input_viewer_and_macro_loader.py'; Text='TransparentRunOverlayRegressionTests' },
+            @{ Path='src\d\actor\d_a_movie_player.cpp'; Text='Malformed JPEG data in THP frame' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance.hpp'; Text='GameTransitionData' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Dungeon entrance shuffle", audit.dungeonEntrances)' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Boss entrance shuffle", audit.bossEntrances)' },
+            @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='randomizer.expanded_shops.v1' },
+            @{ Path='src\dusk\randomizer\generator\shop_item_data.cpp'; Text='Castle Town Malo Mart Bomblings' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- "All": "The established shop items' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Shop Item Coverage' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='All Shelves (32)' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='All Shelves shop mode did not serialize every authored shelf' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='world->GetTextDatabase().contains(itemName)' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='randomizer::textObjectExists(itemName)' },
+            @{ Path='src\d\actor\d_a_obj_pumpkin.cpp'; Text='GXColor{red, green, blue, 255}' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_sera_shop_has_three_independent_ordon_shelves' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_sera_direct_spawn_items_join_expanded_runtime' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_expanded_shop_names_never_assume_seed_local_text_exists' },
+            @{ Path='src\d\d_shop_system.cpp'; Text='register_sera_child(index, itemTbl[i])' },
+            @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='is_sera_shop_scene' },
+            @{ Path='tools\tests\test_breakable_logic_map.py'; Text='test_randomized_pumpkin_marker_is_muted_green_and_applied_after_lighting' },
+            @{ Path='src\dusk\randomizer\generator\data\enemy_defeat_requirements.yaml'; Text='Gate Policy: Mandatory Only' },
+            @{ Path='src\dusk\randomizer\generator\logic\enemy_requirements.cpp'; Text='Boss entrance shuffle did not preserve every enemy defeat requirement' },
+            @{ Path='src\dusk\randomizer\generator\data\macros.yaml'; Text='Can Defeat Ganondorf' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Enemy Randomization' },
+            @{ Path='src\dusk\randomizer\game\enemy_shuffle.cpp'; Text='ApplyStageActor' },
+            @{ Path='src\dusk\randomizer\game\enemy_shuffle.cpp'; Text='kVanillaBossAndMinibossActors' },
+            @{ Path='src\dusk\randomizer\game\enemy_shuffle.cpp'; Text='kVanillaBossAndMinibossStages' },
+            @{ Path='src\dusk\randomizer\game\enemy_shuffle.cpp'; Text='Enemy randomization mode was not persisted correctly' },
+            @{ Path='tools\tests\test_enemy_shuffle.py'; Text='test_runtime_source_catalog_is_broad_and_not_coordinate_sampled' },
+            @{ Path='tools\tests\test_enemy_shuffle.py'; Text='test_boss_and_miniboss_arenas_are_wholly_vanilla' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='rando_config_button(leftPane, rightPane, "Enemy Randomization")' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='randomizer.seen_checks.v1' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='randomizer.entrances.v1' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='Check Style Matches Contents' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='Discovered Entrance Graph ({}/{})###EntranceGraph' },
+            @{ Path='src\dusk\imgui\ImGuiMenuRandomizer.cpp'; Text='Focus Current Region' },
+            @{ Path='src\dusk\randomizer\generator\randomizer.cpp'; Text='TPR-SEED-AWARE-JUNK-V1' },
+            @{ Path='src\dusk\randomizer\generator\randomizer.cpp'; Text='auto* itemWorld = item->GetWorld()' },
+            @{ Path='src\dusk\randomizer\generator\randomizer.cpp'; Text='ApplySeedAwareJunk(*this);' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Safe Full Randomizer' },
+            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Open Tracker at Current Region' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Seed-Aware Junk' },
+            @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Octosanity:' },
+            @{ Path='tools\tests\test_ship_inspired_features.py'; Text='test_seed_aware_junk_preserves_multiworld_item_ownership' },
+            @{ Path='tools\tests\test_seed_audit_contract.py'; Text='test_safe_full_preset_enables_only_proven_shuffle_families' },
+            @{ Path='tools\tests\test_octosanity_logic.py'; Text='test_octosanity_models_repeated_bonk_damage_in_logic' }
+          )
+          foreach ($check in $checks) {
+            $path = Join-Path $env:TPR_SRC $check.Path
+            if (-not (Select-String -LiteralPath $path -SimpleMatch $check.Text -Quiet)) {
+              throw "Missing required marker '$($check.Text)' in $($check.Path)."
+            }
+          }
+          $legacyEnemyPlacements = Join-Path $env:TPR_SRC `
+            'src\dusk\randomizer\generator\data\enemy_shuffle_placements.yaml'
+          if (Test-Path -LiteralPath $legacyEnemyPlacements) {
+            throw 'Legacy coordinate-sampled enemy placements were not removed.'
+          }
+
+      - name: Install Ninja and native dependencies
+        shell: powershell
+        run: |
+          choco install ninja -y --no-progress
+          if (Test-Path 'C:\vcpkg\vcpkg.exe') {
+            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
+          }
+
+      - name: Configure working .627 game core
+        shell: powershell
+        run: |
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_UWP=ON `
+            -DDUSK_ENABLE_UPDATE_CHECKER=OFF `
+            -DDUSK_ENABLE_DISCORD=OFF `
+            -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
+            -DDUSK_ENABLE_CODE_MODS=OFF `
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-ordon-shop-ship-overlays-649
+
+      - name: Compile working .627 game core
+        shell: powershell
+        run: cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
+
+      - name: Configure fresh UWP package project
+        shell: powershell
+        run: |
+          cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_SYSTEM_NAME=WindowsStore `
+            -DCMAKE_SYSTEM_VERSION=10.0 `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_DIR="$env:TPR_FEED"
+
+      - name: Create sideload signing certificate
+        id: cert
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $password = [Guid]::NewGuid().ToString('N')
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=TwilightPrincessRandomizer' `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'Twilight Princess Randomizer Sideload Signing' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @(
+              '2.5.29.37={text}1.3.6.1.5.5.7.3.3',
+              '2.5.29.19={text}'
+            )
+          Export-PfxCertificate -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            -Password $securePassword | Out-Null
+          Export-Certificate -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+          "password=$password" >> $env:GITHUB_OUTPUT
+
+      - name: Build signed UWP package
+        shell: powershell
+        run: |
+          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
+            '/p:PackageCertificateThumbprint=' `
+            /p:AppxBundle=Never `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:GenerateAppxPackageOnBuild=true
+
+      - name: Verify and collect private .649 test package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package"
+          Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $packageDir | Out-Null
+
+          $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
+            Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          if (-not $sourcePackage) {
+            throw 'UWP build did not produce an MSIX package.'
+          }
+
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.649_x64.msix'
+          Copy-Item $sourcePackage.FullName $package -Force
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($package)
+          try {
+            $manifestEntry = $archive.GetEntry('AppxManifest.xml')
+            if (-not $manifestEntry) { throw 'Signed MSIX has no AppxManifest.xml.' }
+            $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
+            try { $packageManifest = $reader.ReadToEnd() }
+            finally { $reader.Dispose() }
+            if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
+                $packageManifest -notmatch 'Version="1[.]4[.]1[.]649"') {
+              throw 'Signed MSIX identity/version is not the expected .649 in-place update.'
+            }
+
+            $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
+            if (-not $exeEntry) { throw 'Signed MSIX has no TwilightPrincessRandomizer.exe.' }
+            $memory = [System.IO.MemoryStream]::new()
+            $exeStream = $exeEntry.Open()
+            try { $exeStream.CopyTo($memory) }
+            finally { $exeStream.Dispose() }
+            $exeText = [System.Text.Encoding]::ASCII.GetString($memory.ToArray())
+            $memory.Dispose()
+
+            $markers = @(
+              'Texture ZIP loading complete',
+              'Prepared compressed seed data',
+              'Committed verified compressed seed data',
+              'Decoded randomizer seed',
+              'Could not safely save seed data (',
+              'zstd error:',
+              'Randomize All Colors on Every Load Screen',
+              'Rainbow Color Rotation Speed',
+              'Rainbow All Colors',
+              'blend smoothly through red, orange, yellow',
+              'cosmetics.menuPalette.contrast.v1',
+              'cosmetics.menuPalette.rainbow.v1',
+              'cosmetics.rainbowAllColors',
+              'input { background-color: #',
+              'randomizer.breakables.v2',
+              'Loading authored pot and pumpkin checks',
+              'Pot or pumpkin location has an unencodable shuffled item',
+              'Pure Item Tracker',
+              'Pure Item Tracker###PureItemTrackerV3',
+              '###DeathCounterOverlayV1',
+              '###GameTimerOverlayV1',
+              'randomizer.active_game_time.v1',
+              'Checks: %d accessible | %d seen | %d remaining | %d checked | %d total',
+              'Pot or pumpkin location',
+              'Expanded shop location',
+              'could not be converted to an integer',
+              'Toggle Pure Item Tracker',
+              'Toggle Death Counter',
+              'Toggle Game Timer',
+              'Logic macro preregistration invariant failed',
+              'Input Viewer Layout',
+              'Malformed JPEG data in THP frame',
+              'Dungeon entrance shuffle',
+              'Boss entrance shuffle',
+              'randomizer.expanded_shops.v1',
+              'Castle Town Malo Mart Bomblings',
+              'Shop Item Coverage',
+              'All Shelves (32)',
+              'All Shelves shop mode did not serialize every authored shelf',
+              'Could not register Sera direct shop item',
+              'Boss entrance shuffle did not preserve every enemy defeat requirement',
+              'Enemy defeat requirement catalog is empty',
+              'Enemy Randomization',
+              'Unknown enemy randomization mode',
+              'Enemy randomization mode was not persisted correctly',
+              'Check Style Matches Contents',
+              'randomizer.seen_checks.v1',
+              'randomizer.entrances.v1',
+              'Discovered Entrance Graph',
+              'Focus Current Region',
+              'Seed Audit',
+              'Safe Full Randomizer',
+              'Open Tracker at Current Region',
+              'Seed-Aware Junk',
+              'TPR-SEED-AWARE-JUNK-V1'
+            )
+            foreach ($marker in $markers) {
+              if (-not $exeText.Contains($marker)) {
+                throw "Compiled executable is missing marker '$marker'."
+              }
+            }
+          }
+          finally {
+            $archive.Dispose()
+          }
+
+          if ((Get-Item $package).Length -gt 100MB) {
+            throw 'ZIP-only MSIX is unexpectedly larger than 100 MiB.'
+          }
+
+          $dependencies = @(Get-ChildItem "$env:TPR_PKG" -Recurse -File |
+            Where-Object {
+              $_.Extension -in '.appx','.appxbundle','.msixbundle' -and
+              $_.FullName -match '[\\/]Dependencies[\\/]' -and
+              $_.Name -match '(?i)x64'
+            })
+          if ($dependencies.Count -ne 1) {
+            throw "Expected exactly one x64 dependency for the Xbox portal; found $($dependencies.Count)."
+          }
+          Copy-Item $dependencies[0].FullName $packageDir -Force
+
+          $identity = Get-Content "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Raw |
+            ConvertFrom-Json
+          $identity.version = '1.4.1.649'
+          $identity | ConvertTo-Json | Set-Content `
+            "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
+          $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
+          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.649` over it'
+          $knownInstallInstructions = @(
+            'Do **not** uninstall `.633`. Deploy `.634` over it',
+            'Do **not** uninstall `.635`. Deploy `.636` over it',
+            'Do **not** uninstall `.636`. Deploy `.637` over it',
+            'Do **not** uninstall `.637`. Deploy `.638` over it',
+            'Do **not** uninstall your current working build. Deploy `.639` over it',
+            'Do **not** uninstall your current working build. Deploy `.640` over it',
+            'Do **not** uninstall your current working build. Deploy `.641` over it',
+            'Do **not** uninstall your current working build. Deploy `.642` over it',
+            'Do **not** uninstall your current working build. Deploy `.643` over it',
+            'Do **not** uninstall your current working build. Deploy `.644` over it',
+            'Do **not** uninstall your current working build. Deploy `.645` over it',
+            'Do **not** uninstall your current working build. Deploy `.646` over it',
+            'Do **not** uninstall your current working build. Deploy `.647` over it',
+            'Do **not** uninstall your current working build. Deploy `.648` over it'
+          )
+          foreach ($knownInstruction in $knownInstallInstructions) {
+            $installGuide = $installGuide.Replace($knownInstruction, $nextInstallInstruction)
+          }
+          if (-not $installGuide.Contains($nextInstallInstruction)) {
+            throw 'Xbox install guide could not be advanced to the .649 in-place update instructions.'
+          }
+          Set-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $installGuide -Encoding UTF8
+
+          Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\INSTALL_TEXTURE_ZIPS_XBOX.md" $packageDir -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
+
+          $supportDir = Join-Path $packageDir 'Support'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.649-Xbox-Support.zip'
+          New-Item -ItemType Directory -Force $supportDir | Out-Null
+          Copy-Item @(
+            (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
+            (Join-Path $packageDir 'INSTALL_XBOX.md'),
+            (Join-Path $packageDir 'INSTALL_TEXTURE_ZIPS_XBOX.md'),
+            (Join-Path $packageDir 'APP_IDENTITY.json')
+          ) -Destination $supportDir -Force
+          Get-ChildItem $packageDir -File |
+            Where-Object { $_.Extension -in '.appx','.appxbundle','.msixbundle' } |
+            ForEach-Object { Copy-Item $_.FullName $supportDir -Force }
+          Compress-Archive -Path (Join-Path $supportDir '*') `
+            -DestinationPath $supportZip -CompressionLevel Optimal -Force
+
+          if (Test-Path "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx") {
+            Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
+          }
+          Get-FileHash $package -Algorithm SHA256
+
+      - name: Release short build drive
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path 'S:\') {
+            subst S: /D
+          }
+
+      - name: Upload verified .649 test artifact
+        id: artifact_handoff
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.649-Private-Test
+          path: TPR-Xbox-Package/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload private draft test package
+        id: draft_release_handoff
+        continue-on-error: true
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'TPR-Xbox-Package'
+          $assets = @(Get-ChildItem -LiteralPath $packageDir -File | Sort-Object Name)
+          if ($assets.Count -eq 0) {
+            throw 'No verified package files are available for private handoff.'
+          }
+
+          $tag = "tpr-uwp-1.4.1.649-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer UWP 1.4.1.649 Private Test'
+          $notes = @'
+          PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
+
+          This .649 hotfix connects Sera's directly spawned Milk and Bee Larva displays to the
+          expanded-shop runtime. Together with the legacy Slingshot path, all three visible Ordon
+          shop items now use their randomized rewards while preserving the original prices, bottle
+          requirement, sold-out behavior, and one-time collection persistence. It also replaces
+          the Pure Item Tracker's panel presentation with Ship of Harkinian's compact transparent
+          six-column style and adds independently toggleable transparent death-counter and active
+          in-game-time overlays.
+
+          Built from the verified 1.4.1.634 / working .627 runtime baseline,
+          Includes the compile-tested .636 dungeon, boss-entrance, and expanded-shop set,
+          plus the .637 data-driven enemy defeat-requirement catalog and shuffled-boss logic.
+          Enemy Randomization is now applied deterministically while stage actors load instead
+          of using a sparse coordinate list. Balanced and Full both force every eligible regular
+          enemy encountered in overworlds, dungeons, caves, and grottos to change, with Balanced
+          using compact movement-compatible pools and Full using wider per-placement pools.
+          Bosses, minibosses, their complete encounter arenas, King Bulblin boss variants, and
+          authored progression/entrance actor edits remain strictly vanilla. The setting still
+          defaults to Off, and older seeds without the persisted setting also remain vanilla.
+          Menu palettes generated per seed or per load scene now pass WCAG contrast checks
+          against every normal, hover, and selected surface before use. Text-entry text still
+          follows the menu text color, while text-entry backgrounds stay fixed and opaque.
+          Rainbow selections now continuously fade through eight real hue anchors instead of
+          snapping between preset entries; Xbox updates are capped at 20 per second, complete
+          menu themes stay contrast-safe throughout the fade, and all nine Midna hair color
+          registers interpolate together. Per-load hearts now cycle through eight canonical,
+          deliberately separated base color families before any fixed family repeats; Rainbow
+          may appear between them but can never occur twice consecutively.
+          The Input Viewer now uses a permanently transparent Ship-style presentation: no blue
+          panel, controller-name strip, opaque window body, or randomized window border.
+          Seed generation now registers every logic macro name before parsing requirements,
+          while hiding the macro currently being parsed so same-name items such as Lantern,
+          Slingshot, and Spinner cannot become recursive macro calls. This fixes the .640 macro
+          crash while retaining forward `Sword` references for future enemy logic. Pot, pumpkin,
+          and expanded-shop checks now reject logical-only item IDs above `0xFE` before filling,
+          preventing Twilight Tears (`0x103`-`0x105`) from invalidating completed seed data while
+          keeping those items available to ordinary checks. Shop coverage is now an explicit control:
+          its first forward choice is All Shelves (32), covering 24 logical checks across all 32 safe
+          physical shelves, including Milk, Bee Larva, and Lantern Oil as three separate Sera/Ordon
+          slots. Generation now rejects an incomplete All Shelves result instead of quietly shipping it.
+          Rainbow All Colors applies the continuously fading Rainbow mode to every supported target.
+          Per-seed and per-load random color modes can also select Rainbow (one candidate in eight),
+          while all four menu roles move together as one contrast-safe palette and text-box backgrounds
+          remain fixed and opaque. The Pure Item Tracker is a separate automatic icon-only overlay
+          arranged in Ship of Harkinian's compact six-column style: the window, title, tile panels,
+          and borders are fully transparent; owned icons remain fully lit; unowned icons retain
+          their color at low opacity; and positive progressive or quantity counts appear as plain
+          outlined text beneath the icons. The whole grid can be moved and resized independently;
+          Xbox settings expose UI scale, icon size, column count, layout lock, and reset. It remains
+          available to existing randomized saves; generating a new seed is not required. A new
+          transparent death counter reads the save's native saturating death count. A separate
+          transparent IGT overlay displays HH:MM:SS.hh, persists with each randomizer save, and
+          advances only during live simulation—not while paused, loading, or on a game-over screen.
+          Both run overlays have independent toggles, scale, position lock, and layout reset controls.
+          The check tracker now labels accessible, remaining, checked, and total progression checks
+          separately, excludes collected checks in accessible-only mode, and makes each area header's
+          filtered count explicit.
+          New seed files now use a more compact Zstandard v2 payload before their transactional
+          write, then decode and byte-verify both before and after the atomic rename. Existing
+          miniz v1 and plain-YAML seed files remain readable, so .645/.646 saves are preserved.
+          This directly addresses the measured 41,466-byte expanded seed that missed Xbox's
+          reported 40,960-byte free space by only 506 bytes, while retaining exact diagnostics for
+          any genuine future storage exhaustion.
+          Pot, pumpkin, and expanded-shop runtime metadata are now serialized into yaml-cpp as wide
+          numeric scalars rather than uint8_t character scalars. This removes the `bad conversion`
+          failure reached when any of those new check groups was enabled. Every decoded field is also
+          range-checked and any future malformed record names its feature, location, and exact field.
+          Expanded-shop item labels now use the seed-local text table only when the key exists,
+          otherwise falling back to the normal localized item table and finally the raw item name.
+          This removes the `invalid unordered_map<K, T> key` generation stop without reducing the
+          24 logical / 32 physical shelf coverage. Randomized, uncollected pumpkins now use a muted
+          green marker after the environment-light pass so they remain clear without glowing neon.
+          Optional item-category colors now identify major, minor, dungeon, trap, and junk rewards
+          across chests, freestanding items, pots, pumpkins, and both shop actor families. Checks that
+          have entered view persist as seed-and-save-slot-scoped seen state, with status/type filters,
+          customizable tracker colors, current-region focus, Xbox shortcuts, and five-icon seed
+          fingerprints at the seed and tracker surfaces. The entrance tracker is now a persistent,
+          spoiler-safe discovered graph: unseen destinations remain hidden as `???` until traversed.
+          Seed-Aware Junk deterministically replaces only unusable ammo after final item placement,
+          while preserving multiworld item ownership and running before playthrough, hints, and logs.
+          Seed Audit validates pots, all 43 story-only pumpkins, 32 physical shop shelves, and enabled
+          dungeon, boss, cave, and grotto entrance tables before accepting the seed. Octosanity adds
+          the synchronized x8 damage option, and Safe Full enables only the proven shuffle families.
+          This is an unpublished test candidate, not a public release.
+          '@
+
+          $draftUrl = gh release create $tag `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --draft `
+            --target "$env:GITHUB_SHA" `
+            --title $title `
+            --notes $notes
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not create the private draft test release.'
+          }
+
+          foreach ($asset in $assets) {
+            gh release upload $tag $asset.FullName --repo "$env:GITHUB_REPOSITORY"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Could not upload private test asset $($asset.Name)."
+            }
+          }
+
+          Write-Host "TPR_PRIVATE_DRAFT_URL=$draftUrl"
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" `
+            --json url,name,isDraft,tagName
+
+      - name: Verify package handoff
+        if: always()
+        shell: powershell
+        run: |
+          $artifactOutcome = '${{ steps.artifact_handoff.outcome }}'
+          $releaseOutcome = '${{ steps.draft_release_handoff.outcome }}'
+          if ($artifactOutcome -ne 'success' -and $releaseOutcome -ne 'success') {
+            throw "Both package handoffs failed (artifact=$artifactOutcome, release=$releaseOutcome)."
+          }
+          Write-Host "Package handoff complete (artifact=$artifactOutcome, release=$releaseOutcome)."
