@@ -1400,7 +1400,7 @@ jobs:
             @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_expanded_shop_names_never_assume_seed_local_text_exists' },
             @{ Path='src\d\d_shop_system.cpp'; Text='register_sera_child(index, itemTbl[i])' },
             @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='is_sera_shop_scene' },
-            @{ Path='tools\tests\test_breakable_logic_map.py'; Text='test_randomized_pumpkin_marker_is_muted_green_and_applied_after_lighting' },
+            @{ Path='tools\tests\test_breakable_logic_map.py'; Text='test_randomized_pumpkin_marker_is_muted_green_and_non_sticky' },
             @{ Path='src\dusk\randomizer\generator\data\enemy_defeat_requirements.yaml'; Text='Gate Policy: Mandatory Only' },
             @{ Path='src\dusk\randomizer\generator\logic\enemy_requirements.cpp'; Text='Boss entrance shuffle did not preserve every enemy defeat requirement' },
             @{ Path='src\dusk\randomizer\generator\data\macros.yaml'; Text='Can Defeat Ganondorf' },
