@@ -1,5 +1,5 @@
-name: Build Enemy Souls Macro/Seed Hotfix 654
-# Build control revision: enemy-souls-macro-seed-hotfix-v1
+name: Build Enemy Souls Combination Hotfix 655
+# Build control revision: enemy-souls-combination-hotfix-v1
 
 on:
   push:
@@ -1455,16 +1455,83 @@ jobs:
             Pop-Location
           }
 
-      - name: Advance private package identity to .654
+      - name: Apply reviewed .655 Enemy Souls combination hotfix
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\enemy-souls-generation-655.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .655 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'enemy-souls-generation-655.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '71bf7c1b74356769d8cb5261c3bde288280cf68f51d4ee81af7900e2487f3f3a') {
+            throw "Compressed .655 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'enemy-souls-generation-655.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'dfebff20c1fd2932a0e4cc8aeb3e2d0b3e5122537789b0a48b05f84ffbad4dcd') {
+            throw "Decoded .655 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy Souls combination hotfix does not match the verified .654 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy Souls combination hotfix could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Advance private package identity to .655
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
           $manifest = [IO.File]::ReadAllText($manifestPath)
           if ($manifest -notmatch 'Version="1[.]4[.]1[.]636"') {
-            throw 'Verified .636 package identity was not present before the .654 version advance.'
+            throw 'Verified .636 package identity was not present before the .655 version advance.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.654"')
+          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.655"')
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
 
@@ -1484,7 +1551,7 @@ jobs:
             Write-Host "TPR_DIAG_END:$($_.Name)"
           }
 
-      - name: Run the complete .654 regression and feature-contract suite
+      - name: Run the complete .655 regression and feature-contract suite
         shell: powershell
         run: |
           python -m pip install --disable-pip-version-check PyYAML==6.0.2
@@ -1492,7 +1559,7 @@ jobs:
           Push-Location "$env:TPR_SRC"
           try {
             python -m unittest discover -s 'tools\tests' -v
-            if ($LASTEXITCODE -ne 0) { throw 'The complete .654 regression suite failed.' }
+            if ($LASTEXITCODE -ne 0) { throw 'The complete .655 regression suite failed.' }
           }
           finally {
             Pop-Location
@@ -1503,8 +1570,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $manifest = Get-Content "$env:TPR_SRC\platforms\uwp\Package.appxmanifest" -Raw
-          if ($manifest -notmatch 'Version="1[.]4[.]1[.]654"') {
-            throw 'Assembled package identity is not 1.4.1.654.'
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]655"') {
+            throw 'Assembled package identity is not 1.4.1.655.'
           }
 
           $checks = @(
@@ -1521,11 +1588,14 @@ jobs:
             @{ Path='src\dusk\randomizer\game\enemy_souls.cpp'; Text='Diababa creates parameter 53 only to preload Bomb Insect assets' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='ApplyEnemySoulLocationSafety' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='_enemyDefeatRequirements.GetDefeatRequirement(' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
+            @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_enemy_souls_never_collide_with_existing_item_names_or_ids' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_both_soul_controls_are_registered_in_seed_options_ui' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_real_seed_generation_case_covers_all_soul_systems_and_full_shuffle' },
+            @{ Path='tools\tests\test_enemy_souls.py'; Text='test_reported_crazy_bashful_bombfish_combinations_are_regressions' },
             @{ Path='src\dusk\randomizer\generator\test\test.cpp'; Text='RANDO_LOGIC_TEST_FILTER' },
             @{ Path='tools\tests\test_enemy_shuffle.py'; Text='test_soul_modes_preserve_one_native_source_per_authored_actor_batch' },
             @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='Boss Souls' },
@@ -1693,7 +1763,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-enemy-souls-654
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-enemy-souls-655
 
       - name: Compile working .627 game core
         shell: powershell
@@ -1749,7 +1819,7 @@ jobs:
             /p:UapAppxPackageBuildMode=SideloadOnly `
             /p:GenerateAppxPackageOnBuild=true
 
-      - name: Verify and collect private .654 test package
+      - name: Verify and collect private .655 test package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1765,7 +1835,7 @@ jobs:
             throw 'UWP build did not produce an MSIX package.'
           }
 
-          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.654_x64.msix'
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.655_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -1777,8 +1847,8 @@ jobs:
             try { $packageManifest = $reader.ReadToEnd() }
             finally { $reader.Dispose() }
             if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
-                $packageManifest -notmatch 'Version="1[.]4[.]1[.]654"') {
-              throw 'Signed MSIX identity/version is not the expected .654 in-place update.'
+                $packageManifest -notmatch 'Version="1[.]4[.]1[.]655"') {
+              throw 'Signed MSIX identity/version is not the expected .655 in-place update.'
             }
 
             $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
@@ -1896,11 +1966,11 @@ jobs:
 
           $identity = Get-Content "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Raw |
             ConvertFrom-Json
-          $identity.version = '1.4.1.654'
+          $identity.version = '1.4.1.655'
           $identity | ConvertTo-Json | Set-Content `
             "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
           $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
-          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.654` over it'
+          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.655` over it'
           $knownInstallInstructions = @(
             'Do **not** uninstall `.633`. Deploy `.634` over it',
             'Do **not** uninstall `.635`. Deploy `.636` over it',
@@ -1920,13 +1990,14 @@ jobs:
             'Do **not** uninstall your current working build. Deploy `.650` over it',
             'Do **not** uninstall your current working build. Deploy `.651` over it',
             'Do **not** uninstall your current working build. Deploy `.652` over it',
-            'Do **not** uninstall your current working build. Deploy `.653` over it'
+            'Do **not** uninstall your current working build. Deploy `.653` over it',
+            'Do **not** uninstall your current working build. Deploy `.654` over it'
           )
           foreach ($knownInstruction in $knownInstallInstructions) {
             $installGuide = $installGuide.Replace($knownInstruction, $nextInstallInstruction)
           }
           if (-not $installGuide.Contains($nextInstallInstruction)) {
-            throw 'Xbox install guide could not be advanced to the .654 in-place update instructions.'
+            throw 'Xbox install guide could not be advanced to the .655 in-place update instructions.'
           }
           Set-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $installGuide -Encoding UTF8
 
@@ -1936,7 +2007,7 @@ jobs:
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
 
           $supportDir = Join-Path $packageDir 'Support'
-          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.654-Xbox-Support.zip'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.655-Xbox-Support.zip'
           New-Item -ItemType Directory -Force $supportDir | Out-Null
           Copy-Item @(
             (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
@@ -1978,7 +2049,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-logic-smoke-654
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-logic-smoke-655
           if ($LASTEXITCODE -ne 0) {
             throw 'Could not configure the compiled Enemy Souls seed smoke test.'
           }
@@ -1994,12 +2065,20 @@ jobs:
             throw "Compiled logic-test executable is missing: $testExecutable"
           }
 
-          $env:RANDO_LOGIC_TEST_FILTER = 'enemy souls and first defeats'
+          $seedSmokeFilters = @(
+            'enemy souls and first defeats',
+            'enemy souls cleared twilights',
+            'enemy souls max entrance rando'
+          )
           try {
-            $process = Start-Process -FilePath $testExecutable `
-              -WorkingDirectory $env:TPR_SRC -NoNewWindow -Wait -PassThru
-            if ($process.ExitCode -ne 0) {
-              throw "Real Enemy Souls seed generation failed with exit code $($process.ExitCode)."
+            foreach ($seedSmokeFilter in $seedSmokeFilters) {
+              $env:RANDO_LOGIC_TEST_FILTER = $seedSmokeFilter
+              Write-Host "Running compiled seed smoke: $seedSmokeFilter"
+              $process = Start-Process -FilePath $testExecutable `
+                -WorkingDirectory $env:TPR_SRC -NoNewWindow -Wait -PassThru
+              if ($process.ExitCode -ne 0) {
+                throw "Compiled seed smoke '$seedSmokeFilter' failed with exit code $($process.ExitCode)."
+              }
             }
           }
           finally {
@@ -2014,12 +2093,12 @@ jobs:
             subst S: /D
           }
 
-      - name: Upload verified .654 test artifact
+      - name: Upload verified .655 test artifact
         id: artifact_handoff
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.654-Private-Test
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.655-Private-Test
           path: TPR-Xbox-Package/
           if-no-files-found: error
           retention-days: 14
@@ -2038,17 +2117,18 @@ jobs:
             throw 'No verified package files are available for private handoff.'
           }
 
-          $tag = "tpr-uwp-1.4.1.654-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          $title = 'Twilight Princess Randomizer UWP 1.4.1.654 Private Test'
+          $tag = "tpr-uwp-1.4.1.655-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer UWP 1.4.1.655 Private Test'
           $notes = @'
           PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
 
-          This .654 hotfix resolves the remaining Enemy First-Defeat seed-generation failure. The
-          generator now uses each catalog entry's already-validated macro reference instead of
-          reparsing a human-readable name such as `Can Defeat Shadow Beast` as four separate logic
-          tokens. The package is withheld unless a compiled randomizer-only executable successfully
-          generates `CrazyBashfulBombfish` with Boss Souls, all 85 Enemy Souls, all 85 randomized
-          first-defeat checks, and Full Enemy Randomization enabled together.
+          This .655 hotfix resolves the combined-setting failures reported from .654. First-defeat
+          checks for the four Twilit quest encounters are omitted when the matching province starts
+          cleared, because those actors no longer exist in that seed. Torch Slug and Dodongo now use
+          the reachable side of their authored Goron Mines room. The package is withheld unless a
+          compiled randomizer-only executable successfully generates `CrazyBashfulBombfish` both
+          with every entrance shuffle disabled and with every entrance shuffle enabled, while Boss
+          Souls, all 85 Enemy Souls, first-defeat checks, and Full Enemy Randomization are active.
 
           It retains the .653 separation of the new Poe permission item (`Poe Enemy Soul`) from
           Twilight Princess's existing 60-count `Poe Soul` collectible. It also keeps both Enemy
@@ -2062,7 +2142,8 @@ jobs:
           Balanced or Full enemy randomization.
 
           It retains the .652 set of 85 optional Enemy Souls, one for every authored regular enemy and
-          miniboss species, plus a separate optional randomized first-defeat check for each species.
+          miniboss species, plus a separate optional randomized first-defeat check wherever that enemy
+          exists in the selected world state. Province-cleared Twilit quest encounters are omitted.
           An enemy type remains inert until its matching Soul is owned. Generation rejects direct
           and indirect Soul self-locks, first-defeat completion is committed only on actual pickup,
           and lost drops retry safely near Link. Every engine enemy-group profile has an explicit
