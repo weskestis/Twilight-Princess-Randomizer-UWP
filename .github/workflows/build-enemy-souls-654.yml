@@ -83,6 +83,7 @@ jobs:
           "TPR_SRC=S:\s" >> $env:GITHUB_ENV
           "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
           "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
+          "TPR_SMOKE=S:\b\t" >> $env:GITHUB_ENV
           "TMP=S:\tmp" >> $env:GITHUB_ENV
           "TEMP=S:\tmp" >> $env:GITHUB_ENV
 
@@ -1958,7 +1959,11 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+          # Keep this desktop logic-test build isolated from the already-configured
+          # UWP feed. Reusing TPR_FEED leaves Aurora's cached providers pinned to
+          # uwp-dep, whose intentionally narrow headers do not include
+          # dawn/native/DawnNative.h for a desktop build.
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_SMOKE" -G Ninja `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_C_COMPILER=cl `
             -DCMAKE_CXX_COMPILER=cl `
@@ -1978,13 +1983,13 @@ jobs:
             throw 'Could not configure the compiled Enemy Souls seed smoke test.'
           }
 
-          cmake --build "$env:TPR_FEED" --config RelWithDebInfo `
+          cmake --build "$env:TPR_SMOKE" --config RelWithDebInfo `
             --target dusklight --parallel 2
           if ($LASTEXITCODE -ne 0) {
             throw 'Could not compile the Enemy Souls seed smoke test.'
           }
 
-          $testExecutable = Join-Path $env:TPR_FEED 'dusklight.exe'
+          $testExecutable = Join-Path $env:TPR_SMOKE 'dusklight.exe'
           if (-not (Test-Path -LiteralPath $testExecutable -PathType Leaf)) {
             throw "Compiled logic-test executable is missing: $testExecutable"
           }
