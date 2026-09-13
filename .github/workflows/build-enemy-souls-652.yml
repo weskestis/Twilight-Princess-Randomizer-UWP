@@ -1385,7 +1385,7 @@ jobs:
             @{ Path='src\dusk\ui\rando_config.cpp'; Text='rando_config_button(leftPane, rightPane, "Boss Souls")' },
             @{ Path='src\dusk\randomizer\generator\data\items.yaml'; Text='Diababa Soul' },
             @{ Path='src\dusk\randomizer\generator\data\macros.yaml'; Text='Can Defeat Stallord' },
-            @{ Path='src\dusk\randomizer\game\boss_soul_models.cpp'; Text='boss_soul_stallord.bmd' },
+            @{ Path='src\dusk\randomizer\game\boss_soul_models.cpp'; Text='constexpr std::array<Recipe, 8> kBossRecipes' },
             @{ Path='src\dusk\imgui\ImGuiMenuTools.cpp'; Text='Export Link + Wolf Modding Assets' },
             @{ Path='src\dusk\link_mod_export.cpp'; Text='/res/Object/Kmdl.arc' },
             @{ Path='src\dusk\link_mod_export.cpp'; Text='/res/Object/Wmdl.arc' },
@@ -1659,8 +1659,6 @@ jobs:
               'Armogohma Soul',
               'Argorok Soul',
               'Zant Soul',
-              'boss_soul_stallord.bmd',
-              'boss_soul_zant.bmd',
               'Export Link + Wolf Modding Assets',
               'Link-Wolf-Modding-Assets',
               '/res/Object/Kmdl.arc',
@@ -1854,10 +1852,10 @@ jobs:
           held-item presentations.
 
           It retains the .651 optional Boss Souls setting for all eight main randomized bosses.
-          Each soul is an independent progression item using the exact Ocarina of Time Gold
-          Skulltula Token solid geometry with a distinct baked boss color. Boss access is gated by
-          the matching soul, and generation/tests prevent each soul from being placed behind itself.
-          Field, demo/get-item, shop, save, starting-inventory, and Pure Item Tracker paths are wired.
+          Boss access is gated by the matching soul, generation/tests prevent each soul from being
+          placed behind itself, and the .652 held-item presentation now uses each boss's native
+          in-game model instead of the interim token model. Field, demo/get-item, shop, save,
+          starting-inventory, and Pure Item Tracker paths remain wired.
 
           It retains the .650 Tools -> Export Link + Wolf Modding Assets flow. After the game image
           is launched, it validates and exports only the user's Kmdl.arc and Wmdl.arc, plus a
