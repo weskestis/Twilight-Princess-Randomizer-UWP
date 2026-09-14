@@ -1,5 +1,5 @@
-name: Build Shop Stability Hotfix 657
-# Build control revision: shop-stability-and-castle-town-gate-v2
+name: Build Runtime Load and Shop Hotfix 658
+# Build control revision: runtime-load-and-shop-stability-v3
 
 on:
   push:
@@ -1656,16 +1656,83 @@ jobs:
             Pop-Location
           }
 
-      - name: Advance private package identity to .657
+      - name: Apply reviewed .658 runtime-load and shop hotfix
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = @(Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\_control\patches\shop-runtime-load-stability-658.patch.gz.b64.part*" `
+            -File | Sort-Object Name)
+          if ($parts.Count -ne 1) {
+            throw "Expected one .658 patch chunk; found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP 'shop-runtime-load-stability-658.patch.gz'
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '1f02e861aac5a44bc5ff0be1e868daaa2901b4e7247a806909efa4109530c981') {
+            throw "Compressed .658 patch SHA-256 mismatch: $gzipHash"
+          }
+
+          $patch = Join-Path $env:RUNNER_TEMP 'shop-runtime-load-stability-658.patch'
+          $gzip = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $gzip, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patch)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $gzip.Dispose() }
+
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'b569cc7d0a399d15513b62bd155aa52bf70706abaf45cce4d78ca15bfc444c12') {
+            throw "Decoded .658 patch SHA-256 mismatch: $patchHash"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $path = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+              $text = [IO.File]::ReadAllText($path)
+              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
+            }
+          }
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Runtime-load and shop hotfix does not match the verified .657 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Runtime-load and shop hotfix could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Advance private package identity to .658
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
           $manifest = [IO.File]::ReadAllText($manifestPath)
           if ($manifest -notmatch 'Version="1[.]4[.]1[.]636"') {
-            throw 'Verified .636 package identity was not present before the .657 version advance.'
+            throw 'Verified .636 package identity was not present before the .658 version advance.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.657"')
+          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.658"')
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
 
@@ -1685,7 +1752,7 @@ jobs:
             Write-Host "TPR_DIAG_END:$($_.Name)"
           }
 
-      - name: Run the complete .657 regression and feature-contract suite
+      - name: Run the complete .658 regression and feature-contract suite
         shell: powershell
         run: |
           python -m pip install --disable-pip-version-check PyYAML==6.0.2
@@ -1693,7 +1760,7 @@ jobs:
           Push-Location "$env:TPR_SRC"
           try {
             python -m unittest discover -s 'tools\tests' -v
-            if ($LASTEXITCODE -ne 0) { throw 'The complete .657 regression suite failed.' }
+            if ($LASTEXITCODE -ne 0) { throw 'The complete .658 regression suite failed.' }
           }
           finally {
             Pop-Location
@@ -1704,8 +1771,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $manifest = Get-Content "$env:TPR_SRC\platforms\uwp\Package.appxmanifest" -Raw
-          if ($manifest -notmatch 'Version="1[.]4[.]1[.]657"') {
-            throw 'Assembled package identity is not 1.4.1.657.'
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]658"') {
+            throw 'Assembled package identity is not 1.4.1.658.'
           }
 
           $checks = @(
@@ -1836,7 +1903,10 @@ jobs:
             @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_sera_direct_spawn_items_join_expanded_runtime' },
             @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_expanded_shop_names_never_assume_seed_local_text_exists' },
             @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_shop_text_selection_survives_deferred_message_creation' },
-            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_foolish_shop_models_do_not_reshuffle_on_actor_recreation' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_foolish_shop_models_are_honest_and_stable_junk' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_shop_text_replaces_vanilla_label_without_adding_a_page' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_shop_catalog_counts_only_real_non_null_shelves' },
+            @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_shop_dpad_navigation_survives_analog_stick_drift' },
             @{ Path='tools\tests\test_expanded_shop_data.py'; Text='test_castle_town_stock_stays_hidden_until_malo_mart_opens' },
             @{ Path='src\d\d_shop_system.cpp'; Text='register_sera_child(index, itemTbl[i])' },
             @{ Path='src\d\d_shop_system.cpp'; Text='clear_text_selection()' },
@@ -1844,7 +1914,10 @@ jobs:
             @{ Path='src\d\actor\d_a_tag_shop_item.cpp'; Text='hide_before_castle_town_malo_mart(this)' },
             @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='is_sera_shop_scene' },
             @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='s_pendingTextKey = s_activeKey' },
-            @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='stable_foolish_model_for_child' },
+            @{ Path='src\d\actor\d_a_shop_item.cpp'; Text='home.angle.z = dItemNo_Randomizer_GREEN_RUPEE_e' },
+            @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='firstNewlineAfterPrice' },
+            @{ Path='src\d\d_shop_system.cpp'; Text='for (int j = i; j > 0; j--)' },
+            @{ Path='src\f_op\f_op_actor.cpp'; Text='leaving it in cPhs_INIT_e also leaves the room transition waiting' },
             @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='MALO_MART_CASTLE_TOWN_BRANCH_IS_OPEN' },
             @{ Path='tools\tests\test_breakable_logic_map.py'; Text='test_randomized_pumpkin_marker_is_muted_green_and_non_sticky' },
             @{ Path='src\dusk\randomizer\generator\data\enemy_defeat_requirements.yaml'; Text='Gate Policy: Mandatory Only' },
@@ -1909,7 +1982,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-ordon-shop-657
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-runtime-shop-658
 
       - name: Compile working .627 game core
         shell: powershell
@@ -1965,7 +2038,7 @@ jobs:
             /p:UapAppxPackageBuildMode=SideloadOnly `
             /p:GenerateAppxPackageOnBuild=true
 
-      - name: Verify and collect private .657 test package
+      - name: Verify and collect private .658 test package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1981,7 +2054,7 @@ jobs:
             throw 'UWP build did not produce an MSIX package.'
           }
 
-          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.657_x64.msix'
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.658_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -1993,8 +2066,8 @@ jobs:
             try { $packageManifest = $reader.ReadToEnd() }
             finally { $reader.Dispose() }
             if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
-                $packageManifest -notmatch 'Version="1[.]4[.]1[.]657"') {
-              throw 'Signed MSIX identity/version is not the expected .657 in-place update.'
+                $packageManifest -notmatch 'Version="1[.]4[.]1[.]658"') {
+              throw 'Signed MSIX identity/version is not the expected .658 in-place update.'
             }
 
             $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
@@ -2112,11 +2185,11 @@ jobs:
 
           $identity = Get-Content "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Raw |
             ConvertFrom-Json
-          $identity.version = '1.4.1.657'
+          $identity.version = '1.4.1.658'
           $identity | ConvertTo-Json | Set-Content `
             "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
           $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
-          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.657` over it'
+          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.658` over it'
           $knownInstallInstructions = @(
             'Do **not** uninstall `.633`. Deploy `.634` over it',
             'Do **not** uninstall `.635`. Deploy `.636` over it',
@@ -2139,13 +2212,14 @@ jobs:
             'Do **not** uninstall your current working build. Deploy `.653` over it',
             'Do **not** uninstall your current working build. Deploy `.654` over it',
             'Do **not** uninstall your current working build. Deploy `.655` over it',
-            'Do **not** uninstall your current working build. Deploy `.656` over it'
+            'Do **not** uninstall your current working build. Deploy `.656` over it',
+            'Do **not** uninstall your current working build. Deploy `.657` over it'
           )
           foreach ($knownInstruction in $knownInstallInstructions) {
             $installGuide = $installGuide.Replace($knownInstruction, $nextInstallInstruction)
           }
           if (-not $installGuide.Contains($nextInstallInstruction)) {
-            throw 'Xbox install guide could not be advanced to the .657 in-place update instructions.'
+            throw 'Xbox install guide could not be advanced to the .658 in-place update instructions.'
           }
           Set-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $installGuide -Encoding UTF8
 
@@ -2155,7 +2229,7 @@ jobs:
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
 
           $supportDir = Join-Path $packageDir 'Support'
-          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.657-Xbox-Support.zip'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.658-Xbox-Support.zip'
           New-Item -ItemType Directory -Force $supportDir | Out-Null
           Copy-Item @(
             (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
@@ -2197,7 +2271,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-logic-smoke-657
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-logic-smoke-658
           if ($LASTEXITCODE -ne 0) {
             throw 'Could not configure the compiled Enemy Souls seed smoke test.'
           }
@@ -2241,12 +2315,12 @@ jobs:
             subst S: /D
           }
 
-      - name: Upload verified .657 test artifact
+      - name: Upload verified .658 test artifact
         id: artifact_handoff
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.657-Private-Test
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.658-Private-Test
           path: TPR-Xbox-Package/
           if-no-files-found: error
           retention-days: 14
@@ -2265,22 +2339,37 @@ jobs:
             throw 'No verified package files are available for private handoff.'
           }
 
-          $tag = "tpr-uwp-1.4.1.657-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          $title = 'Twilight Princess Randomizer UWP 1.4.1.657 Private Test'
+          $tag = "tpr-uwp-1.4.1.658-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer UWP 1.4.1.658 Private Test'
           $notes = @'
           PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
 
-          This .657 hotfix keeps Castle Town's pre-conversion Chudley shop empty: randomized shop
+          This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
+          Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
+          instead of remaining forever in the engine's creation phase and preventing the room
+          transition from completing. The protected delete path still prevents uninitialized enemy
+          cleanup from running, and the enemy can appear normally after its Soul is owned and the
+          scene is reloaded.
+
+          Shop text now replaces the vanilla shelf label with the randomized reward while preserving
+          the real price and purchase-choice control. It removes the unrelated Milk/Potion/Bombs
+          description after the price instead of adding another textbox page. Foolish shelves labelled
+          Junk use a fixed green-rupee model, so they are visibly honest and cannot look reshuffled.
+          Direct D-pad edges work even when analog-stick drift is present, including vertical layouts.
+          The tag catalog counts only actors that occupy a real shelf, verifies every entry before
+          dereferencing it, and no longer reads before its local array while sorting positionless
+          shelves.
+
+          It retains the .657 rule that keeps Castle Town's pre-conversion Chudley shop empty:
+          randomized shop
           tags cannot spawn, appear in the shop catalog, or be selected until event F_0281 opens the
           Castle Town Malo Mart. The generator already requires Can_Fund_Malo_Mart for its Magic
           Armor check and all six expanded Castle Town checks; the runtime now enforces that same
           story boundary.
 
-          It also keeps the selected expanded-shop shelf alive until the deferred message actor loads
+          It also retains the selected expanded-shop shelf until the deferred message actor loads
           its text, so Sera's Ordon shop identifies the randomized item shown instead of displaying
-          only the vanilla Milk label. A Foolish/Junk shelf now chooses one deterministic
-          non-progressive disguise from the seed and physical shelf, so recreating the actor or
-          re-entering the shop cannot make that shelf look reshuffled.
+          only the vanilla Milk label.
 
           It retains the .656 registration of all 85 Enemy Soul names in the shared hint-text
           database for every supported language and every Standard, Pretty, and Cryptic hint form.
