@@ -2248,8 +2248,10 @@ jobs:
           }
           Get-FileHash $package -Algorithm SHA256
 
-      - name: Compile and run the real Enemy Souls seed smoke test
+      - name: Compile and run native hostile-seed validation
         shell: powershell
+        env:
+          TPR_STRESS_ITERATIONS: ${{ contains(github.event.head_commit.message, '[stress-only]') && 250 || 1 }}
         run: |
           $ErrorActionPreference = 'Stop'
           # Keep this desktop logic-test build isolated from the already-configured
@@ -2287,25 +2289,111 @@ jobs:
             throw "Compiled logic-test executable is missing: $testExecutable"
           }
 
-          $seedSmokeFilters = @(
-            'enemy souls and first defeats',
-            'enemy souls cleared twilights',
-            'enemy souls max entrance rando'
+          $stressPresets = @(
+            @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' },
+            @{ Name = 'enemy souls cleared twilights'; Code = 'ESCT' },
+            @{ Name = 'enemy souls max entrance rando'; Code = 'ESME' },
+            @{ Name = 'random cave entrances'; Code = 'CAVE' }
           )
+          $iterationsPerPreset = [int]$env:TPR_STRESS_ITERATIONS
+          if ($iterationsPerPreset -lt 1 -or $iterationsPerPreset -gt 250) {
+            throw "Invalid hostile-seed iteration count: $iterationsPerPreset"
+          }
+          $totalSeeds = $stressPresets.Count * $iterationsPerPreset
+          $completedSeeds = 0
+          $slowestMilliseconds = 0
+          $slowestSeed = ''
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $stressTimer = [Diagnostics.Stopwatch]::StartNew()
           try {
-            foreach ($seedSmokeFilter in $seedSmokeFilters) {
-              $env:RANDO_LOGIC_TEST_FILTER = $seedSmokeFilter
-              Write-Host "Running compiled seed smoke: $seedSmokeFilter"
-              $process = Start-Process -FilePath $testExecutable `
-                -WorkingDirectory $env:TPR_SRC -NoNewWindow -Wait -PassThru
-              if ($process.ExitCode -ne 0) {
-                throw "Compiled seed smoke '$seedSmokeFilter' failed with exit code $($process.ExitCode)."
+            foreach ($preset in $stressPresets) {
+              $presetName = $preset.Name
+              $settingsPath = Join-Path $env:TPR_SRC `
+                "src\dusk\randomizer\generator\data\tests\logic\$presetName\settings.yaml"
+              if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
+                throw "Stress preset is missing: $settingsPath"
+              }
+
+              $originalSettings = [IO.File]::ReadAllText($settingsPath)
+              $seedLines = [regex]::Matches($originalSettings, '(?m)^Seed:[^\r\n]*$')
+              if ($seedLines.Count -ne 1) {
+                throw "Expected exactly one Seed line in stress preset '$presetName'; found $($seedLines.Count)."
+              }
+
+              try {
+                for ($iteration = 1; $iteration -le $iterationsPerPreset; $iteration++) {
+                  $seed = 'Stress658{0}{1:D4}' -f $preset.Code, $iteration
+                  $stressSettings = [regex]::Replace(
+                    $originalSettings,
+                    '(?m)^Seed:[^\r\n]*$',
+                    "Seed: $seed")
+                  [IO.File]::WriteAllText($settingsPath, $stressSettings, $utf8NoBom)
+
+                  $env:RANDO_LOGIC_TEST_FILTER = $presetName
+                  $stdoutPath = Join-Path $env:RUNNER_TEMP 'tpr-seed-stress.stdout.log'
+                  $stderrPath = Join-Path $env:RUNNER_TEMP 'tpr-seed-stress.stderr.log'
+                  Remove-Item -LiteralPath $stdoutPath, $stderrPath `
+                    -Force -ErrorAction SilentlyContinue
+
+                  $seedTimer = [Diagnostics.Stopwatch]::StartNew()
+                  $process = Start-Process -FilePath $testExecutable `
+                    -WorkingDirectory $env:TPR_SRC -PassThru `
+                    -RedirectStandardOutput $stdoutPath `
+                    -RedirectStandardError $stderrPath
+                  if (-not $process.WaitForExit(120000)) {
+                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                    $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { '' }
+                    $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { '' }
+                    Write-Host $stdout
+                    Write-Host $stderr
+                    throw "Seed stress timed out after 120 seconds: preset='$presetName', seed='$seed'."
+                  }
+                  $seedTimer.Stop()
+                  $process.Refresh()
+
+                  $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { '' }
+                  $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { '' }
+                  $combinedOutput = $stdout + "`n" + $stderr
+                  if ($process.ExitCode -ne 0) {
+                    Write-Host $combinedOutput
+                    throw "Seed stress failed: preset='$presetName', seed='$seed', exit=$($process.ExitCode)."
+                  }
+                  if (-not $combinedOutput.Contains("Testing $presetName") -or
+                      -not $combinedOutput.Contains("Seed: $seed") -or
+                      -not $combinedOutput.Contains('All Settings Tests passed')) {
+                    Write-Host $combinedOutput
+                    throw "Seed stress did not prove the requested preset/seed completed: preset='$presetName', seed='$seed'."
+                  }
+
+                  $completedSeeds++
+                  if ($seedTimer.ElapsedMilliseconds -gt $slowestMilliseconds) {
+                    $slowestMilliseconds = $seedTimer.ElapsedMilliseconds
+                    $slowestSeed = "$presetName / $seed"
+                  }
+                  if (($iteration % 25) -eq 0) {
+                    Write-Host "Stress progress: $completedSeeds / $totalSeeds; preset='$presetName'; latest='$seed'; elapsed=$($stressTimer.Elapsed)."
+                  }
+
+                  Remove-Item -LiteralPath $stdoutPath, $stderrPath `
+                    -Force -ErrorAction SilentlyContinue
+                  $seedOutputPath = Join-Path $env:TPR_SMOKE 'randomizer\seeds'
+                  Remove-Item -LiteralPath $seedOutputPath -Recurse -Force `
+                    -ErrorAction SilentlyContinue
+                }
+              }
+              finally {
+                [IO.File]::WriteAllText($settingsPath, $originalSettings, $utf8NoBom)
               }
             }
           }
           finally {
             Remove-Item Env:RANDO_LOGIC_TEST_FILTER -ErrorAction SilentlyContinue
           }
+          $stressTimer.Stop()
+          if ($completedSeeds -ne $totalSeeds) {
+            throw "Seed stress completed only $completedSeeds of $totalSeeds generations."
+          }
+          Write-Host "SEED_STRESS_PASS: $completedSeeds / $totalSeeds generations completed in $($stressTimer.Elapsed); slowest=$slowestMilliseconds ms ($slowestSeed)."
 
       - name: Release short build drive
         if: always()
@@ -2316,6 +2404,7 @@ jobs:
           }
 
       - name: Upload verified .658 test artifact
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         id: artifact_handoff
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -2326,6 +2415,7 @@ jobs:
           retention-days: 14
 
       - name: Upload private draft test package
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         id: draft_release_handoff
         continue-on-error: true
         shell: powershell
@@ -2525,7 +2615,7 @@ jobs:
             --json url,name,isDraft,tagName
 
       - name: Verify package handoff
-        if: always()
+        if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
         run: |
           $artifactOutcome = '${{ steps.artifact_handoff.outcome }}'
