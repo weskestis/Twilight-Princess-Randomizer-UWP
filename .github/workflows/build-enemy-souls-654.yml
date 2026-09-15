@@ -1,5 +1,5 @@
 name: Build Runtime Load and Shop Hotfix 658
-# Build control revision: runtime-load-shop-and-soul-fill-stability-v7
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v8
 
 on:
   push:
@@ -1837,7 +1837,7 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
-            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='location->HasCategories("Enemy First Defeat")' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='categories.contains("Enemy First Defeat")' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='-1, 250, true);' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='tryEveryItemBeforeRetry && !itemsToPlace.empty()' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='node["Soul Item Id"].as<int>() == definition.itemId' },
