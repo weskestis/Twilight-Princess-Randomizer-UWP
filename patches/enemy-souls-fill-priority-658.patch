@@ -1,11 +1,11 @@
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
-index 289d127249..e22413d249 100644
+index 289d127249..b65205a5d5 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
 +++ b/src/dusk/randomizer/generator/logic/fill.cpp
-@@ -36,12 +36,38 @@ namespace randomizer::logic::fill
+@@ -36,12 +36,43 @@ namespace randomizer::logic::fill
              }
          }
-
+ 
 -        // Place remaining major items in progress locations
 -        auto majorItems =
 -            utility::container::FilterAndEraseFromVector(itemPool, [](const auto& item) { return item->IsMajor(); });
@@ -36,14 +36,132 @@ index 289d127249..e22413d249 100644
 +            throw std::runtime_error(
 +                "Enemy Souls require more progression-safe extended-item checks than are available");
 +        }
-+        AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations);
++        // With 85 mutually gating items, a random order can temporarily pick
++        // an item that has no legal location even though another remaining
++        // Soul can advance the reverse fill. Exhaust the other items before
++        // abandoning an attempt and give this constrained pool extra retries.
++        AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,
++                    -1, 250, true);
 +
 +        // Place remaining unrestricted major items in progress locations.
 +        auto majorItems =
 +            utility::container::FilterAndEraseFromVector(itemPool, [](const auto& item) { return item->IsMajor(); });
          AssumedFill(worlds, majorItems, itemPool, progressLocations);
-
+ 
          // Place Minor items in progression locations if possible
+@@ -109,13 +140,16 @@ namespace randomizer::logic::fill
+         item_pool::ItemPool& itemsToPlacePool,
+         const item_pool::ItemPool& itemsNotYetPlaced,
+         location::LocationPool allowedLocations,
+-        const int& worldToFill /* = -1 */)
++        const int& worldToFill /* = -1 */,
++        int maxRetries /* = 10 */,
++        bool tryEveryItemBeforeRetry /* = false */)
+     {
+         // Assumed Fill may sometimes place items in such a way that accidentally locks out being able to place specific items
+         // later on. Allow the algorithm to retry a reasonable amount of times before returning an error.
+-        int retries = 10;
++        int retries = maxRetries;
+         bool unsuccessfulPlacement = true;
+         location::LocationPool rollbacks = {};
++        std::size_t closestRemaining = itemsToPlacePool.size();
+         while (unsuccessfulPlacement)
+         {
+             if (retries <= 0)
+@@ -134,6 +168,9 @@ namespace randomizer::logic::fill
+                     errorMsg += "- (" + std::to_string(itemsToPlacePool.size() - count) + " more)";
+                 }
+ 
++                errorMsg += "\nClosest attempt had " + std::to_string(closestRemaining) +
++                            " items remaining.";
++
+                 throw std::runtime_error(errorMsg);
+             }
+ 
+@@ -142,6 +179,7 @@ namespace randomizer::logic::fill
+ 
+             utility::random::ShufflePool(itemsToPlacePool);
+             auto itemsToPlace = itemsToPlacePool;
++            item_pool::ItemPool deferredItems = {};
+             rollbacks.clear();
+ 
+             while (!itemsToPlace.empty())
+@@ -156,6 +194,7 @@ namespace randomizer::logic::fill
+                 // Assume we have all the items which haven't been played yet, except the one we're about to place
+                 auto assumedItems = itemsNotYetPlaced;
+                 assumedItems.insert(assumedItems.end(), itemsToPlace.begin(), itemsToPlace.end());
++                assumedItems.insert(assumedItems.end(), deferredItems.begin(), deferredItems.end());
+                 auto search = search::Search::Accessible(&worlds, assumedItems, worldToFill);
+                 search.SearchWorlds();
+                 // search.DumpWorldGraph();
+@@ -203,6 +242,16 @@ namespace randomizer::logic::fill
+                 // again from the top.
+                 if (spotToFill == nullptr)
+                 {
++                    // A large mutually constrained pool can have a legal
++                    // reverse-fill continuation even when the randomly chosen
++                    // item has no spot yet. Try every other remaining item
++                    // against the same placement state before rolling back.
++                    if (tryEveryItemBeforeRetry && !itemsToPlace.empty())
++                    {
++                        deferredItems.push_back(itemToPlace);
++                        continue;
++                    }
++
+                     LOG_TO_DEBUG("No accessible locations to place " + itemToPlace->GetName() + ". Retrying " +
+                                  std::to_string(retries) + " more times.");
+                     for (auto& location : rollbacks)
+@@ -213,6 +262,8 @@ namespace randomizer::logic::fill
+ 
+                     // Also add back the randomly selected item
+                     itemsToPlace.push_back(itemToPlace);
++                    itemsToPlace.insert(itemsToPlace.end(), deferredItems.begin(), deferredItems.end());
++                    deferredItems.clear();
+                     rollbacks.clear();
+                     // Break out of the item placement loop and flag an unsuccessful placement attempt to try again
+                     unsuccessfulPlacement = true;
+@@ -222,6 +273,16 @@ namespace randomizer::logic::fill
+                 // Place the item at the location
+                 spotToFill->SetCurrentItem(itemToPlace);
+                 rollbacks.push_back(spotToFill);
++
++                // Reconsider any items deferred before this placement. The
++                // newly placed Soul may now be collectible and unlock them.
++                if (!deferredItems.empty())
++                {
++                    itemsToPlace.insert(itemsToPlace.end(), deferredItems.begin(), deferredItems.end());
++                    deferredItems.clear();
++                    utility::random::ShufflePool(itemsToPlace);
++                }
++                closestRemaining = std::min(closestRemaining, itemsToPlace.size());
+             }
+         }
+ 
+diff --git a/src/dusk/randomizer/generator/logic/fill.hpp b/src/dusk/randomizer/generator/logic/fill.hpp
+index 0f6304a1bb..ba4269a8a8 100644
+--- a/src/dusk/randomizer/generator/logic/fill.hpp
++++ b/src/dusk/randomizer/generator/logic/fill.hpp
+@@ -22,6 +22,9 @@ namespace randomizer::logic::fill
+      *  This is important for the assumed fill algorithm since we need to assume we have these items.
+      *  @param allowedLocations Locations where items in itemsToPlacePool are allowed to be filled.
+      *  @param worldToFill A specific world to fill. If -1 (default), then all worlds are considered
++     *  @param maxRetries Number of complete placement attempts before failing.
++     *  @param tryEveryItemBeforeRetry When true, defer an item with no current
++     *  location and try every other unplaced item before restarting the attempt.
+      *
+      *  @return The locations which had items placed at them during this fill call
+      */
+@@ -30,7 +33,9 @@ namespace randomizer::logic::fill
+         item_pool::ItemPool& itemsToPlacePool,
+         const item_pool::ItemPool& itemsNotYetPlaced,
+         location::LocationPool allowedLocations,
+-        const int& worldToFill = -1
++        const int& worldToFill = -1,
++        int maxRetries = 10,
++        bool tryEveryItemBeforeRetry = false
+     );
+ 
+     /**
 diff --git a/src/dusk/randomizer/generator/logic/world.cpp b/src/dusk/randomizer/generator/logic/world.cpp
 index 97094ee7ad..84d79d3a35 100644
 --- a/src/dusk/randomizer/generator/logic/world.cpp
@@ -60,7 +178,7 @@ index 97094ee7ad..84d79d3a35 100644
 +            // extended-item check so the dependency graph has a bootstrap.
 +            const bool supportsExtendedSoul = categories.contains("Chest") ||
                                                categories.contains("Freestanding Item");
-
+ 
              for (const auto& definition : randomizer::enemy_souls::kDefinitions)
 @@ -646,19 +649,6 @@ namespace randomizer::logic::world
                  if (!supportsExtendedSoul)
@@ -84,10 +202,10 @@ index 97094ee7ad..84d79d3a35 100644
          }
 diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_enemy_soul_fill_priority.py
 new file mode 100644
-index 0000000000..96939f86b9
+index 0000000000..71dc0fd3c2
 --- /dev/null
 +++ b/tools/tests/test_enemy_soul_fill_priority.py
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,66 @@
 +from pathlib import Path
 +import unittest
 +
@@ -106,7 +224,7 @@ index 0000000000..96939f86b9
 +    def test_constrained_souls_are_removed_before_general_major_fill(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
 +        soul_fill = self.source.index(
-+            "AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations);"
++            "AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,"
 +        )
 +        major_extract = self.source.index("auto majorItems")
 +        major_fill = self.source.index(
@@ -126,7 +244,7 @@ index 0000000000..96939f86b9
 +        self.assertIn("is_enemy_soul(", block)
 +        self.assertIn("static_cast<std::uint16_t>(item->GetID())", block)
 +        self.assertIn(
-+            "AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations);",
++            "AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,",
 +            block,
 +        )
 +
@@ -141,6 +259,16 @@ index 0000000000..96939f86b9
 +        self.assertIn("enemySoulItems.size() > enemySoulLocations.size()", block)
 +        self.assertNotIn('location->HasCategories("Enemy First Defeat")', block)
 +
++    def test_soul_fill_exhausts_alternative_items_before_retrying(self):
++        soul_extract = self.source.index("auto enemySoulItems")
++        major_extract = self.source.index("auto majorItems")
++        block = self.source[soul_extract:major_extract]
++
++        self.assertIn("-1, 250, true", block)
++        self.assertIn("tryEveryItemBeforeRetry && !itemsToPlace.empty()", self.source)
++        self.assertIn("deferredItems.push_back(itemToPlace)", self.source)
++        self.assertIn("assumedItems.end(), deferredItems.begin()", self.source)
++
 +
 +if __name__ == "__main__":
 +    unittest.main()
@@ -151,7 +279,7 @@ index 682f5f0dc4..e5d1d9cd07 100644
 @@ -274,7 +274,7 @@ class EnemySoulTests(unittest.TestCase):
              self.assertIs(cleared[setting], False)
              self.assertIs(maximum[setting], True)
-
+ 
 -    def test_first_defeat_locations_are_complete_and_direct_self_locks_are_forbidden(self):
 +    def test_first_defeat_locations_are_complete_and_all_soul_cycles_are_forbidden(self):
          add_locations = function_slice(
@@ -170,4 +298,4 @@ index 682f5f0dc4..e5d1d9cd07 100644
 +        self.assertNotIn("== definition.itemId", safety)
          self.assertIn("AddEnemyFirstDefeatLocations();", self.world)
          self.assertIn("ApplyEnemySoulLocationSafety();", self.world)
-
+ 

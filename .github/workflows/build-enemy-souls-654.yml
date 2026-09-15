@@ -1,5 +1,5 @@
 name: Build Runtime Load and Shop Hotfix 658
-# Build control revision: runtime-load-shop-and-soul-fill-stability-v5
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v6
 
 on:
   push:
@@ -1739,7 +1739,7 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '8d5c87195045cf8ea7adafb84ecc1f83e6479d5cfe1b45bd2580b722069325d2') {
+          if ($patchHash -ne '30bb5afd1039b3723230f629bd3dc05b092823cc846f265f4c23879f8ec1f3b2') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
@@ -1831,7 +1831,9 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
-            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations);' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='-1, 250, true);' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='tryEveryItemBeforeRetry && !itemsToPlace.empty()' },
+            @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_soul_fill_exhausts_alternative_items_before_retrying' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
