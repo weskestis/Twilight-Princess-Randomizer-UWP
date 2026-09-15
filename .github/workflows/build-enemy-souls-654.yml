@@ -2260,6 +2260,66 @@ jobs:
           TPR_STRESS_ITERATIONS: ${{ contains(github.event.head_commit.message, '[stress-only]') && 250 || 1 }}
         run: |
           $ErrorActionPreference = 'Stop'
+
+          function Invoke-StressProcess {
+            param(
+              [Parameter(Mandatory=$true)][string]$FilePath,
+              [Parameter(Mandatory=$true)][string]$WorkingDirectory,
+              [int]$TimeoutMilliseconds = 120000,
+              [string]$Arguments = ''
+            )
+
+            $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $startInfo.FileName = $FilePath
+            $startInfo.WorkingDirectory = $WorkingDirectory
+            $startInfo.Arguments = $Arguments
+            $startInfo.UseShellExecute = $false
+            $startInfo.CreateNoWindow = $true
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+
+            $process = New-Object System.Diagnostics.Process
+            $process.StartInfo = $startInfo
+            try {
+              if (-not $process.Start()) {
+                throw "Could not start process: $FilePath"
+              }
+              $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+              $stderrTask = $process.StandardError.ReadToEndAsync()
+              $timedOut = -not $process.WaitForExit($TimeoutMilliseconds)
+              if ($timedOut) {
+                try { $process.Kill() } catch {}
+              }
+              $process.WaitForExit()
+              $stdout = $stdoutTask.GetAwaiter().GetResult()
+              $stderr = $stderrTask.GetAwaiter().GetResult()
+              $exitCode = if ($timedOut) { $null } else { $process.ExitCode }
+
+              [pscustomobject]@{
+                TimedOut = $timedOut
+                ExitCode = $exitCode
+                StdOut = $stdout
+                StdErr = $stderr
+              }
+            }
+            finally {
+              $process.Dispose()
+            }
+          }
+
+          # Prove Windows PowerShell can capture output and a nonzero exit code
+          # through this exact process path before paying for the native build.
+          $probe = Invoke-StressProcess `
+            -FilePath $env:ComSpec `
+            -WorkingDirectory $env:GITHUB_WORKSPACE `
+            -TimeoutMilliseconds 10000 `
+            -Arguments '/d /c "echo TPR_STRESS_HARNESS_OK & exit /b 7"'
+          if ($probe.TimedOut -or $probe.ExitCode -ne 7 -or
+              -not $probe.StdOut.Contains('TPR_STRESS_HARNESS_OK')) {
+            throw "Direct process harness probe failed (timedOut=$($probe.TimedOut), exit=$($probe.ExitCode), stdout=$($probe.StdOut), stderr=$($probe.StdErr))."
+          }
+          Write-Host 'Direct process harness probe passed.'
+
           # Keep this desktop logic-test build isolated from the already-configured
           # UWP feed. Reusing TPR_FEED leaves Aurora's cached providers pinned to
           # uwp-dep, whose intentionally narrow headers do not include
@@ -2340,41 +2400,23 @@ jobs:
                   [IO.File]::WriteAllText($settingsPath, $stressSettings, $utf8NoBom)
 
                   $env:RANDO_LOGIC_TEST_FILTER = $presetName
-                  $stdoutPath = Join-Path $env:RUNNER_TEMP 'tpr-seed-stress.stdout.log'
-                  $stderrPath = Join-Path $env:RUNNER_TEMP 'tpr-seed-stress.stderr.log'
-                  Remove-Item -LiteralPath $stdoutPath, $stderrPath `
-                    -Force -ErrorAction SilentlyContinue
-
                   $seedTimer = [Diagnostics.Stopwatch]::StartNew()
-                  $process = Start-Process -FilePath $testExecutable `
-                    -WorkingDirectory $env:TPR_SRC -PassThru `
-                    -RedirectStandardOutput $stdoutPath `
-                    -RedirectStandardError $stderrPath
-                  if (-not $process.WaitForExit(120000)) {
-                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-                    $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { '' }
-                    $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { '' }
-                    Write-Host $stdout
-                    Write-Host $stderr
+                  $result = Invoke-StressProcess `
+                    -FilePath $testExecutable `
+                    -WorkingDirectory $env:TPR_SRC `
+                    -TimeoutMilliseconds 120000
+                  $seedTimer.Stop()
+                  $combinedOutput = $result.StdOut + "`n" + $result.StdErr
+                  if ($result.TimedOut) {
+                    Write-Host $combinedOutput
                     throw "Seed stress timed out after 120 seconds: preset='$presetName', seed='$seed'."
                   }
-                  # Windows PowerShell can leave ExitCode unpopulated after
-                  # only the timed overload, especially with redirected
-                  # output. A final parameterless wait refreshes that value.
-                  $process.WaitForExit()
-                  $seedTimer.Stop()
-                  $process.Refresh()
-                  $exitCode = $process.ExitCode
-                  if ($null -eq $exitCode) {
+                  if ($null -eq $result.ExitCode) {
                     throw "Seed stress harness could not read the exit code: preset='$presetName', seed='$seed'."
                   }
-
-                  $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { '' }
-                  $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { '' }
-                  $combinedOutput = $stdout + "`n" + $stderr
-                  if ($exitCode -ne 0) {
+                  if ($result.ExitCode -ne 0) {
                     Write-Host $combinedOutput
-                    throw "Seed stress failed: preset='$presetName', seed='$seed', exit=$exitCode."
+                    throw "Seed stress failed: preset='$presetName', seed='$seed', exit=$($result.ExitCode)."
                   }
                   if (-not $combinedOutput.Contains("Testing $presetName") -or
                       -not $combinedOutput.Contains("Seed: $seed") -or
@@ -2392,8 +2434,6 @@ jobs:
                     Write-Host "Stress progress: $completedSeeds / $totalSeeds; preset='$presetName'; latest='$seed'; elapsed=$($stressTimer.Elapsed)."
                   }
 
-                  Remove-Item -LiteralPath $stdoutPath, $stderrPath `
-                    -Force -ErrorAction SilentlyContinue
                   $seedOutputPath = Join-Path $env:TPR_SMOKE 'randomizer\seeds'
                   Remove-Item -LiteralPath $seedOutputPath -Recurse -Force `
                     -ErrorAction SilentlyContinue
