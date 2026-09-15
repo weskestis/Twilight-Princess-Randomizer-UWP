@@ -2315,7 +2315,11 @@ jobs:
               }
 
               $originalSettings = [IO.File]::ReadAllText($settingsPath)
-              $seedLines = [regex]::Matches($originalSettings, '(?m)^Seed:[^\r\n]*$')
+              # Do not anchor to `$`: .NET's multiline `$` sits before LF but
+              # after CR in a CRLF checkout, so an explicitly CR-free match
+              # would reject an otherwise valid Windows settings file.
+              $seedPattern = '(?m)^Seed:[^\r\n]*'
+              $seedLines = [regex]::Matches($originalSettings, $seedPattern)
               if ($seedLines.Count -ne 1) {
                 throw "Expected exactly one Seed line in stress preset '$presetName'; found $($seedLines.Count)."
               }
@@ -2325,7 +2329,7 @@ jobs:
                   $seed = 'Stress658{0}{1:D4}' -f $preset.Code, $iteration
                   $stressSettings = [regex]::Replace(
                     $originalSettings,
-                    '(?m)^Seed:[^\r\n]*$',
+                    $seedPattern,
                     "Seed: $seed")
                   [IO.File]::WriteAllText($settingsPath, $stressSettings, $utf8NoBom)
 
