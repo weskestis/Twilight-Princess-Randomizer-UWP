@@ -1,0 +1,86 @@
+diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
+--- a/src/dusk/randomizer/generator/logic/fill.cpp
++++ b/src/dusk/randomizer/generator/logic/fill.cpp
+@@ -29,13 +29,28 @@ namespace randomizer::logic::fill
+                 locationPool.emplace_back(location);
+             }
+         }
+ 
+-        // Place remaining major items in progress locations
+-        auto majorItems =
+-            utility::container::FilterAndEraseFromVector(itemPool, [](const auto& item) { return item->IsMajor(); });
+         auto progressLocations =
+             utility::container::FilterFromVector(locationPool,
+                                                         [](const auto& location) { return location->IsProgression(); });
++
++        // Enemy Souls can only be serialized by checks with an extended-item
++        // runtime path. Reserve those constrained locations before ordinary
++        // major items can consume them. Assumed fill still removes the Soul
++        // being placed from the assumed inventory, so direct and indirect
++        // spawn-permission cycles remain impossible.
++        auto enemySoulItems = utility::container::FilterAndEraseFromVector(
++            itemPool,
++            [](const auto& item) {
++                return randomizer::enemy_souls::is_enemy_soul(
++                    static_cast<std::uint16_t>(item->GetID()));
++            });
++        AssumedFill(worlds, enemySoulItems, itemPool, progressLocations);
++
++        // Place remaining unrestricted major items in progress locations.
++        auto majorItems =
++            utility::container::FilterAndEraseFromVector(itemPool, [](const auto& item) { return item->IsMajor(); });
+         AssumedFill(worlds, majorItems, itemPool, progressLocations);
+ 
+         // Place Minor items in progression locations if possible
+         auto minorItems =
+diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_enemy_soul_fill_priority.py
+new file mode 100644
+--- /dev/null
++++ b/tools/tests/test_enemy_soul_fill_priority.py
+@@ -0,0 +1,40 @@
++from pathlib import Path
++import unittest
++
++
++ROOT = Path(__file__).resolve().parents[2]
++FILL_SOURCE = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "fill.cpp"
++)
++
++
++class EnemySoulFillPriorityTests(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.source = FILL_SOURCE.read_text(encoding="utf-8")
++
++    def test_constrained_souls_are_removed_before_general_major_fill(self):
++        soul_extract = self.source.index("auto enemySoulItems")
++        soul_fill = self.source.index(
++            "AssumedFill(worlds, enemySoulItems, itemPool, progressLocations);"
++        )
++        major_extract = self.source.index("auto majorItems")
++        major_fill = self.source.index(
++            "AssumedFill(worlds, majorItems, itemPool, progressLocations);"
++        )
++
++        self.assertLess(soul_extract, soul_fill)
++        self.assertLess(soul_fill, major_extract)
++        self.assertLess(major_extract, major_fill)
++
++    def test_soul_partition_uses_stable_extended_item_ids(self):
++        soul_extract = self.source.index("auto enemySoulItems")
++        major_extract = self.source.index("auto majorItems")
++        block = self.source[soul_extract:major_extract]
++
++        self.assertIn("FilterAndEraseFromVector(", block)
++        self.assertIn("is_enemy_soul(", block)
++        self.assertIn("static_cast<std::uint16_t>(item->GetID())", block)
++        self.assertIn(
++            "AssumedFill(worlds, enemySoulItems, itemPool, progressLocations);",
++            block,
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()
++

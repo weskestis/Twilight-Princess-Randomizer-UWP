@@ -1,5 +1,5 @@
 name: Build Runtime Load and Shop Hotfix 658
-# Build control revision: runtime-load-and-shop-stability-v3
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v4
 
 on:
   push:
@@ -1723,6 +1723,45 @@ jobs:
             Pop-Location
           }
 
+
+      - name: Apply .658 Enemy Soul hostile-seed fill-priority hardening
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $patch = "$env:GITHUB_WORKSPACE\_control\patches\enemy-souls-fill-priority-658.patch"
+          if (-not (Test-Path -LiteralPath $patch -PathType Leaf)) {
+            throw "Enemy Soul fill-priority patch is missing: $patch"
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          $crlf = [string]([char]13) + [char]10
+          $lf = [string][char]10
+          $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
+          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
+          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'bbe7ae244bc7bc89512ad6f98b6e5f27e040a8ace73c7d8121c74e7736dc6826') {
+            throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
+          }
+
+          $fillSource = Join-Path $env:TPR_SRC 'src\dusk\randomizer\generator\logic\fill.cpp'
+          $fillText = [IO.File]::ReadAllText($fillSource).Replace($crlf, $lf)
+          [IO.File]::WriteAllText($fillSource, $fillText, $utf8NoBom)
+
+          Push-Location "$env:TPR_SRC"
+          try {
+            git apply --check $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy Soul fill-priority hardening does not match the verified .658 source.'
+            }
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Enemy Soul fill-priority hardening could not be applied.'
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
       - name: Advance private package identity to .658
         shell: powershell
         run: |
@@ -1791,6 +1830,9 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='_enemyDefeatRequirements.GetDefeatRequirement(' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='AssumedFill(worlds, enemySoulItems, itemPool, progressLocations);' },
+            @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_enemy_souls_never_collide_with_existing_item_names_or_ids' },
@@ -2551,6 +2593,11 @@ jobs:
           $title = 'Twilight Princess Randomizer UWP 1.4.1.658 Private Test'
           $notes = @'
           PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
+
+          Enemy Souls are now partitioned and placed before unrestricted major items, reserving
+          checks that can safely serialize extended Soul IDs. This prevents ordinary progression
+          items from consuming the limited Soul-compatible location set and makes hostile combined
+          settings generate reliably without weakening the final all-Souls reachability proof.
 
           This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
