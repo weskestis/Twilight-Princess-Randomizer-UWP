@@ -1,5 +1,5 @@
-name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-v1
+name: Build Runtime Load and Shop Hotfix 658
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v6
 
 on:
   push:
@@ -1739,7 +1739,7 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '5b11f2cd67b645dde1bbb895603881233d3e67fcc9a1e1bbe3032fab8f48d54d') {
+          if ($patchHash -ne '943714092b148f68d3f302dbb44f3c5c395f5728f159b5bacc7640b03ee21fb8') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
@@ -1762,83 +1762,16 @@ jobs:
             Pop-Location
           }
 
-      - name: Apply reviewed .659 full entrance randomizer
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $parts = @(Get-ChildItem `
-            "$env:GITHUB_WORKSPACE\_control\patches\full-entrance-randomizer-659.patch.gz.b64.part*" `
-            -File | Sort-Object Name)
-          if ($parts.Count -ne 1) {
-            throw "Expected one .659 entrance-randomizer patch chunk; found $($parts.Count)."
-          }
-
-          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
-          $gzipPath = Join-Path $env:RUNNER_TEMP 'full-entrance-randomizer-659.patch.gz'
-          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
-          $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne 'c90f813001e305faa8bcf5cab28f201f4b4a40985670ca62ad859884c256e443') {
-            throw "Compressed .659 entrance-randomizer patch SHA-256 mismatch: $gzipHash"
-          }
-
-          $patch = Join-Path $env:RUNNER_TEMP 'full-entrance-randomizer-659.patch'
-          $gzip = [IO.File]::OpenRead($gzipPath)
-          try {
-            $decoder = [IO.Compression.GZipStream]::new(
-              $gzip, [IO.Compression.CompressionMode]::Decompress)
-            try {
-              $output = [IO.File]::Create($patch)
-              try { $decoder.CopyTo($output) }
-              finally { $output.Dispose() }
-            }
-            finally { $decoder.Dispose() }
-          }
-          finally { $gzip.Dispose() }
-
-          $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '6d5cee4e42a733c94ffa7e2d18aab2ea1c31e1fc58c919ceb2182e586f033b48') {
-            throw "Decoded .659 entrance-randomizer patch SHA-256 mismatch: $patchHash"
-          }
-
-          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-          $patchText = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
-          [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
-
-          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
-          foreach ($match in $pathMatches) {
-            $relative = $match.Groups[2].Value
-            $path = Join-Path $env:TPR_SRC $relative
-            if (Test-Path -LiteralPath $path -PathType Leaf) {
-              $text = [IO.File]::ReadAllText($path)
-              [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8NoBom)
-            }
-          }
-
-          Push-Location "$env:TPR_SRC"
-          try {
-            git apply --check $patch
-            if ($LASTEXITCODE -ne 0) {
-              throw 'Full entrance-randomizer patch does not match the corrected .658 source.'
-            }
-            git apply $patch
-            if ($LASTEXITCODE -ne 0) {
-              throw 'Full entrance-randomizer patch could not be applied.'
-            }
-          }
-          finally {
-            Pop-Location
-          }
-
-      - name: Advance private package identity to .659
+      - name: Advance private package identity to .658
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
           $manifest = [IO.File]::ReadAllText($manifestPath)
           if ($manifest -notmatch 'Version="1[.]4[.]1[.]636"') {
-            throw 'Verified .636 package identity was not present before the .659 version advance.'
+            throw 'Verified .636 package identity was not present before the .658 version advance.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.659"')
+          $manifest = $manifest.Replace('Version="1.4.1.636"', 'Version="1.4.1.658"')
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
 
@@ -1858,7 +1791,7 @@ jobs:
             Write-Host "TPR_DIAG_END:$($_.Name)"
           }
 
-      - name: Run the complete .659 regression and feature-contract suite
+      - name: Run the complete .658 regression and feature-contract suite
         shell: powershell
         run: |
           python -m pip install --disable-pip-version-check PyYAML==6.0.2
@@ -1866,7 +1799,7 @@ jobs:
           Push-Location "$env:TPR_SRC"
           try {
             python -m unittest discover -s 'tools\tests' -v
-            if ($LASTEXITCODE -ne 0) { throw 'The complete .659 regression suite failed.' }
+            if ($LASTEXITCODE -ne 0) { throw 'The complete .658 regression suite failed.' }
           }
           finally {
             Pop-Location
@@ -1877,8 +1810,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $manifest = Get-Content "$env:TPR_SRC\platforms\uwp\Package.appxmanifest" -Raw
-          if ($manifest -notmatch 'Version="1[.]4[.]1[.]659"') {
-            throw 'Assembled package identity is not 1.4.1.659.'
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]658"') {
+            throw 'Assembled package identity is not 1.4.1.658.'
           }
 
           $checks = @(
@@ -1899,6 +1832,7 @@ jobs:
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='location->HasCategories("Enemy First Defeat")' },
+            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Deku Baba Soul"] = 1' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='-1, 250, true);' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='tryEveryItemBeforeRetry && !itemsToPlace.empty()' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='node["Soul Item Id"].as<int>() == definition.itemId' },
@@ -2003,25 +1937,6 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\entrance.hpp'; Text='GameTransitionData' },
             @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Dungeon entrance shuffle", audit.dungeonEntrances)' },
             @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Boss entrance shuffle", audit.bossEntrances)' },
-            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Interior entrance shuffle", audit.interiorEntrances)' },
-            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Overworld entrance shuffle", audit.overworldEntrances)' },
-            @{ Path='src\dusk\randomizer\game\randomizer_context.hpp'; Text='CURRENT_FORMAT_VERSION = 3' },
-            @{ Path='src\dusk\randomizer\game\randomizer_context.hpp'; Text='static_assert(sizeof(EntranceOverride) == sizeof(u64))' },
-            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='entrancePools[Type::INTERIOR]' },
-            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='entrancePools[Type::OVERWORLD]' },
-            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='entrancePools[Type::GROTTO]' },
-            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='entrancePools[Type::CAVE]' },
-            @{ Path='src\dusk\randomizer\generator\data\object_patches.yaml'; Text='entrance ID 5000' },
-            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Mixed Entrance Pool' },
-            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Decouple Double Door Entrances' },
-            @{ Path='src\dusk\ui\rando_config.cpp'; Text='Decouple Entrances' },
-            @{ Path='src\dusk\randomizer\generator\logic\enemy_requirements.cpp'; Text='validatedBosses.insert(definition.enemy)' },
-            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='Mixed boss entrance has no safe source-side return' },
-            @{ Path='src\dusk\randomizer\generator\data\tests\logic\mixed entrance pools\settings.yaml'; Text='["Dungeon", "Boss", "Grotto", "Cave", "Interior", "Overworld"]' },
-            @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_complete_current_entrance_catalog_is_present' },
-            @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_every_authored_connection_exists_in_the_world_graph' },
-            @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_every_supported_family_and_shuffle_mode_is_exposed' },
-            @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_ui_mixed_pool_and_stress_preset_include_every_two_way_family' },
             @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='randomizer.expanded_shops.v1' },
             @{ Path='src\dusk\randomizer\generator\shop_item_data.cpp'; Text='Castle Town Malo Mart Bomblings' },
             @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- "All": "The established shop items' },
@@ -2076,7 +1991,7 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Name: Seed-Aware Junk' },
             @{ Path='src\dusk\randomizer\generator\data\settings_list.yaml'; Text='- Octosanity:' },
             @{ Path='tools\tests\test_ship_inspired_features.py'; Text='test_seed_aware_junk_preserves_multiworld_item_ownership' },
-            @{ Path='tools\tests\test_seed_audit_contract.py'; Text='test_safe_full_preset_enables_every_proven_shuffle_family' },
+            @{ Path='tools\tests\test_seed_audit_contract.py'; Text='test_safe_full_preset_enables_only_proven_shuffle_families' },
             @{ Path='tools\tests\test_octosanity_logic.py'; Text='test_octosanity_models_repeated_bonk_damage_in_logic' }
           )
           foreach ($check in $checks) {
@@ -2115,7 +2030,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-full-er-659
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-runtime-shop-658
 
       - name: Compile working .627 game core
         if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
@@ -2175,7 +2090,7 @@ jobs:
             /p:UapAppxPackageBuildMode=SideloadOnly `
             /p:GenerateAppxPackageOnBuild=true
 
-      - name: Verify and collect private .659 test package
+      - name: Verify and collect private .658 test package
         if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         shell: powershell
         run: |
@@ -2192,7 +2107,7 @@ jobs:
             throw 'UWP build did not produce an MSIX package.'
           }
 
-          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.659_x64.msix'
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.658_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -2204,8 +2119,8 @@ jobs:
             try { $packageManifest = $reader.ReadToEnd() }
             finally { $reader.Dispose() }
             if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
-                $packageManifest -notmatch 'Version="1[.]4[.]1[.]659"') {
-              throw 'Signed MSIX identity/version is not the expected .659 in-place update.'
+                $packageManifest -notmatch 'Version="1[.]4[.]1[.]658"') {
+              throw 'Signed MSIX identity/version is not the expected .658 in-place update.'
             }
 
             $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
@@ -2272,22 +2187,8 @@ jobs:
               'Logic macro preregistration invariant failed',
               'Input Viewer Layout',
               'Malformed JPEG data in THP frame',
-              'Randomize Starting Spawn',
-              'Randomize Dungeon Entrances',
-              'Randomize Boss Entrances',
-              'Randomize Grotto Entrances',
-              'Randomize Cave Entrances',
-              'Randomize Interior Entrances',
-              'Randomize Overworld Entrances',
-              'Decouple Double Door Entrances',
-              'Decouple Entrances',
-              'Mixed Entrance Pool',
-              'Starting spawn shuffle',
               'Dungeon entrance shuffle',
               'Boss entrance shuffle',
-              'Cave and grotto entrance shuffle',
-              'Interior entrance shuffle',
-              'Overworld entrance shuffle',
               'randomizer.expanded_shops.v1',
               'Castle Town Malo Mart Bomblings',
               'Shop Item Coverage',
@@ -2337,11 +2238,11 @@ jobs:
 
           $identity = Get-Content "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Raw |
             ConvertFrom-Json
-          $identity.version = '1.4.1.659'
+          $identity.version = '1.4.1.658'
           $identity | ConvertTo-Json | Set-Content `
             "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
           $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
-          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.659` over it'
+          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.658` over it'
           $knownInstallInstructions = @(
             'Do **not** uninstall `.633`. Deploy `.634` over it',
             'Do **not** uninstall `.635`. Deploy `.636` over it',
@@ -2365,14 +2266,13 @@ jobs:
             'Do **not** uninstall your current working build. Deploy `.654` over it',
             'Do **not** uninstall your current working build. Deploy `.655` over it',
             'Do **not** uninstall your current working build. Deploy `.656` over it',
-            'Do **not** uninstall your current working build. Deploy `.657` over it',
-            'Do **not** uninstall your current working build. Deploy `.658` over it'
+            'Do **not** uninstall your current working build. Deploy `.657` over it'
           )
           foreach ($knownInstruction in $knownInstallInstructions) {
             $installGuide = $installGuide.Replace($knownInstruction, $nextInstallInstruction)
           }
           if (-not $installGuide.Contains($nextInstallInstruction)) {
-            throw 'Xbox install guide could not be advanced to the .659 in-place update instructions.'
+            throw 'Xbox install guide could not be advanced to the .658 in-place update instructions.'
           }
           Set-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $installGuide -Encoding UTF8
 
@@ -2382,7 +2282,7 @@ jobs:
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
 
           $supportDir = Join-Path $packageDir 'Support'
-          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.659-Xbox-Support.zip'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.658-Xbox-Support.zip'
           New-Item -ItemType Directory -Force $supportDir | Out-Null
           Copy-Item @(
             (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
@@ -2404,7 +2304,7 @@ jobs:
       - name: Compile and run native hostile-seed validation
         shell: powershell
         env:
-          TPR_STRESS_ITERATIONS: ${{ contains(github.event.head_commit.message, '[stress-only]') && 100 || 1 }}
+          TPR_STRESS_ITERATIONS: ${{ contains(github.event.head_commit.message, '[stress-only]') && 250 || 1 }}
         run: |
           $ErrorActionPreference = 'Stop'
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -2545,7 +2445,7 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-logic-smoke-659
+            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-logic-smoke-658
           if ($LASTEXITCODE -ne 0) {
             throw 'Could not configure the compiled Enemy Souls seed smoke test.'
           }
@@ -2565,15 +2465,7 @@ jobs:
             @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' },
             @{ Name = 'enemy souls cleared twilights'; Code = 'ESCT' },
             @{ Name = 'enemy souls max entrance rando'; Code = 'ESME' },
-            @{ Name = 'randomize starting spawn'; Code = 'SPAWN' },
-            @{ Name = 'random dungeon entrances'; Code = 'DUNG' },
-            @{ Name = 'random boss entrances'; Code = 'BOSS' },
-            @{ Name = 'random grotto entrances'; Code = 'GROT' },
-            @{ Name = 'random cave entrances'; Code = 'CAVE' },
-            @{ Name = 'random interior entrances'; Code = 'INT' },
-            @{ Name = 'random overworld entrances'; Code = 'OW' },
-            @{ Name = 'mixed entrance pools'; Code = 'MIX' },
-            @{ Name = 'max entrance rando'; Code = 'MAX' }
+            @{ Name = 'random cave entrances'; Code = 'CAVE' }
           )
           $iterationsPerPreset = [int]$env:TPR_STRESS_ITERATIONS
           if ($iterationsPerPreset -lt 1 -or $iterationsPerPreset -gt 250) {
@@ -2605,7 +2497,7 @@ jobs:
 
               try {
                 for ($iteration = 1; $iteration -le $iterationsPerPreset; $iteration++) {
-                  $seed = 'Stress659{0}{1:D4}' -f $preset.Code, $iteration
+                  $seed = 'Stress658{0}{1:D4}' -f $preset.Code, $iteration
                   $stressSettings = [regex]::Replace(
                     $originalSettings,
                     $seedPattern,
@@ -2676,13 +2568,13 @@ jobs:
             subst S: /D
           }
 
-      - name: Upload verified .659 test artifact
+      - name: Upload verified .658 test artifact
         if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         id: artifact_handoff
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.659-Private-Test
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.658-Private-Test
           path: TPR-Xbox-Package/
           if-no-files-found: error
           retention-days: 14
@@ -2702,24 +2594,15 @@ jobs:
             throw 'No verified package files are available for private handoff.'
           }
 
-          $tag = "tpr-uwp-1.4.1.659-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          $title = 'Twilight Princess Randomizer UWP 1.4.1.659 Private Test'
+          $tag = "tpr-uwp-1.4.1.658-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer UWP 1.4.1.658 Private Test'
           $notes = @'
           PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
 
-          .659 adds the complete current entrance-randomizer surface: starting spawn, all eight
-          main dungeons plus Hyrule Castle, all eight bosses, grottos, caves, interiors, overworld
-          transitions, mixed pools, ordinary decoupling, and double-door decoupling. The runtime
-          now serializes signed 16-bit transition points, supports custom spawn actor IDs, keeps
-          coupled multi-transition doors physically coherent, persists a format-v3 discovered
-          entrance graph, and disambiguates duplicate physical transitions with source-stage
-          context. Existing v1/v2 seeds remain readable. Safe Full enables every supported family
-          and generator-level story safety also applies to permalinks and non-UI seed tools.
-
           Enemy Souls are now partitioned and placed before unrestricted major items, reserving
-          every check that can safely serialize extended Soul IDs. First-Defeat checks join chest
-          and freestanding locations under the exhaustive dependency-aware reverse fill; direct
-          self-rewards remain forbidden, and final all-Souls reachability rejects longer cycles.
+          checks that can safely serialize extended Soul IDs. Deku Baba Soul is granted at start as
+          the non-cyclic bootstrap for universal enemy spawn gating; the remaining 84 Souls use the
+          dependency-aware reverse fill and final all-Souls reachability proof.
 
           This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
@@ -2874,9 +2757,9 @@ jobs:
           spoiler-safe discovered graph: unseen destinations remain hidden as `???` until traversed.
           Seed-Aware Junk deterministically replaces only unusable ammo after final item placement,
           while preserving multiworld item ownership and running before playthrough, hints, and logs.
-          Seed Audit validates pots, all 43 story-only pumpkins, 32 physical shop shelves, and every
-          enabled entrance family before accepting the seed. Octosanity adds the synchronized x8
-          damage option, and Safe Full enables all supported entrance shuffle families.
+          Seed Audit validates pots, all 43 story-only pumpkins, 32 physical shop shelves, and enabled
+          dungeon, boss, cave, and grotto entrance tables before accepting the seed. Octosanity adds
+          the synchronized x8 damage option, and Safe Full enables only the proven shuffle families.
           This is an unpublished test candidate, not a public release.
           '@
 

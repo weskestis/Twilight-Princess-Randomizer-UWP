@@ -1,5 +1,18 @@
+diff --git a/src/dusk/randomizer/generator/data/settings_list.yaml b/src/dusk/randomizer/generator/data/settings_list.yaml
+index a71a91adab..8c53bd7edd 100644
+--- a/src/dusk/randomizer/generator/data/settings_list.yaml
++++ b/src/dusk/randomizer/generator/data/settings_list.yaml
+@@ -143,7 +143,7 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Regular enemies and minibosses spawn normally and Enemy Souls are not added to the item pool."
+-    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. Requires logic."
++    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. Deku Baba Soul is granted at the start to bootstrap the shuffled Soul chain. Requires logic."
+ 
+ - Name: Enemy First-Defeat Checks
+   Need In Game: True
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
-index 289d127249..18dc8dbc77 100644
+index 289d127249..06b92f78d3 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
 +++ b/src/dusk/randomizer/generator/logic/fill.cpp
 @@ -36,12 +36,45 @@ namespace randomizer::logic::fill
@@ -15,10 +28,10 @@ index 289d127249..18dc8dbc77 100644
 +
 +        // Enemy Souls can only be serialized by checks with an extended-item
 +        // runtime path. Reserve those constrained locations before ordinary
-+        // major items can consume them. First-Defeat checks are safe here:
-+        // the exhaustive reverse fill only commits a reward when its source
-+        // is reachable with the later Souls assumed, and final validation
-+        // rejects any dependency cycle without a bootstrap.
++        // major items can consume them. The guaranteed starting Soul provides
++        // a bootstrap; the exhaustive reverse fill only commits a reward when
++        // its source is reachable with the later Souls assumed, and final
++        // validation rejects every remaining dependency cycle.
 +        auto enemySoulItems = utility::container::FilterAndEraseFromVector(
 +            itemPool,
 +            [](const auto& item) {
@@ -164,12 +177,32 @@ index 0f6304a1bb..ba4269a8a8 100644
      );
  
      /**
+diff --git a/src/dusk/randomizer/generator/logic/item_pool.cpp b/src/dusk/randomizer/generator/logic/item_pool.cpp
+index 7eb491cfd1..affdb050d7 100644
+--- a/src/dusk/randomizer/generator/logic/item_pool.cpp
++++ b/src/dusk/randomizer/generator/logic/item_pool.cpp
+@@ -409,6 +409,15 @@ namespace randomizer::logic::item_pool
+         auto& startingItemPool = world->GetStartingItemPool();
+         auto& itemPool = world->GetItemPool();
+ 
++        // Universal Enemy Soul spawn gating needs one non-cyclic starting
++        // permission. Deku Babas have an always-authored South Faron source,
++        // so this Soul gives the reverse fill a deterministic bootstrap while
++        // the other 84 Souls remain fully shuffled.
++        if (world->Setting("Enemy Souls") == "On")
++        {
++            startingItems["Deku Baba Soul"] = 1;
++        }
++
+         // Add Maps and Compasses to starting items if we start with them
+         if (world->Setting("Maps and Compasses") == "Start With")
+         {
 diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_enemy_soul_fill_priority.py
 new file mode 100644
-index 0000000000..7d28a206f1
+index 0000000000..f025191dad
 --- /dev/null
 +++ b/tools/tests/test_enemy_soul_fill_priority.py
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,74 @@
 +from pathlib import Path
 +import unittest
 +
@@ -178,12 +211,20 @@ index 0000000000..7d28a206f1
 +FILL_SOURCE = (
 +    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "fill.cpp"
 +)
++ITEM_POOL_SOURCE = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "item_pool.cpp"
++)
 +
 +
 +class EnemySoulFillPriorityTests(unittest.TestCase):
 +    @classmethod
 +    def setUpClass(cls):
 +        cls.source = FILL_SOURCE.read_text(encoding="utf-8")
++        cls.item_pool_source = ITEM_POOL_SOURCE.read_text(encoding="utf-8")
++
++    def test_enemy_souls_have_one_guaranteed_starting_bootstrap(self):
++        self.assertIn('world->Setting("Enemy Souls") == "On"', self.item_pool_source)
++        self.assertIn('startingItems["Deku Baba Soul"] = 1;', self.item_pool_source)
 +
 +    def test_constrained_souls_are_removed_before_general_major_fill(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
