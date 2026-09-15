@@ -1,7 +1,7 @@
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
 +++ b/src/dusk/randomizer/generator/logic/fill.cpp
-@@ -29,13 +29,28 @@ namespace randomizer::logic::fill
+@@ -29,14 +29,28 @@ namespace randomizer::logic::fill
                  locationPool.emplace_back(location);
              }
          }
@@ -37,7 +37,7 @@ diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_ene
 new file mode 100644
 --- /dev/null
 +++ b/tools/tests/test_enemy_soul_fill_priority.py
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,46 @@
 +from pathlib import Path
 +import unittest
 +
