@@ -1762,6 +1762,23 @@ jobs:
             Pop-Location
           }
 
+      - name: Emit exact hint allocator diagnostic
+        if: contains(github.event.head_commit.message, '[hint-source-only]')
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = Join-Path $env:TPR_SRC 'src\dusk\randomizer\generator\logic\hints.cpp'
+          $text = [IO.File]::ReadAllText($path)
+          $start = $text.IndexOf('void HintGenerator::AssignHintSignHints')
+          $end = $text.IndexOf('void HintGenerator::DistributeHints', $start)
+          if ($start -lt 0 -or $end -le $start) {
+            throw 'Could not isolate the assembled hint allocator.'
+          }
+          $snippet = $text.Substring($start, $end - $start)
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($snippet))
+          Write-Host "TPR_HINT_ASSIGN_B64:$encoded"
+          throw 'Intentional hint-source-only diagnostic stop.'
+
       - name: Advance private package identity to .658
         shell: powershell
         run: |
