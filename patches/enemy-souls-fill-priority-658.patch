@@ -1,5 +1,5 @@
 diff --git a/src/dusk/randomizer/generator/data/settings_list.yaml b/src/dusk/randomizer/generator/data/settings_list.yaml
-index a71a91adab..8c53bd7edd 100644
+index a71a91adab..08231da04d 100644
 --- a/src/dusk/randomizer/generator/data/settings_list.yaml
 +++ b/src/dusk/randomizer/generator/data/settings_list.yaml
 @@ -143,7 +143,7 @@
@@ -7,15 +7,15 @@ index a71a91adab..8c53bd7edd 100644
    Options:
      - "Off": "Regular enemies and minibosses spawn normally and Enemy Souls are not added to the item pool."
 -    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. Requires logic."
-+    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. Deku Baba Soul is granted at the start to bootstrap the shuffled Soul chain. Requires logic."
++    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. The four mandatory Twilight quest-target Souls start owned; all other Souls are shuffled. Requires logic."
  
  - Name: Enemy First-Defeat Checks
    Need In Game: True
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
-index 289d127249..06b92f78d3 100644
+index 289d127249..fab7d0553b 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
 +++ b/src/dusk/randomizer/generator/logic/fill.cpp
-@@ -36,12 +36,45 @@ namespace randomizer::logic::fill
+@@ -36,12 +36,47 @@ namespace randomizer::logic::fill
              }
          }
  
@@ -41,20 +41,22 @@ index 289d127249..06b92f78d3 100644
 +        auto enemySoulLocations = utility::container::FilterFromVector(
 +            progressLocations,
 +            [](const auto& location) {
++                const auto& categories = location->GetCategories();
 +                return location->IsEmpty() &&
-+                       (location->HasCategories("Chest") ||
-+                        location->HasCategories("Freestanding Item") ||
-+                        location->HasCategories("Enemy First Defeat"));
++                       (categories.contains("Chest") ||
++                        categories.contains("Freestanding Item") ||
++                        categories.contains("Enemy First Defeat"));
 +            });
 +        if (enemySoulItems.size() > enemySoulLocations.size())
 +        {
 +            throw std::runtime_error(
 +                "Enemy Souls require more progression-safe extended-item checks than are available");
 +        }
-+        // With 85 mutually gating items, a random order can temporarily pick
-+        // an item that has no legal location even though another remaining
-+        // Soul can advance the reverse fill. Exhaust the other items before
-+        // abandoning an attempt and give this constrained pool extra retries.
++        // With a large mutually gating pool, a random order can temporarily
++        // pick an item that has no legal location even though another
++        // remaining Soul can advance the reverse fill. Exhaust the other
++        // items before abandoning an attempt and give this constrained pool
++        // extra retries.
 +        AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,
 +                    -1, 250, true);
 +
@@ -64,7 +66,7 @@ index 289d127249..06b92f78d3 100644
          AssumedFill(worlds, majorItems, itemPool, progressLocations);
  
          // Place Minor items in progression locations if possible
-@@ -109,13 +142,16 @@ namespace randomizer::logic::fill
+@@ -109,13 +144,16 @@ namespace randomizer::logic::fill
          item_pool::ItemPool& itemsToPlacePool,
          const item_pool::ItemPool& itemsNotYetPlaced,
          location::LocationPool allowedLocations,
@@ -83,7 +85,7 @@ index 289d127249..06b92f78d3 100644
          while (unsuccessfulPlacement)
          {
              if (retries <= 0)
-@@ -134,6 +170,9 @@ namespace randomizer::logic::fill
+@@ -134,6 +172,9 @@ namespace randomizer::logic::fill
                      errorMsg += "- (" + std::to_string(itemsToPlacePool.size() - count) + " more)";
                  }
  
@@ -93,7 +95,7 @@ index 289d127249..06b92f78d3 100644
                  throw std::runtime_error(errorMsg);
              }
  
-@@ -142,6 +181,7 @@ namespace randomizer::logic::fill
+@@ -142,6 +183,7 @@ namespace randomizer::logic::fill
  
              utility::random::ShufflePool(itemsToPlacePool);
              auto itemsToPlace = itemsToPlacePool;
@@ -101,7 +103,7 @@ index 289d127249..06b92f78d3 100644
              rollbacks.clear();
  
              while (!itemsToPlace.empty())
-@@ -156,6 +196,7 @@ namespace randomizer::logic::fill
+@@ -156,6 +198,7 @@ namespace randomizer::logic::fill
                  // Assume we have all the items which haven't been played yet, except the one we're about to place
                  auto assumedItems = itemsNotYetPlaced;
                  assumedItems.insert(assumedItems.end(), itemsToPlace.begin(), itemsToPlace.end());
@@ -109,7 +111,7 @@ index 289d127249..06b92f78d3 100644
                  auto search = search::Search::Accessible(&worlds, assumedItems, worldToFill);
                  search.SearchWorlds();
                  // search.DumpWorldGraph();
-@@ -203,6 +244,16 @@ namespace randomizer::logic::fill
+@@ -203,6 +246,16 @@ namespace randomizer::logic::fill
                  // again from the top.
                  if (spotToFill == nullptr)
                  {
@@ -126,7 +128,7 @@ index 289d127249..06b92f78d3 100644
                      LOG_TO_DEBUG("No accessible locations to place " + itemToPlace->GetName() + ". Retrying " +
                                   std::to_string(retries) + " more times.");
                      for (auto& location : rollbacks)
-@@ -213,6 +264,8 @@ namespace randomizer::logic::fill
+@@ -213,6 +266,8 @@ namespace randomizer::logic::fill
  
                      // Also add back the randomly selected item
                      itemsToPlace.push_back(itemToPlace);
@@ -135,7 +137,7 @@ index 289d127249..06b92f78d3 100644
                      rollbacks.clear();
                      // Break out of the item placement loop and flag an unsuccessful placement attempt to try again
                      unsuccessfulPlacement = true;
-@@ -222,6 +275,16 @@ namespace randomizer::logic::fill
+@@ -222,6 +277,16 @@ namespace randomizer::logic::fill
                  // Place the item at the location
                  spotToFill->SetCurrentItem(itemToPlace);
                  rollbacks.push_back(spotToFill);
@@ -178,31 +180,92 @@ index 0f6304a1bb..ba4269a8a8 100644
  
      /**
 diff --git a/src/dusk/randomizer/generator/logic/item_pool.cpp b/src/dusk/randomizer/generator/logic/item_pool.cpp
-index 7eb491cfd1..affdb050d7 100644
+index 7eb491cfd1..e162b20113 100644
 --- a/src/dusk/randomizer/generator/logic/item_pool.cpp
 +++ b/src/dusk/randomizer/generator/logic/item_pool.cpp
-@@ -409,6 +409,15 @@ namespace randomizer::logic::item_pool
+@@ -409,6 +409,19 @@ namespace randomizer::logic::item_pool
          auto& startingItemPool = world->GetStartingItemPool();
          auto& itemPool = world->GetItemPool();
  
-+        // Universal Enemy Soul spawn gating needs one non-cyclic starting
-+        // permission. Deku Babas have an always-authored South Faron source,
-+        // so this Soul gives the reverse fill a deterministic bootstrap while
-+        // the other 84 Souls remain fully shuffled.
++        // The four Twilight quest targets are mandatory sources of the Tears
++        // that clear their own encounters. Shuffling those permissions can
++        // therefore put them after the one-time quest state they enable. Keep
++        // those event enemies available from sphere zero; all 81 ordinary and
++        // miniboss Souls remain fully shuffled.
 +        if (world->Setting("Enemy Souls") == "On")
 +        {
-+            startingItems["Deku Baba Soul"] = 1;
++            startingItems["Faron Twilit Insect Soul"] = 1;
++            startingItems["Eldin Twilit Insect Soul"] = 1;
++            startingItems["Lanayru Twilit Insect Soul"] = 1;
++            startingItems["Twilit Bloat Soul"] = 1;
 +        }
 +
          // Add Maps and Compasses to starting items if we start with them
          if (world->Setting("Maps and Compasses") == "Start With")
          {
+diff --git a/src/dusk/randomizer/generator/logic/world.cpp b/src/dusk/randomizer/generator/logic/world.cpp
+index 97094ee7ad..6d0e2e493d 100644
+--- a/src/dusk/randomizer/generator/logic/world.cpp
++++ b/src/dusk/randomizer/generator/logic/world.cpp
+@@ -603,14 +603,50 @@ namespace randomizer::logic::world
+             location->SetRegisteredLocationCategories(&this->_registeredLocationCategories);
+ 
+             auto* encounterArea = this->GetArea(std::string(definition.encounterArea));
++            auto defeatRequirement =
++                this->_enemyDefeatRequirements.GetDefeatRequirement(
++                    std::string(definition.enemy));
++
++            // Twilight quest targets are one-time encounters. Once the Tear
++            // count clears a province, search correctly stops propagating the
++            // ephemeral Twilight form even though the player necessarily had
++            // an earlier opportunity to defeat the target. Model that durable
++            // first-defeat opportunity directly. Their Souls start owned when
++            // spawn gating is enabled; Twilit Bloat additionally cannot appear
++            // until the first fifteen Lanayru Tears have been collected.
++            if (randomizer::enemy_souls::first_defeat_availability(definition.itemId) !=
++                randomizer::enemy_souls::FirstDefeatAvailability::Always)
++            {
++                defeatRequirement = requirement::NO_REQUIREMENT;
++                if (this->Setting("Enemy Souls") == "On")
++                {
++                    defeatRequirement = requirement::Requirement{
++                        requirement::Type::ITEM,
++                        {this->GetItem(definition.itemId)},
++                    };
++                }
++                if (definition.enemy == "Twilit Bloat")
++                {
++                    defeatRequirement = requirement::Requirement{
++                        requirement::Type::AND,
++                        {
++                            requirement::Requirement{
++                                requirement::Type::COUNT,
++                                {15, this->GetItem("Lanayru Twilight Tear")},
++                            },
++                            defeatRequirement,
++                        },
++                    };
++                }
++            }
++
+             auto access = std::make_unique<area::LocationAccess>(
+                 location.get(),
+                 // The catalog already resolved and validated this human-readable
+                 // macro name while the world was built. Re-parsing a display name
+                 // such as "Can Defeat Shadow Beast" treats its spaces as separate
+                 // logic tokens; use the catalog's stable macro reference instead.
+-                this->_enemyDefeatRequirements.GetDefeatRequirement(
+-                    std::string(definition.enemy)),
++                defeatRequirement,
+                 encounterArea);
+             location->AddLocationAccess(access.get());
+             encounterArea->AddLocation(std::move(access));
 diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_enemy_soul_fill_priority.py
 new file mode 100644
-index 0000000000..f025191dad
+index 0000000000..e7944dfe4c
 --- /dev/null
 +++ b/tools/tests/test_enemy_soul_fill_priority.py
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,83 @@
 +from pathlib import Path
 +import unittest
 +
@@ -222,9 +285,18 @@ index 0000000000..f025191dad
 +        cls.source = FILL_SOURCE.read_text(encoding="utf-8")
 +        cls.item_pool_source = ITEM_POOL_SOURCE.read_text(encoding="utf-8")
 +
-+    def test_enemy_souls_have_one_guaranteed_starting_bootstrap(self):
++    def test_twilight_quest_target_souls_are_safe_starting_permissions(self):
 +        self.assertIn('world->Setting("Enemy Souls") == "On"', self.item_pool_source)
-+        self.assertIn('startingItems["Deku Baba Soul"] = 1;', self.item_pool_source)
++        for item_name in (
++            "Faron Twilit Insect Soul",
++            "Eldin Twilit Insect Soul",
++            "Lanayru Twilit Insect Soul",
++            "Twilit Bloat Soul",
++        ):
++            self.assertIn(
++                f'startingItems["{item_name}"] = 1;',
++                self.item_pool_source,
++            )
 +
 +    def test_constrained_souls_are_removed_before_general_major_fill(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
@@ -258,9 +330,10 @@ index 0000000000..f025191dad
 +        major_extract = self.source.index("auto majorItems")
 +        block = self.source[soul_extract:major_extract]
 +
-+        self.assertIn('location->HasCategories("Chest")', block)
-+        self.assertIn('location->HasCategories("Freestanding Item")', block)
-+        self.assertIn('location->HasCategories("Enemy First Defeat")', block)
++        self.assertIn('categories.contains("Chest")', block)
++        self.assertIn('categories.contains("Freestanding Item")', block)
++        self.assertIn('categories.contains("Enemy First Defeat")', block)
++        self.assertNotIn('location->HasCategories("Enemy First Defeat")', block)
 +        self.assertIn("location->IsEmpty()", block)
 +        self.assertIn("enemySoulItems.size() > enemySoulLocations.size()", block)
 +
@@ -274,11 +347,10 @@ index 0000000000..f025191dad
 +        self.assertIn("deferredItems.push_back(itemToPlace)", self.source)
 +        self.assertIn("assumedItems.end(), deferredItems.begin()", self.source)
 +
-+
 +if __name__ == "__main__":
 +    unittest.main()
 diff --git a/tools/tests/test_enemy_souls.py b/tools/tests/test_enemy_souls.py
-index 682f5f0dc4..0b9a908a41 100644
+index 682f5f0dc4..817ff07074 100644
 --- a/tools/tests/test_enemy_souls.py
 +++ b/tools/tests/test_enemy_souls.py
 @@ -274,7 +274,7 @@ class EnemySoulTests(unittest.TestCase):
@@ -290,7 +362,20 @@ index 682f5f0dc4..0b9a908a41 100644
          add_locations = function_slice(
              self.world,
              "void World::AddEnemyFirstDefeatLocations()",
-@@ -310,9 +310,9 @@ class EnemySoulTests(unittest.TestCase):
+@@ -289,6 +289,12 @@ class EnemySoulTests(unittest.TestCase):
+             "std::string(definition.encounterArea)",
+             "_enemyDefeatRequirements.GetDefeatRequirement(",
+             "std::string(definition.enemy)",
++            "first_defeat_availability(definition.itemId)",
++            "FirstDefeatAvailability::Always",
++            "requirement::Type::ITEM",
++            'definition.enemy == "Twilit Bloat"',
++            "requirement::Type::COUNT",
++            'this->GetItem("Lanayru Twilight Tear")',
+         ):
+             self.assertIn(marker, add_locations)
+         self.assertNotIn("ParseRequirementString", add_locations)
+@@ -310,9 +316,9 @@ class EnemySoulTests(unittest.TestCase):
              "void World::ApplyEnemySoulLocationSafety()",
              "void World::AddBreakableLocations()",
          )

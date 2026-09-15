@@ -1739,7 +1739,7 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '943714092b148f68d3f302dbb44f3c5c395f5728f159b5bacc7640b03ee21fb8') {
+          if ($patchHash -ne '7b853b5a08112570ee4040f1e762654c893a450d5e03859a63efb613f126f6e8') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
@@ -1831,11 +1831,16 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
-            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='location->HasCategories("Enemy First Defeat")' },
-            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Deku Baba Soul"] = 1' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='categories.contains("Enemy First Defeat")' },
+            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Faron Twilit Insect Soul"] = 1' },
+            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Eldin Twilit Insect Soul"] = 1' },
+            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Lanayru Twilit Insect Soul"] = 1' },
+            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Twilit Bloat Soul"] = 1' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='-1, 250, true);' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='tryEveryItemBeforeRetry && !itemsToPlace.empty()' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='node["Soul Item Id"].as<int>() == definition.itemId' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='first_defeat_availability(definition.itemId)' },
+            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='this->GetItem("Lanayru Twilight Tear")' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_soul_fill_exhausts_alternative_items_before_retrying' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
@@ -2600,9 +2605,10 @@ jobs:
           PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
 
           Enemy Souls are now partitioned and placed before unrestricted major items, reserving
-          checks that can safely serialize extended Soul IDs. Deku Baba Soul is granted at start as
-          the non-cyclic bootstrap for universal enemy spawn gating; the remaining 84 Souls use the
-          dependency-aware reverse fill and final all-Souls reachability proof.
+          checks that can safely serialize extended Soul IDs. The four mandatory Twilight quest
+          targets are granted at start so their own Tears cannot precede the Souls that enable them;
+          the remaining 81 Souls use dependency-aware reverse fill and a final reachability proof.
+          First-defeat logic records those unavoidable Twilight encounters as durable milestones.
 
           This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
