@@ -2329,6 +2329,28 @@ jobs:
           $logicTestSourcePath = Join-Path $env:TPR_SRC `
             'src\dusk\randomizer\generator\test\test.cpp'
           $logicTestSource = [IO.File]::ReadAllText($logicTestSourcePath)
+
+          # Upstream's test driver still copies presets to the legacy
+          # *_settings.yaml.test macros, while Randomizer now loads
+          # <base>/settings.yaml and <base>/preferences.yaml. Repair those
+          # test-only paths so the named preset is what GenerateWorlds reads.
+          $settingsTokenMatches = [regex]::Matches(
+            $logicTestSource,
+            '\bSETTINGS_PATH\b')
+          $preferencesTokenMatches = [regex]::Matches(
+            $logicTestSource,
+            '\bPREFERENCES_PATH\b')
+          if ($settingsTokenMatches.Count -ne 4 -or
+              $preferencesTokenMatches.Count -ne 1) {
+            throw "Unexpected legacy logic-test path references: settings=$($settingsTokenMatches.Count), preferences=$($preferencesTokenMatches.Count)."
+          }
+          $logicTestSource = $logicTestSource.Replace(
+            'SETTINGS_PATH',
+            'RANDO_SAVE_PATH "settings.yaml"')
+          $logicTestSource = $logicTestSource.Replace(
+            'PREFERENCES_PATH',
+            'RANDO_SAVE_PATH "preferences.yaml"')
+
           $logicTestNeedle = '                    r.GenerateWorlds();'
           $logicTestMatches = [regex]::Matches(
             $logicTestSource,
