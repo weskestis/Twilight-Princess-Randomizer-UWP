@@ -1739,7 +1739,7 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '7736fd76dae9ac42286ad80215fef18ad462a90476b9f1ef9a8d9f05c374eb2b') {
+          if ($patchHash -ne '8d5c87195045cf8ea7adafb84ecc1f83e6479d5cfe1b45bd2580b722069325d2') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
