@@ -1,8 +1,8 @@
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
-index 289d127249..b65205a5d5 100644
+index 289d127249..18dc8dbc77 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
 +++ b/src/dusk/randomizer/generator/logic/fill.cpp
-@@ -36,12 +36,43 @@ namespace randomizer::logic::fill
+@@ -36,12 +36,45 @@ namespace randomizer::logic::fill
              }
          }
  
@@ -13,11 +13,12 @@ index 289d127249..b65205a5d5 100644
              utility::container::FilterFromVector(locationPool,
                                                          [](const auto& location) { return location->IsProgression(); });
 +
-+        // Enemy Souls can only be serialized by ordinary checks with an
-+        // extended-item runtime path. Reserve those constrained locations
-+        // before ordinary major items can consume them. First-Defeat checks
-+        // are deliberately excluded: a closed permutation of Soul rewards
-+        // would have no first enemy that Link is allowed to spawn.
++        // Enemy Souls can only be serialized by checks with an extended-item
++        // runtime path. Reserve those constrained locations before ordinary
++        // major items can consume them. First-Defeat checks are safe here:
++        // the exhaustive reverse fill only commits a reward when its source
++        // is reachable with the later Souls assumed, and final validation
++        // rejects any dependency cycle without a bootstrap.
 +        auto enemySoulItems = utility::container::FilterAndEraseFromVector(
 +            itemPool,
 +            [](const auto& item) {
@@ -29,7 +30,8 @@ index 289d127249..b65205a5d5 100644
 +            [](const auto& location) {
 +                return location->IsEmpty() &&
 +                       (location->HasCategories("Chest") ||
-+                        location->HasCategories("Freestanding Item"));
++                        location->HasCategories("Freestanding Item") ||
++                        location->HasCategories("Enemy First Defeat"));
 +            });
 +        if (enemySoulItems.size() > enemySoulLocations.size())
 +        {
@@ -49,7 +51,7 @@ index 289d127249..b65205a5d5 100644
          AssumedFill(worlds, majorItems, itemPool, progressLocations);
  
          // Place Minor items in progression locations if possible
-@@ -109,13 +140,16 @@ namespace randomizer::logic::fill
+@@ -109,13 +142,16 @@ namespace randomizer::logic::fill
          item_pool::ItemPool& itemsToPlacePool,
          const item_pool::ItemPool& itemsNotYetPlaced,
          location::LocationPool allowedLocations,
@@ -68,7 +70,7 @@ index 289d127249..b65205a5d5 100644
          while (unsuccessfulPlacement)
          {
              if (retries <= 0)
-@@ -134,6 +168,9 @@ namespace randomizer::logic::fill
+@@ -134,6 +170,9 @@ namespace randomizer::logic::fill
                      errorMsg += "- (" + std::to_string(itemsToPlacePool.size() - count) + " more)";
                  }
  
@@ -78,7 +80,7 @@ index 289d127249..b65205a5d5 100644
                  throw std::runtime_error(errorMsg);
              }
  
-@@ -142,6 +179,7 @@ namespace randomizer::logic::fill
+@@ -142,6 +181,7 @@ namespace randomizer::logic::fill
  
              utility::random::ShufflePool(itemsToPlacePool);
              auto itemsToPlace = itemsToPlacePool;
@@ -86,7 +88,7 @@ index 289d127249..b65205a5d5 100644
              rollbacks.clear();
  
              while (!itemsToPlace.empty())
-@@ -156,6 +194,7 @@ namespace randomizer::logic::fill
+@@ -156,6 +196,7 @@ namespace randomizer::logic::fill
                  // Assume we have all the items which haven't been played yet, except the one we're about to place
                  auto assumedItems = itemsNotYetPlaced;
                  assumedItems.insert(assumedItems.end(), itemsToPlace.begin(), itemsToPlace.end());
@@ -94,7 +96,7 @@ index 289d127249..b65205a5d5 100644
                  auto search = search::Search::Accessible(&worlds, assumedItems, worldToFill);
                  search.SearchWorlds();
                  // search.DumpWorldGraph();
-@@ -203,6 +242,16 @@ namespace randomizer::logic::fill
+@@ -203,6 +244,16 @@ namespace randomizer::logic::fill
                  // again from the top.
                  if (spotToFill == nullptr)
                  {
@@ -111,7 +113,7 @@ index 289d127249..b65205a5d5 100644
                      LOG_TO_DEBUG("No accessible locations to place " + itemToPlace->GetName() + ". Retrying " +
                                   std::to_string(retries) + " more times.");
                      for (auto& location : rollbacks)
-@@ -213,6 +262,8 @@ namespace randomizer::logic::fill
+@@ -213,6 +264,8 @@ namespace randomizer::logic::fill
  
                      // Also add back the randomly selected item
                      itemsToPlace.push_back(itemToPlace);
@@ -120,7 +122,7 @@ index 289d127249..b65205a5d5 100644
                      rollbacks.clear();
                      // Break out of the item placement loop and flag an unsuccessful placement attempt to try again
                      unsuccessfulPlacement = true;
-@@ -222,6 +273,16 @@ namespace randomizer::logic::fill
+@@ -222,6 +275,16 @@ namespace randomizer::logic::fill
                  // Place the item at the location
                  spotToFill->SetCurrentItem(itemToPlace);
                  rollbacks.push_back(spotToFill);
@@ -162,47 +164,9 @@ index 0f6304a1bb..ba4269a8a8 100644
      );
  
      /**
-diff --git a/src/dusk/randomizer/generator/logic/world.cpp b/src/dusk/randomizer/generator/logic/world.cpp
-index 97094ee7ad..84d79d3a35 100644
---- a/src/dusk/randomizer/generator/logic/world.cpp
-+++ b/src/dusk/randomizer/generator/logic/world.cpp
-@@ -636,8 +636,11 @@ namespace randomizer::logic::world
-         for (auto* location : this->GetAllLocations(true))
-         {
-             const auto& categories = location->GetCategories();
--            const bool firstDefeat = categories.contains("Enemy First Defeat");
--            const bool supportsExtendedSoul = firstDefeat || categories.contains("Chest") ||
-+            // First-Defeat rewards have a 16-bit runtime path, but allowing
-+            // Souls there can create a closed reward permutation with no
-+            // initially spawnable enemy. Keep every Soul in an ordinary
-+            // extended-item check so the dependency graph has a bootstrap.
-+            const bool supportsExtendedSoul = categories.contains("Chest") ||
-                                               categories.contains("Freestanding Item");
- 
-             for (const auto& definition : randomizer::enemy_souls::kDefinitions)
-@@ -646,19 +649,6 @@ namespace randomizer::logic::world
-                 if (!supportsExtendedSoul)
-                 {
-                     location->AddForbiddenItem(soul);
--                    continue;
--                }
--
--                // A species' first-defeat reward is unreachable until that
--                // species can spawn. Its own Soul can therefore never be the
--                // reward at this check, regardless of placement mode.
--                if (firstDefeat)
--                {
--                    const auto node = location->GetMetadata()["Enemy First Defeat"];
--                    if (node && node["Soul Item Id"].as<int>() == definition.itemId)
--                    {
--                        location->AddForbiddenItem(soul);
--                    }
-                 }
-             }
-         }
 diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_enemy_soul_fill_priority.py
 new file mode 100644
-index 0000000000..71dc0fd3c2
+index 0000000000..7d28a206f1
 --- /dev/null
 +++ b/tools/tests/test_enemy_soul_fill_priority.py
 @@ -0,0 +1,66 @@
@@ -248,16 +212,16 @@ index 0000000000..71dc0fd3c2
 +            block,
 +        )
 +
-+    def test_souls_use_only_ordinary_extended_item_checks(self):
++    def test_souls_use_every_topology_safe_extended_item_check(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
 +        major_extract = self.source.index("auto majorItems")
 +        block = self.source[soul_extract:major_extract]
 +
 +        self.assertIn('location->HasCategories("Chest")', block)
 +        self.assertIn('location->HasCategories("Freestanding Item")', block)
++        self.assertIn('location->HasCategories("Enemy First Defeat")', block)
 +        self.assertIn("location->IsEmpty()", block)
 +        self.assertIn("enemySoulItems.size() > enemySoulLocations.size()", block)
-+        self.assertNotIn('location->HasCategories("Enemy First Defeat")', block)
 +
 +    def test_soul_fill_exhausts_alternative_items_before_retrying(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
@@ -273,7 +237,7 @@ index 0000000000..71dc0fd3c2
 +if __name__ == "__main__":
 +    unittest.main()
 diff --git a/tools/tests/test_enemy_souls.py b/tools/tests/test_enemy_souls.py
-index 682f5f0dc4..e5d1d9cd07 100644
+index 682f5f0dc4..0b9a908a41 100644
 --- a/tools/tests/test_enemy_souls.py
 +++ b/tools/tests/test_enemy_souls.py
 @@ -274,7 +274,7 @@ class EnemySoulTests(unittest.TestCase):
@@ -285,17 +249,14 @@ index 682f5f0dc4..e5d1d9cd07 100644
          add_locations = function_slice(
              self.world,
              "void World::AddEnemyFirstDefeatLocations()",
-@@ -310,11 +310,11 @@ class EnemySoulTests(unittest.TestCase):
+@@ -310,9 +310,9 @@ class EnemySoulTests(unittest.TestCase):
              "void World::ApplyEnemySoulLocationSafety()",
              "void World::AddBreakableLocations()",
          )
 -        self.assertIn('categories.contains("Enemy First Defeat")', safety)
          self.assertIn('categories.contains("Chest")', safety)
          self.assertIn('categories.contains("Freestanding Item")', safety)
++        self.assertIn('categories.contains("Enemy First Defeat")', safety)
          self.assertIn("location->AddForbiddenItem(soul)", safety)
--        self.assertIn("== definition.itemId", safety)
-+        self.assertNotIn('categories.contains("Enemy First Defeat")', safety)
-+        self.assertNotIn("== definition.itemId", safety)
+         self.assertIn("== definition.itemId", safety)
          self.assertIn("AddEnemyFirstDefeatLocations();", self.world)
-         self.assertIn("ApplyEnemySoulLocationSafety();", self.world)
- 
