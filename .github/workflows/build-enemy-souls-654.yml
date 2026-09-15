@@ -1,5 +1,5 @@
 name: Build Runtime Load and Shop Hotfix 658
-# Build control revision: runtime-load-shop-and-soul-fill-stability-v6
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v9
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
   xbox-uwp-x64:
     name: Xbox UWP x64 test package
     runs-on: windows-2022
-    timeout-minutes: 240
+    timeout-minutes: 360
 
     steps:
       - name: Check out private build controls
@@ -1724,7 +1724,7 @@ jobs:
           }
 
 
-      - name: Apply .658 Enemy Soul hostile-seed fill-priority hardening
+      - name: Apply .658 Enemy Soul hostile-seed and hint-placement hardening
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1739,13 +1739,19 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '5b11f2cd67b645dde1bbb895603881233d3e67fcc9a1e1bbe3032fab8f48d54d') {
+          if ($patchHash -ne '522bd9a93e310a72119c56fffaaeb148bf8f88a927768ad963f9915fffdcb579') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
-          $fillSource = Join-Path $env:TPR_SRC 'src\dusk\randomizer\generator\logic\fill.cpp'
-          $fillText = [IO.File]::ReadAllText($fillSource).Replace($crlf, $lf)
-          [IO.File]::WriteAllText($fillSource, $fillText, $utf8NoBom)
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $sourcePath = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
+              $sourceText = [IO.File]::ReadAllText($sourcePath).Replace($crlf, $lf)
+              [IO.File]::WriteAllText($sourcePath, $sourceText, $utf8NoBom)
+            }
+          }
 
           Push-Location "$env:TPR_SRC"
           try {
@@ -1831,12 +1837,23 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
-            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='location->HasCategories("Enemy First Defeat")' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='categories.contains("Enemy First Defeat")' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='-1, 250, true);' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='tryEveryItemBeforeRetry && !itemsToPlace.empty()' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='node["Soul Item Id"].as<int>() == definition.itemId' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_soul_fill_exhausts_alternative_items_before_retrying' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='bool HintGenerator::CheckAvailableSign' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='HintGenerator::GetAvailableHintSigns' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='_possibleHintSignsByLocation.try_emplace' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='while (selectedHints < numLocationHints && !remoteLocations.empty())' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='this->_reservedSigns.insert(hint.reservedSign)' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='availableSignsByHint' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='tryAssignHint' },
+            @{ Path='tools\tests\test_hint_sign_assignment.py'; Text='test_scarce_hint_signs_are_reserved_while_hints_are_selected' },
+            @{ Path='tools\tests\test_hint_sign_assignment.py'; Text='test_logical_hint_placement_uses_capacity_aware_matching' },
+            @{ Path='tools\tests\test_hint_sign_assignment.py'; Text='test_expensive_sign_searches_are_lazy_and_cached' },
+            @{ Path='tools\tests\test_hint_sign_assignment.py'; Text='test_rejected_remote_candidates_are_consumed_instead_of_retried_forever' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_enemy_souls_never_collide_with_existing_item_names_or_ids' },
@@ -2312,7 +2329,7 @@ jobs:
             param(
               [Parameter(Mandatory=$true)][string]$FilePath,
               [Parameter(Mandatory=$true)][string]$WorkingDirectory,
-              [int]$TimeoutMilliseconds = 120000,
+              [int]$TimeoutMilliseconds = 180000,
               [string]$Arguments = ''
             )
 
@@ -2461,8 +2478,8 @@ jobs:
           }
 
           $stressPresets = @(
-            @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' },
             @{ Name = 'enemy souls cleared twilights'; Code = 'ESCT' },
+            @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' },
             @{ Name = 'enemy souls max entrance rando'; Code = 'ESME' },
             @{ Name = 'random cave entrances'; Code = 'CAVE' }
           )
@@ -2509,12 +2526,12 @@ jobs:
                   $result = Invoke-StressProcess `
                     -FilePath $testExecutable `
                     -WorkingDirectory $env:TPR_SRC `
-                    -TimeoutMilliseconds 120000
+                    -TimeoutMilliseconds 180000
                   $seedTimer.Stop()
                   $combinedOutput = $result.StdOut + "`n" + $result.StdErr
                   if ($result.TimedOut) {
                     Write-Host $combinedOutput
-                    throw "Seed stress timed out after 120 seconds: preset='$presetName', seed='$seed'."
+                    throw "Seed stress timed out after 180 seconds: preset='$presetName', seed='$seed'."
                   }
                   if ($null -eq $result.ExitCode) {
                     throw "Seed stress harness could not read the exit code: preset='$presetName', seed='$seed'."

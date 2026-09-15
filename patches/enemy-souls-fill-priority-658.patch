@@ -1,8 +1,41 @@
+diff --git a/src/dusk/randomizer/generator/data/settings_list.yaml b/src/dusk/randomizer/generator/data/settings_list.yaml
+index a71a91adab..08231da04d 100644
+--- a/src/dusk/randomizer/generator/data/settings_list.yaml
++++ b/src/dusk/randomizer/generator/data/settings_list.yaml
+@@ -143,7 +143,7 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Regular enemies and minibosses spawn normally and Enemy Souls are not added to the item pool."
+-    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. Requires logic."
++    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. The four mandatory Twilight quest-target Souls start owned; all other Souls are shuffled. Requires logic."
+ 
+ - Name: Enemy First-Defeat Checks
+   Need In Game: True
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
-index 289d127249..b65205a5d5 100644
+index 289d127249..f01b9f388e 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
 +++ b/src/dusk/randomizer/generator/logic/fill.cpp
-@@ -36,12 +36,43 @@ namespace randomizer::logic::fill
+@@ -9,9 +9,19 @@
+ #include <algorithm>
+ #include <iostream>
+ #include <ranges>
++#include <stdexcept>
+ 
+ namespace randomizer::logic::fill
+ {
++    namespace
++    {
++        class AssumedFillFailure final : public std::runtime_error
++        {
++        public:
++            using std::runtime_error::runtime_error;
++        };
++    }
++
+     void FillWorlds(world::WorldPool& worlds)
+     {
+         // Place each world's restricted items first
+@@ -36,13 +46,98 @@ namespace randomizer::logic::fill
              }
          }
  
@@ -12,12 +45,14 @@ index 289d127249..b65205a5d5 100644
          auto progressLocations =
              utility::container::FilterFromVector(locationPool,
                                                          [](const auto& location) { return location->IsProgression(); });
+-        AssumedFill(worlds, majorItems, itemPool, progressLocations);
 +
-+        // Enemy Souls can only be serialized by ordinary checks with an
-+        // extended-item runtime path. Reserve those constrained locations
-+        // before ordinary major items can consume them. First-Defeat checks
-+        // are deliberately excluded: a closed permutation of Soul rewards
-+        // would have no first enemy that Link is allowed to spawn.
++        // Enemy Souls can only be serialized by checks with an extended-item
++        // runtime path. Reserve those constrained locations before ordinary
++        // major items can consume them. The guaranteed starting Soul provides
++        // a bootstrap; the exhaustive reverse fill only commits a reward when
++        // its source is reachable with the later Souls assumed, and final
++        // validation rejects every remaining dependency cycle.
 +        auto enemySoulItems = utility::container::FilterAndEraseFromVector(
 +            itemPool,
 +            [](const auto& item) {
@@ -27,29 +62,83 @@ index 289d127249..b65205a5d5 100644
 +        auto enemySoulLocations = utility::container::FilterFromVector(
 +            progressLocations,
 +            [](const auto& location) {
++                const auto& categories = location->GetCategories();
 +                return location->IsEmpty() &&
-+                       (location->HasCategories("Chest") ||
-+                        location->HasCategories("Freestanding Item"));
++                       (categories.contains("Chest") ||
++                        categories.contains("Freestanding Item") ||
++                        categories.contains("Enemy First Defeat"));
 +            });
 +        if (enemySoulItems.size() > enemySoulLocations.size())
 +        {
 +            throw std::runtime_error(
 +                "Enemy Souls require more progression-safe extended-item checks than are available");
 +        }
-+        // With 85 mutually gating items, a random order can temporarily pick
-+        // an item that has no legal location even though another remaining
-+        // Soul can advance the reverse fill. Exhaust the other items before
-+        // abandoning an attempt and give this constrained pool extra retries.
-+        AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,
-+                    -1, 250, true);
++        // With a large mutually gating pool, a random order can temporarily
++        // pick an item that has no legal location even though another
++        // remaining Soul can advance the reverse fill. Exhaust the other
++        // items before abandoning an attempt and give this constrained pool
++        // extra retries.
++        auto enemySoulPlacements =
++            AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,
++                        -1, 250, true);
 +
 +        // Place remaining unrestricted major items in progress locations.
 +        auto majorItems =
 +            utility::container::FilterAndEraseFromVector(itemPool, [](const auto& item) { return item->IsMajor(); });
-         AssumedFill(worlds, majorItems, itemPool, progressLocations);
++        auto itemsAssumedForSoulPlacement = itemPool;
++        itemsAssumedForSoulPlacement.insert(
++            itemsAssumedForSoulPlacement.end(), majorItems.begin(), majorItems.end());
++
++        // The constrained Soul pass can leave a topology in which ordinary
++        // progression has no complete greedy placement even after exhaustive
++        // item deferral. Retry the two phases together: a failed major pass is
++        // fully rolled back by AssumedFill, then the Soul locations are cleared
++        // and rerolled before another major attempt. This preserves the runtime
++        // serialization boundary without treating one unlucky Soul topology as
++        // proof that the seed is impossible.
++        constexpr int kSoulMajorTopologyRetries = 25;
++        bool majorPlacementComplete = false;
++        std::string lastMajorPlacementError;
++        for (int topologyAttempt = 0;
++             topologyAttempt < kSoulMajorTopologyRetries;
++             ++topologyAttempt)
++        {
++            if (topologyAttempt > 0)
++            {
++                enemySoulPlacements =
++                    AssumedFill(worlds, enemySoulItems,
++                                itemsAssumedForSoulPlacement,
++                                enemySoulLocations, -1, 250, true);
++            }
++
++            try
++            {
++                AssumedFill(worlds, majorItems, itemPool, progressLocations,
++                            -1, 250, true);
++                majorPlacementComplete = true;
++                break;
++            }
++            catch (const AssumedFillFailure& error)
++            {
++                lastMajorPlacementError = error.what();
++                for (auto* location : enemySoulPlacements)
++                {
++                    location->RemoveCurrentItem();
++                }
++            }
++        }
++        if (!majorPlacementComplete)
++        {
++            throw std::runtime_error(
++                "Major-item placement failed after rerolling the constrained "
++                "Enemy Soul topology " +
++                std::to_string(kSoulMajorTopologyRetries) +
++                " times. Last failure:\n" + lastMajorPlacementError);
++        }
  
          // Place Minor items in progression locations if possible
-@@ -109,13 +140,16 @@ namespace randomizer::logic::fill
+         auto minorItems =
+@@ -109,13 +204,16 @@ namespace randomizer::logic::fill
          item_pool::ItemPool& itemsToPlacePool,
          const item_pool::ItemPool& itemsNotYetPlaced,
          location::LocationPool allowedLocations,
@@ -68,17 +157,19 @@ index 289d127249..b65205a5d5 100644
          while (unsuccessfulPlacement)
          {
              if (retries <= 0)
-@@ -134,6 +168,9 @@ namespace randomizer::logic::fill
+@@ -134,7 +232,10 @@ namespace randomizer::logic::fill
                      errorMsg += "- (" + std::to_string(itemsToPlacePool.size() - count) + " more)";
                  }
  
+-                throw std::runtime_error(errorMsg);
 +                errorMsg += "\nClosest attempt had " + std::to_string(closestRemaining) +
 +                            " items remaining.";
 +
-                 throw std::runtime_error(errorMsg);
++                throw AssumedFillFailure(errorMsg);
              }
  
-@@ -142,6 +179,7 @@ namespace randomizer::logic::fill
+             retries -= 1;
+@@ -142,6 +243,7 @@ namespace randomizer::logic::fill
  
              utility::random::ShufflePool(itemsToPlacePool);
              auto itemsToPlace = itemsToPlacePool;
@@ -86,7 +177,7 @@ index 289d127249..b65205a5d5 100644
              rollbacks.clear();
  
              while (!itemsToPlace.empty())
-@@ -156,6 +194,7 @@ namespace randomizer::logic::fill
+@@ -156,6 +258,7 @@ namespace randomizer::logic::fill
                  // Assume we have all the items which haven't been played yet, except the one we're about to place
                  auto assumedItems = itemsNotYetPlaced;
                  assumedItems.insert(assumedItems.end(), itemsToPlace.begin(), itemsToPlace.end());
@@ -94,7 +185,7 @@ index 289d127249..b65205a5d5 100644
                  auto search = search::Search::Accessible(&worlds, assumedItems, worldToFill);
                  search.SearchWorlds();
                  // search.DumpWorldGraph();
-@@ -203,6 +242,16 @@ namespace randomizer::logic::fill
+@@ -203,6 +306,16 @@ namespace randomizer::logic::fill
                  // again from the top.
                  if (spotToFill == nullptr)
                  {
@@ -111,7 +202,7 @@ index 289d127249..b65205a5d5 100644
                      LOG_TO_DEBUG("No accessible locations to place " + itemToPlace->GetName() + ". Retrying " +
                                   std::to_string(retries) + " more times.");
                      for (auto& location : rollbacks)
-@@ -213,6 +262,8 @@ namespace randomizer::logic::fill
+@@ -213,6 +326,8 @@ namespace randomizer::logic::fill
  
                      // Also add back the randomly selected item
                      itemsToPlace.push_back(itemToPlace);
@@ -120,7 +211,7 @@ index 289d127249..b65205a5d5 100644
                      rollbacks.clear();
                      // Break out of the item placement loop and flag an unsuccessful placement attempt to try again
                      unsuccessfulPlacement = true;
-@@ -222,6 +273,16 @@ namespace randomizer::logic::fill
+@@ -222,6 +337,16 @@ namespace randomizer::logic::fill
                  // Place the item at the location
                  spotToFill->SetCurrentItem(itemToPlace);
                  rollbacks.push_back(spotToFill);
@@ -162,50 +253,534 @@ index 0f6304a1bb..ba4269a8a8 100644
      );
  
      /**
-diff --git a/src/dusk/randomizer/generator/logic/world.cpp b/src/dusk/randomizer/generator/logic/world.cpp
-index 97094ee7ad..84d79d3a35 100644
---- a/src/dusk/randomizer/generator/logic/world.cpp
-+++ b/src/dusk/randomizer/generator/logic/world.cpp
-@@ -636,8 +636,11 @@ namespace randomizer::logic::world
-         for (auto* location : this->GetAllLocations(true))
-         {
-             const auto& categories = location->GetCategories();
--            const bool firstDefeat = categories.contains("Enemy First Defeat");
--            const bool supportsExtendedSoul = firstDefeat || categories.contains("Chest") ||
-+            // First-Defeat rewards have a 16-bit runtime path, but allowing
-+            // Souls there can create a closed reward permutation with no
-+            // initially spawnable enemy. Keep every Soul in an ordinary
-+            // extended-item check so the dependency graph has a bootstrap.
-+            const bool supportsExtendedSoul = categories.contains("Chest") ||
-                                               categories.contains("Freestanding Item");
+diff --git a/src/dusk/randomizer/generator/logic/hint_types.hpp b/src/dusk/randomizer/generator/logic/hint_types.hpp
+index bc45c244dd..8b46e7a365 100644
+--- a/src/dusk/randomizer/generator/logic/hint_types.hpp
++++ b/src/dusk/randomizer/generator/logic/hint_types.hpp
+@@ -36,6 +36,7 @@ namespace randomizer::logic::hints {
+     struct Hint {
+         Text text{};
+         HintData data;
++        location::Location* reservedSign = nullptr;
  
-             for (const auto& definition : randomizer::enemy_souls::kDefinitions)
-@@ -646,19 +649,6 @@ namespace randomizer::logic::world
-                 if (!supportsExtendedSoul)
-                 {
-                     location->AddForbiddenItem(soul);
--                    continue;
+         bool operator==(const Hint&) const = default;
+     };
+diff --git a/src/dusk/randomizer/generator/logic/hints.cpp b/src/dusk/randomizer/generator/logic/hints.cpp
+index c7b0efcbb7..20ec992f85 100644
+--- a/src/dusk/randomizer/generator/logic/hints.cpp
++++ b/src/dusk/randomizer/generator/logic/hints.cpp
+@@ -8,6 +8,8 @@
+ #include "../utility/random.hpp"
+ #include "../randomizer.hpp"
+ 
++#include <algorithm>
++#include <functional>
+ #include <ranges>
+ 
+ namespace randomizer::logic::hints {
+@@ -36,15 +38,6 @@ namespace randomizer::logic::hints {
+         {"Ganondorf", "<silver>"}
+     };
+ 
+-    static location::Location* GetHintableLocation(const location::LocationPool& locations) {
+-        for (const auto location : locations) {
+-            if (!location->IsHinted()) {
+-                return location;
+-            }
+-        }
+-        return nullptr;
+-    }
+-
+     static void CalculatePossiblePathLocations(world::WorldPool& worlds) {
+         LOG_TO_DEBUG("Calculating Possible Path Locations");
+         // First generate the goal location keys and also remove items from non-
+@@ -441,37 +434,22 @@ namespace randomizer::logic::hints {
+                 goalLocation = utility::random::RandomElement(goalLocationsList);
+             }
+ 
+-            // Collect all valid path locations to hint for this location
+-            std::vector<location::Location*> validPathLocations{};
++            // Path locations were shuffled above, so stop at the first usable one.
++            // Checking every remaining candidate performs a full world search even
++            // though the first usable candidate is the one that will be selected.
++            location::Location* hintLocation{};
+             for (auto location : goalLocation->GetPathLocations()) {
+-                // Don't choose locations which have expected items or that are already hinted
+-                if (location->HasExpectedItem() || location->IsHinted()) {
++                // Don't choose locations which have expected items, are already hinted, or
++                // cannot be placed without consuming a sign reserved by a scarcer hint.
++                if (location->HasExpectedItem() || location->IsHinted() ||
++                    !CheckAvailableSign(location, "Path Hints on Hint Signs"))
++                {
+                     continue;
+                 }
+-
+-                // This is unlikely, but also don't choose any locations which are logically
+-                // necessary for accessing *every* possible hint sign if we're placing path hints
+-                // on hint signs.
+-                if (this->_world->Setting("Path Hints on Hint Signs") != "Off") {
+-                    // Get a list of all hint signs where we can place path hints to use later
+-                    auto possiblePathHintSigns = search::GetPossibleHintSigns(location);
+-                    // Remove the ones which wouldn't be relevant
+-                    std::erase_if(possiblePathHintSigns, [](location::Location* loc) {
+-                        const auto& hintSignPlacement = loc->GetWorld()->Setting("Path Hints on Hint Signs");
+-                        return (hintSignPlacement == "Overworld" && loc->HasCategories("Dungeon")) ||
+-                               (hintSignPlacement == "Dungeon" && loc->HasCategories("Overworld"));
+-                    });
+-
+-                    // If none are left, then don't choose this location
+-                    if (possiblePathHintSigns.empty()) {
+-                        continue;
+-                    }
 -                }
 -
--                // A species' first-defeat reward is unreachable until that
--                // species can spawn. Its own Soul can therefore never be the
--                // reward at this check, regardless of placement mode.
--                if (firstDefeat)
--                {
--                    const auto node = location->GetMetadata()["Enemy First Defeat"];
--                    if (node && node["Soul Item Id"].as<int>() == definition.itemId)
--                    {
--                        location->AddForbiddenItem(soul);
+-                validPathLocations.push_back(location);
++                hintLocation = location;
++                break;
+             }
+ 
+-            auto hintLocation = GetHintableLocation(validPathLocations);
+             if (hintLocation == nullptr) {
+                 LOG_TO_DEBUG("No more path locations to hint for " + goalLocation->GetName())
+                 utility::container::Erase(goalLocationsList, goalLocation);
+@@ -482,7 +460,8 @@ namespace randomizer::logic::hints {
+             hintLocation->SetHinted(true);
+             LOG_TO_DEBUG("Chose " + hintLocation->GetName() + " as path hint for " + goalLocation->GetName());
+             auto hintText = GeneratePathHintText(hintLocation, goalLocation);
+-            this->_pathHints.emplace_back(hintText, PathHint{goalLocation, hintLocation});
++            auto& hint = this->_pathHints.emplace_back(hintText, PathHint{goalLocation, hintLocation});
++            ReserveLimitedAvailabilityHint(hintLocation, "Path Hints on Hint Signs", hint);
+         }
+     }
+ 
+@@ -552,9 +531,15 @@ namespace randomizer::logic::hints {
+             }
+             auto hintLocation = possibleItemHintLocations.back();
+             possibleItemHintLocations.pop_back();
++            // Earlier selections may have reserved this location's only available signs.
++            if (!CheckAvailableSign(hintLocation, "Item Hints on Hint Signs")) {
++                --i;
++                continue;
++            }
+             hintLocation->SetHinted(true);
+             auto hintText = GenerateItemHintText(hintLocation);
+-            this->_itemHints.emplace_back(hintText, ItemHint{hintLocation});
++            auto& hint = this->_itemHints.emplace_back(hintText, ItemHint{hintLocation});
++            ReserveLimitedAvailabilityHint(hintLocation, "Item Hints on Hint Signs", hint);
+             LOG_TO_DEBUG("Chose " + hintLocation->GetName() + ": " + hintLocation->GetCurrentItem()->GetName() + " as item hint location")
+         }
+     }
+@@ -581,16 +566,23 @@ namespace randomizer::logic::hints {
+ 
+         // Get as many remote locations as we can
+         auto numLocationHints = this->_world->Setting("Number of Location Hints").GetCurrentOptionAsNumber();
+-        for (int i = 0; i < numLocationHints; ++i) {
+-            if (i >= remoteLocations.size()) {
+-                LOG_TO_DEBUG("All remote locations hinted");
+-                break;
++        int selectedHints = 0;
++        while (selectedHints < numLocationHints && !remoteLocations.empty()) {
++            auto hintLocation = remoteLocations.back();
++            remoteLocations.pop_back();
++            // Earlier selections may have reserved this location's only available signs.
++            if (!CheckAvailableSign(hintLocation, "Location Hints on Hint Signs")) {
++                continue;
+             }
+-            auto hintLocation = remoteLocations[i];
+             hintLocation->SetHinted(true);
+             auto hintText = GenerateLocationHintText(hintLocation);
+-            this->_locationHints.emplace_back(hintText, LocationHint{hintLocation});
++            auto& hint = this->_locationHints.emplace_back(hintText, LocationHint{hintLocation});
++            ReserveLimitedAvailabilityHint(hintLocation, "Location Hints on Hint Signs", hint);
+             LOG_TO_DEBUG("Chose " + hintLocation->GetName() + " as remote location hint location")
++            ++selectedHints;
++        }
++        if (selectedHints < numLocationHints) {
++            LOG_TO_DEBUG("All remote locations hinted");
+         }
+     }
+ 
+@@ -626,80 +618,184 @@ namespace randomizer::logic::hints {
+             }
+             auto hintLocation = possibleLocationHintLocations.back();
+             possibleLocationHintLocations.pop_back();
++            // Earlier selections may have reserved this location's only available signs.
++            if (!CheckAvailableSign(hintLocation, "Location Hints on Hint Signs")) {
++                --i;
++                continue;
++            }
+             hintLocation->SetHinted(true);
+             auto hintText = GenerateLocationHintText(hintLocation);
+-            this->_locationHints.emplace_back(hintText, LocationHint{hintLocation});
++            auto& hint = this->_locationHints.emplace_back(hintText, LocationHint{hintLocation});
++            ReserveLimitedAvailabilityHint(hintLocation, "Location Hints on Hint Signs", hint);
+             LOG_TO_DEBUG("Chose " + hintLocation->GetName() + " as location hint location")
+         }
+     }
+ 
++    std::vector<location::Location*> HintGenerator::GetAvailableHintSigns(
++        location::Location* location,
++        const std::string& setting)
++    {
++        if (this->_world->Setting(setting) == "Off") {
++            return {};
++        }
++
++        auto [cachedSigns, inserted] = this->_possibleHintSignsByLocation.try_emplace(location);
++        if (inserted) {
++            cachedSigns->second = search::GetPossibleHintSigns(location);
++        }
++        auto possibleHintSigns = cachedSigns->second;
++        std::erase_if(possibleHintSigns, [&](location::Location* sign) {
++            const auto& placement = sign->GetWorld()->Setting(setting);
++            return (placement == "Overworld" && sign->HasCategories("Dungeon")) ||
++                   (placement == "Dungeon" && sign->HasCategories("Overworld")) ||
++                   this->_reservedSigns.contains(sign);
++        });
++        return possibleHintSigns;
++    }
++
++    bool HintGenerator::CheckAvailableSign(location::Location* location, const std::string& setting) {
++        return this->_world->Setting(setting) == "Off" ||
++               !GetAvailableHintSigns(location, setting).empty();
++    }
++
++    void HintGenerator::ReserveLimitedAvailabilityHint(location::Location* location,
++                                                       const std::string& setting,
++                                                       Hint& hint)
++    {
++        if (this->_world->Setting(setting) == "Off") {
++            return;
++        }
++
++        auto possibleHintSigns = GetAvailableHintSigns(location, setting);
++
++        // Protect scarce signs while later hints are selected. This guarantees that two
++        // single-sign hints cannot be selected for the same one-capacity sign.
++        if (!possibleHintSigns.empty() && possibleHintSigns.size() <= 2) {
++            hint.reservedSign = utility::random::RandomElement(possibleHintSigns);
++            this->_reservedSigns.insert(hint.reservedSign);
++        }
++    }
++
+     static void AssignHintSignHints(const location::LocationPool& hintSigns, std::vector<Hint> hints, world::World* world) {
+-        size_t hintsPerSign = std::ceil(static_cast<double>(hints.size()) / static_cast<double>(hintSigns.size()));
+         // Don't bother placing hints if there are none
+-        if (hintsPerSign == 0) {
++        if (hints.empty()) {
+             return;
+         }
++        if (hintSigns.empty()) {
++            throw std::runtime_error("Cannot place hint sign hints without any hint signs");
++        }
++
++        size_t hintsPerSign = std::ceil(static_cast<double>(hints.size()) / static_cast<double>(hintSigns.size()));
+         auto& worlds = world->GetRandomizer()->GetWorlds();
+         auto& hintSignHints = world->GetHintSignHints();
+         auto hintSignHintsOriginal = hintSignHints;
+ 
+-        // Keep trying to place hints until all have been logically placed at least once
+-        bool successfullyPlaceHints = false;
+-        int retryCount = 50;
+-        while (!successfullyPlaceHints) {
+-            --retryCount;
+-            if (retryCount < 0) {
+-                throw std::runtime_error("Failed to properly place hint sign hints. "
+-                                         "Try using a different seed for generation");
++        auto getHintLocation = [](const Hint& hint) -> location::Location* {
++            if (auto pathHint = std::get_if<PathHint>(&hint.data)) {
++                return pathHint->hintedLocation;
++            }
++            if (auto itemHint = std::get_if<ItemHint>(&hint.data)) {
++                return itemHint->location;
++            }
++            if (auto locationHint = std::get_if<LocationHint>(&hint.data)) {
++                return locationHint->location;
++            }
++            return nullptr;
++        };
++
++        // Logical availability for each hint is independent of the sign chosen
++        // for every other hint. Build that bipartite graph once, then match hints
++        // into the remaining per-sign capacity. The old random greedy retry could
++        // reject a valid seed after 50 unlucky assignments.
++        std::vector<location::LocationPool> availableSignsByHint{};
++        availableSignsByHint.reserve(hints.size());
++        for (const auto& hint : hints) {
++            auto* hintLocation = getHintLocation(hint);
++            item::Item* itemAtHintLocation{};
++            if (hintLocation != nullptr) {
++                itemAtHintLocation = hintLocation->GetCurrentItem();
++                hintLocation->RemoveCurrentItem();
+             }
+ 
+-            // Clear any previous attempt at placing hints
+-            successfullyPlaceHints = true;
+-            hintSignHints = hintSignHintsOriginal;
+-
+-            for (auto& hint : hints) {
+-                item::Item* itemAtHintLocation{};
+-                location::Location* hintLocation{};
+-                if (auto pathHint = std::get_if<PathHint>(&hint.data)) {
+-                    hintLocation = pathHint->hintedLocation;
+-                } else if (auto itemHint = std::get_if<ItemHint>(&hint.data)) {
+-                    hintLocation = itemHint->location;
+-                }
+-                else if (auto locationHint = std::get_if<LocationHint>(&hint.data)) {
+-                    hintLocation = locationHint->location;
+-                }
++            auto search = search::Search::Accessible(&worlds);
++            search.SearchWorlds();
+ 
+-                // Remove this item from the world and see which hint signs are available to place hints
+-                if (hintLocation != nullptr) {
+-                    itemAtHintLocation = hintLocation->GetCurrentItem();
+-                    hintLocation->RemoveCurrentItem();
+-                }
++            if (hintLocation != nullptr) {
++                hintLocation->SetCurrentItem(itemAtHintLocation);
++            }
+ 
+-                auto search = search::Search::Accessible(&worlds);
+-                search.SearchWorlds();
+-                location::LocationPool availableHintSigns{};
+-                for (const auto& sign : hintSigns) {
+-                    if (search._visitedLocations.contains(sign) && hintSignHints[sign].size() < hintsPerSign) {
+-                        availableHintSigns.emplace_back(sign);
 -                    }
++            location::LocationPool availableHintSigns{};
++            for (auto* sign : hintSigns) {
++                if (search._visitedLocations.contains(sign) &&
++                    hintSignHintsOriginal[sign].size() < hintsPerSign)
++                {
++                    availableHintSigns.emplace_back(sign);
                  }
++            }
++            if (availableHintSigns.empty()) {
++                throw std::runtime_error(
++                    "No logically accessible hint sign has capacity for hint " +
++                    hint.text.mText[Text::ENGLISH]);
++            }
++            utility::random::ShufflePool(availableHintSigns);
++            availableSignsByHint.emplace_back(std::move(availableHintSigns));
++        }
++
++        location::LocationPool signSlots{};
++        for (auto* sign : hintSigns) {
++            const auto occupiedSlots = hintSignHintsOriginal[sign].size();
++            for (std::size_t slot = occupiedSlots; slot < hintsPerSign; ++slot) {
++                signSlots.emplace_back(sign);
++            }
++        }
++        if (signSlots.size() < hints.size()) {
++            throw std::runtime_error("Not enough hint-sign capacity to place every hint");
++        }
++
++        std::vector<std::size_t> hintOrder{};
++        hintOrder.reserve(hints.size());
++        for (std::size_t hintIndex = 0; hintIndex < hints.size(); ++hintIndex) {
++            hintOrder.emplace_back(hintIndex);
++        }
++        utility::random::ShufflePool(hintOrder);
++        std::stable_sort(hintOrder.begin(), hintOrder.end(), [&](std::size_t left, std::size_t right) {
++            return availableSignsByHint[left].size() < availableSignsByHint[right].size();
++        });
+ 
+-                if (availableHintSigns.empty()) {
+-                    LOG_TO_DEBUG("No available hint signs to place hint " + hint.text.mText[Text::ENGLISH]);
+-                    if (hintLocation != nullptr) {
+-                        hintLocation->SetCurrentItem(itemAtHintLocation);
++        std::vector<int> assignedHintBySlot(signSlots.size(), -1);
++        std::function<bool(std::size_t, std::vector<bool>&)> tryAssignHint;
++        tryAssignHint = [&](std::size_t hintIndex, std::vector<bool>& visitedSlots) {
++            for (auto* sign : availableSignsByHint[hintIndex]) {
++                for (std::size_t slotIndex = 0; slotIndex < signSlots.size(); ++slotIndex) {
++                    if (signSlots[slotIndex] != sign || visitedSlots[slotIndex]) {
++                        continue;
++                    }
++                    visitedSlots[slotIndex] = true;
++                    const auto displacedHint = assignedHintBySlot[slotIndex];
++                    if (displacedHint < 0 ||
++                        tryAssignHint(static_cast<std::size_t>(displacedHint), visitedSlots))
++                    {
++                        assignedHintBySlot[slotIndex] = static_cast<int>(hintIndex);
++                        return true;
+                     }
+-                    successfullyPlaceHints = false;
+-                    break;
+                 }
++            }
++            return false;
++        };
+ 
+-                // Place the hint at the hint sign
+-                auto hintSign = utility::random::RandomElement(availableHintSigns);
+-                hintSignHints[hintSign].push_back(hint);
++        for (const auto hintIndex : hintOrder) {
++            std::vector<bool> visitedSlots(signSlots.size(), false);
++            if (!tryAssignHint(hintIndex, visitedSlots)) {
++                throw std::runtime_error(
++                    "No capacity-aware logical assignment exists for all hint sign hints");
++            }
++        }
+ 
+-                if (hintLocation != nullptr) {
+-                    hintLocation->SetCurrentItem(itemAtHintLocation);
+-                }
++        hintSignHints = hintSignHintsOriginal;
++        for (std::size_t slotIndex = 0; slotIndex < signSlots.size(); ++slotIndex) {
++            if (assignedHintBySlot[slotIndex] >= 0) {
++                hintSignHints[signSlots[slotIndex]].push_back(
++                    hints[static_cast<std::size_t>(assignedHintBySlot[slotIndex])]);
              }
          }
+ 
+@@ -992,8 +1088,8 @@ namespace randomizer::logic::hints {
+                 if (!hints.empty()) {
+                     midnaHintText += getTextObject("Midna Hints " + type + " Intro");
+                     midnaHintText.PadToNextBox();
+-                    for (auto& [text, data] : hints) {
+-                        midnaHintText += text;
++                    for (const auto& hint : hints) {
++                        midnaHintText += hint.text;
+                         midnaHintText.PadToNextBox();
+                     }
+                 }
+@@ -1005,8 +1101,8 @@ namespace randomizer::logic::hints {
+             if (!midnaBarrenHints.empty()) {
+                 midnaHintText += getTextObject("Midna Hints Barren Hints Intro");
+                 midnaHintText.PadToNextBox();
+-                for (auto& [text, data] : midnaBarrenHints) {
+-                    midnaHintText += addColor(getTextObject(std::get<BarrenHint>(data).region), Text::PURPLE) + "\n";
++                for (const auto& hint : midnaBarrenHints) {
++                    midnaHintText += addColor(getTextObject(std::get<BarrenHint>(hint.data).region), Text::PURPLE) + "\n";
+                 }
+                 midnaHintText.PadToNextBox();
+             }
+diff --git a/src/dusk/randomizer/generator/logic/hints.hpp b/src/dusk/randomizer/generator/logic/hints.hpp
+index 1839ee4e5a..1a7989730f 100644
+--- a/src/dusk/randomizer/generator/logic/hints.hpp
++++ b/src/dusk/randomizer/generator/logic/hints.hpp
+@@ -3,6 +3,9 @@
+ #include "hint_types.hpp"
+ 
+ #include <memory>
++#include <unordered_map>
++#include <unordered_set>
++#include <vector>
+ 
+ namespace randomizer::logic::world {
+ class World;
+@@ -24,13 +27,20 @@ public:
+     void FinalizeHintSignText();
+ 
+ private:
++    std::vector<location::Location*> GetAvailableHintSigns(location::Location* location,
++                                                           const std::string& setting);
++    bool CheckAvailableSign(location::Location* location, const std::string& setting);
++    void ReserveLimitedAvailabilityHint(location::Location* location, const std::string& setting, Hint& hint);
++
+     world::World* _world{};
+     std::vector<Hint> _pathHints{};
+     std::vector<Hint> _barrenHints{};
+     std::vector<Hint> _itemHints{};
+     std::vector<Hint> _locationHints{};
++    std::unordered_map<location::Location*, std::vector<location::Location*>> _possibleHintSignsByLocation{};
++    std::unordered_set<location::Location*> _reservedSigns{};
+ };
+ 
+ void GenerateAllHints(world::WorldPool& worldPool);
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/src/dusk/randomizer/generator/logic/item_pool.cpp b/src/dusk/randomizer/generator/logic/item_pool.cpp
+index 7eb491cfd1..e162b20113 100644
+--- a/src/dusk/randomizer/generator/logic/item_pool.cpp
++++ b/src/dusk/randomizer/generator/logic/item_pool.cpp
+@@ -409,6 +409,19 @@ namespace randomizer::logic::item_pool
+         auto& startingItemPool = world->GetStartingItemPool();
+         auto& itemPool = world->GetItemPool();
+ 
++        // The four Twilight quest targets are mandatory sources of the Tears
++        // that clear their own encounters. Shuffling those permissions can
++        // therefore put them after the one-time quest state they enable. Keep
++        // those event enemies available from sphere zero; all 81 ordinary and
++        // miniboss Souls remain fully shuffled.
++        if (world->Setting("Enemy Souls") == "On")
++        {
++            startingItems["Faron Twilit Insect Soul"] = 1;
++            startingItems["Eldin Twilit Insect Soul"] = 1;
++            startingItems["Lanayru Twilit Insect Soul"] = 1;
++            startingItems["Twilit Bloat Soul"] = 1;
++        }
++
+         // Add Maps and Compasses to starting items if we start with them
+         if (world->Setting("Maps and Compasses") == "Start With")
+         {
+diff --git a/src/dusk/randomizer/generator/logic/world.cpp b/src/dusk/randomizer/generator/logic/world.cpp
+index 97094ee7ad..6d0e2e493d 100644
+--- a/src/dusk/randomizer/generator/logic/world.cpp
++++ b/src/dusk/randomizer/generator/logic/world.cpp
+@@ -603,14 +603,50 @@ namespace randomizer::logic::world
+             location->SetRegisteredLocationCategories(&this->_registeredLocationCategories);
+ 
+             auto* encounterArea = this->GetArea(std::string(definition.encounterArea));
++            auto defeatRequirement =
++                this->_enemyDefeatRequirements.GetDefeatRequirement(
++                    std::string(definition.enemy));
++
++            // Twilight quest targets are one-time encounters. Once the Tear
++            // count clears a province, search correctly stops propagating the
++            // ephemeral Twilight form even though the player necessarily had
++            // an earlier opportunity to defeat the target. Model that durable
++            // first-defeat opportunity directly. Their Souls start owned when
++            // spawn gating is enabled; Twilit Bloat additionally cannot appear
++            // until the first fifteen Lanayru Tears have been collected.
++            if (randomizer::enemy_souls::first_defeat_availability(definition.itemId) !=
++                randomizer::enemy_souls::FirstDefeatAvailability::Always)
++            {
++                defeatRequirement = requirement::NO_REQUIREMENT;
++                if (this->Setting("Enemy Souls") == "On")
++                {
++                    defeatRequirement = requirement::Requirement{
++                        requirement::Type::ITEM,
++                        {this->GetItem(definition.itemId)},
++                    };
++                }
++                if (definition.enemy == "Twilit Bloat")
++                {
++                    defeatRequirement = requirement::Requirement{
++                        requirement::Type::AND,
++                        {
++                            requirement::Requirement{
++                                requirement::Type::COUNT,
++                                {15, this->GetItem("Lanayru Twilight Tear")},
++                            },
++                            defeatRequirement,
++                        },
++                    };
++                }
++            }
++
+             auto access = std::make_unique<area::LocationAccess>(
+                 location.get(),
+                 // The catalog already resolved and validated this human-readable
+                 // macro name while the world was built. Re-parsing a display name
+                 // such as "Can Defeat Shadow Beast" treats its spaces as separate
+                 // logic tokens; use the catalog's stable macro reference instead.
+-                this->_enemyDefeatRequirements.GetDefeatRequirement(
+-                    std::string(definition.enemy)),
++                defeatRequirement,
+                 encounterArea);
+             location->AddLocationAccess(access.get());
+             encounterArea->AddLocation(std::move(access));
 diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_enemy_soul_fill_priority.py
 new file mode 100644
-index 0000000000..71dc0fd3c2
+index 0000000000..c36a42833f
 --- /dev/null
 +++ b/tools/tests/test_enemy_soul_fill_priority.py
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,103 @@
 +from pathlib import Path
 +import unittest
 +
@@ -214,12 +789,29 @@ index 0000000000..71dc0fd3c2
 +FILL_SOURCE = (
 +    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "fill.cpp"
 +)
++ITEM_POOL_SOURCE = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "item_pool.cpp"
++)
 +
 +
 +class EnemySoulFillPriorityTests(unittest.TestCase):
 +    @classmethod
 +    def setUpClass(cls):
 +        cls.source = FILL_SOURCE.read_text(encoding="utf-8")
++        cls.item_pool_source = ITEM_POOL_SOURCE.read_text(encoding="utf-8")
++
++    def test_twilight_quest_target_souls_are_safe_starting_permissions(self):
++        self.assertIn('world->Setting("Enemy Souls") == "On"', self.item_pool_source)
++        for item_name in (
++            "Faron Twilit Insect Soul",
++            "Eldin Twilit Insect Soul",
++            "Lanayru Twilit Insect Soul",
++            "Twilit Bloat Soul",
++        ):
++            self.assertIn(
++                f'startingItems["{item_name}"] = 1;',
++                self.item_pool_source,
++            )
 +
 +    def test_constrained_souls_are_removed_before_general_major_fill(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
@@ -228,7 +820,7 @@ index 0000000000..71dc0fd3c2
 +        )
 +        major_extract = self.source.index("auto majorItems")
 +        major_fill = self.source.index(
-+            "AssumedFill(worlds, majorItems, itemPool, progressLocations);"
++            "AssumedFill(worlds, majorItems, itemPool, progressLocations,"
 +        )
 +
 +        self.assertLess(soul_extract, soul_fill)
@@ -248,16 +840,17 @@ index 0000000000..71dc0fd3c2
 +            block,
 +        )
 +
-+    def test_souls_use_only_ordinary_extended_item_checks(self):
++    def test_souls_use_every_topology_safe_extended_item_check(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
 +        major_extract = self.source.index("auto majorItems")
 +        block = self.source[soul_extract:major_extract]
 +
-+        self.assertIn('location->HasCategories("Chest")', block)
-+        self.assertIn('location->HasCategories("Freestanding Item")', block)
++        self.assertIn('categories.contains("Chest")', block)
++        self.assertIn('categories.contains("Freestanding Item")', block)
++        self.assertIn('categories.contains("Enemy First Defeat")', block)
++        self.assertNotIn('location->HasCategories("Enemy First Defeat")', block)
 +        self.assertIn("location->IsEmpty()", block)
 +        self.assertIn("enemySoulItems.size() > enemySoulLocations.size()", block)
-+        self.assertNotIn('location->HasCategories("Enemy First Defeat")', block)
 +
 +    def test_soul_fill_exhausts_alternative_items_before_retrying(self):
 +        soul_extract = self.source.index("auto enemySoulItems")
@@ -269,11 +862,30 @@ index 0000000000..71dc0fd3c2
 +        self.assertIn("deferredItems.push_back(itemToPlace)", self.source)
 +        self.assertIn("assumedItems.end(), deferredItems.begin()", self.source)
 +
++    def test_major_fill_keeps_exhaustive_continuations_after_soul_placement(self):
++        major_extract = self.source.index("auto majorItems")
++        minor_fill = self.source.index("// Place Minor items")
++        block = self.source[major_extract:minor_fill]
++
++        self.assertIn("AssumedFill(worlds, majorItems, itemPool, progressLocations", block)
++        self.assertIn("-1, 250, true", block)
++
++    def test_failed_major_fill_rerolls_the_constrained_soul_topology(self):
++        major_extract = self.source.index("auto majorItems")
++        minor_fill = self.source.index("// Place Minor items")
++        block = self.source[major_extract:minor_fill]
++
++        self.assertIn("kSoulMajorTopologyRetries = 25", block)
++        self.assertIn("catch (const AssumedFillFailure& error)", block)
++        self.assertIn("class AssumedFillFailure final", self.source)
++        self.assertIn("for (auto* location : enemySoulPlacements)", block)
++        self.assertIn("location->RemoveCurrentItem()", block)
++        self.assertIn("itemsAssumedForSoulPlacement", block)
 +
 +if __name__ == "__main__":
 +    unittest.main()
 diff --git a/tools/tests/test_enemy_souls.py b/tools/tests/test_enemy_souls.py
-index 682f5f0dc4..e5d1d9cd07 100644
+index 682f5f0dc4..817ff07074 100644
 --- a/tools/tests/test_enemy_souls.py
 +++ b/tools/tests/test_enemy_souls.py
 @@ -274,7 +274,7 @@ class EnemySoulTests(unittest.TestCase):
@@ -285,17 +897,158 @@ index 682f5f0dc4..e5d1d9cd07 100644
          add_locations = function_slice(
              self.world,
              "void World::AddEnemyFirstDefeatLocations()",
-@@ -310,11 +310,11 @@ class EnemySoulTests(unittest.TestCase):
+@@ -289,6 +289,12 @@ class EnemySoulTests(unittest.TestCase):
+             "std::string(definition.encounterArea)",
+             "_enemyDefeatRequirements.GetDefeatRequirement(",
+             "std::string(definition.enemy)",
++            "first_defeat_availability(definition.itemId)",
++            "FirstDefeatAvailability::Always",
++            "requirement::Type::ITEM",
++            'definition.enemy == "Twilit Bloat"',
++            "requirement::Type::COUNT",
++            'this->GetItem("Lanayru Twilight Tear")',
+         ):
+             self.assertIn(marker, add_locations)
+         self.assertNotIn("ParseRequirementString", add_locations)
+@@ -310,9 +316,9 @@ class EnemySoulTests(unittest.TestCase):
              "void World::ApplyEnemySoulLocationSafety()",
              "void World::AddBreakableLocations()",
          )
 -        self.assertIn('categories.contains("Enemy First Defeat")', safety)
          self.assertIn('categories.contains("Chest")', safety)
          self.assertIn('categories.contains("Freestanding Item")', safety)
++        self.assertIn('categories.contains("Enemy First Defeat")', safety)
          self.assertIn("location->AddForbiddenItem(soul)", safety)
--        self.assertIn("== definition.itemId", safety)
-+        self.assertNotIn('categories.contains("Enemy First Defeat")', safety)
-+        self.assertNotIn("== definition.itemId", safety)
+         self.assertIn("== definition.itemId", safety)
          self.assertIn("AddEnemyFirstDefeatLocations();", self.world)
-         self.assertIn("ApplyEnemySoulLocationSafety();", self.world)
- 
+diff --git a/tools/tests/test_hint_sign_assignment.py b/tools/tests/test_hint_sign_assignment.py
+new file mode 100644
+index 0000000000..4a9d4bdda1
+--- /dev/null
++++ b/tools/tests/test_hint_sign_assignment.py
+@@ -0,0 +1,125 @@
++from pathlib import Path
++import unittest
++
++
++ROOT = Path(__file__).resolve().parents[2]
++HINTS_SOURCE = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "hints.cpp"
++)
++HINTS_HEADER = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "hints.hpp"
++)
++HINT_TYPES_HEADER = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "hint_types.hpp"
++)
++
++
++class HintSignAssignmentTests(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.source = HINTS_SOURCE.read_text(encoding="utf-8")
++        cls.header = HINTS_HEADER.read_text(encoding="utf-8")
++        cls.hint_types = HINT_TYPES_HEADER.read_text(encoding="utf-8")
++        start = cls.source.index("static void AssignHintSignHints")
++        end = cls.source.index("void HintGenerator::DistributeHints", start)
++        cls.assignment = cls.source[start:end]
++        item_start = cls.source.index("void HintGenerator::GenerateItemHints")
++        remote_start = cls.source.index("void HintGenerator::GenerateRemoteLocationHints")
++        location_start = cls.source.index("void HintGenerator::GenerateLocationHints")
++        availability_start = cls.source.index("HintGenerator::GetAvailableHintSigns")
++        cls.item_generation = cls.source[item_start:remote_start]
++        cls.remote_generation = cls.source[remote_start:location_start]
++        cls.location_generation = cls.source[location_start:availability_start]
++
++    def test_empty_hint_pool_is_checked_before_dividing_by_sign_count(self):
++        empty_check = self.assignment.index("if (hints.empty())")
++        sign_check = self.assignment.index("if (hintSigns.empty())")
++        division = self.assignment.index("size_t hintsPerSign")
++
++        self.assertLess(empty_check, sign_check)
++        self.assertLess(sign_check, division)
++
++    def test_logical_hint_placement_uses_capacity_aware_matching(self):
++        for marker in (
++            "availableSignsByHint",
++            "signSlots",
++            "assignedHintBySlot",
++            "tryAssignHint",
++            "visitedSlots",
++        ):
++            self.assertIn(marker, self.assignment)
++
++        self.assertNotIn("retryCount = 50", self.assignment)
++        self.assertNotIn("successfullyPlaceHints", self.assignment)
++
++    def test_constrained_hints_are_matched_before_duplicates_are_filled(self):
++        matching = self.assignment.index("tryAssignHint =")
++        commit = self.assignment.index("hintSignHints = hintSignHintsOriginal", matching)
++        duplicates = self.assignment.index("auto duplicateHints = hints")
++
++        self.assertLess(matching, commit)
++        self.assertLess(commit, duplicates)
++
++    def test_scarce_hint_signs_are_reserved_while_hints_are_selected(self):
++        for marker in (
++            "bool HintGenerator::CheckAvailableSign",
++            "void HintGenerator::ReserveLimitedAvailabilityHint",
++            "this->_reservedSigns.contains(sign)",
++            "possibleHintSigns.size() <= 2",
++            "hint.reservedSign =",
++            "this->_reservedSigns.insert(hint.reservedSign)",
++        ):
++            self.assertIn(marker, self.source)
++
++        self.assertIn("std::unordered_set<location::Location*> _reservedSigns", self.header)
++        self.assertIn("location::Location* reservedSign = nullptr", self.hint_types)
++
++    def test_all_location_based_hint_types_check_sign_availability(self):
++        self.assertIn(
++            'CheckAvailableSign(location, "Path Hints on Hint Signs")',
++            self.source,
++        )
++        self.assertGreaterEqual(
++            self.source.count(
++                'CheckAvailableSign(hintLocation, "Item Hints on Hint Signs")'
++            ),
++            1,
++        )
++        self.assertGreaterEqual(
++            self.source.count(
++                'CheckAvailableSign(hintLocation, "Location Hints on Hint Signs")'
++            ),
++            2,
++        )
++
++    def test_scarce_path_item_and_remote_hints_record_reservations(self):
++        for hint_type in ("Path", "Item", "Location"):
++            self.assertIn(
++                f'ReserveLimitedAvailabilityHint(hintLocation, "{hint_type} Hints on Hint Signs", hint)',
++                self.source,
++            )
++
++    def test_expensive_sign_searches_are_lazy_and_cached(self):
++        for generation in (
++            self.item_generation,
++            self.remote_generation,
++            self.location_generation,
++        ):
++            collection = generation[: generation.index("ShufflePool")]
++            self.assertNotIn("CheckAvailableSign", collection)
++
++        self.assertIn("_possibleHintSignsByLocation.try_emplace", self.source)
++        self.assertIn("if (inserted)", self.source)
++        self.assertIn("_possibleHintSignsByLocation", self.header)
++
++    def test_rejected_remote_candidates_are_consumed_instead_of_retried_forever(self):
++        self.assertIn(
++            "while (selectedHints < numLocationHints && !remoteLocations.empty())",
++            self.remote_generation,
++        )
++        self.assertIn("remoteLocations.pop_back()", self.remote_generation)
++        self.assertNotIn("--i", self.remote_generation)
++
++
++if __name__ == "__main__":
++    unittest.main()
