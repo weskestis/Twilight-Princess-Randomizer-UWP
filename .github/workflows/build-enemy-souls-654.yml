@@ -1968,6 +1968,7 @@ jobs:
           }
 
       - name: Configure working .627 game core
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         shell: powershell
         run: |
           cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
@@ -1985,10 +1986,12 @@ jobs:
             -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-uwp-runtime-shop-658
 
       - name: Compile working .627 game core
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         shell: powershell
         run: cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
 
       - name: Configure fresh UWP package project
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         shell: powershell
         run: |
           cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
@@ -1999,6 +2002,7 @@ jobs:
             -DDUSK_DIR="$env:TPR_FEED"
 
       - name: Create sideload signing certificate
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         id: cert
         shell: powershell
         run: |
@@ -2027,6 +2031,7 @@ jobs:
           "password=$password" >> $env:GITHUB_OUTPUT
 
       - name: Build signed UWP package
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         shell: powershell
         run: |
           cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
@@ -2039,6 +2044,7 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
 
       - name: Verify and collect private .658 test package
+        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -2352,15 +2358,23 @@ jobs:
                     Write-Host $stderr
                     throw "Seed stress timed out after 120 seconds: preset='$presetName', seed='$seed'."
                   }
+                  # Windows PowerShell can leave ExitCode unpopulated after
+                  # only the timed overload, especially with redirected
+                  # output. A final parameterless wait refreshes that value.
+                  $process.WaitForExit()
                   $seedTimer.Stop()
                   $process.Refresh()
+                  $exitCode = $process.ExitCode
+                  if ($null -eq $exitCode) {
+                    throw "Seed stress harness could not read the exit code: preset='$presetName', seed='$seed'."
+                  }
 
                   $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { '' }
                   $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { '' }
                   $combinedOutput = $stdout + "`n" + $stderr
-                  if ($process.ExitCode -ne 0) {
+                  if ($exitCode -ne 0) {
                     Write-Host $combinedOutput
-                    throw "Seed stress failed: preset='$presetName', seed='$seed', exit=$($process.ExitCode)."
+                    throw "Seed stress failed: preset='$presetName', seed='$seed', exit=$exitCode."
                   }
                   if (-not $combinedOutput.Contains("Testing $presetName") -or
                       -not $combinedOutput.Contains("Seed: $seed") -or
