@@ -1831,7 +1831,7 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
-            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='AssumedFill(worlds, enemySoulItems, itemPool, progressLocations);' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations);' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
