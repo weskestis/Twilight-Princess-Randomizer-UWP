@@ -1739,7 +1739,7 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '7b853b5a08112570ee4040f1e762654c893a450d5e03859a63efb613f126f6e8') {
+          if ($patchHash -ne '7b5923f3fad523c2a9b2d5f08f4482c394bca5c5dae4e02ffb36db6c8d41a358') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
@@ -1843,6 +1843,7 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='this->GetItem("Lanayru Twilight Tear")' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_soul_fill_exhausts_alternative_items_before_retrying' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
+            @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_major_fill_keeps_exhaustive_continuations_after_soul_placement' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_enemy_souls_never_collide_with_existing_item_names_or_ids' },
@@ -2609,6 +2610,8 @@ jobs:
           targets are granted at start so their own Tears cannot precede the Souls that enable them;
           the remaining 81 Souls use dependency-aware reverse fill and a final reachability proof.
           First-defeat logic records those unavoidable Twilight encounters as durable milestones.
+          Ordinary progression placement now exhausts valid item continuations after the constrained
+          Soul pass instead of abandoning a completable hostile seed on a temporarily blocked major.
 
           This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
