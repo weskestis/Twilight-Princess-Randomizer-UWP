@@ -2260,6 +2260,7 @@ jobs:
           TPR_STRESS_ITERATIONS: ${{ contains(github.event.head_commit.message, '[stress-only]') && 250 || 1 }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
           function Invoke-StressProcess {
             param(
@@ -2320,6 +2321,42 @@ jobs:
           }
           Write-Host 'Direct process harness probe passed.'
 
+          # LOGIC_TESTS intentionally suppresses utility::platform::Log, which
+          # includes the normal seed message. Instrument only this ephemeral CI
+          # test source so the binary proves the runtime-loaded seed both
+          # internally and through captured stdout. Product source/package bits
+          # are not changed by this test-only workflow commit.
+          $logicTestSourcePath = Join-Path $env:TPR_SRC `
+            'src\dusk\randomizer\generator\test\test.cpp'
+          $logicTestSource = [IO.File]::ReadAllText($logicTestSourcePath)
+          $logicTestNeedle = '                    r.GenerateWorlds();'
+          $logicTestMatches = [regex]::Matches(
+            $logicTestSource,
+            [regex]::Escape($logicTestNeedle))
+          if ($logicTestMatches.Count -ne 1) {
+            throw "Expected one logic-test generation hook; found $($logicTestMatches.Count)."
+          }
+          $logicTestReplacement = @'
+                    r.GenerateWorlds();
+                    const char* expectedSeed = std::getenv("RANDO_LOGIC_TEST_EXPECTED_SEED");
+                    const std::string generatedSeed = r.GetConfig().GetSeed();
+                    std::cout << "Seed: " << generatedSeed << std::endl;
+                    if (expectedSeed != nullptr && generatedSeed != expectedSeed)
+                    {
+                        throw std::runtime_error(
+                            "Logic-test seed mismatch: expected " +
+                            std::string(expectedSeed) + ", got " + generatedSeed);
+                    }
+          '@
+          $logicTestSource = $logicTestSource.Replace(
+            $logicTestNeedle,
+            $logicTestReplacement.TrimEnd())
+          [IO.File]::WriteAllText(
+            $logicTestSourcePath,
+            $logicTestSource,
+            $utf8NoBom)
+          Write-Host 'Installed test-only runtime seed proof.'
+
           # Keep this desktop logic-test build isolated from the already-configured
           # UWP feed. Reusing TPR_FEED leaves Aurora's cached providers pinned to
           # uwp-dep, whose intentionally narrow headers do not include
@@ -2369,7 +2406,6 @@ jobs:
           $completedSeeds = 0
           $slowestMilliseconds = 0
           $slowestSeed = ''
-          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           $stressTimer = [Diagnostics.Stopwatch]::StartNew()
           try {
             foreach ($preset in $stressPresets) {
@@ -2400,6 +2436,7 @@ jobs:
                   [IO.File]::WriteAllText($settingsPath, $stressSettings, $utf8NoBom)
 
                   $env:RANDO_LOGIC_TEST_FILTER = $presetName
+                  $env:RANDO_LOGIC_TEST_EXPECTED_SEED = $seed
                   $seedTimer = [Diagnostics.Stopwatch]::StartNew()
                   $result = Invoke-StressProcess `
                     -FilePath $testExecutable `
@@ -2446,6 +2483,7 @@ jobs:
           }
           finally {
             Remove-Item Env:RANDO_LOGIC_TEST_FILTER -ErrorAction SilentlyContinue
+            Remove-Item Env:RANDO_LOGIC_TEST_EXPECTED_SEED -ErrorAction SilentlyContinue
           }
           $stressTimer.Stop()
           if ($completedSeeds -ne $totalSeeds) {
