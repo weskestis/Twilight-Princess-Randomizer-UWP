@@ -12,10 +12,30 @@ index a71a91adab..08231da04d 100644
  - Name: Enemy First-Defeat Checks
    Need In Game: True
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
-index 289d127249..d70e5f8b37 100644
+index 289d127249..f01b9f388e 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
 +++ b/src/dusk/randomizer/generator/logic/fill.cpp
-@@ -36,13 +36,53 @@ namespace randomizer::logic::fill
+@@ -9,9 +9,19 @@
+ #include <algorithm>
+ #include <iostream>
+ #include <ranges>
++#include <stdexcept>
+ 
+ namespace randomizer::logic::fill
+ {
++    namespace
++    {
++        class AssumedFillFailure final : public std::runtime_error
++        {
++        public:
++            using std::runtime_error::runtime_error;
++        };
++    }
++
+     void FillWorlds(world::WorldPool& worlds)
+     {
+         // Place each world's restricted items first
+@@ -36,13 +46,98 @@ namespace randomizer::logic::fill
              }
          }
  
@@ -58,22 +78,67 @@ index 289d127249..d70e5f8b37 100644
 +        // remaining Soul can advance the reverse fill. Exhaust the other
 +        // items before abandoning an attempt and give this constrained pool
 +        // extra retries.
-+        AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,
-+                    -1, 250, true);
++        auto enemySoulPlacements =
++            AssumedFill(worlds, enemySoulItems, itemPool, enemySoulLocations,
++                        -1, 250, true);
 +
 +        // Place remaining unrestricted major items in progress locations.
 +        auto majorItems =
 +            utility::container::FilterAndEraseFromVector(itemPool, [](const auto& item) { return item->IsMajor(); });
-+        // The constrained Soul pass can leave a valid but narrower topology for
-+        // ordinary progression. Use the same exhaustive item deferral here so
-+        // a temporarily unplaceable major does not discard an otherwise valid
-+        // continuation, and retain the larger retry budget for hostile mixes.
-+        AssumedFill(worlds, majorItems, itemPool, progressLocations,
-+                    -1, 250, true);
++        auto itemsAssumedForSoulPlacement = itemPool;
++        itemsAssumedForSoulPlacement.insert(
++            itemsAssumedForSoulPlacement.end(), majorItems.begin(), majorItems.end());
++
++        // The constrained Soul pass can leave a topology in which ordinary
++        // progression has no complete greedy placement even after exhaustive
++        // item deferral. Retry the two phases together: a failed major pass is
++        // fully rolled back by AssumedFill, then the Soul locations are cleared
++        // and rerolled before another major attempt. This preserves the runtime
++        // serialization boundary without treating one unlucky Soul topology as
++        // proof that the seed is impossible.
++        constexpr int kSoulMajorTopologyRetries = 25;
++        bool majorPlacementComplete = false;
++        std::string lastMajorPlacementError;
++        for (int topologyAttempt = 0;
++             topologyAttempt < kSoulMajorTopologyRetries;
++             ++topologyAttempt)
++        {
++            if (topologyAttempt > 0)
++            {
++                enemySoulPlacements =
++                    AssumedFill(worlds, enemySoulItems,
++                                itemsAssumedForSoulPlacement,
++                                enemySoulLocations, -1, 250, true);
++            }
++
++            try
++            {
++                AssumedFill(worlds, majorItems, itemPool, progressLocations,
++                            -1, 250, true);
++                majorPlacementComplete = true;
++                break;
++            }
++            catch (const AssumedFillFailure& error)
++            {
++                lastMajorPlacementError = error.what();
++                for (auto* location : enemySoulPlacements)
++                {
++                    location->RemoveCurrentItem();
++                }
++            }
++        }
++        if (!majorPlacementComplete)
++        {
++            throw std::runtime_error(
++                "Major-item placement failed after rerolling the constrained "
++                "Enemy Soul topology " +
++                std::to_string(kSoulMajorTopologyRetries) +
++                " times. Last failure:\n" + lastMajorPlacementError);
++        }
  
          // Place Minor items in progression locations if possible
          auto minorItems =
-@@ -109,13 +149,16 @@ namespace randomizer::logic::fill
+@@ -109,13 +204,16 @@ namespace randomizer::logic::fill
          item_pool::ItemPool& itemsToPlacePool,
          const item_pool::ItemPool& itemsNotYetPlaced,
          location::LocationPool allowedLocations,
@@ -92,17 +157,19 @@ index 289d127249..d70e5f8b37 100644
          while (unsuccessfulPlacement)
          {
              if (retries <= 0)
-@@ -134,6 +177,9 @@ namespace randomizer::logic::fill
+@@ -134,7 +232,10 @@ namespace randomizer::logic::fill
                      errorMsg += "- (" + std::to_string(itemsToPlacePool.size() - count) + " more)";
                  }
  
+-                throw std::runtime_error(errorMsg);
 +                errorMsg += "\nClosest attempt had " + std::to_string(closestRemaining) +
 +                            " items remaining.";
 +
-                 throw std::runtime_error(errorMsg);
++                throw AssumedFillFailure(errorMsg);
              }
  
-@@ -142,6 +188,7 @@ namespace randomizer::logic::fill
+             retries -= 1;
+@@ -142,6 +243,7 @@ namespace randomizer::logic::fill
  
              utility::random::ShufflePool(itemsToPlacePool);
              auto itemsToPlace = itemsToPlacePool;
@@ -110,7 +177,7 @@ index 289d127249..d70e5f8b37 100644
              rollbacks.clear();
  
              while (!itemsToPlace.empty())
-@@ -156,6 +203,7 @@ namespace randomizer::logic::fill
+@@ -156,6 +258,7 @@ namespace randomizer::logic::fill
                  // Assume we have all the items which haven't been played yet, except the one we're about to place
                  auto assumedItems = itemsNotYetPlaced;
                  assumedItems.insert(assumedItems.end(), itemsToPlace.begin(), itemsToPlace.end());
@@ -118,7 +185,7 @@ index 289d127249..d70e5f8b37 100644
                  auto search = search::Search::Accessible(&worlds, assumedItems, worldToFill);
                  search.SearchWorlds();
                  // search.DumpWorldGraph();
-@@ -203,6 +251,16 @@ namespace randomizer::logic::fill
+@@ -203,6 +306,16 @@ namespace randomizer::logic::fill
                  // again from the top.
                  if (spotToFill == nullptr)
                  {
@@ -135,7 +202,7 @@ index 289d127249..d70e5f8b37 100644
                      LOG_TO_DEBUG("No accessible locations to place " + itemToPlace->GetName() + ". Retrying " +
                                   std::to_string(retries) + " more times.");
                      for (auto& location : rollbacks)
-@@ -213,6 +271,8 @@ namespace randomizer::logic::fill
+@@ -213,6 +326,8 @@ namespace randomizer::logic::fill
  
                      // Also add back the randomly selected item
                      itemsToPlace.push_back(itemToPlace);
@@ -144,7 +211,7 @@ index 289d127249..d70e5f8b37 100644
                      rollbacks.clear();
                      // Break out of the item placement loop and flag an unsuccessful placement attempt to try again
                      unsuccessfulPlacement = true;
-@@ -222,6 +282,16 @@ namespace randomizer::logic::fill
+@@ -222,6 +337,16 @@ namespace randomizer::logic::fill
                  // Place the item at the location
                  spotToFill->SetCurrentItem(itemToPlace);
                  rollbacks.push_back(spotToFill);
@@ -269,10 +336,10 @@ index 97094ee7ad..6d0e2e493d 100644
              encounterArea->AddLocation(std::move(access));
 diff --git a/tools/tests/test_enemy_soul_fill_priority.py b/tools/tests/test_enemy_soul_fill_priority.py
 new file mode 100644
-index 0000000000..60191297bb
+index 0000000000..c36a42833f
 --- /dev/null
 +++ b/tools/tests/test_enemy_soul_fill_priority.py
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,103 @@
 +from pathlib import Path
 +import unittest
 +
@@ -361,6 +428,18 @@ index 0000000000..60191297bb
 +
 +        self.assertIn("AssumedFill(worlds, majorItems, itemPool, progressLocations", block)
 +        self.assertIn("-1, 250, true", block)
++
++    def test_failed_major_fill_rerolls_the_constrained_soul_topology(self):
++        major_extract = self.source.index("auto majorItems")
++        minor_fill = self.source.index("// Place Minor items")
++        block = self.source[major_extract:minor_fill]
++
++        self.assertIn("kSoulMajorTopologyRetries = 25", block)
++        self.assertIn("catch (const AssumedFillFailure& error)", block)
++        self.assertIn("class AssumedFillFailure final", self.source)
++        self.assertIn("for (auto* location : enemySoulPlacements)", block)
++        self.assertIn("location->RemoveCurrentItem()", block)
++        self.assertIn("itemsAssumedForSoulPlacement", block)
 +
 +if __name__ == "__main__":
 +    unittest.main()
