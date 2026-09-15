@@ -253,6 +253,423 @@ index 0f6304a1bb..ba4269a8a8 100644
      );
  
      /**
+diff --git a/src/dusk/randomizer/generator/logic/hint_types.hpp b/src/dusk/randomizer/generator/logic/hint_types.hpp
+index bc45c244dd..8b46e7a365 100644
+--- a/src/dusk/randomizer/generator/logic/hint_types.hpp
++++ b/src/dusk/randomizer/generator/logic/hint_types.hpp
+@@ -36,6 +36,7 @@ namespace randomizer::logic::hints {
+     struct Hint {
+         Text text{};
+         HintData data;
++        location::Location* reservedSign = nullptr;
+ 
+         bool operator==(const Hint&) const = default;
+     };
+diff --git a/src/dusk/randomizer/generator/logic/hints.cpp b/src/dusk/randomizer/generator/logic/hints.cpp
+index c7b0efcbb7..306baba1c0 100644
+--- a/src/dusk/randomizer/generator/logic/hints.cpp
++++ b/src/dusk/randomizer/generator/logic/hints.cpp
+@@ -8,6 +8,8 @@
+ #include "../utility/random.hpp"
+ #include "../randomizer.hpp"
+ 
++#include <algorithm>
++#include <functional>
+ #include <ranges>
+ 
+ namespace randomizer::logic::hints {
+@@ -444,30 +446,14 @@ namespace randomizer::logic::hints {
+             // Collect all valid path locations to hint for this location
+             std::vector<location::Location*> validPathLocations{};
+             for (auto location : goalLocation->GetPathLocations()) {
+-                // Don't choose locations which have expected items or that are already hinted
+-                if (location->HasExpectedItem() || location->IsHinted()) {
++                // Don't choose locations which have expected items, are already hinted, or
++                // cannot be placed without consuming a sign reserved by a scarcer hint.
++                if (location->HasExpectedItem() || location->IsHinted() ||
++                    !CheckAvailableSign(location, "Path Hints on Hint Signs"))
++                {
+                     continue;
+                 }
+ 
+-                // This is unlikely, but also don't choose any locations which are logically
+-                // necessary for accessing *every* possible hint sign if we're placing path hints
+-                // on hint signs.
+-                if (this->_world->Setting("Path Hints on Hint Signs") != "Off") {
+-                    // Get a list of all hint signs where we can place path hints to use later
+-                    auto possiblePathHintSigns = search::GetPossibleHintSigns(location);
+-                    // Remove the ones which wouldn't be relevant
+-                    std::erase_if(possiblePathHintSigns, [](location::Location* loc) {
+-                        const auto& hintSignPlacement = loc->GetWorld()->Setting("Path Hints on Hint Signs");
+-                        return (hintSignPlacement == "Overworld" && loc->HasCategories("Dungeon")) ||
+-                               (hintSignPlacement == "Dungeon" && loc->HasCategories("Overworld"));
+-                    });
+-
+-                    // If none are left, then don't choose this location
+-                    if (possiblePathHintSigns.empty()) {
+-                        continue;
+-                    }
+-                }
+-
+                 validPathLocations.push_back(location);
+             }
+ 
+@@ -482,7 +468,8 @@ namespace randomizer::logic::hints {
+             hintLocation->SetHinted(true);
+             LOG_TO_DEBUG("Chose " + hintLocation->GetName() + " as path hint for " + goalLocation->GetName());
+             auto hintText = GeneratePathHintText(hintLocation, goalLocation);
+-            this->_pathHints.emplace_back(hintText, PathHint{goalLocation, hintLocation});
++            auto& hint = this->_pathHints.emplace_back(hintText, PathHint{goalLocation, hintLocation});
++            ReserveLimitedAvailabilityHint(hintLocation, "Path Hints on Hint Signs", hint);
+         }
+     }
+ 
+@@ -536,7 +523,8 @@ namespace randomizer::logic::hints {
+             if (location->IsProgression() &&
+                 location->GetCurrentItem()->IsMajor() &&
+                !location->HasExpectedItem() &&
+-               !location->IsHinted())
++               !location->IsHinted() &&
++                CheckAvailableSign(location, "Item Hints on Hint Signs"))
+             {
+                 possibleItemHintLocations.push_back(location);
+             }
+@@ -552,9 +540,15 @@ namespace randomizer::logic::hints {
+             }
+             auto hintLocation = possibleItemHintLocations.back();
+             possibleItemHintLocations.pop_back();
++            // Earlier selections may have reserved this location's only available signs.
++            if (!CheckAvailableSign(hintLocation, "Item Hints on Hint Signs")) {
++                --i;
++                continue;
++            }
+             hintLocation->SetHinted(true);
+             auto hintText = GenerateItemHintText(hintLocation);
+-            this->_itemHints.emplace_back(hintText, ItemHint{hintLocation});
++            auto& hint = this->_itemHints.emplace_back(hintText, ItemHint{hintLocation});
++            ReserveLimitedAvailabilityHint(hintLocation, "Item Hints on Hint Signs", hint);
+             LOG_TO_DEBUG("Chose " + hintLocation->GetName() + ": " + hintLocation->GetCurrentItem()->GetName() + " as item hint location")
+         }
+     }
+@@ -570,7 +564,8 @@ namespace randomizer::logic::hints {
+         for (auto location : this->_world->GetAllLocations()) {
+             if (location->IsProgression() &&
+                 location->HasCategories("Remote Location") &&
+-               !location->IsHinted())
++               !location->IsHinted() &&
++                CheckAvailableSign(location, "Location Hints on Hint Signs"))
+             {
+                 remoteLocations.push_back(location);
+             }
+@@ -587,9 +582,15 @@ namespace randomizer::logic::hints {
+                 break;
+             }
+             auto hintLocation = remoteLocations[i];
++            // Earlier selections may have reserved this location's only available signs.
++            if (!CheckAvailableSign(hintLocation, "Location Hints on Hint Signs")) {
++                --i;
++                continue;
++            }
+             hintLocation->SetHinted(true);
+             auto hintText = GenerateLocationHintText(hintLocation);
+-            this->_locationHints.emplace_back(hintText, LocationHint{hintLocation});
++            auto& hint = this->_locationHints.emplace_back(hintText, LocationHint{hintLocation});
++            ReserveLimitedAvailabilityHint(hintLocation, "Location Hints on Hint Signs", hint);
+             LOG_TO_DEBUG("Chose " + hintLocation->GetName() + " as remote location hint location")
+         }
+     }
+@@ -598,7 +599,9 @@ namespace randomizer::logic::hints {
+         // Collect all possible locations to hint
+         std::vector<location::Location*> possibleLocationHintLocations{};
+         for (auto location : this->_world->GetAllLocations()) {
+-            if (location->IsProgression() && !location->IsHinted() && !location->HasExpectedItem()) {
++            if (location->IsProgression() && !location->IsHinted() && !location->HasExpectedItem() &&
++                CheckAvailableSign(location, "Location Hints on Hint Signs"))
++            {
+                 possibleLocationHintLocations.push_back(location);
+             }
+         }
+@@ -626,6 +629,11 @@ namespace randomizer::logic::hints {
+             }
+             auto hintLocation = possibleLocationHintLocations.back();
+             possibleLocationHintLocations.pop_back();
++            // Earlier selections may have reserved this location's only available signs.
++            if (!CheckAvailableSign(hintLocation, "Location Hints on Hint Signs")) {
++                --i;
++                continue;
++            }
+             hintLocation->SetHinted(true);
+             auto hintText = GenerateLocationHintText(hintLocation);
+             this->_locationHints.emplace_back(hintText, LocationHint{hintLocation});
+@@ -633,73 +641,165 @@ namespace randomizer::logic::hints {
+         }
+     }
+ 
++    bool HintGenerator::CheckAvailableSign(location::Location* location, const std::string& setting) {
++        if (this->_world->Setting(setting) == "Off") {
++            return true;
++        }
++
++        auto possibleHintSigns = search::GetPossibleHintSigns(location);
++        std::erase_if(possibleHintSigns, [&](location::Location* sign) {
++            const auto& placement = sign->GetWorld()->Setting(setting);
++            return (placement == "Overworld" && sign->HasCategories("Dungeon")) ||
++                   (placement == "Dungeon" && sign->HasCategories("Overworld")) ||
++                   this->_reservedSigns.contains(sign);
++        });
++        return !possibleHintSigns.empty();
++    }
++
++    void HintGenerator::ReserveLimitedAvailabilityHint(location::Location* location,
++                                                       const std::string& setting,
++                                                       Hint& hint)
++    {
++        if (this->_world->Setting(setting) == "Off") {
++            return;
++        }
++
++        auto possibleHintSigns = search::GetPossibleHintSigns(location);
++        std::erase_if(possibleHintSigns, [&](location::Location* sign) {
++            const auto& placement = sign->GetWorld()->Setting(setting);
++            return (placement == "Overworld" && sign->HasCategories("Dungeon")) ||
++                   (placement == "Dungeon" && sign->HasCategories("Overworld")) ||
++                   this->_reservedSigns.contains(sign);
++        });
++
++        // Protect scarce signs while later hints are selected. This guarantees that two
++        // single-sign hints cannot be selected for the same one-capacity sign.
++        if (!possibleHintSigns.empty() && possibleHintSigns.size() <= 2) {
++            hint.reservedSign = utility::random::RandomElement(possibleHintSigns);
++            this->_reservedSigns.insert(hint.reservedSign);
++        }
++    }
++
+     static void AssignHintSignHints(const location::LocationPool& hintSigns, std::vector<Hint> hints, world::World* world) {
+-        size_t hintsPerSign = std::ceil(static_cast<double>(hints.size()) / static_cast<double>(hintSigns.size()));
+         // Don't bother placing hints if there are none
+-        if (hintsPerSign == 0) {
++        if (hints.empty()) {
+             return;
+         }
++        if (hintSigns.empty()) {
++            throw std::runtime_error("Cannot place hint sign hints without any hint signs");
++        }
++
++        size_t hintsPerSign = std::ceil(static_cast<double>(hints.size()) / static_cast<double>(hintSigns.size()));
+         auto& worlds = world->GetRandomizer()->GetWorlds();
+         auto& hintSignHints = world->GetHintSignHints();
+         auto hintSignHintsOriginal = hintSignHints;
+ 
+-        // Keep trying to place hints until all have been logically placed at least once
+-        bool successfullyPlaceHints = false;
+-        int retryCount = 50;
+-        while (!successfullyPlaceHints) {
+-            --retryCount;
+-            if (retryCount < 0) {
+-                throw std::runtime_error("Failed to properly place hint sign hints. "
+-                                         "Try using a different seed for generation");
++        auto getHintLocation = [](const Hint& hint) -> location::Location* {
++            if (auto pathHint = std::get_if<PathHint>(&hint.data)) {
++                return pathHint->hintedLocation;
++            }
++            if (auto itemHint = std::get_if<ItemHint>(&hint.data)) {
++                return itemHint->location;
+             }
++            if (auto locationHint = std::get_if<LocationHint>(&hint.data)) {
++                return locationHint->location;
++            }
++            return nullptr;
++        };
+ 
+-            // Clear any previous attempt at placing hints
+-            successfullyPlaceHints = true;
+-            hintSignHints = hintSignHintsOriginal;
+-
+-            for (auto& hint : hints) {
+-                item::Item* itemAtHintLocation{};
+-                location::Location* hintLocation{};
+-                if (auto pathHint = std::get_if<PathHint>(&hint.data)) {
+-                    hintLocation = pathHint->hintedLocation;
+-                } else if (auto itemHint = std::get_if<ItemHint>(&hint.data)) {
+-                    hintLocation = itemHint->location;
+-                }
+-                else if (auto locationHint = std::get_if<LocationHint>(&hint.data)) {
+-                    hintLocation = locationHint->location;
+-                }
++        // Logical availability for each hint is independent of the sign chosen
++        // for every other hint. Build that bipartite graph once, then match hints
++        // into the remaining per-sign capacity. The old random greedy retry could
++        // reject a valid seed after 50 unlucky assignments.
++        std::vector<location::LocationPool> availableSignsByHint{};
++        availableSignsByHint.reserve(hints.size());
++        for (const auto& hint : hints) {
++            auto* hintLocation = getHintLocation(hint);
++            item::Item* itemAtHintLocation{};
++            if (hintLocation != nullptr) {
++                itemAtHintLocation = hintLocation->GetCurrentItem();
++                hintLocation->RemoveCurrentItem();
++            }
+ 
+-                // Remove this item from the world and see which hint signs are available to place hints
+-                if (hintLocation != nullptr) {
+-                    itemAtHintLocation = hintLocation->GetCurrentItem();
+-                    hintLocation->RemoveCurrentItem();
+-                }
++            auto search = search::Search::Accessible(&worlds);
++            search.SearchWorlds();
+ 
+-                auto search = search::Search::Accessible(&worlds);
+-                search.SearchWorlds();
+-                location::LocationPool availableHintSigns{};
+-                for (const auto& sign : hintSigns) {
+-                    if (search._visitedLocations.contains(sign) && hintSignHints[sign].size() < hintsPerSign) {
+-                        availableHintSigns.emplace_back(sign);
+-                    }
++            if (hintLocation != nullptr) {
++                hintLocation->SetCurrentItem(itemAtHintLocation);
++            }
++
++            location::LocationPool availableHintSigns{};
++            for (auto* sign : hintSigns) {
++                if (search._visitedLocations.contains(sign) &&
++                    hintSignHintsOriginal[sign].size() < hintsPerSign)
++                {
++                    availableHintSigns.emplace_back(sign);
+                 }
++            }
++            if (availableHintSigns.empty()) {
++                throw std::runtime_error(
++                    "No logically accessible hint sign has capacity for hint " +
++                    hint.text.mText[Text::ENGLISH]);
++            }
++            utility::random::ShufflePool(availableHintSigns);
++            availableSignsByHint.emplace_back(std::move(availableHintSigns));
++        }
++
++        location::LocationPool signSlots{};
++        for (auto* sign : hintSigns) {
++            const auto occupiedSlots = hintSignHintsOriginal[sign].size();
++            for (std::size_t slot = occupiedSlots; slot < hintsPerSign; ++slot) {
++                signSlots.emplace_back(sign);
++            }
++        }
++        if (signSlots.size() < hints.size()) {
++            throw std::runtime_error("Not enough hint-sign capacity to place every hint");
++        }
++
++        std::vector<std::size_t> hintOrder{};
++        hintOrder.reserve(hints.size());
++        for (std::size_t hintIndex = 0; hintIndex < hints.size(); ++hintIndex) {
++            hintOrder.emplace_back(hintIndex);
++        }
++        utility::random::ShufflePool(hintOrder);
++        std::stable_sort(hintOrder.begin(), hintOrder.end(), [&](std::size_t left, std::size_t right) {
++            return availableSignsByHint[left].size() < availableSignsByHint[right].size();
++        });
+ 
+-                if (availableHintSigns.empty()) {
+-                    LOG_TO_DEBUG("No available hint signs to place hint " + hint.text.mText[Text::ENGLISH]);
+-                    if (hintLocation != nullptr) {
+-                        hintLocation->SetCurrentItem(itemAtHintLocation);
++        std::vector<int> assignedHintBySlot(signSlots.size(), -1);
++        std::function<bool(std::size_t, std::vector<bool>&)> tryAssignHint;
++        tryAssignHint = [&](std::size_t hintIndex, std::vector<bool>& visitedSlots) {
++            for (auto* sign : availableSignsByHint[hintIndex]) {
++                for (std::size_t slotIndex = 0; slotIndex < signSlots.size(); ++slotIndex) {
++                    if (signSlots[slotIndex] != sign || visitedSlots[slotIndex]) {
++                        continue;
++                    }
++                    visitedSlots[slotIndex] = true;
++                    const auto displacedHint = assignedHintBySlot[slotIndex];
++                    if (displacedHint < 0 ||
++                        tryAssignHint(static_cast<std::size_t>(displacedHint), visitedSlots))
++                    {
++                        assignedHintBySlot[slotIndex] = static_cast<int>(hintIndex);
++                        return true;
+                     }
+-                    successfullyPlaceHints = false;
+-                    break;
+                 }
++            }
++            return false;
++        };
+ 
+-                // Place the hint at the hint sign
+-                auto hintSign = utility::random::RandomElement(availableHintSigns);
+-                hintSignHints[hintSign].push_back(hint);
++        for (const auto hintIndex : hintOrder) {
++            std::vector<bool> visitedSlots(signSlots.size(), false);
++            if (!tryAssignHint(hintIndex, visitedSlots)) {
++                throw std::runtime_error(
++                    "No capacity-aware logical assignment exists for all hint sign hints");
++            }
++        }
+ 
+-                if (hintLocation != nullptr) {
+-                    hintLocation->SetCurrentItem(itemAtHintLocation);
+-                }
++        hintSignHints = hintSignHintsOriginal;
++        for (std::size_t slotIndex = 0; slotIndex < signSlots.size(); ++slotIndex) {
++            if (assignedHintBySlot[slotIndex] >= 0) {
++                hintSignHints[signSlots[slotIndex]].push_back(
++                    hints[static_cast<std::size_t>(assignedHintBySlot[slotIndex])]);
+             }
+         }
+ 
+@@ -992,8 +1092,8 @@ namespace randomizer::logic::hints {
+                 if (!hints.empty()) {
+                     midnaHintText += getTextObject("Midna Hints " + type + " Intro");
+                     midnaHintText.PadToNextBox();
+-                    for (auto& [text, data] : hints) {
+-                        midnaHintText += text;
++                    for (const auto& hint : hints) {
++                        midnaHintText += hint.text;
+                         midnaHintText.PadToNextBox();
+                     }
+                 }
+@@ -1005,8 +1105,8 @@ namespace randomizer::logic::hints {
+             if (!midnaBarrenHints.empty()) {
+                 midnaHintText += getTextObject("Midna Hints Barren Hints Intro");
+                 midnaHintText.PadToNextBox();
+-                for (auto& [text, data] : midnaBarrenHints) {
+-                    midnaHintText += addColor(getTextObject(std::get<BarrenHint>(data).region), Text::PURPLE) + "\n";
++                for (const auto& hint : midnaBarrenHints) {
++                    midnaHintText += addColor(getTextObject(std::get<BarrenHint>(hint.data).region), Text::PURPLE) + "\n";
+                 }
+                 midnaHintText.PadToNextBox();
+             }
+diff --git a/src/dusk/randomizer/generator/logic/hints.hpp b/src/dusk/randomizer/generator/logic/hints.hpp
+index 1839ee4e5a..f932b26c29 100644
+--- a/src/dusk/randomizer/generator/logic/hints.hpp
++++ b/src/dusk/randomizer/generator/logic/hints.hpp
+@@ -3,6 +3,7 @@
+ #include "hint_types.hpp"
+ 
+ #include <memory>
++#include <unordered_set>
+ 
+ namespace randomizer::logic::world {
+ class World;
+@@ -24,13 +25,17 @@ public:
+     void FinalizeHintSignText();
+ 
+ private:
++    bool CheckAvailableSign(location::Location* location, const std::string& setting);
++    void ReserveLimitedAvailabilityHint(location::Location* location, const std::string& setting, Hint& hint);
++
+     world::World* _world{};
+     std::vector<Hint> _pathHints{};
+     std::vector<Hint> _barrenHints{};
+     std::vector<Hint> _itemHints{};
+     std::vector<Hint> _locationHints{};
++    std::unordered_set<location::Location*> _reservedSigns{};
+ };
+ 
+ void GenerateAllHints(world::WorldPool& worldPool);
+ 
+-}
+\ No newline at end of file
++}
 diff --git a/src/dusk/randomizer/generator/logic/item_pool.cpp b/src/dusk/randomizer/generator/logic/item_pool.cpp
 index 7eb491cfd1..e162b20113 100644
 --- a/src/dusk/randomizer/generator/logic/item_pool.cpp
@@ -480,3 +897,106 @@ index 682f5f0dc4..817ff07074 100644
          self.assertIn("location->AddForbiddenItem(soul)", safety)
          self.assertIn("== definition.itemId", safety)
          self.assertIn("AddEnemyFirstDefeatLocations();", self.world)
+diff --git a/tools/tests/test_hint_sign_assignment.py b/tools/tests/test_hint_sign_assignment.py
+new file mode 100644
+index 0000000000..2babcd8db5
+--- /dev/null
++++ b/tools/tests/test_hint_sign_assignment.py
+@@ -0,0 +1,97 @@
++from pathlib import Path
++import unittest
++
++
++ROOT = Path(__file__).resolve().parents[2]
++HINTS_SOURCE = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "hints.cpp"
++)
++HINTS_HEADER = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "hints.hpp"
++)
++HINT_TYPES_HEADER = (
++    ROOT / "src" / "dusk" / "randomizer" / "generator" / "logic" / "hint_types.hpp"
++)
++
++
++class HintSignAssignmentTests(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.source = HINTS_SOURCE.read_text(encoding="utf-8")
++        cls.header = HINTS_HEADER.read_text(encoding="utf-8")
++        cls.hint_types = HINT_TYPES_HEADER.read_text(encoding="utf-8")
++        start = cls.source.index("static void AssignHintSignHints")
++        end = cls.source.index("void HintGenerator::DistributeHints", start)
++        cls.assignment = cls.source[start:end]
++
++    def test_empty_hint_pool_is_checked_before_dividing_by_sign_count(self):
++        empty_check = self.assignment.index("if (hints.empty())")
++        sign_check = self.assignment.index("if (hintSigns.empty())")
++        division = self.assignment.index("size_t hintsPerSign")
++
++        self.assertLess(empty_check, sign_check)
++        self.assertLess(sign_check, division)
++
++    def test_logical_hint_placement_uses_capacity_aware_matching(self):
++        for marker in (
++            "availableSignsByHint",
++            "signSlots",
++            "assignedHintBySlot",
++            "tryAssignHint",
++            "visitedSlots",
++        ):
++            self.assertIn(marker, self.assignment)
++
++        self.assertNotIn("retryCount = 50", self.assignment)
++        self.assertNotIn("successfullyPlaceHints", self.assignment)
++
++    def test_constrained_hints_are_matched_before_duplicates_are_filled(self):
++        matching = self.assignment.index("tryAssignHint =")
++        commit = self.assignment.index("hintSignHints = hintSignHintsOriginal", matching)
++        duplicates = self.assignment.index("auto duplicateHints = hints")
++
++        self.assertLess(matching, commit)
++        self.assertLess(commit, duplicates)
++
++    def test_scarce_hint_signs_are_reserved_while_hints_are_selected(self):
++        for marker in (
++            "bool HintGenerator::CheckAvailableSign",
++            "void HintGenerator::ReserveLimitedAvailabilityHint",
++            "this->_reservedSigns.contains(sign)",
++            "possibleHintSigns.size() <= 2",
++            "hint.reservedSign =",
++            "this->_reservedSigns.insert(hint.reservedSign)",
++        ):
++            self.assertIn(marker, self.source)
++
++        self.assertIn("std::unordered_set<location::Location*> _reservedSigns", self.header)
++        self.assertIn("location::Location* reservedSign = nullptr", self.hint_types)
++
++    def test_all_location_based_hint_types_check_sign_availability(self):
++        self.assertIn(
++            'CheckAvailableSign(location, "Path Hints on Hint Signs")',
++            self.source,
++        )
++        self.assertGreaterEqual(
++            self.source.count(
++                'CheckAvailableSign(hintLocation, "Item Hints on Hint Signs")'
++            ),
++            1,
++        )
++        self.assertGreaterEqual(
++            self.source.count(
++                'CheckAvailableSign(hintLocation, "Location Hints on Hint Signs")'
++            ),
++            2,
++        )
++
++    def test_scarce_path_item_and_remote_hints_record_reservations(self):
++        for hint_type in ("Path", "Item", "Location"):
++            self.assertIn(
++                f'ReserveLimitedAvailabilityHint(hintLocation, "{hint_type} Hints on Hint Signs", hint)',
++                self.source,
++            )
++
++
++if __name__ == "__main__":
++    unittest.main()

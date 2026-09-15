@@ -1,5 +1,5 @@
 name: Build Runtime Load and Shop Hotfix 658
-# Build control revision: runtime-load-shop-and-soul-fill-stability-v6
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v7
 
 on:
   push:
@@ -1724,7 +1724,7 @@ jobs:
           }
 
 
-      - name: Apply .658 Enemy Soul hostile-seed fill-priority hardening
+      - name: Apply .658 Enemy Soul hostile-seed and hint-placement hardening
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1739,13 +1739,19 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '5b23c4fcc68574627b3fb32870454038aadbb092e328c81996c43382d1732e06') {
+          if ($patchHash -ne 'fc41c732d206c1f45d2fd8028901244515e7c0c0a8785ba91910f9e0ce397cf2') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
-          $fillSource = Join-Path $env:TPR_SRC 'src\dusk\randomizer\generator\logic\fill.cpp'
-          $fillText = [IO.File]::ReadAllText($fillSource).Replace($crlf, $lf)
-          [IO.File]::WriteAllText($fillSource, $fillText, $utf8NoBom)
+          $pathMatches = [regex]::Matches($patchText, '(?m)^diff --git a/(.+?) b/(.+?)$')
+          foreach ($match in $pathMatches) {
+            $relative = $match.Groups[2].Value
+            $sourcePath = Join-Path $env:TPR_SRC $relative
+            if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
+              $sourceText = [IO.File]::ReadAllText($sourcePath).Replace($crlf, $lf)
+              [IO.File]::WriteAllText($sourcePath, $sourceText, $utf8NoBom)
+            }
+          }
 
           Push-Location "$env:TPR_SRC"
           try {
@@ -1761,67 +1767,6 @@ jobs:
           finally {
             Pop-Location
           }
-
-      - name: Apply deterministic hint-sign reservation hotfix
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $env:TPR_HINTS_SOURCE = Join-Path $env:TPR_SRC 'src\dusk\randomizer\generator\logic\hints.cpp'
-          @'
-          import os
-          from pathlib import Path
-
-          path = Path(os.environ["TPR_HINTS_SOURCE"])
-          text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
-          snapshot = "auto hintSignHintsOriginal = hintSignHints;"
-          if text.count(snapshot) != 1:
-              raise RuntimeError("Expected exactly one pre-reservation hint snapshot")
-
-          snapshot_index = text.index(snapshot)
-          snapshot_line_start = text.rfind("\n", 0, snapshot_index) + 1
-          snapshot_line_end = text.index("\n", snapshot_index) + 1
-          indent = text[snapshot_line_start:snapshot_index]
-          text = text[:snapshot_line_start] + text[snapshot_line_end:]
-
-          reservation_marker = "// Assign hints that are reserved for a specific sign"
-          retry_marker = "// Keep trying to place hints until all have been logically placed at least once"
-          reservation_index = text.index(reservation_marker)
-          retry_index = text.index(retry_marker, reservation_index)
-          retry_line_start = text.rfind("\n", 0, retry_index) + 1
-          replacement_snapshot = indent + "const auto hintSignHintsOriginal = hintSignHints;\n\n"
-          text = text[:retry_line_start] + replacement_snapshot + text[retry_line_start:]
-
-          reset_index = text.index("hintSignHints = hintSignHintsOriginal;", retry_line_start)
-          loop_marker = "for (auto& hint : hints)"
-          loop_index = text.index(loop_marker, reset_index)
-          brace_index = text.index("{", loop_index + len(loop_marker))
-          brace_line_end = text.index("\n", brace_index) + 1
-          loop_line_start = text.rfind("\n", 0, loop_index) + 1
-          loop_indent = text[loop_line_start:loop_index]
-          body_indent = loop_indent + "    "
-          guard = (
-              body_indent + "// Reserved hints are already logically placed and consume capacity.\n"
-              + body_indent + "if (hint.reservedSign != nullptr)\n"
-              + body_indent + "{\n"
-              + body_indent + "    continue;\n"
-              + body_indent + "}\n\n"
-          )
-          text = text[:brace_line_end] + guard + text[brace_line_end:]
-
-          if text.count("hintSignHintsOriginal = hintSignHints;") != 1:
-              raise RuntimeError("Hint snapshot rewrite was not unique")
-          snapshot_index = text.index("const auto hintSignHintsOriginal = hintSignHints;")
-          if not (reservation_index < snapshot_index < text.index(retry_marker, reservation_index)):
-              raise RuntimeError("Hint snapshot was not moved after reservations")
-          if text.count("Reserved hints are already logically placed and consume capacity.") != 1:
-              raise RuntimeError("Reserved-hint guard was not installed exactly once")
-
-          path.write_text(text, encoding="utf-8", newline="\n")
-          '@ | python -
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not apply the deterministic hint-sign reservation hotfix.'
-          }
-          Remove-Item Env:TPR_HINTS_SOURCE -ErrorAction SilentlyContinue
 
       - name: Advance private package identity to .658
         shell: powershell
@@ -1892,23 +1837,18 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='GetExpectedEnemyFirstDefeatCount' },
             @{ Path='src\dusk\randomizer\game\enemy_soul_catalog.hpp'; Text='FirstDefeatAvailability::LanayruTwilight' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='auto enemySoulItems = utility::container::FilterAndEraseFromVector' },
-            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='categories.contains("Enemy First Defeat")' },
-            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Faron Twilit Insect Soul"] = 1' },
-            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Eldin Twilit Insect Soul"] = 1' },
-            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Lanayru Twilit Insect Soul"] = 1' },
-            @{ Path='src\dusk\randomizer\generator\logic\item_pool.cpp'; Text='startingItems["Twilit Bloat Soul"] = 1' },
+            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='location->HasCategories("Enemy First Defeat")' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='-1, 250, true);' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='tryEveryItemBeforeRetry && !itemsToPlace.empty()' },
             @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='node["Soul Item Id"].as<int>() == definition.itemId' },
-            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='first_defeat_availability(definition.itemId)' },
-            @{ Path='src\dusk\randomizer\generator\logic\world.cpp'; Text='this->GetItem("Lanayru Twilight Tear")' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_soul_fill_exhausts_alternative_items_before_retrying' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
-            @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_major_fill_keeps_exhaustive_continuations_after_soul_placement' },
-            @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_failed_major_fill_rerolls_the_constrained_soul_topology' },
-            @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='kSoulMajorTopologyRetries = 25' },
-            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='Reserved hints are already logically placed and consume capacity.' },
-            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='const auto hintSignHintsOriginal = hintSignHints;' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='bool HintGenerator::CheckAvailableSign' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='this->_reservedSigns.insert(hint.reservedSign)' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='availableSignsByHint' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='tryAssignHint' },
+            @{ Path='tools\tests\test_hint_sign_assignment.py'; Text='test_scarce_hint_signs_are_reserved_while_hints_are_selected' },
+            @{ Path='tools\tests\test_hint_sign_assignment.py'; Text='test_logical_hint_placement_uses_capacity_aware_matching' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_enemy_souls_never_collide_with_existing_item_names_or_ids' },
@@ -2534,9 +2474,9 @@ jobs:
 
           $stressPresets = @(
             @{ Name = 'enemy souls cleared twilights'; Code = 'ESCT' },
+            @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' },
             @{ Name = 'enemy souls max entrance rando'; Code = 'ESME' },
-            @{ Name = 'random cave entrances'; Code = 'CAVE' },
-            @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' }
+            @{ Name = 'random cave entrances'; Code = 'CAVE' }
           )
           $iterationsPerPreset = [int]$env:TPR_STRESS_ITERATIONS
           if ($iterationsPerPreset -lt 1 -or $iterationsPerPreset -gt 250) {
@@ -2671,15 +2611,9 @@ jobs:
           PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
 
           Enemy Souls are now partitioned and placed before unrestricted major items, reserving
-          checks that can safely serialize extended Soul IDs. The four mandatory Twilight quest
-          targets are granted at start so their own Tears cannot precede the Souls that enable them;
-          the remaining 81 Souls use dependency-aware reverse fill and a final reachability proof.
-          First-defeat logic records those unavoidable Twilight encounters as durable milestones.
-          Ordinary progression placement exhausts valid item continuations after the constrained
-          Soul pass. If that phase still cannot complete, both phases are retried with a new safe
-          Soul topology instead of abandoning a completable hostile seed.
-          Hint-sign reservations now survive assignment retries and count as the hint's logical
-          placement, preventing impossible duplicate-capacity demands on constrained signs.
+          checks that can safely serialize extended Soul IDs. This prevents ordinary progression
+          items from consuming the limited Soul-compatible location set and makes hostile combined
+          settings generate reliably without weakening the final all-Souls reachability proof.
 
           This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
