@@ -1762,22 +1762,66 @@ jobs:
             Pop-Location
           }
 
-      - name: Emit exact hint allocator diagnostic
-        if: contains(github.event.head_commit.message, '[hint-source-only]')
+      - name: Apply deterministic hint-sign reservation hotfix
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $path = Join-Path $env:TPR_SRC 'src\dusk\randomizer\generator\logic\hints.cpp'
-          $text = [IO.File]::ReadAllText($path)
-          $start = $text.IndexOf('void HintGenerator::AssignHintSignHints')
-          $end = $text.IndexOf('void HintGenerator::DistributeHints', $start)
-          if ($start -lt 0 -or $end -le $start) {
-            throw 'Could not isolate the assembled hint allocator.'
+          $env:TPR_HINTS_SOURCE = Join-Path $env:TPR_SRC 'src\dusk\randomizer\generator\logic\hints.cpp'
+          @'
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["TPR_HINTS_SOURCE"])
+          text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+          snapshot = "auto hintSignHintsOriginal = hintSignHints;"
+          if text.count(snapshot) != 1:
+              raise RuntimeError("Expected exactly one pre-reservation hint snapshot")
+
+          snapshot_index = text.index(snapshot)
+          snapshot_line_start = text.rfind("\n", 0, snapshot_index) + 1
+          snapshot_line_end = text.index("\n", snapshot_index) + 1
+          indent = text[snapshot_line_start:snapshot_index]
+          text = text[:snapshot_line_start] + text[snapshot_line_end:]
+
+          reservation_marker = "// Assign hints that are reserved for a specific sign"
+          retry_marker = "// Keep trying to place hints until all have been logically placed at least once"
+          reservation_index = text.index(reservation_marker)
+          retry_index = text.index(retry_marker, reservation_index)
+          retry_line_start = text.rfind("\n", 0, retry_index) + 1
+          replacement_snapshot = indent + "const auto hintSignHintsOriginal = hintSignHints;\n\n"
+          text = text[:retry_line_start] + replacement_snapshot + text[retry_line_start:]
+
+          reset_index = text.index("hintSignHints = hintSignHintsOriginal;", retry_line_start)
+          loop_marker = "for (auto& hint : hints)"
+          loop_index = text.index(loop_marker, reset_index)
+          brace_index = text.index("{", loop_index + len(loop_marker))
+          brace_line_end = text.index("\n", brace_index) + 1
+          loop_line_start = text.rfind("\n", 0, loop_index) + 1
+          loop_indent = text[loop_line_start:loop_index]
+          body_indent = loop_indent + "    "
+          guard = (
+              body_indent + "// Reserved hints are already logically placed and consume capacity.\n"
+              + body_indent + "if (hint.reservedSign != nullptr)\n"
+              + body_indent + "{\n"
+              + body_indent + "    continue;\n"
+              + body_indent + "}\n\n"
+          )
+          text = text[:brace_line_end] + guard + text[brace_line_end:]
+
+          if text.count("hintSignHintsOriginal = hintSignHints;") != 1:
+              raise RuntimeError("Hint snapshot rewrite was not unique")
+          snapshot_index = text.index("const auto hintSignHintsOriginal = hintSignHints;")
+          if not (reservation_index < snapshot_index < text.index(retry_marker, reservation_index)):
+              raise RuntimeError("Hint snapshot was not moved after reservations")
+          if text.count("Reserved hints are already logically placed and consume capacity.") != 1:
+              raise RuntimeError("Reserved-hint guard was not installed exactly once")
+
+          path.write_text(text, encoding="utf-8", newline="\n")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not apply the deterministic hint-sign reservation hotfix.'
           }
-          $snippet = $text.Substring($start, $end - $start)
-          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($snippet))
-          Write-Host "TPR_HINT_ASSIGN_B64:$encoded"
-          throw 'Intentional hint-source-only diagnostic stop.'
+          Remove-Item Env:TPR_HINTS_SOURCE -ErrorAction SilentlyContinue
 
       - name: Advance private package identity to .658
         shell: powershell
@@ -1863,6 +1907,8 @@ jobs:
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_major_fill_keeps_exhaustive_continuations_after_soul_placement' },
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_failed_major_fill_rerolls_the_constrained_soul_topology' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='kSoulMajorTopologyRetries = 25' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='Reserved hints are already logically placed and consume capacity.' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='const auto hintSignHintsOriginal = hintSignHints;' },
             @{ Path='src\dusk\randomizer\generator\logic\fill.cpp'; Text='Enemy Soul safety verification failed; unreachable Souls' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_shared_profiles_cannot_create_boss_self_locks_or_helper_checks' },
             @{ Path='tools\tests\test_enemy_souls.py'; Text='test_enemy_souls_never_collide_with_existing_item_names_or_ids' },
@@ -2487,10 +2533,10 @@ jobs:
           }
 
           $stressPresets = @(
-            @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' },
             @{ Name = 'enemy souls cleared twilights'; Code = 'ESCT' },
             @{ Name = 'enemy souls max entrance rando'; Code = 'ESME' },
-            @{ Name = 'random cave entrances'; Code = 'CAVE' }
+            @{ Name = 'random cave entrances'; Code = 'CAVE' },
+            @{ Name = 'enemy souls and first defeats'; Code = 'ESFD' }
           )
           $iterationsPerPreset = [int]$env:TPR_STRESS_ITERATIONS
           if ($iterationsPerPreset -lt 1 -or $iterationsPerPreset -gt 250) {
@@ -2632,6 +2678,8 @@ jobs:
           Ordinary progression placement exhausts valid item continuations after the constrained
           Soul pass. If that phase still cannot complete, both phases are retried with a new safe
           Soul topology instead of abandoning a completable hostile seed.
+          Hint-sign reservations now survive assignment retries and count as the hint's logical
+          placement, preventing impossible duplicate-capacity demands on constrained signs.
 
           This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
