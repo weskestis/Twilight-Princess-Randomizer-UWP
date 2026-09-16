@@ -11,6 +11,29 @@ index a71a91adab..08231da04d 100644
  
  - Name: Enemy First-Defeat Checks
    Need In Game: True
+diff --git a/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp b/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
+index 1efe66e885..7fa089ee22 100644
+--- a/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
++++ b/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
+@@ -878,9 +878,15 @@ namespace randomizer::logic::entrance_shuffle
+         auto sphereZeroSearch = search::Search::SphereZero(&worlds);
+         sphereZeroSearch.SearchWorlds();
+         const auto& foundLocations = sphereZeroSearch._visitedLocations;
+-        const auto numSphereZeroLocations = std::ranges::count_if(foundLocations, [](const auto& location) {
+-            return location->IsProgression();
+-        });
++        const auto numSphereZeroLocations = std::ranges::count_if(
++            foundLocations, [](const auto& location) {
++                // Hint signs and other graph-only locations participate in
++                // search so hints can be routed to them, but they cannot hold
++                // an item. They therefore cannot bootstrap an entrance-
++                // shuffled seed on their own.
++                return location->IsProgression() &&
++                       !location->HasCategories("Non-Item Location");
++            });
+ 
+         // If there are no sphere zero locations available and we didn't find an accessible disconnected exit, then this world will not
+         // be valid. Often times when many entrances are randomized we won't find any locations, but will find accessible disconnected
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
 index 289d127249..f01b9f388e 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
@@ -921,6 +944,31 @@ index 682f5f0dc4..817ff07074 100644
          self.assertIn("location->AddForbiddenItem(soul)", safety)
          self.assertIn("== definition.itemId", safety)
          self.assertIn("AddEnemyFirstDefeatLocations();", self.world)
+diff --git a/tools/tests/test_entrance_runtime_data.py b/tools/tests/test_entrance_runtime_data.py
+index f59f930d7b..6a547279ac 100644
+--- a/tools/tests/test_entrance_runtime_data.py
++++ b/tools/tests/test_entrance_runtime_data.py
+@@ -154,6 +154,20 @@ class EntranceRuntimeDataTests(unittest.TestCase):
+         )
+         self.assertIn("may also remain vanilla", on_description)
+ 
++    def test_sphere_zero_requires_a_fillable_item_location(self):
++        count_start = self.shuffle_source.index(
++            "const auto numSphereZeroLocations"
++        )
++        count_end = self.shuffle_source.index(
++            "if (numSphereZeroLocations == 0", count_start
++        )
++        count_block = self.shuffle_source[count_start:count_end]
++
++        self.assertIn("location->IsProgression()", count_block)
++        self.assertIn(
++            '!location->HasCategories("Non-Item Location")', count_block
++        )
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
 diff --git a/tools/tests/test_hint_sign_assignment.py b/tools/tests/test_hint_sign_assignment.py
 new file mode 100644
 index 0000000000..4a9d4bdda1
