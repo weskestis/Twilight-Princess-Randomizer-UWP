@@ -1,5 +1,5 @@
 name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-659-city-v1
+# Build control revision: full-entrance-randomizer-659-city-v2-null-goal-retry
 
 on:
   push:
@@ -1833,7 +1833,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'full-entrance-randomizer-659.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne '90a2c10849e99205f191c1a3ffb53b48f029afe5ef003d0816892b311d23fa73') {
+          if ($gzipHash -ne 'd913744910d3eea30ed2110798a75cfd20b07e305d20855eabb3ef027863ea7a') {
             throw "Compressed .659 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -1852,7 +1852,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '90221dc3cfdca4b09063cdd281ba264931a0ead0e381e0392f4a59d825df4898') {
+          if ($patchHash -ne '75a09347b7518697aac8119a6ce595148fe6fc7c10a89cb95fc605d3d4fc2263') {
             throw "Decoded .659 patch SHA-256 mismatch: $patchHash"
           }
 
@@ -2084,6 +2084,9 @@ jobs:
             @{ Path='src\dusk\ui\rando_config.cpp'; Text='pools.push_back({"Dungeon", "Boss", "Grotto", "Cave", "Interior", "Overworld"})' },
             @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_city_in_the_sky_is_in_the_full_dungeon_pool' },
             @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_wide_runtime_format_supports_custom_spawn_5000_and_old_seeds' },
+            @{ Path='src\dusk\randomizer\generator\logic\dungeon.hpp'; Text='location::Location* _goalLocation = nullptr;' },
+            @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='Skipping path-hint goal for required dungeon without a reachable goal location' },
+            @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_missing_shuffled_dungeon_goals_are_null_safe_for_hints' },
             @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Dungeon entrance shuffle", audit.dungeonEntrances)' },
             @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Boss entrance shuffle", audit.bossEntrances)' },
             @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='randomizer.expanded_shops.v1' },
@@ -2160,7 +2163,17 @@ jobs:
         run: |
           choco install ninja -y --no-progress
           if (Test-Path 'C:\vcpkg\vcpkg.exe') {
-            C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              & C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
+              if ($LASTEXITCODE -eq 0) {
+                break
+              }
+              if ($attempt -eq 3) {
+                throw "vcpkg dependency installation failed after $attempt attempts."
+              }
+              Write-Warning "vcpkg dependency installation attempt $attempt failed; retrying."
+              Start-Sleep -Seconds (10 * $attempt)
+            }
           }
 
       - name: Configure working .627 game core
