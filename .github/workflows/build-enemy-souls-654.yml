@@ -1,5 +1,5 @@
 name: Build Runtime Load and Shop Hotfix 658
-# Build control revision: runtime-load-shop-and-soul-fill-stability-v10
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v11
 
 on:
   push:
@@ -15,33 +15,54 @@ jobs:
     name: .658 stress - ${{ matrix.preset_code }} ${{ matrix.seed_start }}-${{ matrix.seed_end }}
     strategy:
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 9
       matrix:
         include:
           - preset_name: enemy souls cleared twilights
             preset_code: ESCT
             seed_start: 1
             seed_end: 125
+            seed_timeout_ms: 180000
           - preset_name: enemy souls cleared twilights
             preset_code: ESCT
             seed_start: 126
             seed_end: 250
+            seed_timeout_ms: 180000
           - preset_name: enemy souls and first defeats
             preset_code: ESFD
             seed_start: 1
             seed_end: 250
+            seed_timeout_ms: 180000
           - preset_name: enemy souls max entrance rando
             preset_code: ESME
             seed_start: 1
+            seed_end: 73
+            seed_timeout_ms: 600000
+          - preset_name: enemy souls max entrance rando
+            preset_code: ESME
+            seed_start: 74
             seed_end: 125
+            seed_timeout_ms: 600000
           - preset_name: enemy souls max entrance rando
             preset_code: ESME
             seed_start: 126
+            seed_end: 203
+            seed_timeout_ms: 600000
+          - preset_name: enemy souls max entrance rando
+            preset_code: ESME
+            seed_start: 204
+            seed_end: 204
+            seed_timeout_ms: 600000
+          - preset_name: enemy souls max entrance rando
+            preset_code: ESME
+            seed_start: 205
             seed_end: 250
+            seed_timeout_ms: 600000
           - preset_name: random cave entrances
             preset_code: CAVE
             seed_start: 1
             seed_end: 250
+            seed_timeout_ms: 180000
     runs-on: windows-2022
     timeout-minutes: 360
 
@@ -1768,7 +1789,7 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '057e1533af3d38aeb55eb66d7440b8af9c9744a5ecadce918c266d5a9d56217d') {
+          if ($patchHash -ne '05beaa0365876cd88050baa703ac2015f8814ef2b0d4623cb75cedcfc708bd21') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
@@ -1874,6 +1895,8 @@ jobs:
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
             @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='!location->HasCategories("Non-Item Location")' },
             @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_sphere_zero_requires_a_fillable_item_location' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='kEntrancePoolRetryBudget = 250' },
+            @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_large_entrance_pools_get_a_stress_proven_retry_budget' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='bool HintGenerator::CheckAvailableSign' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='HintGenerator::GetAvailableHintSigns' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='_possibleHintSignsByLocation.try_emplace' },
@@ -2355,6 +2378,7 @@ jobs:
           TPR_STRESS_CODE: ${{ matrix.preset_code }}
           TPR_STRESS_START: ${{ matrix.seed_start }}
           TPR_STRESS_END: ${{ matrix.seed_end }}
+          TPR_STRESS_TIMEOUT_MS: ${{ matrix.seed_timeout_ms }}
         run: |
           $ErrorActionPreference = 'Stop'
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -2515,10 +2539,13 @@ jobs:
           $presetCode = $env:TPR_STRESS_CODE
           $firstIteration = [int]$env:TPR_STRESS_START
           $lastIteration = [int]$env:TPR_STRESS_END
+          $seedTimeoutMilliseconds = [int]$env:TPR_STRESS_TIMEOUT_MS
           if ([string]::IsNullOrWhiteSpace($presetName) -or
               [string]::IsNullOrWhiteSpace($presetCode) -or
               $firstIteration -lt 1 -or $lastIteration -gt 250 -or
-              $firstIteration -gt $lastIteration) {
+              $firstIteration -gt $lastIteration -or
+              $seedTimeoutMilliseconds -lt 180000 -or
+              $seedTimeoutMilliseconds -gt 600000) {
             throw "Invalid hostile-seed shard: preset='$presetName', code='$presetCode', range=$firstIteration-$lastIteration."
           }
 
@@ -2537,8 +2564,11 @@ jobs:
             'ESCT:1-125',
             'ESCT:126-250',
             'ESFD:1-250',
-            'ESME:1-125',
-            'ESME:126-250',
+            'ESME:1-73',
+            'ESME:74-125',
+            'ESME:126-203',
+            'ESME:204-204',
+            'ESME:205-250',
             'CAVE:1-250'
           )
           $shardKey = '{0}:{1}-{2}' -f $presetCode, $firstIteration, $lastIteration
@@ -2583,12 +2613,13 @@ jobs:
                 $result = Invoke-StressProcess `
                   -FilePath $testExecutable `
                   -WorkingDirectory $env:TPR_SRC `
-                  -TimeoutMilliseconds 180000
+                  -TimeoutMilliseconds $seedTimeoutMilliseconds
                 $seedTimer.Stop()
                 $combinedOutput = $result.StdOut + "`n" + $result.StdErr
                 if ($result.TimedOut) {
                   Write-Host $combinedOutput
-                  throw "Seed stress timed out after 180 seconds: preset='$presetName', seed='$seed'."
+                  $timeoutSeconds = [int]($seedTimeoutMilliseconds / 1000)
+                  throw "Seed stress timed out after $timeoutSeconds seconds: preset='$presetName', seed='$seed'."
                 }
                 if ($null -eq $result.ExitCode) {
                   throw "Seed stress harness could not read the exit code: preset='$presetName', seed='$seed'."

@@ -15,6 +15,19 @@ diff --git a/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp b/src/dusk
 index 1efe66e885..7fa089ee22 100644
 --- a/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
 +++ b/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
+@@ -150,7 +150,11 @@ namespace randomizer::logic::entrance_shuffle
+         // Shuffle the rest of the entrance pools
++        // Large hostile pools can need more than upstream's 20 random greedy
++        // attempts even when a valid assignment exists. Every rejected attempt
++        // is fully rolled back, so keep searching instead of rejecting the seed.
++        constexpr int kEntrancePoolRetryBudget = 250;
+         for (auto& [entranceType, entrancePool] : entrancePools)
+         {
+-            ShuffleEntrancePool(entrancePool, targetEntrancePools[entranceType]);
++            ShuffleEntrancePool(entrancePool, targetEntrancePools[entranceType], kEntrancePoolRetryBudget);
+         }
+ 
+         // Validate the world one last time to ensure everything worked
 @@ -878,9 +878,15 @@ namespace randomizer::logic::entrance_shuffle
          auto sphereZeroSearch = search::Search::SphereZero(&worlds);
          sphereZeroSearch.SearchWorlds();
@@ -948,10 +961,24 @@ diff --git a/tools/tests/test_entrance_runtime_data.py b/tools/tests/test_entran
 index f59f930d7b..6a547279ac 100644
 --- a/tools/tests/test_entrance_runtime_data.py
 +++ b/tools/tests/test_entrance_runtime_data.py
-@@ -154,6 +154,20 @@ class EntranceRuntimeDataTests(unittest.TestCase):
+@@ -154,6 +154,34 @@ class EntranceRuntimeDataTests(unittest.TestCase):
          )
          self.assertIn("may also remain vanilla", on_description)
  
++    def test_large_entrance_pools_get_a_stress_proven_retry_budget(self):
++        shuffle_start = self.shuffle_source.index(
++            "// Shuffle the rest of the entrance pools"
++        )
++        shuffle_end = self.shuffle_source.index(
++            "// Validate the world one last time", shuffle_start
++        )
++        shuffle_block = self.shuffle_source[shuffle_start:shuffle_end]
++
++        self.assertIn(
++            "constexpr int kEntrancePoolRetryBudget = 250;", shuffle_block
++        )
++        self.assertIn("kEntrancePoolRetryBudget);", shuffle_block)
++
 +    def test_sphere_zero_requires_a_fillable_item_location(self):
 +        count_start = self.shuffle_source.index(
 +            "const auto numSphereZeroLocations"
