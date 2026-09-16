@@ -1,5 +1,5 @@
 name: Build Runtime Load and Shop Hotfix 658
-# Build control revision: runtime-load-shop-and-soul-fill-stability-v11
+# Build control revision: runtime-load-shop-and-soul-fill-stability-v12
 
 on:
   push:
@@ -1789,7 +1789,7 @@ jobs:
           $patchText = [IO.File]::ReadAllText($patch).Replace($crlf, $lf)
           [IO.File]::WriteAllText($patch, $patchText, $utf8NoBom)
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '05beaa0365876cd88050baa703ac2015f8814ef2b0d4623cb75cedcfc708bd21') {
+          if ($patchHash -ne 'cdc32483885dcc57352375c098b702c24fa172ce141e509409d824143949569c') {
             throw "Enemy Soul fill-priority patch SHA-256 mismatch: $patchHash"
           }
 
@@ -1895,8 +1895,11 @@ jobs:
             @{ Path='tools\tests\test_enemy_soul_fill_priority.py'; Text='test_constrained_souls_are_removed_before_general_major_fill' },
             @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='!location->HasCategories("Non-Item Location")' },
             @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_sphere_zero_requires_a_fillable_item_location' },
-            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='kEntrancePoolRetryBudget = 250' },
-            @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_large_entrance_pools_get_a_stress_proven_retry_budget' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='kEntrancePoolRetryBudget = 16' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='kEntrancePoolBacktrackBudget = 16' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='auto candidateTargets = targetEntrancePool' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.hpp'; Text='std::size_t& remainingBacktracks' },
+            @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_large_entrance_pools_use_bounded_local_backtracking' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='bool HintGenerator::CheckAvailableSign' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='HintGenerator::GetAvailableHintSigns' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='_possibleHintSignsByLocation.try_emplace' },

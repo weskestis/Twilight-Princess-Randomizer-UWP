@@ -12,23 +12,183 @@ index a71a91adab..08231da04d 100644
  - Name: Enemy First-Defeat Checks
    Need In Game: True
 diff --git a/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp b/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
-index 1efe66e885..7fa089ee22 100644
+index 1efe66e885..b4127fa430 100644
 --- a/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
 +++ b/src/dusk/randomizer/generator/logic/entrance_shuffle.cpp
-@@ -150,7 +150,11 @@ namespace randomizer::logic::entrance_shuffle
+@@ -109,9 +109,17 @@ namespace randomizer::logic::entrance_shuffle
+         ShuffleNonAssumedEntrancesPools(world, entrancePools, targetEntrancePools);
+ 
          // Shuffle the rest of the entrance pools
-+        // Large hostile pools can need more than upstream's 20 random greedy
-+        // attempts even when a valid assignment exists. Every rejected attempt
-+        // is fully rolled back, so keep searching instead of rejecting the seed.
-+        constexpr int kEntrancePoolRetryBudget = 250;
++        // Large hostile pools can corner a greedy assignment even when a valid
++        // assignment exists. Try several randomized orders and permit a bounded
++        // number of local choice reversals within each order.
++        constexpr int kEntrancePoolRetryBudget = 16;
++        constexpr std::size_t kEntrancePoolBacktrackBudget = 16;
          for (auto& [entranceType, entrancePool] : entrancePools)
          {
 -            ShuffleEntrancePool(entrancePool, targetEntrancePools[entranceType]);
-+            ShuffleEntrancePool(entrancePool, targetEntrancePools[entranceType], kEntrancePoolRetryBudget);
++            ShuffleEntrancePool(entrancePool,
++                                targetEntrancePools[entranceType],
++                                kEntrancePoolRetryBudget,
++                                kEntrancePoolBacktrackBudget);
          }
  
          // Validate the world one last time to ensure everything worked
-@@ -878,9 +878,15 @@ namespace randomizer::logic::entrance_shuffle
+@@ -659,15 +667,33 @@ namespace randomizer::logic::entrance_shuffle
+ 
+     void ShuffleEntrancePool(EntrancePool& entrancePool,
+                              EntrancePool& targetEntrancePool,
+-                             int retries /* = 20*/)
++                             int retries /* = 20*/,
++                             std::size_t backtrackBudget /* = 0*/)
+     {
++        if (entrancePool.empty())
++        {
++            return;
++        }
++
++        auto& worlds = entrancePool.front()->GetWorld()->GetRandomizer()->GetWorlds();
++        auto completeItemPool = item_pool::GetCompleteItemPool(worlds);
+         while (retries > 0)
+         {
+             retries -= 1;
+             std::unordered_map<Entrance*, Entrance*> rollbacks = {};
+             try
+             {
+-                ShuffleEntrances(entrancePool, targetEntrancePool, rollbacks);
++                utility::random::ShufflePool(entrancePool);
++                auto remainingBacktracks = backtrackBudget;
++                if (!ShuffleEntrances(entrancePool,
++                                      targetEntrancePool,
++                                      rollbacks,
++                                      completeItemPool,
++                                      0,
++                                      remainingBacktracks))
++                {
++                    throw EntranceShuffleError("No valid assignment remained in the entrance pool");
++                }
+                 for (auto& [entrance, target] : rollbacks)
+                 {
+                     ConfirmReplacement(entrance, target);
+@@ -691,64 +717,78 @@ namespace randomizer::logic::entrance_shuffle
+             "generate successfully.");
+     }
+ 
+-    void ShuffleEntrances(EntrancePool& entrancePool,
++    bool ShuffleEntrances(EntrancePool& entrancePool,
+                           EntrancePool& targetEntrancePool,
+-                          std::unordered_map<Entrance*, Entrance*>& rollbacks)
++                          std::unordered_map<Entrance*, Entrance*>& rollbacks,
++                          const item_pool::ItemPool& completeItemPool,
++                          std::size_t entranceIndex,
++                          std::size_t& remainingBacktracks)
+     {
+-        // This shouldn't be empty, but just incase
+-        if (entrancePool.empty()) {
+-            return;
++        while (entranceIndex < entrancePool.size() &&
++               entrancePool[entranceIndex]->GetConnectedArea() != nullptr)
++        {
++            entranceIndex += 1;
+         }
+ 
+-        auto& worlds = entrancePool.front()->GetWorld()->GetRandomizer()->GetWorlds();
+-        auto completeItemPool = item_pool::GetCompleteItemPool(worlds);
+-        utility::random::ShufflePool(entrancePool);
++        if (entranceIndex == entrancePool.size())
++        {
++            // Check to make sure there are no dangling targets. If there are,
++            // something is very wrong.
++            for (auto& target : targetEntrancePool)
++            {
++                if (target->GetConnectedArea() != nullptr)
++                {
++                    throw std::runtime_error("Dangling Target Entrance " +
++                                             target->GetReplaces()->GetOriginalName());
++                }
++            }
++            return true;
++        }
+ 
+-        for (auto& entrance : entrancePool)
++        auto* entrance = entrancePool[entranceIndex];
++        auto candidateTargets = targetEntrancePool;
++        utility::random::ShufflePool(candidateTargets);
++
++        // Try each still-available target. If a later entrance reaches a dead
++        // end, restore this local choice and try another while budget remains.
++        for (auto* target : candidateTargets)
+         {
+-            // If this entrance is already connected, don't connect it to another area
+-            if (entrance->GetConnectedArea() != nullptr)
++            // If this target has already been used, skip over it
++            if (target->GetConnectedArea() == nullptr)
+             {
+                 continue;
+             }
+-            utility::random::ShufflePool(targetEntrancePool);
+ 
+-            // Loop through and find a valid target entrance to connect to
+-            for (auto& target : targetEntrancePool)
++            LOG_TO_DEBUG("Attempting to connect " + entrance->GetOriginalName() + " to " +
++                         target->GetConnectedArea()->GetName() + " from " +
++                         target->GetReplaces()->GetParentArea()->GetName() + " [W" +
++                         std::to_string(entrance->GetWorld()->GetID()) +
++                         "]");
++            if (!ReplaceEntrance(entrance, target, rollbacks, completeItemPool))
+             {
+-                // If this target has already been used, skip over it
+-                if (target->GetConnectedArea() == nullptr)
+-                {
+-                    continue;
+-                }
+-
+-                LOG_TO_DEBUG("Attempting to connect " + entrance->GetOriginalName() + " to " +
+-                             target->GetConnectedArea()->GetName() + " from " +
+-                             target->GetReplaces()->GetParentArea()->GetName() + " [W" +
+-                             std::to_string(entrance->GetWorld()->GetID()) +
+-                             "]");
+-                if (ReplaceEntrance(entrance, target, rollbacks, completeItemPool))
+-                {
+-                    break;
+-                }
++                continue;
+             }
+ 
+-            // If this entrance was unable to connect to target, throw an error
+-            if (entrance->GetConnectedArea() == nullptr)
++            if (ShuffleEntrances(entrancePool,
++                                 targetEntrancePool,
++                                 rollbacks,
++                                 completeItemPool,
++                                 entranceIndex + 1,
++                                 remainingBacktracks))
+             {
+-                throw EntranceShuffleError("No more valid entrances to replace " + entrance->GetOriginalName() + " in world " +
+-                                           std::to_string(entrance->GetWorld()->GetID()));
++                return true;
+             }
+-        }
+ 
+-        // Check to make sure there are no dangling targets. If there are, something is very wrong
+-        for (auto& target : targetEntrancePool)
+-        {
+-            if (target->GetConnectedArea() != nullptr)
++            RestoreConnections(entrance, target);
++            rollbacks.erase(entrance);
++            if (remainingBacktracks == 0)
+             {
+-                throw std::runtime_error("Dangling Target Entrance " + target->GetReplaces()->GetOriginalName());
++                return false;
+             }
++            remainingBacktracks -= 1;
+         }
++
++        return false;
+     }
+ 
+     bool ReplaceEntrance(Entrance* entrance,
+@@ -878,9 +918,15 @@ namespace randomizer::logic::entrance_shuffle
          auto sphereZeroSearch = search::Search::SphereZero(&worlds);
          sphereZeroSearch.SearchWorlds();
          const auto& foundLocations = sphereZeroSearch._visitedLocations;
@@ -47,6 +207,37 @@ index 1efe66e885..7fa089ee22 100644
  
          // If there are no sphere zero locations available and we didn't find an accessible disconnected exit, then this world will not
          // be valid. Often times when many entrances are randomized we won't find any locations, but will find accessible disconnected
+diff --git a/src/dusk/randomizer/generator/logic/entrance_shuffle.hpp b/src/dusk/randomizer/generator/logic/entrance_shuffle.hpp
+index 88c4939672..c97888dfbe 100644
+--- a/src/dusk/randomizer/generator/logic/entrance_shuffle.hpp
++++ b/src/dusk/randomizer/generator/logic/entrance_shuffle.hpp
+@@ -3,6 +3,8 @@
+ #include "entrance.hpp"
+ #include "world.hpp"
+ 
++#include <cstddef>
++
+ namespace randomizer::logic::entrance_shuffle
+ {
+     void ShuffleWorldEntrances(world::World* world);
+@@ -18,10 +20,14 @@ namespace randomizer::logic::entrance_shuffle
+                                          entrance::EntrancePools& targetEntrancePools);
+     void ShuffleEntrancePool(entrance::EntrancePool& entrancePool,
+                              entrance::EntrancePool& targetEntrancePool,
+-                             int retries = 20);
+-    void ShuffleEntrances(entrance::EntrancePool& entrancePool,
++                             int retries = 20,
++                             std::size_t backtrackBudget = 0);
++    bool ShuffleEntrances(entrance::EntrancePool& entrancePool,
+                           entrance::EntrancePool& targetEntrancePool,
+-                          std::unordered_map<entrance::Entrance*, entrance::Entrance*>& rollbacks);
++                          std::unordered_map<entrance::Entrance*, entrance::Entrance*>& rollbacks,
++                          const item_pool::ItemPool& completeItemPool,
++                          std::size_t entranceIndex,
++                          std::size_t& remainingBacktracks);
+     bool ReplaceEntrance(entrance::Entrance* entrance,
+                          entrance::Entrance* target,
+                          std::unordered_map<entrance::Entrance*, entrance::Entrance*>& rollbacks,
 diff --git a/src/dusk/randomizer/generator/logic/fill.cpp b/src/dusk/randomizer/generator/logic/fill.cpp
 index 289d127249..f01b9f388e 100644
 --- a/src/dusk/randomizer/generator/logic/fill.cpp
@@ -958,14 +1149,14 @@ index 682f5f0dc4..817ff07074 100644
          self.assertIn("== definition.itemId", safety)
          self.assertIn("AddEnemyFirstDefeatLocations();", self.world)
 diff --git a/tools/tests/test_entrance_runtime_data.py b/tools/tests/test_entrance_runtime_data.py
-index f59f930d7b..6a547279ac 100644
+index f59f930d7b..907b17244f 100644
 --- a/tools/tests/test_entrance_runtime_data.py
 +++ b/tools/tests/test_entrance_runtime_data.py
-@@ -154,6 +154,34 @@ class EntranceRuntimeDataTests(unittest.TestCase):
+@@ -154,6 +154,52 @@ class EntranceRuntimeDataTests(unittest.TestCase):
          )
          self.assertIn("may also remain vanilla", on_description)
  
-+    def test_large_entrance_pools_get_a_stress_proven_retry_budget(self):
++    def test_large_entrance_pools_use_bounded_local_backtracking(self):
 +        shuffle_start = self.shuffle_source.index(
 +            "// Shuffle the rest of the entrance pools"
 +        )
@@ -975,9 +1166,27 @@ index f59f930d7b..6a547279ac 100644
 +        shuffle_block = self.shuffle_source[shuffle_start:shuffle_end]
 +
 +        self.assertIn(
-+            "constexpr int kEntrancePoolRetryBudget = 250;", shuffle_block
++            "constexpr int kEntrancePoolRetryBudget = 16;", shuffle_block
 +        )
-+        self.assertIn("kEntrancePoolRetryBudget);", shuffle_block)
++        self.assertIn(
++            "constexpr std::size_t kEntrancePoolBacktrackBudget = 16;",
++            shuffle_block,
++        )
++        self.assertIn("kEntrancePoolRetryBudget,", shuffle_block)
++        self.assertIn("kEntrancePoolBacktrackBudget);", shuffle_block)
++
++        recursive_start = self.shuffle_source.index("bool ShuffleEntrances(")
++        recursive_end = self.shuffle_source.index(
++            "bool ReplaceEntrance(", recursive_start
++        )
++        recursive_block = self.shuffle_source[recursive_start:recursive_end]
++        self.assertIn("auto candidateTargets = targetEntrancePool;", recursive_block)
++        self.assertIn("remainingBacktracks", recursive_block)
++        self.assertIn("RestoreConnections(entrance, target);", recursive_block)
++        self.assertIn("rollbacks.erase(entrance);", recursive_block)
++        self.assertNotIn(
++            "utility::random::ShufflePool(targetEntrancePool);", recursive_block
++        )
 +
 +    def test_sphere_zero_requires_a_fillable_item_location(self):
 +        count_start = self.shuffle_source.index(
