@@ -1,5 +1,5 @@
 name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-659-city-v2-null-goal-retry
+# Build control revision: full-entrance-randomizer-659-city-v3-sphere-zero
 
 on:
   push:
@@ -1833,7 +1833,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'full-entrance-randomizer-659.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne 'd913744910d3eea30ed2110798a75cfd20b07e305d20855eabb3ef027863ea7a') {
+          if ($gzipHash -ne 'ac8fb55c4e6d7d069b8d00a6447955fa57b2a3ce2c39b60fa8a6d1c626bb5f20') {
             throw "Compressed .659 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -1852,7 +1852,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '75a09347b7518697aac8119a6ce595148fe6fc7c10a89cb95fc605d3d4fc2263') {
+          if ($patchHash -ne '38fcf6c51107c3594e3a75308cc86a70c949d5b3292cba5e3b89e3629cda1523') {
             throw "Decoded .659 patch SHA-256 mismatch: $patchHash"
           }
 
@@ -2087,6 +2087,8 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\dungeon.hpp'; Text='location::Location* _goalLocation = nullptr;' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='Skipping path-hint goal for required dungeon without a reachable goal location' },
             @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_missing_shuffled_dungeon_goals_are_null_safe_for_hints' },
+            @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='already-filled vanilla' },
+            @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_sphere_zero_validation_requires_an_empty_item_location' },
             @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Dungeon entrance shuffle", audit.dungeonEntrances)' },
             @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Boss entrance shuffle", audit.bossEntrances)' },
             @{ Path='src\dusk\randomizer\game\shop_items.cpp'; Text='randomizer.expanded_shops.v1' },
