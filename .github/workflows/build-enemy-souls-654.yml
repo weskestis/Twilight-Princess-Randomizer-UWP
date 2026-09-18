@@ -1,5 +1,5 @@
 name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-659-city-v3-sphere-zero
+# Build control revision: full-entrance-randomizer-659-city-v4-flatten-bounds
 
 on:
   push:
@@ -1833,7 +1833,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'full-entrance-randomizer-659.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne 'ac8fb55c4e6d7d069b8d00a6447955fa57b2a3ce2c39b60fa8a6d1c626bb5f20') {
+          if ($gzipHash -ne '18820573e5e6673108f2ccc683b89e0d756f3bbc3942b31b6f215ded531bd1fe') {
             throw "Compressed .659 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -1852,7 +1852,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '38fcf6c51107c3594e3a75308cc86a70c949d5b3292cba5e3b89e3629cda1523') {
+          if ($patchHash -ne 'b0571aa204c3adcd34719292b4bfcb347c01c3a7942473b9ab8a027efcdf1f2c') {
             throw "Decoded .659 patch SHA-256 mismatch: $patchHash"
           }
 
@@ -1967,6 +1967,10 @@ jobs:
             @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.cpp'; Text='auto candidateTargets = targetEntrancePool' },
             @{ Path='src\dusk\randomizer\generator\logic\entrance_shuffle.hpp'; Text='std::size_t& remainingBacktracks' },
             @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_large_entrance_pools_use_bounded_local_backtracking' },
+            @{ Path='src\dusk\randomizer\generator\logic\flatten\bits.cpp'; Text='bool dnfImplies' },
+            @{ Path='src\dusk\randomizer\generator\logic\flatten\bits.cpp'; Text='termsBySize' },
+            @{ Path='src\dusk\randomizer\generator\logic\flatten\simplify_algebraic.cpp'; Text='kAlgebraicTermLimit = 64' },
+            @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_flattening_is_bounded_for_pathological_entrance_cycles' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='bool HintGenerator::CheckAvailableSign' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='HintGenerator::GetAvailableHintSigns' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='_possibleHintSignsByLocation.try_emplace' },
@@ -2807,6 +2811,10 @@ jobs:
           settings generate reliably without weakening the final all-Souls reachability proof.
 
           This .659 candidate enables the complete entrance randomizer, including City in the Sky.
+          Cyclic overworld layouts now flatten access requirements with implication-aware DNF
+          minimization, and pathological tracker expressions fall back to an exact bounded form
+          instead of spending minutes on cosmetic algebraic factoring. The deterministic
+          Stress659OVER0073 regression now completes well inside the per-seed cutoff.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
           instead of remaining forever in the engine's creation phase and preventing the room
           transition from completing. The protected delete path still prevents uninitialized enemy
