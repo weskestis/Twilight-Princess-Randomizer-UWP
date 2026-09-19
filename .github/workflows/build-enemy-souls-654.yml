@@ -1,5 +1,5 @@
 name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-659-city-v4-flatten-bounds
+# Build control revision: full-entrance-randomizer-659-city-v5-ooccoo-exits
 
 on:
   push:
@@ -1833,7 +1833,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'full-entrance-randomizer-659.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne '18820573e5e6673108f2ccc683b89e0d756f3bbc3942b31b6f215ded531bd1fe') {
+          if ($gzipHash -ne '17bf2ba5846204c0877967b9c1c7fef22f6aea69bb3b51dbecf3a763bd05dd85') {
             throw "Compressed .659 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -1852,7 +1852,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne 'b0571aa204c3adcd34719292b4bfcb347c01c3a7942473b9ab8a027efcdf1f2c') {
+          if ($patchHash -ne '8b5a21159cf757d0ae9ad3aa53af12af3c7f76eb537a4e10ce862942b7eae820') {
             throw "Decoded .659 patch SHA-256 mismatch: $patchHash"
           }
 
@@ -2087,6 +2087,10 @@ jobs:
             @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='verifyCount("Overworld entrance shuffle", audit.overworldEntrances)' },
             @{ Path='src\dusk\ui\rando_config.cpp'; Text='pools.push_back({"Dungeon", "Boss", "Grotto", "Cave", "Interior", "Overworld"})' },
             @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_city_in_the_sky_is_in_the_full_dungeon_pool' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='{StageIDs::City_in_the_Sky, 16, 0x02, -1}' },
+            @{ Path='src\dusk\randomizer\game\randomizer_context.cpp'; Text='Dungeon walk-out does not match its Ooccoo exit' },
+            @{ Path='src\dusk\randomizer\generator\test\test.cpp'; Text='(void)WriteSeedData(r.GetWorld());' },
+            @{ Path='tools\tests\test_entrance_runtime_data.py'; Text='test_dungeon_ooccoo_exits_follow_the_shuffled_reverse_entrance' },
             @{ Path='tools\tests\test_full_entrance_randomizer.py'; Text='test_wide_runtime_format_supports_custom_spawn_5000_and_old_seeds' },
             @{ Path='src\dusk\randomizer\generator\logic\dungeon.hpp'; Text='location::Location* _goalLocation = nullptr;' },
             @{ Path='src\dusk\randomizer\generator\logic\hints.cpp'; Text='Skipping path-hint goal for required dungeon without a reachable goal location' },
@@ -2811,6 +2815,9 @@ jobs:
           settings generate reliably without weakening the final all-Souls reachability proof.
 
           This .659 candidate enables the complete entrance randomizer, including City in the Sky.
+          City and the other shuffled dungeons now give Ooccoo warp-outs the same randomized
+          reverse destination as walking back through the dungeon entrance, so leaving City cannot
+          fall through to its vanilla Lake Hylia landing.
           Cyclic overworld layouts now flatten access requirements with implication-aware DNF
           minimization, and pathological tracker expressions fall back to an exact bounded form
           instead of spending minutes on cosmetic algebraic factoring. The deterministic
