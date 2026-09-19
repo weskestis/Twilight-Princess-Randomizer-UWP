@@ -1,5 +1,5 @@
 name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-659-city-v6-complete-regressions
+# Build control revision: full-entrance-randomizer-659-city-v7-single-package-handoff
 
 on:
   push:
@@ -2187,7 +2187,7 @@ jobs:
           }
 
       - name: Configure working .627 game core
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
         run: |
           cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
@@ -2205,12 +2205,12 @@ jobs:
             -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-full-entrance-659
 
       - name: Compile working .627 game core
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
         run: cmake --build "$env:TPR_FEED" --config RelWithDebInfo --parallel 2
 
       - name: Configure fresh UWP package project
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
         run: |
           cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
@@ -2221,7 +2221,7 @@ jobs:
             -DDUSK_DIR="$env:TPR_FEED"
 
       - name: Create sideload signing certificate
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         id: cert
         shell: powershell
         run: |
@@ -2250,7 +2250,7 @@ jobs:
           "password=$password" >> $env:GITHUB_OUTPUT
 
       - name: Build signed UWP package
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
         run: |
           cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
@@ -2263,7 +2263,7 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
 
       - name: Verify and collect private .659 test package
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -2779,7 +2779,7 @@ jobs:
           }
 
       - name: Upload verified .659 test artifact
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         id: artifact_handoff
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -2790,7 +2790,7 @@ jobs:
           retention-days: 14
 
       - name: Upload private draft test package
-        if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]') }}
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         id: draft_release_handoff
         continue-on-error: true
         shell: powershell
@@ -3002,7 +3002,7 @@ jobs:
             --json url,name,isDraft,tagName
 
       - name: Verify package handoff
-        if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
+        if: ${{ always() && matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
         run: |
           $artifactOutcome = '${{ steps.artifact_handoff.outcome }}'
