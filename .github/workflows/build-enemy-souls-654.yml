@@ -1,5 +1,5 @@
 name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-659-city-v7-single-package-handoff
+# Build control revision: full-entrance-randomizer-659-city-v8-pinned-aurora-dependency
 
 on:
   push:
@@ -134,6 +134,7 @@ jobs:
           "TPR_FEED=S:\b\f" >> $env:GITHUB_ENV
           "TPR_PKG=S:\b\p" >> $env:GITHUB_ENV
           "TPR_SMOKE=S:\b\t" >> $env:GITHUB_ENV
+          "TPR_UWP_DEP=S:\d\u" >> $env:GITHUB_ENV
           "TMP=S:\tmp" >> $env:GITHUB_ENV
           "TEMP=S:\tmp" >> $env:GITHUB_ENV
 
@@ -2186,6 +2187,30 @@ jobs:
             }
           }
 
+      - name: Stage pinned Aurora UWP dependency
+        if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = '6ba4aad18b0f149151784f31fd339225544e24f2'
+          New-Item -ItemType Directory -Force "$env:TPR_UWP_DEP" | Out-Null
+          git -C "$env:TPR_UWP_DEP" init
+          if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the pinned Aurora UWP dependency checkout.' }
+          git -C "$env:TPR_UWP_DEP" remote add origin https://github.com/SternXD/uwp-dep.git
+          if ($LASTEXITCODE -ne 0) { throw 'Could not set the Aurora UWP dependency origin.' }
+          # The dependency branch was advanced after the verified build. Fetching
+          # its tip plus one parent keeps the exact tested commit available while
+          # avoiding FetchContent's shallow-clone checkout failure.
+          git -C "$env:TPR_UWP_DEP" fetch --depth=2 origin refs/heads/dusklight
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the pinned Aurora UWP dependency history.' }
+          git -C "$env:TPR_UWP_DEP" checkout --detach $expected
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check out the pinned Aurora UWP dependency commit.' }
+          $actual = (git -C "$env:TPR_UWP_DEP" rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $actual -ne $expected) {
+            throw "Aurora UWP dependency mismatch: expected $expected; got $actual."
+          }
+          Write-Host "Staged exact Aurora UWP dependency: $actual"
+
       - name: Configure working .627 game core
         if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
         shell: powershell
@@ -2202,7 +2227,8 @@ jobs:
             -DDUSK_ENABLE_DISCORD=OFF `
             -DDUSK_ENABLE_SENTRY_NATIVE=OFF `
             -DDUSK_ENABLE_CODE_MODS=OFF `
-            -DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-full-entrance-659
+            "-DFETCHCONTENT_SOURCE_DIR_AURORA_UWP_DEP=$env:TPR_UWP_DEP" `
+            "-DDUSK_VERSION_OVERRIDE=v1.4.1-627-tpr-full-entrance-659"
 
       - name: Compile working .627 game core
         if: ${{ matrix.preset_code == 'DUNG' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[stress-only]')) }}
