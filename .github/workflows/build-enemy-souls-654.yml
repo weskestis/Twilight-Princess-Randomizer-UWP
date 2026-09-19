@@ -1,5 +1,5 @@
 name: Build Full Entrance Randomizer 659
-# Build control revision: full-entrance-randomizer-659-city-v5-ooccoo-exits
+# Build control revision: full-entrance-randomizer-659-city-v6-complete-regressions
 
 on:
   push:
@@ -1833,7 +1833,7 @@ jobs:
           $gzipPath = Join-Path $env:RUNNER_TEMP 'full-entrance-randomizer-659.patch.gz'
           [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
           $gzipHash = (Get-FileHash -LiteralPath $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($gzipHash -ne '17bf2ba5846204c0877967b9c1c7fef22f6aea69bb3b51dbecf3a763bd05dd85') {
+          if ($gzipHash -ne 'c65044e1f3d83af9bc645188b0f3c49e33e1c2f42b6b5c311c3584052ba4497b') {
             throw "Compressed .659 patch SHA-256 mismatch: $gzipHash"
           }
 
@@ -1852,7 +1852,7 @@ jobs:
           finally { $gzip.Dispose() }
 
           $patchHash = (Get-FileHash -LiteralPath $patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '8b5a21159cf757d0ae9ad3aa53af12af3c7f76eb537a4e10ce862942b7eae820') {
+          if ($patchHash -ne 'b62fe09e0a3837108286e43c206b01e510daa4f48fb538d26c0685e53332d9fd') {
             throw "Decoded .659 patch SHA-256 mismatch: $patchHash"
           }
 
