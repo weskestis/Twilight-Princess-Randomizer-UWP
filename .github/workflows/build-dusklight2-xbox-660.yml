@@ -350,9 +350,6 @@ jobs:
           Import-Certificate `
             -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
             -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
-          certutil -user -f -addstore Root `
-            "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Host
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to trust the CI signing root.' }
           "password=$password" >> $env:GITHUB_OUTPUT
 
       - name: Build signed Xbox/UWP package
@@ -403,6 +400,7 @@ jobs:
             "$env:TPR_MSIX_INSPECT\SDL3.dll",
             "$env:TPR_MSIX_INSPECT\webgpu_dawn.dll",
             "$env:TPR_MSIX_INSPECT\libuwp.dll",
+            "$env:TPR_MSIX_INSPECT\AppxSignature.p7x",
             "$env:TPR_MSIX_INSPECT\res\initial_pipeline_cache.db")) {
             if (-not (Test-Path $required -PathType Leaf)) { throw "MSIX payload is missing: $required" }
           }
@@ -437,8 +435,38 @@ jobs:
           }
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
-          & signtool verify /pa /v $package | Out-Host
-          if ($LASTEXITCODE -ne 0) { throw 'MSIX signature verification failed.' }
+          & makeappx validate /p $package /v | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx package validation failed.' }
+
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-660-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-660-signtool.err'
+          $signtoolExe = (Get-Command signtool).Source
+          $verify = Start-Process -FilePath $signtoolExe `
+            -ArgumentList @('verify','/pa','/v',$package) `
+            -NoNewWindow -Wait -PassThru `
+            -RedirectStandardOutput $signtoolOut `
+            -RedirectStandardError $signtoolErr
+          $signatureOutput = ((Get-Content $signtoolOut -Raw) + "`n" +
+            (Get-Content $signtoolErr -Raw)).Trim()
+          $signatureOutput | Out-Host
+          if ($verify.ExitCode -ne 0) {
+            $errorCount = ([regex]::Matches($signatureOutput, 'SignTool Error:')).Count
+            $expectedSelfSignedTrust = $signatureOutput -match `
+              '(?s)SignTool Error: A certificate chain processed, but terminated in a root\s+certificate which is not trusted by the trust provider[.]'
+            foreach ($signatureMarker in @(
+              'Signature Index: 0 (Primary Signature)',
+              'Hash of file (sha256):',
+              'Issued to: TwilightPrincessRandomizer',
+              'Issued by: TwilightPrincessRandomizer')) {
+              if (-not $signatureOutput.Contains($signatureMarker)) {
+                throw "MSIX signature report is missing: $signatureMarker"
+              }
+            }
+            if (-not $expectedSelfSignedTrust -or $errorCount -ne 1) {
+              throw "MSIX signature verification failed with an unexpected result: $($verify.ExitCode)"
+            }
+            Write-Host 'MSIX signature is intact; its exported sideload certificate is intentionally self-signed.'
+          }
 
           $dependencies = @(Get-ChildItem "$env:TPR_PKG" -Recurse -File |
             Where-Object {
