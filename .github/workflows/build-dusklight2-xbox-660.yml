@@ -1,4 +1,4 @@
-name: Build Dusklight 2 Xbox 661
+name: Build Dusklight 2.0.1 Xbox 662
 
 on:
   push:
@@ -55,10 +55,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           git init "$env:TPR_SRC"
           git -C "$env:TPR_SRC" remote add origin https://github.com/TwilitRealm/dusklight.git
-          git -C "$env:TPR_SRC" fetch --depth 1 origin e9b120544cb75e81b5aa36777f1688fa61f2d9e8
+          git -C "$env:TPR_SRC" fetch --depth 1 origin 422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7
           git -C "$env:TPR_SRC" checkout --detach FETCH_HEAD
           git -C "$env:TPR_SRC" submodule update --init --recursive --depth 1
-          git -C "$env:TPR_SRC\mods\randomizer" fetch --depth 1 origin 3a740aafb6ae64e8cc4803eeb83823a1d43a847f
+          git -C "$env:TPR_SRC\mods\randomizer" fetch --depth 1 origin d0ceae8f18bbef4a40287a72a2791a3c06c9aca5
           git -C "$env:TPR_SRC\mods\randomizer" checkout --detach FETCH_HEAD
 
           git init "$env:TPR_UWP_DEP"
@@ -67,10 +67,10 @@ jobs:
           git -C "$env:TPR_UWP_DEP" checkout --detach FETCH_HEAD
 
           $pins = @{
-            "$env:TPR_SRC" = 'e9b120544cb75e81b5aa36777f1688fa61f2d9e8'
-            "$env:TPR_SRC\extern\aurora" = '7d4484a7abd6a10d77716977d20ff9da0cb67ce5'
+            "$env:TPR_SRC" = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
+            "$env:TPR_SRC\extern\aurora" = 'd0933b745abe0eb9815bedcea8047575da18698d'
             "$env:TPR_SRC\extern\borealis" = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
-            "$env:TPR_SRC\mods\randomizer" = '3a740aafb6ae64e8cc4803eeb83823a1d43a847f'
+            "$env:TPR_SRC\mods\randomizer" = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5'
             "$env:TPR_SRC\mods\cosmetics" = 'fd93491089fa95441789244f2b2fd22a451ecbcc'
             "$env:TPR_UWP_DEP" = '6ba4aad18b0f149151784f31fd339225544e24f2'
           }
@@ -81,7 +81,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed 661 source layers
+      - name: Apply reviewed 662 source layers
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -135,20 +135,20 @@ jobs:
           }
 
           $duskPatch = Expand-ControlPatch `
-            'dusklight2-uwp-661' `
-            '4dd7708034a2886a90f7b41e32f1b76a528b6a285487fc92e14c65daac27b917' `
-            'c2bcaca4b124024bed5511e55e4fc8a6e664722a565bd0ea5a84bfeac9423692' `
-            '1ac89283c426850b4c6999bbda9036042e66b92870cecaf3a641778bc2881f51'
+            'dusklight201-uwp-662' `
+            '82302f5d940161c1458950a3352bc71048f379a2a39b884d2eddbce227c415bc' `
+            '095f123e3469f636f7491f6e6b092e8a0bf097a926a9b34ae736382e159fc123' `
+            '7ea1bb82f45f54c333f682639250986930628cab71d2353d58cf9688b243f393'
           $auroraPatch = Expand-ControlPatch `
-            'aurora-uwp-660' `
-            '3aff3963f1bc10ac3527747b4ac94c62902b10e4536a8564a627b47a27da4aad' `
-            'e54c7ae847e7c6146759d05f8255e34f3e4ffaa52656834017612ded87566811' `
-            '66b436d791b14b02dd3f8947ad7afe0176e3fc7280705ff5081fcb830e65fa28'
+            'aurora-uwp-662' `
+            '99424654b2a37f8f3ec5f1d6b878864d5a20f09786e440beaecf187a623626c2' `
+            '2edc6756bde2af85832970d9b5223b4918eb1d2f9387d653a86e9ba43292fc31' `
+            '24173d1d5328aed26ec73756d644e670420d271269dc0553ca57b90a643e22dc'
           $randomizerPatch = Expand-ControlPatch `
-            'randomizer-660-checkpoint' `
-            'dcc78e0800df0e3c6f320e9d96b594a2500a388f3f1037fde6b5e496a4567b78' `
-            '34b6ea88a090bd7358f1815bf068f5e28d86d6477f610691610a2031d38f532c' `
-            'ebe11e82c1772019bf9e66a12d2242abf25a733caae0778f463a599cf81e6164'
+            'randomizer-662-checkpoint' `
+            '1d89f69d1cc7cb04e2f1b0efed2e06749b4704d82d790920cafdb69992e22198' `
+            '6d269e542e5472021eb413131cb5e150739a856a4843b18c9fade4a7ddbd06cf' `
+            'a7d7986b7c33cbf025e3290fd75074dc5d59ab1cf014aea952d3ecf439b6c4cc'
 
           git -C "$env:TPR_SRC" apply --check $duskPatch
           git -C "$env:TPR_SRC" apply $duskPatch
@@ -339,7 +339,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 661 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 662 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -366,17 +366,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 661 package
+      - name: Verify and collect full 662 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-661"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-662"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.661_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.662_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -388,7 +388,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.661"',
+            'Version="1.4.1.662"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
@@ -417,13 +417,13 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-661-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-662-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           $exportRows = ([regex]::Matches($exports, '(?m)^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+')).Count
           if ($exportRows -lt 1000) { throw "Curated game export surface is unexpectedly small: $exportRows" }
 
-          $moduleDir = Join-Path $env:RUNNER_TEMP 'tpr-661-packaged-module'
+          $moduleDir = Join-Path $env:RUNNER_TEMP 'tpr-662-packaged-module'
           New-Item -ItemType Directory -Force $moduleDir | Out-Null
           7z x $bundle "-o$moduleDir" -y | Out-Null
           $module = Get-ChildItem "$moduleDir\lib" -Recurse -File -Filter 'mod.dll' |
@@ -440,8 +440,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-661-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-661-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-662-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-662-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -479,15 +479,16 @@ jobs:
           if ($dependencies.Count -lt 1) { throw 'No x64 Microsoft VCLibs dependency was produced.' }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-661.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-661.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-662.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-662.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.661'
-            dusklight = 'e9b120544cb75e81b5aa36777f1688fa61f2d9e8'
-            aurora = '7d4484a7abd6a10d77716977d20ff9da0cb67ce5 + reviewed UWP patch'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.662'
+            upstreamRelease = 'Dusklight v2.0.1'
+            dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
+            aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP patch'
             borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
-            randomizer = '3a740aafb6ae64e8cc4803eeb83823a1d43a847f + 660 runtime patch'
+            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch'
             xboxLoaderHotfix = 'Funchook mapped-file diagnostics compiled without desktop PSAPI import'
             uwpDependency = '6ba4aad18b0f149151784f31fd339225544e24f2'
             enemySouls = $true
@@ -496,13 +497,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-661.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-662.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.661-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.662-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -511,7 +512,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.661-Xbox
-          path: TPR-Xbox-Package-661/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.662-Xbox
+          path: TPR-Xbox-Package-662/*
           if-no-files-found: error
           retention-days: 30
