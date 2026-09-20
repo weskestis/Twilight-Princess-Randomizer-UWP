@@ -141,9 +141,9 @@ jobs:
             '9dddfbce8e8e04ea3016d162940f05a7f620371aa40b2cfa4d91a3f73cd5c743'
           $auroraPatch = Expand-ControlPatch `
             'aurora-uwp-660' `
-            'cf21390a1abf056d1b05a7be7b2dd7228013df34951b18933aae3a78a016ec12' `
-            '90c5025b835d86c034ec64429e2f8fb1498c4c11ca4408d3d30a8849ab53a840' `
-            '6bfa10d7cfbc1a537b323a44a039ed8724213bd106133e3857a77a95729325dc'
+            '3aff3963f1bc10ac3527747b4ac94c62902b10e4536a8564a627b47a27da4aad' `
+            'e54c7ae847e7c6146759d05f8255e34f3e4ffaa52656834017612ded87566811' `
+            '66b436d791b14b02dd3f8947ad7afe0176e3fc7280705ff5081fcb830e65fa28'
           $randomizerPatch = Expand-ControlPatch `
             'randomizer-660-checkpoint' `
             'dcc78e0800df0e3c6f320e9d96b594a2500a388f3f1037fde6b5e496a4567b78' `

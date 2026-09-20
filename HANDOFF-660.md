@@ -41,7 +41,7 @@ Resume with these tasks:
 
 - Dusklight 2 base: `e9b120544cb75e81b5aa36777f1688fa61f2d9e8`
 - Aurora base: `7d4484a7abd6a10d77716977d20ff9da0cb67ce5`
-- Aurora UWP patch decoded SHA-256: `6bfa10d7cfbc1a537b323a44a039ed8724213bd106133e3857a77a95729325dc`
+- Aurora UWP patch decoded SHA-256: `66b436d791b14b02dd3f8947ad7afe0176e3fc7280705ff5081fcb830e65fa28`
 - Dusklight 2 UWP patch decoded SHA-256: `9dddfbce8e8e04ea3016d162940f05a7f620371aa40b2cfa4d91a3f73cd5c743`
 - UWP dependency: `6ba4aad18b0f149151784f31fd339225544e24f2`
 - Package identity/version target: `TwilightPrincessRandomizer`, `1.4.1.660`
