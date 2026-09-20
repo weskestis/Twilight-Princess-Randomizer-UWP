@@ -136,9 +136,9 @@ jobs:
 
           $duskPatch = Expand-ControlPatch `
             'dusklight2-uwp-660' `
-            '4e4c907b16fbea10dba037d3dd5fc752ab1879827bf0e0c2b6de9569a4cfe4c4' `
-            'f03912703c0d55c1d902a29b3d8ef92d4dae63932e2a552422c503bc60926efa' `
-            '9dddfbce8e8e04ea3016d162940f05a7f620371aa40b2cfa4d91a3f73cd5c743'
+            'a08da638c8a4fbc30e8854b5171edf19794d36d2009f113d3b70a5e4a7d5be53' `
+            '6109cc87a5cfcab144c59b2d0a9a0ba38b2166161ea424a0303973d9380b727e' `
+            '763de6d4cb08f087c2cda054ee5ae98dc9193b022420ad8cc7f594e91113a1d9'
           $auroraPatch = Expand-ControlPatch `
             'aurora-uwp-660' `
             '3aff3963f1bc10ac3527747b4ac94c62902b10e4536a8564a627b47a27da4aad' `
@@ -410,9 +410,8 @@ jobs:
 
           $exeHeaders = & dumpbin /nologo /headers $exe | Out-String
           if ($exeHeaders -notmatch '(?i)machine [(]x64[)]') { throw 'Packaged executable is not x64.' }
-          if ($exeHeaders -notmatch '[.]symdbh' -or $exeHeaders -notmatch '[.]symdb') {
-            throw 'Packaged executable is missing its embedded hook symbol manifest.'
-          }
+          python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
           $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-660-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
