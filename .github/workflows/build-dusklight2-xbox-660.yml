@@ -178,11 +178,17 @@ jobs:
           $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualHash -ne $archiveHash) { throw "UWP asset archive hash mismatch: $actualHash" }
           Expand-Archive $archive -DestinationPath $extractDir -Force
-          $assetRoot = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
+          $assetDirectory = Get-ChildItem $extractDir -Recurse -Directory |
+            Where-Object { $_.FullName -match '[\\/]platforms[\\/]uwp[\\/]Assets$' } |
+            Select-Object -First 1
+          $pipelineCache = Get-ChildItem $extractDir -Recurse -File -Filter 'initial_pipeline_cache.db' |
+            Select-Object -First 1
+          if (-not $assetDirectory) { throw 'Verified UWP archive has no platforms/uwp/Assets directory.' }
+          if (-not $pipelineCache) { throw 'Verified UWP archive has no initial_pipeline_cache.db.' }
           New-Item -ItemType Directory -Force "$env:TPR_SRC\platforms\uwp\Assets" | Out-Null
-          Copy-Item "$assetRoot\platforms\uwp\Assets\*" `
+          Copy-Item "$($assetDirectory.FullName)\*" `
             "$env:TPR_SRC\platforms\uwp\Assets" -Force
-          Copy-Item "$assetRoot\res\initial_pipeline_cache.db" `
+          Copy-Item $pipelineCache.FullName `
             "$env:TPR_SRC\res\initial_pipeline_cache.db" -Force
 
           $expected = @{
