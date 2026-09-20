@@ -167,8 +167,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
-          $archiveHash = 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2'
+          $archiveName = 'TwilightPrincessRandomizer_1.4.1.634_x64.msix'
+          $archiveHash = 'ef24ae571b9ca6f647a63edbe4d6d81cf259b30eecfb203c2924001958bf917d'
           $downloadDir = Join-Path $env:RUNNER_TEMP 'uwp-assets-download'
           $extractDir = Join-Path $env:RUNNER_TEMP 'uwp-assets-extract'
           New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
@@ -177,14 +177,10 @@ jobs:
           $archive = Join-Path $downloadDir $archiveName
           $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualHash -ne $archiveHash) { throw "UWP asset archive hash mismatch: $actualHash" }
-          Expand-Archive $archive -DestinationPath $extractDir -Force
-          $assetDirectory = Get-ChildItem $extractDir -Recurse -Directory |
-            Where-Object { $_.FullName -match '[\\/]platforms[\\/]uwp[\\/]Assets$' } |
-            Select-Object -First 1
-          $pipelineCache = Get-ChildItem $extractDir -Recurse -File -Filter 'initial_pipeline_cache.db' |
-            Select-Object -First 1
-          if (-not $assetDirectory) { throw 'Verified UWP archive has no platforms/uwp/Assets directory.' }
-          if (-not $pipelineCache) { throw 'Verified UWP archive has no initial_pipeline_cache.db.' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($archive, $extractDir)
+          $assetDirectory = Get-Item (Join-Path $extractDir 'Assets')
+          $pipelineCache = Get-Item (Join-Path $extractDir 'res\initial_pipeline_cache.db')
           New-Item -ItemType Directory -Force "$env:TPR_SRC\platforms\uwp\Assets" | Out-Null
           Copy-Item "$($assetDirectory.FullName)\*" `
             "$env:TPR_SRC\platforms\uwp\Assets" -Force
