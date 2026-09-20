@@ -1,0 +1,473 @@
+name: Build Dusklight 2 Xbox 660
+
+on:
+  push:
+    branches:
+      - codex/dusklight2-xbox-660-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xbox-uwp-x64:
+    name: Xbox UWP x64 package
+    runs-on: windows-2022
+    timeout-minutes: 240
+
+    steps:
+      - name: Check out build controls
+        uses: actions/checkout@v4
+        with:
+          path: _control
+
+      - name: Enable MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Prepare short build paths
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
+          if (Test-Path 'S:\') { subst S: /D | Out-Null }
+          subst S: "$env:GITHUB_WORKSPACE"
+          New-Item -ItemType Directory -Force S:\tmp,S:\b | Out-Null
+          "TPR_CONTROL=S:\_control" >> $env:GITHUB_ENV
+          "TPR_SRC=S:\s" >> $env:GITHUB_ENV
+          "TPR_UWP_DEP=S:\u" >> $env:GITHUB_ENV
+          "TPR_FEED=S:\b\feed" >> $env:GITHUB_ENV
+          "TPR_PKG=S:\b\package" >> $env:GITHUB_ENV
+          "TPR_MOD_INSPECT=S:\b\mod-inspect" >> $env:GITHUB_ENV
+          "TPR_MSIX_INSPECT=S:\b\msix-inspect" >> $env:GITHUB_ENV
+          "TMP=S:\tmp" >> $env:GITHUB_ENV
+          "TEMP=S:\tmp" >> $env:GITHUB_ENV
+          choco install ninja -y --no-progress
+          cmake --version
+          ninja --version
+          cl 2>&1 | Select-Object -First 2
+
+      - name: Fetch exact source and UWP dependency revisions
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git init "$env:TPR_SRC"
+          git -C "$env:TPR_SRC" remote add origin https://github.com/TwilitRealm/dusklight.git
+          git -C "$env:TPR_SRC" fetch --depth 1 origin e9b120544cb75e81b5aa36777f1688fa61f2d9e8
+          git -C "$env:TPR_SRC" checkout --detach FETCH_HEAD
+          git -C "$env:TPR_SRC" submodule update --init --recursive --depth 1
+
+          git init "$env:TPR_UWP_DEP"
+          git -C "$env:TPR_UWP_DEP" remote add origin https://github.com/SternXD/uwp-dep.git
+          git -C "$env:TPR_UWP_DEP" fetch --depth 1 origin 6ba4aad18b0f149151784f31fd339225544e24f2
+          git -C "$env:TPR_UWP_DEP" checkout --detach FETCH_HEAD
+
+          $pins = @{
+            "$env:TPR_SRC" = 'e9b120544cb75e81b5aa36777f1688fa61f2d9e8'
+            "$env:TPR_SRC\extern\aurora" = '7d4484a7abd6a10d77716977d20ff9da0cb67ce5'
+            "$env:TPR_SRC\extern\borealis" = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
+            "$env:TPR_SRC\mods\randomizer" = '3a740aafb6ae64e8cc4803eeb83823a1d43a847f'
+            "$env:TPR_SRC\mods\cosmetics" = 'fd93491089fa95441789244f2b2fd22a451ecbcc'
+            "$env:TPR_UWP_DEP" = '6ba4aad18b0f149151784f31fd339225544e24f2'
+          }
+          foreach ($entry in $pins.GetEnumerator()) {
+            $actual = (git -C $entry.Key rev-parse HEAD).Trim()
+            if ($actual -ne $entry.Value) {
+              throw "Revision mismatch for $($entry.Key): expected $($entry.Value), got $actual"
+            }
+          }
+
+      - name: Apply reviewed 660 source layers
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Expand-ControlPatch {
+            param(
+              [string]$Stem,
+              [string]$EncodedHash,
+              [string]$GzipHash,
+              [string]$PatchHash
+            )
+            $parts = @(Get-ChildItem "$env:TPR_CONTROL\patches\$Stem.patch.gz.b64.part*" -File |
+              Sort-Object Name)
+            if ($parts.Count -lt 1) { throw "No encoded parts found for $Stem" }
+            if ($parts.Count -eq 1) {
+              $actualEncodedHash = (Get-FileHash $parts[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actualEncodedHash -ne $EncodedHash) {
+                throw "$Stem encoded SHA-256 mismatch: $actualEncodedHash"
+              }
+            }
+            $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+            $gzipPath = Join-Path $env:RUNNER_TEMP "$Stem.patch.gz"
+            [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+            $actualGzipHash = (Get-FileHash $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualGzipHash -ne $GzipHash) {
+              throw "$Stem gzip SHA-256 mismatch: $actualGzipHash"
+            }
+            $patchPath = Join-Path $env:RUNNER_TEMP "$Stem.patch"
+            $input = [IO.File]::OpenRead($gzipPath)
+            try {
+              $decoder = [IO.Compression.GZipStream]::new(
+                $input, [IO.Compression.CompressionMode]::Decompress)
+              try {
+                $output = [IO.File]::Create($patchPath)
+                try { $decoder.CopyTo($output) }
+                finally { $output.Dispose() }
+              }
+              finally { $decoder.Dispose() }
+            }
+            finally { $input.Dispose() }
+            $actualPatchHash = (Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualPatchHash -ne $PatchHash) {
+              throw "$Stem decoded SHA-256 mismatch: $actualPatchHash"
+            }
+            return $patchPath
+          }
+
+          $duskPatch = Expand-ControlPatch `
+            'dusklight2-uwp-660' `
+            'ee162e94a24616d0dc981c9b93825b7816c4d94187886659ee5156c55312eaa2' `
+            'b43c16ff3b25d3c65649e4ff0604c59aa57f76000726a8defa5fa416baa2b096' `
+            'd3b95da1d89824f3428f3311ac1f4c4d80efe39349344bb4d23a2b104332706d'
+          $auroraPatch = Expand-ControlPatch `
+            'aurora-uwp-660' `
+            'cf21390a1abf056d1b05a7be7b2dd7228013df34951b18933aae3a78a016ec12' `
+            '90c5025b835d86c034ec64429e2f8fb1498c4c11ca4408d3d30a8849ab53a840' `
+            '6bfa10d7cfbc1a537b323a44a039ed8724213bd106133e3857a77a95729325dc'
+          $randomizerPatch = Expand-ControlPatch `
+            'randomizer-660-checkpoint' `
+            'bb4201a9a409c95af03227f1dbd684f3b320cadd6a946014d814f1700e76a090' `
+            '8f67901d6199b83e959185074ce88c6bdf1d14803868b1af33c45d98a3e94d8a' `
+            'c195fbab6b475adaae92627fb22a25ccb22ca9163be5ade19e1f3beaa618e1ff'
+
+          git -C "$env:TPR_SRC" apply --check $duskPatch
+          git -C "$env:TPR_SRC" apply $duskPatch
+          git -C "$env:TPR_SRC\extern\aurora" apply --check $auroraPatch
+          git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
+          git -C "$env:TPR_SRC\mods\randomizer" apply --check $randomizerPatch
+          git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerPatch
+
+          git -C "$env:TPR_SRC" diff --check
+          git -C "$env:TPR_SRC\extern\aurora" diff --check
+          git -C "$env:TPR_SRC\mods\randomizer" diff --check
+
+      - name: Restore verified UWP artwork and pipeline cache
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
+          $archiveHash = 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'uwp-assets-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'uwp-assets-extract'
+          New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
+          gh release download tpr-cp20-source --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $archiveName --dir $downloadDir
+          $archive = Join-Path $downloadDir $archiveName
+          $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $archiveHash) { throw "UWP asset archive hash mismatch: $actualHash" }
+          Expand-Archive $archive -DestinationPath $extractDir -Force
+          $assetRoot = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
+          New-Item -ItemType Directory -Force "$env:TPR_SRC\platforms\uwp\Assets" | Out-Null
+          Copy-Item "$assetRoot\platforms\uwp\Assets\*" `
+            "$env:TPR_SRC\platforms\uwp\Assets" -Force
+          Copy-Item "$assetRoot\res\initial_pipeline_cache.db" `
+            "$env:TPR_SRC\res\initial_pipeline_cache.db" -Force
+
+          $expected = @{
+            'res\initial_pipeline_cache.db' = 'a7a7407fffc8eb1ec9474085434c92aa8871baab6dc5f65c22df1d2bc16522d6'
+            'platforms\uwp\Assets\SplashScreen.scale-200.png' = 'cdf88cad0155e4043b0ad5ab320a89b869c92d85c4e041cf7515e558e52aa7c6'
+            'platforms\uwp\Assets\Square310x310Logo.scale-200.png' = 'aad3032e897a1bf7e38b3ddc2350ca3d7d31bde71a20b0f66f70447c2004c66c'
+          }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $path = Join-Path $env:TPR_SRC $entry.Key
+            $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($hash -ne $entry.Value) { throw "Restored UWP asset hash mismatch for $($entry.Key): $hash" }
+          }
+
+      - name: Verify Enemy Souls runtime integration
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $hooks = Get-Content "$env:TPR_SRC\mods\randomizer\src\hooks.cpp" -Raw
+          $settings = Get-Content "$env:TPR_SRC\mods\randomizer\generator\data\settings_list.yaml" -Raw
+          $session = Get-Content "$env:TPR_SRC\mods\randomizer\src\session.cpp" -Raw
+          $requiredHookMarkers = @(
+            'fpcMtd_Create_EnemySouls',
+            'fopAc_Execute_EnemySouls',
+            'fpcMtd_Delete_EnemySouls',
+            'hookPreDarknutEnding',
+            'hookPreKingBulblinEnding',
+            'hookPreDeathSwordDeath',
+            'hookPreNpcDamage',
+            'shops::begin_purchase',
+            'breakables::spawn_shuffled_item'
+          )
+          foreach ($marker in $requiredHookMarkers) {
+            if (-not $hooks.Contains($marker)) { throw "Runtime hook marker is missing: $marker" }
+          }
+          if (-not $settings.Contains('Name: Enemy Souls')) { throw 'Enemy Souls setting was removed.' }
+          if (-not $session.Contains('mStartingEnemySouls')) { throw 'Starting Enemy Souls grant is missing.' }
+          if (-not $session.Contains('enemy_souls::clear_scene_actors')) { throw 'Enemy Souls scene teardown is missing.' }
+          $conflicts = Get-ChildItem "$env:TPR_SRC" -Recurse -File `
+            -Include *.c,*.cc,*.cpp,*.h,*.hpp,*.cmake,*.json,*.txt,*.yaml,*.yml |
+            Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' } |
+            Select-String -Pattern '^(<<<<<<<|=======|>>>>>>>)' -List
+          if ($conflicts) { throw "Unresolved conflict markers remain: $($conflicts.Path -join ', ')" }
+
+      - name: Configure Dusklight 2 UWP feed
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_UWP=ON `
+            -DDUSK_ENABLE_CODE_MODS=ON `
+            -DDUSK_ENABLE_OPUS=OFF `
+            -DBOREALIS_BUILD_TESTS=OFF `
+            -DBOREALIS_ENABLE_DISCORD=OFF `
+            -DBOREALIS_ENABLE_SENTRY=OFF `
+            -DBOREALIS_HTTP_BACKEND=none `
+            -DAURORA_ENABLE_TESTS=OFF `
+            -DAURORA_UWP_DEP_SOURCE_DIR="$env:TPR_UWP_DEP" `
+            -DTRACY_ENABLE=OFF
+          if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 UWP feed configuration failed.' }
+
+      - name: Compile core, Randomizer module, and package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --build "$env:TPR_FEED" --target dusklight --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 static UWP feed failed to build.' }
+          foreach ($file in @('dusklight.lib','dusklight_exports.def','dusklight_imports.lib')) {
+            if (-not (Test-Path "$env:TPR_FEED\$file" -PathType Leaf)) {
+              throw "Required core feed output is missing: $file"
+            }
+          }
+          cmake --build "$env:TPR_FEED" --target randomizer_package --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Randomizer native module/package failed to build.' }
+          if (-not (Test-Path "$env:TPR_FEED\bundled_mods\randomizer.dusk" -PathType Leaf)) {
+            throw 'Bundled randomizer.dusk was not produced.'
+          }
+
+      - name: Run all Randomizer generator scenarios
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --build "$env:TPR_FEED" --target randomizer_generator_tests --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Randomizer generator tests failed to compile.' }
+          $test = Get-ChildItem "$env:TPR_FEED" -Recurse -File -Filter 'randomizer_generator_tests.exe' |
+            Select-Object -First 1
+          if (-not $test) { throw 'randomizer_generator_tests.exe is missing.' }
+          & $test.FullName
+          if ($LASTEXITCODE -ne 0) { throw "Randomizer generator scenarios failed: $LASTEXITCODE" }
+
+      - name: Inspect bundled native Randomizer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force "$env:TPR_MOD_INSPECT" | Out-Null
+          7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" `
+            "-o$env:TPR_MOD_INSPECT" -y | Out-Host
+          $module = Get-ChildItem "$env:TPR_MOD_INSPECT\lib" -Recurse -File -Filter 'mod.dll' |
+            Select-Object -First 1
+          if (-not $module) { throw 'randomizer.dusk has no Windows native mod.dll.' }
+          $moduleBytes = [IO.File]::ReadAllBytes($module.FullName)
+          $moduleText = [Text.Encoding]::ASCII.GetString($moduleBytes)
+          foreach ($marker in @(
+            'Enemy Souls',
+            'Torch Slug Soul',
+            'Darknut Soul',
+            'King Bulblin Castle Soul',
+            'src/f_op/f_op_actor.cpp#fopAc_Create',
+            'Fail-closed Enemy Soul gate blocked')) {
+            if (-not $moduleText.Contains($marker)) {
+              throw "Randomizer module is missing runtime marker: $marker"
+            }
+          }
+          $imports = & dumpbin /nologo /imports $module.FullName | Out-String
+          if ($imports -notmatch '(?i)TwilightPrincessRandomizer[.]exe') {
+            throw 'randomizer.dll is not linked to the final UWP executable import surface.'
+          }
+          $headers = & dumpbin /nologo /headers $module.FullName | Out-String
+          if ($headers -notmatch '(?i)machine [(]x64[)]') { throw 'randomizer.dll is not x64.' }
+
+      - name: Configure final Windows Store package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S "$env:TPR_SRC\platforms\uwp" -B "$env:TPR_PKG" `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_SYSTEM_NAME=WindowsStore `
+            -DCMAKE_SYSTEM_VERSION=10.0 `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_DIR="$env:TPR_FEED" `
+            -DDUSK_SOURCE_DIR="$env:TPR_SRC" `
+            -DUWP_DEP_SOURCE_DIR="$env:TPR_UWP_DEP"
+          if ($LASTEXITCODE -ne 0) { throw 'Final UWP package configuration failed.' }
+
+      - name: Create sideload signing certificate
+        id: cert
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $password = [Guid]::NewGuid().ToString('N')
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=TwilightPrincessRandomizer' `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'Twilight Princess Randomizer 660 Sideload Signing' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+          Export-PfxCertificate -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            -Password $securePassword | Out-Null
+          Export-Certificate -Cert $cert `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Null
+          Import-Certificate `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
+            -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          "password=$password" >> $env:GITHUB_OUTPUT
+
+      - name: Build signed Xbox/UWP package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
+            /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
+            '/p:PackageCertificateThumbprint=' `
+            /p:AppxBundle=Never `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:GenerateAppxPackageOnBuild=true
+          if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
+
+      - name: Verify and collect full 660 package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-660"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
+            Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
+            Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.660_x64.msix'
+          Copy-Item $sourcePackage.FullName $package -Force
+
+          New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($package, "$env:TPR_MSIX_INSPECT")
+          $manifestPath = "$env:TPR_MSIX_INSPECT\AppxManifest.xml"
+          if (-not (Test-Path $manifestPath)) { throw 'MSIX has no AppxManifest.xml.' }
+          $manifest = Get-Content $manifestPath -Raw
+          foreach ($identity in @(
+            'Name="TwilightPrincessRandomizer"',
+            'Publisher="CN=TwilightPrincessRandomizer"',
+            'Version="1.4.1.660"',
+            'Name="codeGeneration"')) {
+            if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
+          }
+          $exe = "$env:TPR_MSIX_INSPECT\TwilightPrincessRandomizer.exe"
+          $bundle = "$env:TPR_MSIX_INSPECT\mods\randomizer.dusk"
+          foreach ($required in @(
+            $exe,
+            $bundle,
+            "$env:TPR_MSIX_INSPECT\SDL3.dll",
+            "$env:TPR_MSIX_INSPECT\webgpu_dawn.dll",
+            "$env:TPR_MSIX_INSPECT\libuwp.dll",
+            "$env:TPR_MSIX_INSPECT\res\initial_pipeline_cache.db")) {
+            if (-not (Test-Path $required -PathType Leaf)) { throw "MSIX payload is missing: $required" }
+          }
+          $bundledHash = (Get-FileHash $bundle -Algorithm SHA256).Hash
+          $feedHash = (Get-FileHash "$env:TPR_FEED\bundled_mods\randomizer.dusk" -Algorithm SHA256).Hash
+          if ($bundledHash -ne $feedHash) { throw 'Packaged randomizer.dusk differs from the verified feed bundle.' }
+
+          $exeHeaders = & dumpbin /nologo /headers $exe | Out-String
+          if ($exeHeaders -notmatch '(?i)machine [(]x64[)]') { throw 'Packaged executable is not x64.' }
+          if ($exeHeaders -notmatch '[.]symdbh' -or $exeHeaders -notmatch '[.]symdb') {
+            throw 'Packaged executable is missing its embedded hook symbol manifest.'
+          }
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-660-exports.txt'
+          & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
+          $exports = Get-Content $exportsPath -Raw
+          $exportRows = ([regex]::Matches($exports, '(?m)^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+')).Count
+          if ($exportRows -lt 1000) { throw "Curated game export surface is unexpectedly small: $exportRows" }
+
+          $moduleDir = Join-Path $env:RUNNER_TEMP 'tpr-660-packaged-module'
+          New-Item -ItemType Directory -Force $moduleDir | Out-Null
+          7z x $bundle "-o$moduleDir" -y | Out-Null
+          $module = Get-ChildItem "$moduleDir\lib" -Recurse -File -Filter 'mod.dll' |
+            Select-Object -First 1
+          if (-not $module) { throw 'Packaged randomizer.dusk has no mod.dll.' }
+          $moduleText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($module.FullName))
+          foreach ($marker in @('Enemy Souls','Darknut Soul','Torch Slug Soul','Fail-closed Enemy Soul gate blocked')) {
+            if (-not $moduleText.Contains($marker)) { throw "Packaged Randomizer is missing: $marker" }
+          }
+          $moduleImports = & dumpbin /nologo /imports $module.FullName | Out-String
+          if ($moduleImports -notmatch '(?i)TwilightPrincessRandomizer[.]exe') {
+            throw 'Packaged Randomizer is not bound to TwilightPrincessRandomizer.exe.'
+          }
+
+          if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
+          & signtool verify /pa /v $package | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'MSIX signature verification failed.' }
+
+          $dependencies = @(Get-ChildItem "$env:TPR_PKG" -Recurse -File |
+            Where-Object {
+              $_.Extension -in '.appx','.msix' -and
+              $_.FullName -match '[\\/]Dependencies[\\/]' -and
+              $_.Name -match '(?i)x64'
+            })
+          if ($dependencies.Count -lt 1) { throw 'No x64 Microsoft VCLibs dependency was produced.' }
+          Copy-Item $dependencies[0].FullName $out -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-660.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-660.json" $out -Force
+
+          $sourceManifest = [ordered]@{
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.660'
+            dusklight = 'e9b120544cb75e81b5aa36777f1688fa61f2d9e8'
+            aurora = '7d4484a7abd6a10d77716977d20ff9da0cb67ce5 + reviewed UWP patch'
+            borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
+            randomizer = '3a740aafb6ae64e8cc4803eeb83823a1d43a847f + 660 runtime patch'
+            uwpDependency = '6ba4aad18b0f149151784f31fd339225544e24f2'
+            enemySouls = $true
+            generatorScenarios = 58
+            workflowRun = $env:GITHUB_RUN_ID
+            sourceRevision = $env:GITHUB_SHA
+          }
+          $sourceManifest | ConvertTo-Json | Set-Content `
+            (Join-Path $out 'SOURCE-MANIFEST-660.json') -Encoding UTF8
+          Get-ChildItem $out -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
+
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.660-Xbox-Support.zip'
+          $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
+          Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
+          Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
+          Get-Content (Join-Path $out 'SHA256SUMS.txt') | Out-Host
+
+      - name: Upload verified Xbox package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.660-Xbox
+          path: TPR-Xbox-Package-660/*
+          if-no-files-found: error
+          retention-days: 30
