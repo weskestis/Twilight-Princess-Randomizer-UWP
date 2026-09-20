@@ -350,6 +350,9 @@ jobs:
           Import-Certificate `
             -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
             -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          Import-Certificate `
+            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
+            -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
           "password=$password" >> $env:GITHUB_OUTPUT
 
       - name: Build signed Xbox/UWP package
