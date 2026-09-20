@@ -96,7 +96,13 @@ jobs:
               Sort-Object Name)
             if ($parts.Count -lt 1) { throw "No encoded parts found for $Stem" }
             if ($parts.Count -eq 1) {
-              $actualEncodedHash = (Get-FileHash $parts[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $normalizedEncoded = (Get-Content $parts[0].FullName -Raw) -replace "`r`n", "`n"
+              $hasher = [Security.Cryptography.SHA256]::Create()
+              try {
+                $digest = $hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalizedEncoded))
+                $actualEncodedHash = ([BitConverter]::ToString($digest) -replace '-', '').ToLowerInvariant()
+              }
+              finally { $hasher.Dispose() }
               if ($actualEncodedHash -ne $EncodedHash) {
                 throw "$Stem encoded SHA-256 mismatch: $actualEncodedHash"
               }
