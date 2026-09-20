@@ -350,9 +350,9 @@ jobs:
           Import-Certificate `
             -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
             -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
-          Import-Certificate `
-            -FilePath "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" `
-            -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+          certutil -user -f -addstore Root `
+            "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to trust the CI signing root.' }
           "password=$password" >> $env:GITHUB_OUTPUT
 
       - name: Build signed Xbox/UWP package
