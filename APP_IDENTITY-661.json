@@ -1,0 +1,10 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.661",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "randomizer": "bundled native Dusklight 2 module",
+  "enemySouls": true,
+  "xboxLoaderHotfix": "no desktop PSAPI import"
+}
