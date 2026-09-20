@@ -12,9 +12,9 @@ Finish a playable Xbox/UWP 1.4.1.660 package. Enemy Souls must be included.
 - Randomizer base: `3a740aafb6ae64e8cc4803eeb83823a1d43a847f`
 - Recovered Randomizer checkpoint: `4266aed28e0cf3358bac54bc10b75208e3385fb4`
 - Portable patch: `patches/randomizer-660-checkpoint.patch.gz.b64.part00`
-- Decoded patch SHA-256: `c195fbab6b475adaae92627fb22a25ccb22ca9163be5ade19e1f3beaa618e1ff`
-- Gzip SHA-256: `8f67901d6199b83e959185074ce88c6bdf1d14803868b1af33c45d98a3e94d8a`
-- Encoded part SHA-256: `bb4201a9a409c95af03227f1dbd684f3b320cadd6a946014d814f1700e76a090`
+- Decoded patch SHA-256: `ebe11e82c1772019bf9e66a12d2242abf25a733caae0778f463a599cf81e6164`
+- Gzip SHA-256: `34b6ea88a090bd7358f1815bf068f5e28d86d6477f610691610a2031d38f532c`
+- Encoded part SHA-256: `dcc78e0800df0e3c6f320e9d96b594a2500a388f3f1037fde6b5e496a4567b78`
 
 The patch was verified with `git apply --check` against the exact Randomizer base.
 
@@ -42,7 +42,7 @@ Resume with these tasks:
 - Dusklight 2 base: `e9b120544cb75e81b5aa36777f1688fa61f2d9e8`
 - Aurora base: `7d4484a7abd6a10d77716977d20ff9da0cb67ce5`
 - Aurora UWP patch decoded SHA-256: `6bfa10d7cfbc1a537b323a44a039ed8724213bd106133e3857a77a95729325dc`
-- Dusklight 2 UWP patch decoded SHA-256: `d3b95da1d89824f3428f3311ac1f4c4d80efe39349344bb4d23a2b104332706d`
+- Dusklight 2 UWP patch decoded SHA-256: `9dddfbce8e8e04ea3016d162940f05a7f620371aa40b2cfa4d91a3f73cd5c743`
 - UWP dependency: `6ba4aad18b0f149151784f31fd339225544e24f2`
 - Package identity/version target: `TwilightPrincessRandomizer`, `1.4.1.660`
 

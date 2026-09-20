@@ -136,9 +136,9 @@ jobs:
 
           $duskPatch = Expand-ControlPatch `
             'dusklight2-uwp-660' `
-            'ee162e94a24616d0dc981c9b93825b7816c4d94187886659ee5156c55312eaa2' `
-            'b43c16ff3b25d3c65649e4ff0604c59aa57f76000726a8defa5fa416baa2b096' `
-            'd3b95da1d89824f3428f3311ac1f4c4d80efe39349344bb4d23a2b104332706d'
+            '4e4c907b16fbea10dba037d3dd5fc752ab1879827bf0e0c2b6de9569a4cfe4c4' `
+            'f03912703c0d55c1d902a29b3d8ef92d4dae63932e2a552422c503bc60926efa' `
+            '9dddfbce8e8e04ea3016d162940f05a7f620371aa40b2cfa4d91a3f73cd5c743'
           $auroraPatch = Expand-ControlPatch `
             'aurora-uwp-660' `
             'cf21390a1abf056d1b05a7be7b2dd7228013df34951b18933aae3a78a016ec12' `
@@ -146,9 +146,9 @@ jobs:
             '6bfa10d7cfbc1a537b323a44a039ed8724213bd106133e3857a77a95729325dc'
           $randomizerPatch = Expand-ControlPatch `
             'randomizer-660-checkpoint' `
-            'bb4201a9a409c95af03227f1dbd684f3b320cadd6a946014d814f1700e76a090' `
-            '8f67901d6199b83e959185074ce88c6bdf1d14803868b1af33c45d98a3e94d8a' `
-            'c195fbab6b475adaae92627fb22a25ccb22ca9163be5ade19e1f3beaa618e1ff'
+            'dcc78e0800df0e3c6f320e9d96b594a2500a388f3f1037fde6b5e496a4567b78' `
+            '34b6ea88a090bd7358f1815bf068f5e28d86d6477f610691610a2031d38f532c' `
+            'ebe11e82c1772019bf9e66a12d2242abf25a733caae0778f463a599cf81e6164'
 
           git -C "$env:TPR_SRC" apply --check $duskPatch
           git -C "$env:TPR_SRC" apply $duskPatch
