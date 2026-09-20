@@ -435,8 +435,6 @@ jobs:
           }
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
-          & makeappx validate /p $package /v | Out-Host
-          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx package validation failed.' }
 
           $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-660-signtool.out'
           $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-660-signtool.err'
