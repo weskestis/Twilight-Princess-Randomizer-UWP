@@ -1,0 +1,30 @@
+diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
+index db3ca231d..fb480b720 100644
+--- a/cmake/ModSDK.cmake
++++ b/cmake/ModSDK.cmake
+@@ -189,3 +189,25 @@ function(add_mod target_name)
++        if (MSVC AND DUSK_UWP)
++            # The UWP game is linked by a WindowsStore project, but bundled
++            # native mods are linked in this Ninja feed. Point only the mod
++            # DLL at MSVC's Store import libraries so /MD resolves to the
++            # *_APP CRT supplied by Microsoft.VCLibs, and mark the image as
++            # AppContainer-compatible. A desktop-linked module cannot load on
++            # Xbox even when it is extracted under the codeGeneration
++            # capability.
++            if (NOT DUSK_UWP_STORE_LIB_DIR OR
++                    NOT IS_DIRECTORY "${DUSK_UWP_STORE_LIB_DIR}")
++                message(FATAL_ERROR
++                        "DUSK_UWP_STORE_LIB_DIR must name MSVC's UWP/Store library directory")
++            endif ()
++            target_compile_definitions(${target_name} PRIVATE
++                    _UWP=1
++                    WINAPI_FAMILY=WINAPI_FAMILY_APP)
++            target_link_directories(${target_name} BEFORE PRIVATE
++                    "${DUSK_UWP_STORE_LIB_DIR}")
++            target_link_libraries(${target_name} PRIVATE WindowsApp.lib OneCore.lib)
++            target_link_options(${target_name} PRIVATE /APPCONTAINER /MANIFEST:NO)
++        endif ()
++
+         if (APPLE)
+             set(_mod_exports "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ModExports.exp")
+             target_link_options(${target_name} PRIVATE
