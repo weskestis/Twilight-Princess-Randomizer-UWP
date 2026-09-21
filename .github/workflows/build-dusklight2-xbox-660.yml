@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 663
+name: Build Dusklight 2.0.1 Xbox 664
 
 on:
   push:
@@ -113,7 +113,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed 662 source layers and advance 663 identity
+      - name: Apply reviewed source layers and advance 664 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -197,10 +197,28 @@ jobs:
           [IO.File]::WriteAllText(
             $moduleUwpPatch, $moduleUwpPatchText, [Text.UTF8Encoding]::new($false))
 
+          $packagedModPatchSource = "$env:TPR_CONTROL\patches\xbox-packaged-randomizer-664.patch"
+          $packagedModPatchText = [IO.File]::ReadAllText($packagedModPatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $packagedModPatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($packagedModPatchText))
+            $packagedModPatchHash = ([BitConverter]::ToString($packagedModPatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($packagedModPatchHash -ne '4869f13d36b8e2fe2c335ed477f7381ef4fbd483474434d1b3cc60ee078198cc') {
+            throw "Xbox packaged Randomizer patch SHA-256 mismatch: $packagedModPatchHash"
+          }
+          $packagedModPatch = Join-Path $env:RUNNER_TEMP 'xbox-packaged-randomizer-664.patch'
+          [IO.File]::WriteAllText(
+            $packagedModPatch, $packagedModPatchText, [Text.UTF8Encoding]::new($false))
+
           git -C "$env:TPR_SRC" apply --check $duskPatch
           git -C "$env:TPR_SRC" apply $duskPatch
           git -C "$env:TPR_SRC" apply --check $moduleUwpPatch
           git -C "$env:TPR_SRC" apply $moduleUwpPatch
+          git -C "$env:TPR_SRC" apply --check $packagedModPatch
+          git -C "$env:TPR_SRC" apply $packagedModPatch
           git -C "$env:TPR_SRC\extern\aurora" apply --check $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
           git -C "$env:TPR_SRC\mods\randomizer" apply --check $randomizerPatch
@@ -215,7 +233,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.663"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.664"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -448,7 +466,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 663 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 664 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -475,17 +493,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 663 package
+      - name: Verify and collect full 664 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-663"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-664"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.663_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.664_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -497,15 +515,19 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.663"',
+            'Version="1.4.1.664"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
           $exe = "$env:TPR_MSIX_INSPECT\TwilightPrincessRandomizer.exe"
-          $bundle = "$env:TPR_MSIX_INSPECT\mods\randomizer.dusk"
+          $packagedModRoot = "$env:TPR_MSIX_INSPECT\mods\randomizer"
+          $module = Get-Item "$packagedModRoot\lib\windows-amd64\mod.dll"
           foreach ($required in @(
             $exe,
-            $bundle,
+            "$packagedModRoot\mod.json",
+            $module.FullName,
+            "$packagedModRoot\res\models\boss_souls\boss_soul_argorok.bmd",
+            "$packagedModRoot\res\models\boss_souls\boss_soul_zant.bmd",
             "$env:TPR_MSIX_INSPECT\SDL3.dll",
             "$env:TPR_MSIX_INSPECT\webgpu_dawn.dll",
             "$env:TPR_MSIX_INSPECT\libuwp.dll",
@@ -513,9 +535,40 @@ jobs:
             "$env:TPR_MSIX_INSPECT\res\initial_pipeline_cache.db")) {
             if (-not (Test-Path $required -PathType Leaf)) { throw "MSIX payload is missing: $required" }
           }
-          $bundledHash = (Get-FileHash $bundle -Algorithm SHA256).Hash
-          $feedHash = (Get-FileHash "$env:TPR_FEED\bundled_mods\randomizer.dusk" -Algorithm SHA256).Hash
-          if ($bundledHash -ne $feedHash) { throw 'Packaged randomizer.dusk differs from the verified feed bundle.' }
+          if (Test-Path "$env:TPR_MSIX_INSPECT\mods\randomizer.dusk") {
+            throw 'MSIX still contains the LocalState-extracted Randomizer bundle.'
+          }
+
+          # The native module must be an individual signed MSIX file, not
+          # executable code hidden inside a zip and extracted into LocalState.
+          $blockMapText = Get-Content "$env:TPR_MSIX_INSPECT\AppxBlockMap.xml" -Raw
+          $moduleBlockName = 'Name="mods\randomizer\lib\windows-amd64\mod.dll"'
+          if (-not $blockMapText.Contains($moduleBlockName)) {
+            throw 'Packaged Randomizer module is missing from AppxBlockMap.xml.'
+          }
+
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-664-feed-module'
+          New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
+          7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
+          $packagedHashes = @{}
+          Get-ChildItem $packagedModRoot -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($packagedModRoot.Length + 1).Replace('\','/')
+            $packagedHashes[$relative] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+          }
+          $feedHashes = @{}
+          Get-ChildItem $feedModuleDir -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($feedModuleDir.Length + 1).Replace('\','/')
+            $feedHashes[$relative] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+          }
+          if ($packagedHashes.Count -ne $feedHashes.Count) {
+            throw "Expanded Randomizer file count differs from feed bundle: $($packagedHashes.Count) vs $($feedHashes.Count)"
+          }
+          foreach ($relative in $feedHashes.Keys) {
+            if (-not $packagedHashes.ContainsKey($relative) -or
+                $packagedHashes[$relative] -ne $feedHashes[$relative]) {
+              throw "Expanded Randomizer payload differs from feed bundle: $relative"
+            }
+          }
 
           $sdl = "$env:TPR_MSIX_INSPECT\SDL3.dll"
           $expectedSdlHash = 'd49ce990f754b7f88afa7b025e34941f1cefc6381a5f29e16110fea90dc22c9e'
@@ -567,20 +620,20 @@ jobs:
               $exeImports -match '(?i)GetMappedFileNameA') {
             throw 'Packaged executable retains the desktop-only PSAPI mapped-file diagnostic import.'
           }
+          if ($exeImports -notmatch '(?i)LoadPackagedLibrary') {
+            throw 'Packaged executable does not use the UWP package-graph DLL loader.'
+          }
+          if ($exeImports -match '(?i)LoadLibraryExW') {
+            throw 'Packaged executable retains the writable-path native module loader.'
+          }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-663-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-664-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           $exportRows = ([regex]::Matches($exports, '(?m)^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+')).Count
           if ($exportRows -lt 1000) { throw "Curated game export surface is unexpectedly small: $exportRows" }
 
-          $moduleDir = Join-Path $env:RUNNER_TEMP 'tpr-663-packaged-module'
-          New-Item -ItemType Directory -Force $moduleDir | Out-Null
-          7z x $bundle "-o$moduleDir" -y | Out-Null
-          $module = Get-ChildItem "$moduleDir\lib" -Recurse -File -Filter 'mod.dll' |
-            Select-Object -First 1
-          if (-not $module) { throw 'Packaged randomizer.dusk has no mod.dll.' }
           $moduleText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($module.FullName))
           foreach ($marker in @('Enemy Souls','Darknut Soul','Torch Slug Soul','Fail-closed Enemy Soul gate blocked')) {
             if (-not $moduleText.Contains($marker)) { throw "Packaged Randomizer is missing: $marker" }
@@ -621,8 +674,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-663-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-663-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-664-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-664-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -660,17 +713,18 @@ jobs:
           if ($dependencies.Count -lt 1) { throw 'No x64 Microsoft VCLibs dependency was produced.' }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-663.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-663.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-664.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-664.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.663'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.664'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP patch'
             borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
-            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch'
-            xboxLoaderHotfix = 'No desktop PSAPI import; known-good AppContainer SDL3 with UWP CRT imports'
+            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 663 AppContainer linkage'
+            xboxLoaderHotfix = 'Signed in-package Randomizer loaded with LoadPackagedLibrary; AppContainer SDL3 and UWP CRT imports'
+            nativeModuleDeployment = 'Expanded under mods/randomizer and recorded in AppxBlockMap.xml'
             uwpDependency = 'ae39aa004ae127bd00f8262d28b401f8e4ed8728'
             sdl3Sha256 = 'd49ce990f754b7f88afa7b025e34941f1cefc6381a5f29e16110fea90dc22c9e'
             enemySouls = $true
@@ -679,13 +733,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-663.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-664.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.663-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.664-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -694,7 +748,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.663-Xbox
-          path: TPR-Xbox-Package-663/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.664-Xbox
+          path: TPR-Xbox-Package-664/*
           if-no-files-found: error
           retention-days: 30

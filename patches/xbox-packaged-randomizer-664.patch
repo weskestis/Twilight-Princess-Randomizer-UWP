@@ -1,0 +1,100 @@
+diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
+index d663f1f93..c52dd3f82 100644
+--- a/platforms/uwp/CMakeLists.txt
++++ b/platforms/uwp/CMakeLists.txt
+@@ -86,13 +86,44 @@ set_source_files_properties(${_asset_files} PROPERTIES
+         VS_DEPLOYMENT_LOCATION "Assets")
+ target_sources(${PROJECT_NAME} PRIVATE ${_asset_files})
+ 
+-# Bundle the native Randomizer module as a read-only built-in mod. The loader
+-# extracts randomizer.dll to LocalState before LoadLibraryExW is called.
+-set_source_files_properties("${_randomizer_bundle}" PROPERTIES
+-        VS_COPY_TO_OUT_DIR Always
+-        VS_DEPLOYMENT_CONTENT TRUE
+-        VS_DEPLOYMENT_LOCATION "mods")
+-target_sources(${PROJECT_NAME} PRIVATE "${_randomizer_bundle}")
++# Xbox UWP may only execute native modules that are part of the signed package
++# graph. Extracting mod.dll from randomizer.dusk into LocalState and loading it
++# from there causes code-integrity termination on the console. Expand the
++# built-in bundle at configure time so every file, including mod.dll, is listed
++# in AppxBlockMap.xml and signed as part of the MSIX.
++set(_randomizer_package_dir "${CMAKE_CURRENT_BINARY_DIR}/packaged-randomizer")
++file(REMOVE_RECURSE "${_randomizer_package_dir}")
++file(MAKE_DIRECTORY "${_randomizer_package_dir}")
++file(ARCHIVE_EXTRACT
++        INPUT "${_randomizer_bundle}"
++        DESTINATION "${_randomizer_package_dir}")
++
++foreach (_required_file
++        "${_randomizer_package_dir}/mod.json"
++        "${_randomizer_package_dir}/lib/windows-amd64/mod.dll")
++    if (NOT EXISTS "${_required_file}")
++        message(FATAL_ERROR "Expanded Randomizer payload is missing: ${_required_file}")
++    endif ()
++endforeach ()
++
++file(GLOB_RECURSE _randomizer_package_files
++        LIST_DIRECTORIES FALSE
++        RELATIVE "${_randomizer_package_dir}"
++        "${_randomizer_package_dir}/*")
++foreach (_relative_file IN LISTS _randomizer_package_files)
++    set(_source_file "${_randomizer_package_dir}/${_relative_file}")
++    get_filename_component(_relative_dir "${_relative_file}" DIRECTORY)
++    if (_relative_dir STREQUAL "")
++        set(_deployment_dir "mods/randomizer")
++    else ()
++        set(_deployment_dir "mods/randomizer/${_relative_dir}")
++    endif ()
++    set_source_files_properties("${_source_file}" PROPERTIES
++            VS_COPY_TO_OUT_DIR Always
++            VS_DEPLOYMENT_CONTENT TRUE
++            VS_DEPLOYMENT_LOCATION "${_deployment_dir}")
++    target_sources(${PROJECT_NAME} PRIVATE "${_source_file}")
++endforeach ()
+ 
+ uwp_pkg(${PROJECT_NAME} "${DUSK_SOURCE_DIR}/res" "res")
+ 
+diff --git a/src/dusk/mods/loader/native_module.cpp b/src/dusk/mods/loader/native_module.cpp
+index 0d4eb6a98..1fbfba780 100644
+--- a/src/dusk/mods/loader/native_module.cpp
++++ b/src/dusk/mods/loader/native_module.cpp
+@@ -1,5 +1,9 @@
+ #include "native_module.hpp"
+ 
++#if defined(_UWP)
++#include "dusk/data.hpp"
++#endif
++
+ #if defined(_WIN32)
+ #define WIN32_LEAN_AND_MEAN
+ #define NOMINMAX
+@@ -9,8 +13,29 @@
+ namespace {
+ #if defined(_WIN32)
+ void* pl_dlopen(const std::filesystem::path& p) {
++#if defined(_UWP)
++    // Xbox UWP can execute native modules only from the signed package graph.
++    // The built-in modules are deployed below the package's mods/ directory,
++    // so convert their absolute discovery path back to a package-relative path
++    // and use the packaged-app loader. Never fall back to loading executable
++    // code extracted into writable LocalState.
++    const auto packageRoot = dusk::data::base_path_relative({}).lexically_normal();
++    const auto relative = p.lexically_normal().lexically_relative(packageRoot);
++    if (relative.empty() || relative.is_absolute()) {
++        SetLastError(ERROR_ACCESS_DENIED);
++        return nullptr;
++    }
++    for (const auto& component : relative) {
++        if (component == L"..") {
++            SetLastError(ERROR_ACCESS_DENIED);
++            return nullptr;
++        }
++    }
++    return LoadPackagedLibrary(relative.wstring().c_str(), 0);
++#else
+     return LoadLibraryExW(p.wstring().c_str(), nullptr,
+         LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
++#endif
+ }
+ void* pl_dlsym(void* h, const char* name) {
+     return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(h), name));
