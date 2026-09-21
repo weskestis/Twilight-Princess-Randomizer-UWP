@@ -1,0 +1,12 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.665",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "upstream": "Dusklight v2.0.1",
+  "randomizer": "bundled native Dusklight 2 module",
+  "enemySouls": true,
+  "xboxLoaderHotfix": "Randomizer module is signed inside the MSIX and loaded through LoadPackagedLibrary",
+  "xboxStartupGuard": "Persistent phase journal with automatic safe recovery and exact native-load, mod-initialize, and hook-stage reporting"
+}

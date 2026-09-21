@@ -1,0 +1,589 @@
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+index 16e52f12d..01c5eab8f 100644
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -20,6 +20,7 @@
+ #include "dusk/mods/svc/hook.hpp"
+ #include "dusk/mods/svc/registry.hpp"
+ #include "dusk/mods/updates.hpp"
++#include "dusk/startup_guard.hpp"
+ #include "dusk/ui/mod_texture_provider.hpp"
+ #include "dusk/ui/mods_window.hpp"
+ #include "dusk/ui/ui.hpp"
+@@ -263,6 +264,7 @@ bool ModLoader::activate_mod(LoadedMod& mod) {
+ 
+     const char* initializeName = mod.native ? "mod_initialize" : "runtime activate";
+     log::write(mod.metadata.id, LOG_LEVEL_TRACE, "calling {}", initializeName);
++    startup_guard::stage(fmt::format("mod.initialize:{}", mod.metadata.id));
+     try {
+         ModError error = MOD_ERROR_INIT;
+         const auto result = mod.native ?
+@@ -281,6 +283,8 @@ bool ModLoader::activate_mod(LoadedMod& mod) {
+         fail_mod(mod, MOD_ERROR, fmt::format("Unknown exception in {}", initializeName));
+     }
+ 
++    startup_guard::stage(fmt::format("mod.initialized:{}", mod.metadata.id));
++
+     warn_unpublished_deferred_exports(mod);
+ 
+     if (!mod.active) {
+@@ -343,6 +347,8 @@ void ModLoader::init() {
+     }
+     m_initialized = true;
+ 
++    startup_guard::stage("mods.manifest");
++
+     manifest::initialize();
+ #if DUSK_HAS_PREPATCH
+     prepatch::initialize();
+@@ -362,6 +368,7 @@ void ModLoader::init() {
+     // Stale libs from previous sessions (see load_native).
+     fs::remove_all(m_cacheDir, ec);
+ 
++    startup_guard::stage("mods.scan");
+     const auto packages = scan_packages(m_searchDirs);
+     for (const auto& package : packages) {
+         const auto* selected = select_package(packages, package.metadata.id);
+@@ -371,6 +378,7 @@ void ModLoader::init() {
+                 data::abbreviated_path_string(selected->path), selected->metadata.version);
+             continue;
+         }
++        startup_guard::stage("mods.package-load");
+         if (auto* mod = try_load_mod(package.path, package.fromDirectory, package.searchDirIndex)) {
+             record_package_sources(*mod, packages);
+         }
+@@ -437,6 +445,8 @@ void ModLoader::init() {
+         }
+     }
+ 
++    startup_guard::stage("mods.lifecycle-ready");
++
+     svc::modules_lifecycle_applied();
+ 
+     auto active = std::ranges::count_if(mods(), [](const LoadedMod& m) { return m.active; });
+diff --git a/src/dusk/mods/loader/natives.cpp b/src/dusk/mods/loader/natives.cpp
+index 1db66e508..be50fbdae 100644
+--- a/src/dusk/mods/loader/natives.cpp
++++ b/src/dusk/mods/loader/natives.cpp
+@@ -6,6 +6,7 @@
+ #include "dusk/data.hpp"
+ #include "dusk/mods/log_buffer.hpp"
+ #include "dusk/mods/svc/registry.hpp"
++#include "dusk/startup_guard.hpp"
+ #include "dusk/utilities.hpp"
+ 
+ #include <borealis/io.hpp>
+@@ -486,6 +487,7 @@ void ModLoader::load_native(
+     }
+ 
+     auto nativeMod = std::make_unique<NativeMod>();
++    startup_guard::stage(fmt::format("native.load:{}", mod.metadata.id));
+     try {
+         nativeMod->handle = std::make_unique<loader::NativeModule>(libPath);
+     } catch (const std::runtime_error& e) {
+@@ -494,6 +496,8 @@ void ModLoader::load_native(
+         return;
+     }
+ 
++    startup_guard::stage(fmt::format("native.exports:{}", mod.metadata.id));
++
+     nativeMod->meta = nativeMod->handle->LookupSymbol<const ModMeta*>("mod_meta");
+     nativeMod->contextSymbol = nativeMod->handle->LookupSymbol<ModContext**>("mod_ctx");
+     nativeMod->fn_initialize = nativeMod->handle->LookupSymbol<ModInitializeFn>("mod_initialize");
+@@ -527,6 +531,7 @@ void ModLoader::load_native(
+     mod.native = std::move(nativeMod);
+     mod.nativeStatus = NativeModStatus::Loaded;
+     runtimeDirRollback.release();
++    startup_guard::stage(fmt::format("native.ready:{}", mod.metadata.id));
+ }
+ 
+ bool ModLoader::load_native_if_present(LoadedMod& mod) {
+diff --git a/src/dusk/mods/manifest.cpp b/src/dusk/mods/manifest.cpp
+index e60039a37..c8cdc5263 100644
+--- a/src/dusk/mods/manifest.cpp
++++ b/src/dusk/mods/manifest.cpp
+@@ -410,4 +410,32 @@ bool has_inline_sites(const void* addr, const char** outName) {
+     return true;
+ }
+ 
++const char* name_for_address(const void* addr) {
++    if (!s_state.loaded || addr == nullptr) {
++        return nullptr;
++    }
++    const auto absolute = reinterpret_cast<uintptr_t>(addr);
++    if (absolute < s_state.imageBase) {
++        return nullptr;
++    }
++    const uint64_t rva = static_cast<uint64_t>(absolute - s_state.imageBase);
++    const char* fallback = nullptr;
++    for (uint32_t i = 0; i < s_state.entryCount; ++i) {
++        const Entry& entry = s_state.entries[i];
++        if (entry.rva != rva || (entry.flags & kFlagCode) == 0 ||
++            entry.nameOff >= s_state.stringsLen)
++        {
++            continue;
++        }
++        const char* name = s_state.strings + entry.nameOff;
++        if ((entry.flags & kFlagDisplay) != 0) {
++            return name;
++        }
++        if (fallback == nullptr) {
++            fallback = name;
++        }
++    }
++    return fallback;
++}
++
+ }  // namespace dusk::mods::manifest
+diff --git a/src/dusk/mods/manifest.hpp b/src/dusk/mods/manifest.hpp
+index 586759a8b..1eb529328 100644
+--- a/src/dusk/mods/manifest.hpp
++++ b/src/dusk/mods/manifest.hpp
+@@ -47,4 +47,9 @@ ResolveStatus resolve(const char* name, void** outAddr, HookSymbolFlags* outFlag
+ // when known. False when no manifest is loaded.
+ bool has_inline_sites(const void* addr, const char** outName = nullptr);
+ 
++// Returns a stable manifest-owned name for a code address when one is available. This is used by
++// the Xbox startup journal to identify the exact hook being prepared without relying on ASLR-
++// dependent pointer values.
++const char* name_for_address(const void* addr);
++
+ }  // namespace dusk::mods::manifest
+diff --git a/src/dusk/mods/svc/game_mode.cpp b/src/dusk/mods/svc/game_mode.cpp
+index 568e71d34..72e4d1333 100644
+--- a/src/dusk/mods/svc/game_mode.cpp
++++ b/src/dusk/mods/svc/game_mode.cpp
+@@ -6,6 +6,7 @@
+ #include "dusk/game_mode.hpp"
+ #include "dusk/mod_loader.hpp"
+ #include "dusk/mods/loader/loader.hpp"
++#include "dusk/startup_guard.hpp"
+ #include "dusk/utilities.hpp"
+ 
+ #include <aurora/lib/logging.hpp>
+@@ -34,18 +35,33 @@ bool invoke_mod_callback(LoadedMod& mod, const char* what, Fn&& fn) {
+         return false;
+     }
+ 
++    const bool activation = std::string_view{what} == "game mode activation callback";
++    if (activation) {
++        startup_guard::begin_activity(fmt::format("game-mode.activate:{}", mod.metadata.id));
++    }
++
+     ModError error = MOD_ERROR_INIT;
+     ModResult result = MOD_OK;
+     try {
+         result = fn(&error);
+     } catch (const std::exception& exception) {
++        if (activation) {
++            startup_guard::end_activity("game-mode.activation-exception");
++        }
+         fail_mod(mod, MOD_ERROR, fmt::format("exception in {}: {}", what, exception.what()));
+         return false;
+     } catch (...) {
++        if (activation) {
++            startup_guard::end_activity("game-mode.activation-exception");
++        }
+         fail_mod(mod, MOD_ERROR, fmt::format("unknown exception in {}", what));
+         return false;
+     }
+ 
++    if (activation) {
++        startup_guard::end_activity("game-mode.activation-complete");
++    }
++
+     if (result != MOD_OK && mod.active) {
+         fail_mod(mod, result,
+             error.message[0] != '\0' ?
+diff --git a/src/dusk/mods/svc/hook.cpp b/src/dusk/mods/svc/hook.cpp
+index 0cc983c02..2f0a3cc92 100644
+--- a/src/dusk/mods/svc/hook.cpp
++++ b/src/dusk/mods/svc/hook.cpp
+@@ -5,6 +5,7 @@
+ #include "dusk/mods/loader/prepatch.hpp"
+ #endif
+ #include "dusk/mods/manifest.hpp"
++#include "dusk/startup_guard.hpp"
+ #include "mods/svc/hook.h"
+ 
+ #if DUSK_CODE_MODS
+@@ -242,6 +243,9 @@ void* resolve_target(void* addr) {
+ 
+ #if DUSK_HAS_FUNCHOOK
+ funchook_t* install_funchook(void* fnAddr, void* trampoline, void** outOriginal) {
++    const char* targetName = manifest::name_for_address(fnAddr);
++    const std::string_view diagnosticName = targetName != nullptr ? targetName : "unknown";
++    startup_guard::stage(fmt::format("hook.create:{}", diagnosticName));
+     funchook_t* fh = funchook_create();
+     if (fh == nullptr) {
+         DuskLog.warn("HookSystem: funchook_create failed for {:p}", fnAddr);
+@@ -249,10 +253,14 @@ funchook_t* install_funchook(void* fnAddr, void* trampoline, void** outOriginal)
+     }
+ 
+     void* fn = fnAddr;
++    startup_guard::stage(fmt::format("hook.prepare:{}", diagnosticName));
+     const int prep = funchook_prepare(fh, &fn, trampoline);
+     if (prep == 0) {
+         *outOriginal = fn;
+     }
++    if (prep == 0) {
++        startup_guard::stage(fmt::format("hook.commit:{}", diagnosticName));
++    }
+     const int inst = prep == 0 ? funchook_install(fh, 0) : -1;
+     if (prep != 0 || inst != 0) {
+         const char* message = funchook_error_message(fh);
+@@ -262,6 +270,7 @@ funchook_t* install_funchook(void* fnAddr, void* trampoline, void** outOriginal)
+         *outOriginal = nullptr;
+         return nullptr;
+     }
++    startup_guard::stage(fmt::format("hook.ready:{}", diagnosticName));
+     return fh;
+ }
+ #endif
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+new file mode 100644
+index 000000000..832491152
+--- /dev/null
++++ b/src/dusk/startup_guard.hpp
+@@ -0,0 +1,132 @@
++#pragma once
++
++#include <filesystem>
++#include <fstream>
++#include <mutex>
++#include <string>
++#include <string_view>
++#include <system_error>
++
++namespace dusk::startup_guard {
++
++#if defined(_UWP)
++namespace detail {
++inline std::filesystem::path markerPath;
++inline std::string previousStage;
++inline bool initialized = false;
++inline bool startupActive = false;
++inline bool activityActive = false;
++inline bool recoveryMode = false;
++inline std::mutex mutex;
++
++inline std::string clean_stage(std::string_view stage) {
++    std::string value{stage.substr(0, 768)};
++    for (char& ch : value) {
++        if (ch == '\r' || ch == '\n') {
++            ch = ' ';
++        }
++    }
++    return value;
++}
++
++inline void write_locked(std::string_view stage) noexcept {
++    if (markerPath.empty()) {
++        return;
++    }
++    try {
++        std::ofstream output(markerPath, std::ios::binary | std::ios::trunc);
++        if (!output) {
++            return;
++        }
++        const std::string value = clean_stage(stage);
++        output.write(value.data(), static_cast<std::streamsize>(value.size()));
++        output.put('\n');
++        output.flush();
++    } catch (...) {
++        // The guard must never turn a diagnostic write failure into a startup failure.
++    }
++}
++
++inline void clear_locked() noexcept {
++    if (markerPath.empty()) {
++        return;
++    }
++    std::error_code ec;
++    std::filesystem::remove(markerPath, ec);
++}
++}  // namespace detail
++
++inline void begin_startup(const std::filesystem::path& userPath) noexcept {
++    std::scoped_lock lock(detail::mutex);
++    if (detail::initialized) {
++        return;
++    }
++    detail::initialized = true;
++    detail::markerPath = userPath / "xbox-startup-stage.txt";
++    try {
++        std::ifstream input(detail::markerPath, std::ios::binary);
++        if (input) {
++            std::getline(input, detail::previousStage);
++        }
++    } catch (...) {
++        detail::previousStage.clear();
++    }
++    detail::recoveryMode = !detail::previousStage.empty();
++    detail::startupActive = true;
++    detail::write_locked("startup.data-ready");
++}
++
++inline bool recovery_mode() noexcept {
++    std::scoped_lock lock(detail::mutex);
++    return detail::recoveryMode;
++}
++
++inline std::string previous_stage() noexcept {
++    std::scoped_lock lock(detail::mutex);
++    return detail::previousStage;
++}
++
++inline void stage(std::string_view value) noexcept {
++    std::scoped_lock lock(detail::mutex);
++    if (detail::startupActive || detail::activityActive) {
++        detail::write_locked(value);
++    }
++}
++
++inline void begin_activity(std::string_view value) noexcept {
++    std::scoped_lock lock(detail::mutex);
++    detail::activityActive = true;
++    detail::write_locked(value);
++}
++
++inline void end_activity(std::string_view resumeStage = "activity.complete") noexcept {
++    std::scoped_lock lock(detail::mutex);
++    detail::activityActive = false;
++    if (detail::startupActive) {
++        detail::write_locked(resumeStage);
++    } else {
++        detail::clear_locked();
++    }
++}
++
++inline void complete_startup() noexcept {
++    std::scoped_lock lock(detail::mutex);
++    detail::startupActive = false;
++    if (!detail::activityActive) {
++        detail::clear_locked();
++    }
++}
++
++#else
++
++inline void begin_startup(const std::filesystem::path&) noexcept {}
++inline bool recovery_mode() noexcept { return false; }
++inline std::string previous_stage() noexcept { return {}; }
++inline void stage(std::string_view) noexcept {}
++inline void begin_activity(std::string_view) noexcept {}
++inline void end_activity(std::string_view = {}) noexcept {}
++inline void complete_startup() noexcept {}
++
++#endif
++
++}  // namespace dusk::startup_guard
+diff --git a/src/m_Do/m_Do_main.cpp b/src/m_Do/m_Do_main.cpp
+index 61a550e36..5d86cc21f 100644
+--- a/src/m_Do/m_Do_main.cpp
++++ b/src/m_Do/m_Do_main.cpp
+@@ -60,10 +60,12 @@
+ #include "dusk/presentation.hpp"
+ #include "dusk/settings.h"
+ #include "dusk/speedrun.h"
++#include "dusk/startup_guard.hpp"
+ #include "dusk/texture_replacements.hpp"
+ #include "dusk/time.h"
+ #include "dusk/ui/command_console.hpp"
+ #include "dusk/ui/menu_bar.hpp"
++#include "dusk/ui/modal.hpp"
+ #include "dusk/ui/overlay.hpp"
+ #include "dusk/ui/prelaunch.hpp"
+ #include "dusk/ui/preset.hpp"
+@@ -147,6 +149,36 @@ s32 LOAD_COPYDATE(void*) {
+ 
+ AuroraInfo auroraInfo;
+ 
++static void show_xbox_startup_recovery() {
++#if defined(_UWP)
++    if (!dusk::startup_guard::recovery_mode()) {
++        return;
++    }
++    const std::string previous = dusk::startup_guard::previous_stage();
++    auto dismiss = [](dusk::ui::Modal& modal) { modal.pop(); };
++    dusk::ui::push_document(std::make_unique<dusk::ui::Modal>(dusk::ui::Modal::Props{
++        .title = "Xbox Startup Recovery",
++        .bodyText = fmt::format(
++            "The previous launch stopped during:\n\n{}\n\n"
++            "Randomizer code is still installed, but native mod activation is skipped for this "
++            "recovery launch. Please photograph this message.",
++            previous.empty() ? "stage unavailable" : previous),
++        .actions =
++            {
++                dusk::ui::ModalAction{
++                    .label = "OK",
++                    .onPressed = dismiss,
++                },
++            },
++        .onDismiss = dismiss,
++        .icon = "warning",
++    }));
++    if (auto* document = dusk::ui::top_document()) {
++        document->focus();
++    }
++#endif
++}
++
+ bool launchUILoop() {
+     while (dusk::IsRunning && !dusk::IsGameLaunched) {
+         const AuroraEvent* event = aurora_update();
+@@ -181,6 +213,7 @@ bool launchUILoop() {
+         dusk::g_imguiConsole.PostDraw();
+ 
+         aurora_end_frame();
++        dusk::startup_guard::complete_startup();
+     }
+ 
+     return dusk::IsRunning;
+@@ -326,6 +359,7 @@ void main01(void) {
+         }
+ 
+         aurora_end_frame();
++        dusk::startup_guard::complete_startup();
+ 
+         FrameMark;
+ 
+@@ -625,6 +659,8 @@ int game_main(int argc, char* argv[]) {
+     const auto dataPaths = dusk::data::initialize_data(standardOptions.userDir);
+     dusk::ConfigPath = dataPaths.userPath;
+     dusk::CachePath = dataPaths.cachePath;
++    dusk::startup_guard::begin_startup(dusk::ConfigPath);
++    dusk::startup_guard::stage("startup.logging");
+     dusk::InitializeLogging(dusk::CachePath, standardOptions);
+     const auto startupLogLevel = borealis::log::level();
+ 
+@@ -636,6 +672,7 @@ int game_main(int argc, char* argv[]) {
+ 
+     log_build_info();
+ 
++    dusk::startup_guard::stage("startup.config-load");
+     dusk::config::load_from_user_preferences();
+     ApplyCVarOverrides(parsed_arg_options["cvar"]);
+     borealis::sentry::Options sentryOptions{
+@@ -645,6 +682,7 @@ int game_main(int argc, char* argv[]) {
+     if (const char* logPath = borealis::log::file_path()) {
+         sentryOptions.attachments.emplace_back(logPath);
+     }
++    dusk::startup_guard::stage("startup.crash-services");
+     borealis::sentry::initialize(sentryOptions);
+     borealis::crash::install();
+     // TODO: How to handle this?
+@@ -703,7 +741,9 @@ int game_main(int argc, char* argv[]) {
+         config.pauseOnFocusLost = dusk::getSettings().game.pauseOnFocusLost;
+         config.imGuiInitCallback = &aurora_imgui_init_callback;
+         config.allowTextureDumps = false;
++        dusk::startup_guard::stage("startup.aurora-initialize");
+         auroraInfo = aurora_initialize(argc, argv, &config);
++        dusk::startup_guard::stage("startup.aurora-ready");
+     }
+ 
+     dusk::presentation::update_frame_rate_preference();
+@@ -750,6 +790,7 @@ int game_main(int argc, char* argv[]) {
+         dusk::hq_minimap::set_active(true);
+     }
+ 
++    dusk::startup_guard::stage("startup.ui-initialize");
+     dusk::texture_replacements::reload();
+     dusk::ui::initialize();
+     dusk::ui::apply_scale();
+@@ -762,6 +803,10 @@ int game_main(int argc, char* argv[]) {
+     // This is only a metadata check; full hash verification is handled by the prelaunch UI.
+     bool forcePreLaunchUI = false;
+     bool saveConfigBeforePrelaunch = false;
++    const bool xboxStartupRecovery = dusk::startup_guard::recovery_mode();
++    if (xboxStartupRecovery) {
++        forcePreLaunchUI = true;
++    }
+ 
+     borealis::io::PathAccess dvdPathAccess;
+     const auto resolveDvdLocation = [&dvdPathAccess](const std::string& location) {
+@@ -837,6 +882,14 @@ int game_main(int argc, char* argv[]) {
+         showPrelaunchAfterInit = false;
+     }
+ 
++    if (xboxStartupRecovery) {
++        // Always present a real frame before touching the phase that stopped the previous launch.
++        // The saved disc and configuration remain intact.
++        skipPreLaunchUI = false;
++        showPrelaunchAfterInit = false;
++        dusk::IsGameLaunched = false;
++    }
++
+     if (showPrelaunchAfterInit) {
+         // Force launchUILoop to not run, we know that the ISO will be loaded.
+         dusk::IsGameLaunched = true;
+@@ -857,7 +910,10 @@ int game_main(int argc, char* argv[]) {
+ 
+         if (!skipPreLaunchUI) {
+             if (!showPrelaunchAfterInit) {
++                dusk::startup_guard::stage("startup.prelaunch-construct");
+                 dusk::ui::push_document(std::make_unique<dusk::ui::Prelaunch>(), true);
++                dusk::startup_guard::stage("startup.prelaunch-ready");
++                show_xbox_startup_recovery();
+             }
+ 
+             // pre game launch ui main loop
+@@ -887,6 +943,7 @@ int game_main(int argc, char* argv[]) {
+         {
+             DuskLog.fatal("DVD image failed validation: {}", dvdPath);
+         }
++        dusk::startup_guard::stage("startup.disc-open");
+         DuskLog.info("Loading DVD image: {}", dvdPath);
+         if (!aurora_dvd_open(dvdPath.c_str())) {
+             DuskLog.fatal("Failed to open DVD image: {}", dvdPath);
+@@ -895,9 +952,11 @@ int game_main(int argc, char* argv[]) {
+         dusk::IsGameLaunched = true;
+     }
+ 
++    dusk::startup_guard::stage("startup.game-version");
+     dusk::version::init();
+     LanguageInit();
+ 
++    dusk::startup_guard::stage("startup.os-init");
+     OSInit();
+ 
+     mDoMain::sPowerOnTime = DUSK_IF_ELSE(OSGetSystemTime(), OSGetTime());
+@@ -909,6 +968,7 @@ int game_main(int argc, char* argv[]) {
+     mDoRst::setLogoScnFlag(0);
+ 
+     // Global Context Init
++    dusk::startup_guard::stage("startup.global-context");
+     dComIfG_ct();
+ 
+     mDoDvdThd::SyncWidthSound = false;
+@@ -919,7 +979,11 @@ int game_main(int argc, char* argv[]) {
+         dusk::speedrun::registerSpeedrunGameMode();
+     }
+ 
+-    if (parsed_arg_options.contains("mods") &&
++    dusk::startup_guard::stage("startup.mods-init");
++    if (xboxStartupRecovery) {
++        DuskLog.warn("Xbox startup recovery: native mod activation skipped after stage '{}'",
++            dusk::startup_guard::previous_stage());
++    } else if (parsed_arg_options.contains("mods") &&
+             !parsed_arg_options["mods"].as<std::string>().empty())
+     {
+         mods_init(parsed_arg_options["mods"].as<std::string>());
+@@ -928,7 +992,9 @@ int game_main(int argc, char* argv[]) {
+     }
+ 
+     if (!skipPreLaunchUI && showPrelaunchAfterInit) {
++        dusk::startup_guard::stage("startup.prelaunch-after-mods");
+         dusk::ui::push_document(std::make_unique<dusk::ui::Prelaunch>(), true);
++        dusk::startup_guard::stage("startup.prelaunch-ready");
+     }
+ 
+     if (skipPreLaunchUI == true) {
+@@ -953,6 +1019,7 @@ int game_main(int argc, char* argv[]) {
+ 
+     OSReport("Starting main01 (Game Loop)...\n");
+ 
++    dusk::startup_guard::stage("startup.main-loop");
+     main01();
+     borealis::shutdown();
+ 
