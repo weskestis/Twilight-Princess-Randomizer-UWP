@@ -1,0 +1,12 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.666",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "upstream": "Dusklight v2.0.1",
+  "randomizer": "bundled native Dusklight 2 module",
+  "enemySouls": true,
+  "xboxLoaderHotfix": "UWP omits Aurora processor-group affinity APIs while retaining the runtime hook engine",
+  "xboxStartupGuard": "Persistent phase journal with automatic safe recovery and exact native-load, mod-initialize, and hook-stage reporting"
+}

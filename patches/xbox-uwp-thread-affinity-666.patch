@@ -1,0 +1,13 @@
+diff --git a/lib/thread.cpp b/lib/thread.cpp
+index 348b0ec..6b04a69 100644
+--- a/lib/thread.cpp
++++ b/lib/thread.cpp
+@@ -164,7 +164,7 @@ bool apply_cache_domain(const CacheDomain& domain) noexcept {
+   }
+   return set_current_thread_affinity(set);
+ }
+-#elif defined(_WIN32)
++#elif defined(_WIN32) && !defined(AURORA_WINDOWS_STORE) && !defined(_UWP)
+ std::optional<CacheDomain> find_cache_domain() {
+   PROCESSOR_NUMBER currentProcessor{};
+   GetCurrentProcessorNumberEx(&currentProcessor);
