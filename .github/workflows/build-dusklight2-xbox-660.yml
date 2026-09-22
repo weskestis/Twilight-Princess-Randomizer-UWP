@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 666
+name: Build Dusklight 2.0.1 Xbox 667
 
 on:
   push:
@@ -113,7 +113,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 666 identity
+      - name: Apply reviewed source layers and advance 667 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -245,6 +245,24 @@ jobs:
           [IO.File]::WriteAllText(
             $threadAffinityPatch, $threadAffinityPatchText, [Text.UTF8Encoding]::new($false))
 
+          $funchookModuleBasePatchSource = "$env:TPR_CONTROL\patches\xbox-uwp-funchook-module-base-667.patch"
+          $funchookModuleBasePatchText = [IO.File]::ReadAllText($funchookModuleBasePatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $funchookModuleBasePatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($funchookModuleBasePatchText))
+            $funchookModuleBasePatchHash = ([BitConverter]::ToString($funchookModuleBasePatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($funchookModuleBasePatchHash -ne 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e') {
+            throw "Xbox UWP Funchook module-base patch SHA-256 mismatch: $funchookModuleBasePatchHash"
+          }
+          $funchookModuleBasePatch = Join-Path $env:RUNNER_TEMP 'xbox-uwp-funchook-module-base-667.patch'
+          [IO.File]::WriteAllText(
+            $funchookModuleBasePatch,
+            $funchookModuleBasePatchText,
+            [Text.UTF8Encoding]::new($false))
+
           git -C "$env:TPR_SRC" apply --check $duskPatch
           git -C "$env:TPR_SRC" apply $duskPatch
           git -C "$env:TPR_SRC" apply --check $moduleUwpPatch
@@ -253,6 +271,8 @@ jobs:
           git -C "$env:TPR_SRC" apply $packagedModPatch
           git -C "$env:TPR_SRC" apply --check $startupGuardPatch
           git -C "$env:TPR_SRC" apply $startupGuardPatch
+          git -C "$env:TPR_SRC" apply --check $funchookModuleBasePatch
+          git -C "$env:TPR_SRC" apply $funchookModuleBasePatch
           git -C "$env:TPR_SRC\extern\aurora" apply --check $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply --check $threadAffinityPatch
@@ -269,7 +289,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.666"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.667"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -502,7 +522,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 666 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 667 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -529,17 +549,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 666 package
+      - name: Verify and collect full 667 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-666"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-667"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.666_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.667_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -551,7 +571,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.666"',
+            'Version="1.4.1.667"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
@@ -583,7 +603,7 @@ jobs:
             throw 'Packaged Randomizer module is missing from AppxBlockMap.xml.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-666-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-667-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -666,12 +686,14 @@ jobs:
             'GetCurrentProcessorNumberEx',
             'GetLogicalProcessorInformationEx',
             'GetThreadGroupAffinity',
-            'SetThreadGroupAffinity')) {
+            'SetThreadGroupAffinity',
+            'GetModuleHandleExA',
+            'GetModuleHandleExW')) {
             if ($exeImports -match "(?i)\b$([regex]::Escape($forbiddenXboxImport))\b") {
-              throw "Packaged executable retains Xbox-incompatible processor-topology import: $forbiddenXboxImport"
+              throw "Packaged executable retains an unproven Xbox loader import: $forbiddenXboxImport"
             }
           }
-          foreach ($requiredHookImport in @('VirtualProtect','FlushInstructionCache')) {
+          foreach ($requiredHookImport in @('VirtualQuery','VirtualProtect','FlushInstructionCache')) {
             if ($exeImports -notmatch "(?i)\b$([regex]::Escape($requiredHookImport))\b") {
               throw "Packaged executable lost required runtime-hook import: $requiredHookImport"
             }
@@ -690,7 +712,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-666-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-667-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           $exportRows = ([regex]::Matches($exports, '(?m)^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+')).Count
@@ -736,8 +758,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-666-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-666-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-667-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-667-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -773,20 +795,26 @@ jobs:
               $_.Name -match '(?i)x64'
             })
           if ($dependencies.Count -lt 1) { throw 'No x64 Microsoft VCLibs dependency was produced.' }
+          python "$env:TPR_CONTROL\scripts\verify_vclibs_imports.py" `
+            "$env:TPR_MSIX_INSPECT" $dependencies[0].FullName
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Packaged binaries request symbols absent from the shipped UWP VCLibs framework.'
+          }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-666.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-666.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-667.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-667.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.666'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.667'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
             borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
             randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 663 AppContainer linkage'
-            xboxLoaderHotfix = 'Signed in-package Randomizer loaded with LoadPackagedLibrary; optional processor-group affinity disabled for UWP'
+            xboxLoaderHotfix = 'Signed in-package Randomizer loaded with LoadPackagedLibrary; optional processor-group affinity disabled; Funchook module bases resolved through VirtualQuery on UWP'
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
+            funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
             xboxStartupGuard = 'Persistent phase journal and automatic safe recovery launcher; exact native-load, mod-init, and hook-stage reporting'
             nativeModuleDeployment = 'Expanded under mods/randomizer and recorded in AppxBlockMap.xml'
             uwpDependency = 'ae39aa004ae127bd00f8262d28b401f8e4ed8728'
@@ -797,13 +825,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-666.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-667.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.666-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.667-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -812,7 +840,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.666-Xbox
-          path: TPR-Xbox-Package-666/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.667-Xbox
+          path: TPR-Xbox-Package-667/*
           if-no-files-found: error
           retention-days: 30

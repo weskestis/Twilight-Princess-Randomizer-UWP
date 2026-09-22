@@ -1,0 +1,29 @@
+diff --git a/cmake/PatchFunchook.cmake b/cmake/PatchFunchook.cmake
+--- a/cmake/PatchFunchook.cmake
++++ b/cmake/PatchFunchook.cmake
+@@ -81,3 +81,25 @@
+ #endif]=] _windows_content "${_windows_content}")
+     file(WRITE "${SOURCE_DIR}/src/funchook_windows.c" "${_windows_content}")
+ endif ()
++
++# Resolve an address back to its mapped image without GetModuleHandleEx on UWP.
++# Xbox exposes VirtualQuery to the known-good executable; AllocationBase is the
++# image base for code mapped from an EXE or DLL. Keep desktop builds unchanged.
++if (NOT _windows_content MATCHES "DUSK_UWP_MODULE_BASE")
++    set(_module_handle_call
++        "    ok = GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, func, &hMod);")
++    string(FIND "${_windows_content}" "${_module_handle_call}" _module_handle_position)
++    if (_module_handle_position EQUAL -1)
++        message(FATAL_ERROR "Funchook module-handle call site changed")
++    endif ()
++    string(REPLACE "${_module_handle_call}" [=[#if defined(DUSK_UWP)
++#define DUSK_UWP_MODULE_BASE 1
++    MEMORY_BASIC_INFORMATION moduleInfo;
++    ok = VirtualQuery(func, &moduleInfo, sizeof(moduleInfo)) != 0 &&
++         moduleInfo.AllocationBase != NULL;
++    hMod = ok ? (HMODULE)moduleInfo.AllocationBase : NULL;
++#else
++    ok = GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, func, &hMod);
++#endif]=] _windows_content "${_windows_content}")
++    file(WRITE "${SOURCE_DIR}/src/funchook_windows.c" "${_windows_content}")
++endif ()
