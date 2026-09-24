@@ -1,0 +1,246 @@
+diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
+--- a/cmake/ModSDK.cmake
++++ b/cmake/ModSDK.cmake
+@@ -173,9 +173,18 @@ function(add_mod target_name)
+     set(_needs_host_link FALSE)
+     set(_lib_platform "")
+     set(_lib_name "")
++    set(_builtin_static FALSE)
+     if (ARG_SOURCES)
+         set(_has_lib TRUE)
+-        add_library(${target_name} MODULE ${ARG_SOURCES})
++        if (DUSK_UWP AND target_name STREQUAL "randomizer")
++            # Xbox cannot reliably activate an app that later introduces a second
++            # native image for the bundled Randomizer. Build it into the signed
++            # game image instead. Other platforms retain the normal module path.
++            set(_builtin_static TRUE)
++            add_library(${target_name} STATIC ${ARG_SOURCES})
++        else ()
++            add_library(${target_name} MODULE ${ARG_SOURCES})
++        endif ()
+         _mod_lib_info(_lib_platform _lib_name)
+         set_target_properties(${target_name} PROPERTIES
+                 PREFIX ""
+@@ -189,13 +198,8 @@ function(add_mod target_name)
+         target_link_libraries(${target_name} PRIVATE dusklight_mod_api)
+ 
+         if (MSVC AND DUSK_UWP)
+-            # The UWP game is linked by a WindowsStore project, but bundled
+-            # native mods are linked in this Ninja feed. Point only the mod
+-            # DLL at MSVC's Store import libraries so /MD resolves to the
+-            # *_APP CRT supplied by Microsoft.VCLibs, and mark the image as
+-            # AppContainer-compatible. A desktop-linked module cannot load on
+-            # Xbox even when it is extracted under the codeGeneration
+-            # capability.
++            # Keep every object compatible with the Windows Store CRT. The
++            # built-in Randomizer archive is folded into the signed executable.
+             if (NOT DUSK_UWP_STORE_LIB_DIR OR
+                     NOT IS_DIRECTORY "${DUSK_UWP_STORE_LIB_DIR}")
+                 message(FATAL_ERROR
+@@ -203,7 +210,10 @@ function(add_mod target_name)
+             endif ()
+             target_compile_definitions(${target_name} PRIVATE
+                     _UWP=1
+                     WINAPI_FAMILY=WINAPI_FAMILY_APP)
++            if (_builtin_static)
++                target_compile_definitions(${target_name} PRIVATE DUSK_BUILDING_GAME=1)
++            endif ()
+             target_link_directories(${target_name} BEFORE PRIVATE
+                     "${DUSK_UWP_STORE_LIB_DIR}")
+             target_link_libraries(${target_name} PRIVATE WindowsApp.lib OneCore.lib)
+@@ -277,7 +285,7 @@ function(add_mod target_name)
+             # setup_windows_exports); cl and clang-cl both consume it in MSVC mode. Function
+             # calls resolve through import thunks; game data is reachable only through
+             # __declspec(dllimport), i.e. DUSK_GAME_DATA-annotated declarations.
+-            if (_needs_host_link)
++            if (_needs_host_link AND NOT _builtin_static)
+                 if (TARGET dusklight)
+                     if (NOT DUSK_GAME_IMPLIB)
+                         message(FATAL_ERROR
+@@ -317,16 +325,18 @@ function(add_mod target_name)
+     set(_lib_strip_cmd "")
+     set(_target_depend "")
+     if (_has_lib)
+-        list(APPEND _zip_args lib)
+-        set(_lib_copy_cmd
+-                COMMAND ${CMAKE_COMMAND} -E make_directory "${_stage}/lib/${_lib_platform}"
+-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+-                "$<TARGET_FILE:${target_name}>" "${_stage}/lib/${_lib_platform}/${_lib_name}")
+-        if (UNIX AND NOT APPLE)
+-            set(_lib_strip_cmd COMMAND "${CMAKE_STRIP}" --strip-unneeded
+-                    "${_stage}/lib/${_lib_platform}/${_lib_name}")
+-        endif ()
+         set(_target_depend ${target_name})
++        if (NOT _builtin_static)
++            list(APPEND _zip_args lib)
++            set(_lib_copy_cmd
++                    COMMAND ${CMAKE_COMMAND} -E make_directory "${_stage}/lib/${_lib_platform}"
++                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
++                    "$<TARGET_FILE:${target_name}>" "${_stage}/lib/${_lib_platform}/${_lib_name}")
++            if (UNIX AND NOT APPLE)
++                set(_lib_strip_cmd COMMAND "${CMAKE_STRIP}" --strip-unneeded
++                        "${_stage}/lib/${_lib_platform}/${_lib_name}")
++            endif ()
++        endif ()
+     endif ()
+     string(TOLOWER "${_lib_name}" _lib_name_key)
+     set(_runtime_lib_name_keys "${_lib_name_key}")
+diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
+--- a/platforms/uwp/CMakeLists.txt
++++ b/platforms/uwp/CMakeLists.txt
+@@ -20,14 +20,22 @@ foreach (_required_dir DUSK_DIR DUSK_SOURCE_DIR UWP_DEP_SOURCE_DIR)
+ endforeach ()
+ 
+ set(_feed_archive "${DUSK_DIR}/dusklight.lib")
+-set(_feed_def "${DUSK_DIR}/dusklight_exports.def")
+ set(_randomizer_bundle "${DUSK_DIR}/bundled_mods/randomizer.dusk")
+-foreach (_required_file "${_feed_archive}" "${_feed_def}" "${_randomizer_bundle}")
++foreach (_required_file "${_feed_archive}" "${_randomizer_bundle}")
+     if (NOT EXISTS "${_required_file}")
+         message(FATAL_ERROR "Required UWP feed output is missing: ${_required_file}")
+     endif ()
+ endforeach ()
+ 
++file(GLOB_RECURSE _randomizer_archives LIST_DIRECTORIES FALSE
++        "${DUSK_DIR}/mods/randomizer/randomizer.lib")
++list(LENGTH _randomizer_archives _randomizer_archive_count)
++if (NOT _randomizer_archive_count EQUAL 1)
++    message(FATAL_ERROR
++            "Expected exactly one built-in Randomizer archive; found ${_randomizer_archive_count}")
++endif ()
++list(GET _randomizer_archives 0 _randomizer_archive)
++
+ set(_uwp_x64 "${UWP_DEP_SOURCE_DIR}/x64")
+ foreach (_required_file
+         "${_uwp_x64}/lib/SDL3.lib"
+@@ -89,11 +97,10 @@ set_source_files_properties(${_asset_files} PROPERTIES
+         VS_DEPLOYMENT_LOCATION "Assets")
+ target_sources(${PROJECT_NAME} PRIVATE ${_asset_files})
+ 
+-# Xbox UWP may only execute native modules that are part of the signed package
+-# graph. Extracting mod.dll from randomizer.dusk into LocalState and loading it
+-# from there causes code-integrity termination on the console. Expand the
+-# built-in bundle at configure time so every file, including mod.dll, is listed
+-# in AppxBlockMap.xml and signed as part of the MSIX.
++# Keep the Randomizer manifest and resources as a normal built-in mod directory,
++# but reject native code in the bundle. Its code is linked into the signed game
++# executable, matching the single-image layout of the known-working UWP build
++# and avoiding a second native image during Xbox startup.
+ set(_randomizer_package_dir "${CMAKE_CURRENT_BINARY_DIR}/packaged-randomizer")
+ file(REMOVE_RECURSE "${_randomizer_package_dir}")
+ file(MAKE_DIRECTORY "${_randomizer_package_dir}")
+@@ -103,12 +110,14 @@ file(ARCHIVE_EXTRACT
+         DESTINATION "${_randomizer_package_dir}")
+ 
+ foreach (_required_file
+-        "${_randomizer_package_dir}/mod.json"
+-        "${_randomizer_package_dir}/lib/windows-amd64/mod.dll")
++        "${_randomizer_package_dir}/mod.json")
+     if (NOT EXISTS "${_required_file}")
+         message(FATAL_ERROR "Expanded Randomizer payload is missing: ${_required_file}")
+     endif ()
+ endforeach ()
++if (EXISTS "${_randomizer_package_dir}/lib")
++    message(FATAL_ERROR "Built-in Randomizer bundle unexpectedly contains a native DLL")
++endif ()
+ 
+ file(GLOB_RECURSE _randomizer_package_files
+         LIST_DIRECTORIES FALSE
+@@ -157,6 +164,7 @@ set(_uwp_import_libraries
+ 
+ target_link_libraries(${PROJECT_NAME} PRIVATE
++    "${_randomizer_archive}"
+     "${_feed_archive}"
+     ${_feed_libraries}
+     ${_uwp_import_libraries}
+     WindowsApp.lib
+@@ -166,8 +174,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
+     Ws2_32.lib)
+ 
+ target_link_options(${PROJECT_NAME} PRIVATE
+-    "/DEF:${_feed_def}"
+-    "/WHOLEARCHIVE:${_feed_archive}"
++    "/WHOLEARCHIVE:${_randomizer_archive}"
+     /FUNCTIONPADMIN
+     /OPT:NOICF
+     /INCREMENTAL:NO
+diff --git a/src/dusk/mods/loader/natives.cpp b/src/dusk/mods/loader/natives.cpp
+--- a/src/dusk/mods/loader/natives.cpp
++++ b/src/dusk/mods/loader/natives.cpp
+@@ -339,6 +339,43 @@ bool parse_meta(NativeMod& native, LoadedMod& mod) {
+     return true;
+ }
+ 
++#if defined(_UWP)
++constexpr std::string_view k_builtinRandomizerId = "dev.twilitrealm.randomizer"sv;
++
++bool load_builtin_randomizer(LoadedMod& mod, const fs::path& cacheDir) {
++    const fs::path scratchDir = cacheDir / mod.metadata.id / "data";
++    std::error_code ec;
++    fs::create_directories(scratchDir, ec);
++    if (ec) {
++        log::write(mod.metadata.id, LOG_LEVEL_ERROR,
++            "failed to create built-in mod directory {}: {}",
++            data::abbreviated_path_string(scratchDir), ec.message());
++        mod.nativeStatus = NativeModStatus::Unknown;
++        return false;
++    }
++
++    auto native = std::make_unique<NativeMod>();
++    native->meta = &mod_meta;
++    native->contextSymbol = &mod_ctx;
++    native->fn_initialize = &mod_initialize;
++    native->fn_update = &mod_update;
++    native->fn_shutdown = &mod_shutdown;
++    if (!parse_meta(*native, mod)) {
++        return false;
++    }
++    *native->contextSymbol = mod.context.get();
++
++    mod.dir = fs::absolute(scratchDir);
++    mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);
++    mod.nativeDir = fs::absolute(mod.modPath);
++    mod.nativeDirUtf8 = borealis::io::fs_path_to_string(mod.nativeDir);
++    mod.native = std::move(native);
++    mod.nativeStatus = NativeModStatus::Loaded;
++    startup_guard::stage("native.ready:dev.twilitrealm.randomizer:built-in");
++    return true;
++}
++#endif
++
+ std::string native_status_message(const NativeModStatus status) {
+     switch (status) {
+     case NativeModStatus::BuildDisabled:
+@@ -532,6 +569,18 @@ void ModLoader::load_native(
+ }
+ 
+ bool ModLoader::load_native_if_present(LoadedMod& mod) {
++#if defined(_UWP)
++    // Never load a second Randomizer image on Xbox, including a stale user bundle
++    // that shadows the packaged data directory.
++    if (mod.metadata.id == k_builtinRandomizerId) {
++        mod.nativeStatus = NativeModStatus::Unknown;
++        if (!load_builtin_randomizer(mod, m_cacheDir)) {
++            fail_mod(mod, MOD_ERROR, native_status_message(mod.nativeStatus));
++            return false;
++        }
++        return true;
++    }
++#endif
+     const auto result = locate_native_runtime(*mod.bundle);
+     if (const auto* failure = std::get_if<NativeLocateFailure>(&result)) {
+         mod.nativeStatus = failure->status;
+@@ -564,6 +611,13 @@ void ModLoader::unload_native(LoadedMod& mod) {
+     if (!mod.native) {
+         return;
+     }
++#if defined(_UWP)
++    if (mod.metadata.id == k_builtinRandomizerId && !mod.native->handle) {
++        // The built-in code lives in the main executable and cannot be unloaded.
++        // Keep its entry points attached so a settings-driven re-enable works.
++        return;
++    }
++#endif
+     // Deferred dlclose: this mod's code may still be on the stack below the current tick
+     m_retiredNatives.push_back(
+         {std::move(mod.native), mod.nativeInPlace ? fs::path{} : std::move(mod.nativeDir)});

@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 667
+name: Build Dusklight 2.0.1 Xbox 668
 
 on:
   push:
@@ -63,7 +63,7 @@ jobs:
 
           git init "$env:TPR_UWP_DEP"
           git -C "$env:TPR_UWP_DEP" remote add origin https://github.com/SternXD/uwp-dep.git
-          git -C "$env:TPR_UWP_DEP" fetch --depth 1 origin ae39aa004ae127bd00f8262d28b401f8e4ed8728
+          git -C "$env:TPR_UWP_DEP" fetch --depth 1 origin 810cdcb672383045a8b03d1d55bb535352d7d46f
           git -C "$env:TPR_UWP_DEP" checkout --detach FETCH_HEAD
 
           $pins = @{
@@ -72,7 +72,7 @@ jobs:
             "$env:TPR_SRC\extern\borealis" = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
             "$env:TPR_SRC\mods\randomizer" = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5'
             "$env:TPR_SRC\mods\cosmetics" = 'fd93491089fa95441789244f2b2fd22a451ecbcc'
-            "$env:TPR_UWP_DEP" = 'ae39aa004ae127bd00f8262d28b401f8e4ed8728'
+            "$env:TPR_UWP_DEP" = '810cdcb672383045a8b03d1d55bb535352d7d46f'
           }
           foreach ($entry in $pins.GetEnumerator()) {
             $actual = (git -C $entry.Key rev-parse HEAD).Trim()
@@ -81,25 +81,35 @@ jobs:
             }
           }
 
-          # 6ba4aad accidentally shipped a desktop SDL3.dll: it lacks the
-          # IMAGE_DLLCHARACTERISTICS_APPCONTAINER bit and imports desktop CRT
-          # DLLs that the Xbox UWP VCLibs package does not contain. The pinned
-          # ae39aa0 binary is the exact SDL used by the known-launching .658.
+          # Pin the current Dusklight UWP dependency set. This pairs Aurora's
+          # expected Dawn revision with an SDL build that uses the Store CRT.
           $sdl = "$env:TPR_UWP_DEP\x64\bin\SDL3.dll"
-          $expectedSdlHash = 'd49ce990f754b7f88afa7b025e34941f1cefc6381a5f29e16110fea90dc22c9e'
+          $dawn = "$env:TPR_UWP_DEP\x64\bin\webgpu_dawn.dll"
+          $expectedSdlHash = 'f288fd682ea19fa82bf9bbbfefab4132853555ad6dfe37cbe9f9c55acff4bf06'
+          $expectedDawnHash = 'd1126d70c0eee87d69b802d10527d3dc301fce7514a206112ed4056cbf5b6910'
           $actualSdlHash = (Get-FileHash $sdl -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualDawnHash = (Get-FileHash $dawn -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualSdlHash -ne $expectedSdlHash) {
-            throw "Pinned AppContainer SDL3 hash mismatch: $actualSdlHash"
+            throw "Pinned UWP SDL3 hash mismatch: $actualSdlHash"
+          }
+          if ($actualDawnHash -ne $expectedDawnHash) {
+            throw "Pinned UWP Dawn hash mismatch: $actualDawnHash"
+          }
+          $expectedImportHashes = @{
+            'SDL3.lib' = '474423aa48a7760a236b8394b82559cfa37c5e33c430029c328a09496c0e4f7b'
+            'webgpu_dawn.lib' = '051ce8d5ee93e7de14c482da735be0dd41dddf51fc8acb14221c468a14d49a99'
+          }
+          foreach ($entry in $expectedImportHashes.GetEnumerator()) {
+            $actual = (Get-FileHash "$env:TPR_UWP_DEP\x64\lib\$($entry.Key)" `
+              -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $entry.Value) {
+              throw "Pinned UWP import library hash mismatch for $($entry.Key): $actual"
+            }
           }
           $sdlBytes = [IO.File]::ReadAllBytes($sdl)
           $peOffset = [BitConverter]::ToInt32($sdlBytes, 0x3c)
           if ([BitConverter]::ToUInt32($sdlBytes, $peOffset) -ne 0x00004550) {
             throw 'Pinned SDL3.dll has no valid PE signature.'
-          }
-          $dllCharacteristics = [BitConverter]::ToUInt16($sdlBytes, $peOffset + 24 + 0x46)
-          if (($dllCharacteristics -band 0x1000) -eq 0) {
-            throw ('Pinned SDL3.dll is not AppContainer-compatible (DllCharacteristics=0x{0:x4}).' -f `
-              $dllCharacteristics)
           }
           $sdlImports = & dumpbin /nologo /imports $sdl | Out-String
           foreach ($desktopCrt in @('MSVCP140.dll','VCRUNTIME140.dll','VCRUNTIME140_1.dll','vccorlib140.dll')) {
@@ -113,7 +123,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 667 identity
+      - name: Apply reviewed source layers and advance 668 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -263,6 +273,26 @@ jobs:
             $funchookModuleBasePatchText,
             [Text.UTF8Encoding]::new($false))
 
+          $staticRandomizerPatchSource = "$env:TPR_CONTROL\patches\xbox-static-randomizer-668.patch"
+          $staticRandomizerPatchText = [IO.File]::ReadAllText(
+            $staticRandomizerPatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $staticRandomizerPatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($staticRandomizerPatchText))
+            $staticRandomizerPatchHash = ([BitConverter]::ToString(
+              $staticRandomizerPatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($staticRandomizerPatchHash -ne 'fac052db1704f15c3501bc8ad869bc51b3bd0112fd96e56562f7aa2b0892b0e8') {
+            throw "Xbox static Randomizer patch SHA-256 mismatch: $staticRandomizerPatchHash"
+          }
+          $staticRandomizerPatch = Join-Path $env:RUNNER_TEMP 'xbox-static-randomizer-668.patch'
+          [IO.File]::WriteAllText(
+            $staticRandomizerPatch,
+            $staticRandomizerPatchText,
+            [Text.UTF8Encoding]::new($false))
+
           git -C "$env:TPR_SRC" apply --check $duskPatch
           git -C "$env:TPR_SRC" apply $duskPatch
           git -C "$env:TPR_SRC" apply --check $moduleUwpPatch
@@ -273,6 +303,8 @@ jobs:
           git -C "$env:TPR_SRC" apply $startupGuardPatch
           git -C "$env:TPR_SRC" apply --check $funchookModuleBasePatch
           git -C "$env:TPR_SRC" apply $funchookModuleBasePatch
+          git -C "$env:TPR_SRC" apply --check $staticRandomizerPatch
+          git -C "$env:TPR_SRC" apply $staticRandomizerPatch
           git -C "$env:TPR_SRC\extern\aurora" apply --check $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply --check $threadAffinityPatch
@@ -289,7 +321,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.667"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.668"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -406,21 +438,24 @@ jobs:
             -DTRACY_ENABLE=OFF
           if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 UWP feed configuration failed.' }
 
-      - name: Compile core, Randomizer module, and package
+      - name: Compile core, built-in Randomizer, and package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           cmake --build "$env:TPR_FEED" --target dusklight --parallel 2
           if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 static UWP feed failed to build.' }
-          foreach ($file in @('dusklight.lib','dusklight_exports.def','dusklight_imports.lib')) {
+          foreach ($file in @('dusklight.lib')) {
             if (-not (Test-Path "$env:TPR_FEED\$file" -PathType Leaf)) {
               throw "Required core feed output is missing: $file"
             }
           }
           cmake --build "$env:TPR_FEED" --target randomizer_package --parallel 2
-          if ($LASTEXITCODE -ne 0) { throw 'Randomizer native module/package failed to build.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Built-in Randomizer/package failed to build.' }
           if (-not (Test-Path "$env:TPR_FEED\bundled_mods\randomizer.dusk" -PathType Leaf)) {
             throw 'Bundled randomizer.dusk was not produced.'
+          }
+          if (-not (Test-Path "$env:TPR_FEED\mods\randomizer\randomizer.lib" -PathType Leaf)) {
+            throw 'Built-in randomizer.lib was not produced.'
           }
 
       - name: Run all Randomizer generator scenarios
@@ -435,18 +470,25 @@ jobs:
           & $test.FullName
           if ($LASTEXITCODE -ne 0) { throw "Randomizer generator scenarios failed: $LASTEXITCODE" }
 
-      - name: Inspect bundled native Randomizer
+      - name: Inspect built-in Randomizer
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force "$env:TPR_MOD_INSPECT" | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" `
             "-o$env:TPR_MOD_INSPECT" -y | Out-Host
-          $module = Get-ChildItem "$env:TPR_MOD_INSPECT\lib" -Recurse -File -Filter 'mod.dll' |
-            Select-Object -First 1
-          if (-not $module) { throw 'randomizer.dusk has no Windows native mod.dll.' }
-          $moduleBytes = [IO.File]::ReadAllBytes($module.FullName)
-          $moduleText = [Text.Encoding]::ASCII.GetString($moduleBytes)
+          if (-not (Test-Path "$env:TPR_MOD_INSPECT\mod.json" -PathType Leaf)) {
+            throw 'randomizer.dusk has no mod.json.'
+          }
+          $bundledNativeCode = @(Get-ChildItem "$env:TPR_MOD_INSPECT" -Recurse -File |
+            Where-Object { $_.Extension -in '.dll','.exe' })
+          if ($bundledNativeCode.Count -ne 0) {
+            throw "randomizer.dusk still contains separately loaded native code: $($bundledNativeCode.FullName -join ', ')"
+          }
+
+          $archive = Get-Item "$env:TPR_FEED\mods\randomizer\randomizer.lib"
+          $archiveBytes = [IO.File]::ReadAllBytes($archive.FullName)
+          $archiveText = [Text.Encoding]::ASCII.GetString($archiveBytes)
           foreach ($marker in @(
             'Enemy Souls',
             'Torch Slug Soul',
@@ -454,42 +496,8 @@ jobs:
             'King Bulblin Castle Soul',
             'src/f_op/f_op_actor.cpp#fopAc_Create',
             'Fail-closed Enemy Soul gate blocked')) {
-            if (-not $moduleText.Contains($marker)) {
-              throw "Randomizer module is missing runtime marker: $marker"
-            }
-          }
-          $imports = & dumpbin /nologo /imports $module.FullName | Out-String
-          if ($imports -notmatch '(?i)TwilightPrincessRandomizer[.]exe') {
-            throw 'randomizer.dll is not linked to the final UWP executable import surface.'
-          }
-          $headers = & dumpbin /nologo /headers $module.FullName | Out-String
-          if ($headers -notmatch '(?i)machine [(]x64[)]') { throw 'randomizer.dll is not x64.' }
-          $peOffset = [BitConverter]::ToInt32($moduleBytes, 0x3c)
-          if ([BitConverter]::ToUInt32($moduleBytes, $peOffset) -ne 0x00004550) {
-            throw 'randomizer.dll has no valid PE signature.'
-          }
-          $dllCharacteristics = [BitConverter]::ToUInt16($moduleBytes, $peOffset + 24 + 0x46)
-          if (($dllCharacteristics -band 0x1000) -eq 0) {
-            throw ('randomizer.dll is not AppContainer-compatible (DllCharacteristics=0x{0:x4}).' -f `
-              $dllCharacteristics)
-          }
-          foreach ($desktopCrt in @(
-            'MSVCP140.dll',
-            'MSVCP140_CODECVT_IDS.dll',
-            'VCRUNTIME140.dll',
-            'VCRUNTIME140_1.dll',
-            'vccorlib140.dll')) {
-            if ($imports -match "(?im)^\s*$([regex]::Escape($desktopCrt))\s*$") {
-              throw "randomizer.dll imports unavailable desktop CRT: $desktopCrt"
-            }
-          }
-          foreach ($appCrt in @(
-            'MSVCP140_APP.dll',
-            'MSVCP140_CODECVT_IDS_APP.dll',
-            'VCRUNTIME140_APP.dll',
-            'VCRUNTIME140_1_APP.dll')) {
-            if ($imports -notmatch "(?im)^\s*$([regex]::Escape($appCrt))\s*$") {
-              throw "randomizer.dll is missing UWP CRT import: $appCrt"
+            if (-not $archiveText.Contains($marker)) {
+              throw "Built-in Randomizer archive is missing runtime marker: $marker"
             }
           }
 
@@ -522,7 +530,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 667 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 668 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -549,17 +557,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 667 package
+      - name: Verify and collect full 668 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-667"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-668"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.667_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.668_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -571,17 +579,15 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.667"',
+            'Version="1.4.1.668"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
           $exe = "$env:TPR_MSIX_INSPECT\TwilightPrincessRandomizer.exe"
           $packagedModRoot = "$env:TPR_MSIX_INSPECT\mods\randomizer"
-          $module = Get-Item "$packagedModRoot\lib\windows-amd64\mod.dll"
           foreach ($required in @(
             $exe,
             "$packagedModRoot\mod.json",
-            $module.FullName,
             "$packagedModRoot\res\models\boss_souls\boss_soul_argorok.bmd",
             "$packagedModRoot\res\models\boss_souls\boss_soul_zant.bmd",
             "$env:TPR_MSIX_INSPECT\SDL3.dll",
@@ -594,16 +600,13 @@ jobs:
           if (Test-Path "$env:TPR_MSIX_INSPECT\mods\randomizer.dusk") {
             throw 'MSIX still contains the LocalState-extracted Randomizer bundle.'
           }
-
-          # The native module must be an individual signed MSIX file, not
-          # executable code hidden inside a zip and extracted into LocalState.
-          $blockMapText = Get-Content "$env:TPR_MSIX_INSPECT\AppxBlockMap.xml" -Raw
-          $moduleBlockName = 'Name="mods\randomizer\lib\windows-amd64\mod.dll"'
-          if (-not $blockMapText.Contains($moduleBlockName)) {
-            throw 'Packaged Randomizer module is missing from AppxBlockMap.xml.'
+          $separateModCode = @(Get-ChildItem $packagedModRoot -Recurse -File |
+            Where-Object { $_.Extension -in '.dll','.exe' })
+          if ($separateModCode.Count -ne 0 -or (Test-Path "$packagedModRoot\lib")) {
+            throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-667-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-668-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -626,34 +629,29 @@ jobs:
             }
           }
 
-          $sdl = "$env:TPR_MSIX_INSPECT\SDL3.dll"
-          $expectedSdlHash = 'd49ce990f754b7f88afa7b025e34941f1cefc6381a5f29e16110fea90dc22c9e'
-          $actualSdlHash = (Get-FileHash $sdl -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualSdlHash -ne $expectedSdlHash) {
-            throw "Packaged AppContainer SDL3 hash mismatch: $actualSdlHash"
+          $expectedRuntimeHashes = @{
+            'SDL3.dll' = 'f288fd682ea19fa82bf9bbbfefab4132853555ad6dfe37cbe9f9c55acff4bf06'
+            'webgpu_dawn.dll' = 'd1126d70c0eee87d69b802d10527d3dc301fce7514a206112ed4056cbf5b6910'
           }
-          $sdlBytes = [IO.File]::ReadAllBytes($sdl)
-          $peOffset = [BitConverter]::ToInt32($sdlBytes, 0x3c)
-          if ([BitConverter]::ToUInt32($sdlBytes, $peOffset) -ne 0x00004550) {
-            throw 'Packaged SDL3.dll has no valid PE signature.'
-          }
-          $dllCharacteristics = [BitConverter]::ToUInt16($sdlBytes, $peOffset + 24 + 0x46)
-          if (($dllCharacteristics -band 0x1000) -eq 0) {
-            throw ('Packaged SDL3.dll is not AppContainer-compatible (DllCharacteristics=0x{0:x4}).' -f `
-              $dllCharacteristics)
-          }
-          $sdlImports = & dumpbin /nologo /imports $sdl | Out-String
-          foreach ($desktopCrt in @('MSVCP140.dll','VCRUNTIME140.dll','VCRUNTIME140_1.dll','vccorlib140.dll')) {
-            if ($sdlImports -match "(?im)^\s*$([regex]::Escape($desktopCrt))\s*$") {
-              throw "Packaged SDL3.dll imports unavailable desktop CRT: $desktopCrt"
+          foreach ($entry in $expectedRuntimeHashes.GetEnumerator()) {
+            $runtimePath = Join-Path $env:TPR_MSIX_INSPECT $entry.Key
+            $actual = (Get-FileHash $runtimePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $entry.Value) {
+              throw "Packaged UWP runtime hash mismatch for $($entry.Key): $actual"
             }
           }
-          foreach ($appCrt in @('MSVCP140_APP.dll','VCRUNTIME140_APP.dll','VCRUNTIME140_1_APP.dll','vccorlib140_app.dll')) {
+          $sdlImports = & dumpbin /nologo /imports "$env:TPR_MSIX_INSPECT\SDL3.dll" | Out-String
+          foreach ($appCrt in @(
+            'MSVCP140_APP.dll',
+            'VCRUNTIME140_APP.dll',
+            'VCRUNTIME140_1_APP.dll',
+            'vccorlib140_app.dll')) {
             if ($sdlImports -notmatch "(?im)^\s*$([regex]::Escape($appCrt))\s*$") {
               throw "Packaged SDL3.dll is missing UWP CRT import: $appCrt"
             }
           }
-          $startupBinaries = @(Get-ChildItem "$env:TPR_MSIX_INSPECT" -File |
+
+          $startupBinaries = @(Get-ChildItem "$env:TPR_MSIX_INSPECT" -Recurse -File |
             Where-Object { $_.Extension -in '.exe','.dll' })
           foreach ($startupBinary in $startupBinaries) {
             $startupImports = & dumpbin /nologo /imports $startupBinary.FullName | Out-String
@@ -667,17 +665,21 @@ jobs:
                 throw "$($startupBinary.Name) imports unavailable desktop CRT: $desktopCrt"
               }
             }
+            if ($startupBinary.Extension -eq '.dll' -and
+                $startupImports -match '(?i)TwilightPrincessRandomizer[.]exe') {
+              throw "$($startupBinary.Name) still imports the game executable; the second-image module architecture remains."
+            }
           }
 
           $exeHeaders = & dumpbin /nologo /headers $exe | Out-String
           if ($exeHeaders -notmatch '(?i)machine [(]x64[)]') { throw 'Packaged executable is not x64.' }
+          if ($exeHeaders -notmatch '(?i)\bmodmeta\b') {
+            throw 'Packaged executable has no built-in Randomizer metadata section.'
+          }
           $exeImports = & dumpbin /nologo /imports $exe | Out-String
           if ($exeImports -match '(?im)^\s*DLL Name:\s*PSAPI[.]DLL\s*$' -or
               $exeImports -match '(?i)GetMappedFileNameA') {
             throw 'Packaged executable retains the desktop-only PSAPI mapped-file diagnostic import.'
-          }
-          if ($exeImports -notmatch '(?i)LoadPackagedLibrary') {
-            throw 'Packaged executable does not use the UWP package-graph DLL loader.'
           }
           if ($exeImports -match '(?i)LoadLibraryExW') {
             throw 'Packaged executable retains the writable-path native module loader.'
@@ -702,64 +704,43 @@ jobs:
           foreach ($startupMarker in @(
             'xbox-startup-stage.txt',
             'Xbox Startup Recovery',
-            'native.load:',
+            'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
             'hook.prepare:',
-            'hook.commit:')) {
+            'hook.commit:',
+            'Enemy Souls',
+            'Darknut Soul',
+            'Torch Slug Soul',
+            'src/f_op/f_op_actor.cpp#fopAc_Create',
+            'Fail-closed Enemy Soul gate blocked')) {
             if (-not $exeText.Contains($startupMarker)) {
-              throw "Packaged executable is missing Xbox startup guard marker: $startupMarker"
+              throw "Packaged executable is missing built-in runtime marker: $startupMarker"
             }
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-667-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-668-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
+          foreach ($builtInExport in @(
+            'mod_ctx',
+            'mod_meta',
+            'mod_initialize',
+            'mod_update',
+            'mod_shutdown')) {
+            if ($exports -notmatch "(?m)\b$([regex]::Escape($builtInExport))\s*$") {
+              throw "Packaged executable is missing built-in Randomizer export: $builtInExport"
+            }
+          }
           $exportRows = ([regex]::Matches($exports, '(?m)^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+')).Count
-          if ($exportRows -lt 1000) { throw "Curated game export surface is unexpectedly small: $exportRows" }
-
-          $moduleText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($module.FullName))
-          foreach ($marker in @('Enemy Souls','Darknut Soul','Torch Slug Soul','Fail-closed Enemy Soul gate blocked')) {
-            if (-not $moduleText.Contains($marker)) { throw "Packaged Randomizer is missing: $marker" }
-          }
-          $moduleImports = & dumpbin /nologo /imports $module.FullName | Out-String
-          if ($moduleImports -notmatch '(?i)TwilightPrincessRandomizer[.]exe') {
-            throw 'Packaged Randomizer is not bound to TwilightPrincessRandomizer.exe.'
-          }
-          $moduleBytes = [IO.File]::ReadAllBytes($module.FullName)
-          $peOffset = [BitConverter]::ToInt32($moduleBytes, 0x3c)
-          if ([BitConverter]::ToUInt32($moduleBytes, $peOffset) -ne 0x00004550) {
-            throw 'Packaged Randomizer has no valid PE signature.'
-          }
-          $dllCharacteristics = [BitConverter]::ToUInt16($moduleBytes, $peOffset + 24 + 0x46)
-          if (($dllCharacteristics -band 0x1000) -eq 0) {
-            throw ('Packaged Randomizer is not AppContainer-compatible (DllCharacteristics=0x{0:x4}).' -f `
-              $dllCharacteristics)
-          }
-          foreach ($desktopCrt in @(
-            'MSVCP140.dll',
-            'MSVCP140_CODECVT_IDS.dll',
-            'VCRUNTIME140.dll',
-            'VCRUNTIME140_1.dll',
-            'vccorlib140.dll')) {
-            if ($moduleImports -match "(?im)^\s*$([regex]::Escape($desktopCrt))\s*$") {
-              throw "Packaged Randomizer imports unavailable desktop CRT: $desktopCrt"
-            }
-          }
-          foreach ($appCrt in @(
-            'MSVCP140_APP.dll',
-            'MSVCP140_CODECVT_IDS_APP.dll',
-            'VCRUNTIME140_APP.dll',
-            'VCRUNTIME140_1_APP.dll')) {
-            if ($moduleImports -notmatch "(?im)^\s*$([regex]::Escape($appCrt))\s*$") {
-              throw "Packaged Randomizer is missing UWP CRT import: $appCrt"
-            }
+          if ($exportRows -lt 5 -or $exportRows -gt 64) {
+            throw "Built-in Randomizer export surface is outside the expected range: $exportRows"
           }
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-667-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-667-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-668-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-668-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -802,36 +783,39 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-667.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-667.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-668.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-668.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.667'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.668'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
             borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
-            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 663 AppContainer linkage'
-            xboxLoaderHotfix = 'Signed in-package Randomizer loaded with LoadPackagedLibrary; optional processor-group affinity disabled; Funchook module bases resolved through VirtualQuery on UWP'
+            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration'
+            xboxLoaderHotfix = 'Randomizer linked into the signed executable; optional processor-group affinity disabled; Funchook module bases resolved through VirtualQuery on UWP'
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
             funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
-            xboxStartupGuard = 'Persistent phase journal and automatic safe recovery launcher; exact native-load, mod-init, and hook-stage reporting'
-            nativeModuleDeployment = 'Expanded under mods/randomizer and recorded in AppxBlockMap.xml'
-            uwpDependency = 'ae39aa004ae127bd00f8262d28b401f8e4ed8728'
-            sdl3Sha256 = 'd49ce990f754b7f88afa7b025e34941f1cefc6381a5f29e16110fea90dc22c9e'
+            staticRandomizerPatchSha256 = 'fac052db1704f15c3501bc8ad869bc51b3bd0112fd96e56562f7aa2b0892b0e8'
+            xboxStartupGuard = 'Persistent phase journal and automatic safe recovery launcher; exact built-in mod-init and hook-stage reporting'
+            nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
+            uwpDependency = '810cdcb672383045a8b03d1d55bb535352d7d46f'
+            sdl3Sha256 = 'f288fd682ea19fa82bf9bbbfefab4132853555ad6dfe37cbe9f9c55acff4bf06'
+            dawnSha256 = 'd1126d70c0eee87d69b802d10527d3dc301fce7514a206112ed4056cbf5b6910'
+            singleNativeImage = $true
             enemySouls = $true
             generatorScenarios = 58
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-667.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-668.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.667-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.668-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -840,7 +824,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.667-Xbox
-          path: TPR-Xbox-Package-667/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.668-Xbox
+          path: TPR-Xbox-Package-668/*
           if-no-files-found: error
           retention-days: 30
