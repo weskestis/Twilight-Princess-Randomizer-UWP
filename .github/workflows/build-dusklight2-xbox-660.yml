@@ -255,6 +255,23 @@ jobs:
           [IO.File]::WriteAllText(
             $threadAffinityPatch, $threadAffinityPatchText, [Text.UTF8Encoding]::new($false))
 
+          $dawnCacheApiPatchSource = "$env:TPR_CONTROL\patches\aurora-dawn-cache-api-668.patch"
+          $dawnCacheApiPatchText = [IO.File]::ReadAllText($dawnCacheApiPatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $dawnCacheApiPatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($dawnCacheApiPatchText))
+            $dawnCacheApiPatchHash = ([BitConverter]::ToString(
+              $dawnCacheApiPatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($dawnCacheApiPatchHash -ne '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f') {
+            throw "Aurora Dawn cache API patch SHA-256 mismatch: $dawnCacheApiPatchHash"
+          }
+          $dawnCacheApiPatch = Join-Path $env:RUNNER_TEMP 'aurora-dawn-cache-api-668.patch'
+          [IO.File]::WriteAllText(
+            $dawnCacheApiPatch, $dawnCacheApiPatchText, [Text.UTF8Encoding]::new($false))
+
           $funchookModuleBasePatchSource = "$env:TPR_CONTROL\patches\xbox-uwp-funchook-module-base-667.patch"
           $funchookModuleBasePatchText = [IO.File]::ReadAllText($funchookModuleBasePatchSource).Replace("`r`n", "`n")
           $hasher = [Security.Cryptography.SHA256]::Create()
@@ -309,6 +326,16 @@ jobs:
           git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply --check $threadAffinityPatch
           git -C "$env:TPR_SRC\extern\aurora" apply $threadAffinityPatch
+          git -C "$env:TPR_SRC\extern\aurora" apply --check $dawnCacheApiPatch
+          git -C "$env:TPR_SRC\extern\aurora" apply $dawnCacheApiPatch
+          $gpuSource = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\extern\aurora\lib\webgpu\gpu.cpp")
+          if ($gpuSource.Contains('cacheDescriptor.loadDataFunction') -or
+              $gpuSource.Contains('cacheDescriptor.storeDataFunction') -or
+              -not $gpuSource.Contains('cacheDescriptor.SetDawnLoadCacheDataCallback') -or
+              -not $gpuSource.Contains('cacheDescriptor.SetDawnStoreCacheDataCallback')) {
+            throw 'Aurora Dawn cache callbacks do not match the pinned UWP headers.'
+          }
           git -C "$env:TPR_SRC\mods\randomizer" apply --check $randomizerPatch
           git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerPatch
 
@@ -795,6 +822,7 @@ jobs:
             randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration'
             xboxLoaderHotfix = 'Randomizer linked into the signed executable; optional processor-group affinity disabled; Funchook module bases resolved through VirtualQuery on UWP'
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
+            dawnCacheApiPatchSha256 = '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f'
             funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
             staticRandomizerPatchSha256 = 'fac052db1704f15c3501bc8ad869bc51b3bd0112fd96e56562f7aa2b0892b0e8'
             xboxStartupGuard = 'Persistent phase journal and automatic safe recovery launcher; exact built-in mod-init and hook-stage reporting'

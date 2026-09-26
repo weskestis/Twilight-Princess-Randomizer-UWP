@@ -1,0 +1,29 @@
+diff --git a/lib/webgpu/gpu.cpp b/lib/webgpu/gpu.cpp
+--- a/lib/webgpu/gpu.cpp
++++ b/lib/webgpu/gpu.cpp
+@@ -974,25 +974,14 @@ bool initialize(AuroraBackend auroraBackend, bool allowCpu) {
+     Log.info("Enabling features: {}", featureList);
+ #ifdef WEBGPU_DAWN
+     wgpu::DawnCacheDeviceDescriptor cacheDescriptor({.nextInChain = nullptr});
+-#ifdef AURORA_WINDOWS_STORE
+-    cacheDescriptor.loadDataFunction =
+-        [](const void* key, size_t keySize, void* value, size_t valueSize, void*) noexcept -> size_t {
+-      return load_from_cache(key, keySize, value, valueSize, nullptr);
+-    };
+-    cacheDescriptor.storeDataFunction =
+-        [](const void* key, size_t keySize, const void* value, size_t valueSize, void*) noexcept {
+-      store_to_cache(key, keySize, value, valueSize, nullptr);
+-    };
+-#else
+     cacheDescriptor.SetDawnLoadCacheDataCallback(
+         [](std::span<const std::byte> key, std::span<std::byte> value) noexcept -> size_t {
+           return load_from_cache(key.data(), key.size(), value.data(), value.size(), nullptr);
+         });
+     cacheDescriptor.SetDawnStoreCacheDataCallback(
+         [](std::span<const std::byte> key, std::span<const std::byte> value) noexcept {
+           store_to_cache(key.data(), key.size(), value.data(), value.size(), nullptr);
+         });
+-#endif
+ 
+     constexpr std::array enableToggles{
+ #if _WIN32
