@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 669
+name: Build Dusklight 2.0.1 Xbox 670
 
 on:
   push:
@@ -123,7 +123,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 669 identity
+      - name: Apply reviewed source layers and advance 670 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -330,6 +330,26 @@ jobs:
             $recoveryLifecyclePatchText,
             [Text.UTF8Encoding]::new($false))
 
+          $lifecycleQuarantinePatchSource = "$env:TPR_CONTROL\patches\xbox-lifecycle-quarantine-670.patch"
+          $lifecycleQuarantinePatchText = [IO.File]::ReadAllText(
+            $lifecycleQuarantinePatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $lifecycleQuarantinePatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($lifecycleQuarantinePatchText))
+            $lifecycleQuarantinePatchHash = ([BitConverter]::ToString(
+              $lifecycleQuarantinePatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($lifecycleQuarantinePatchHash -ne 'a85624ab23e58ece31c03af9c886907337aad6c2379330e3f175a303156a41a6') {
+            throw "Xbox lifecycle quarantine patch SHA-256 mismatch: $lifecycleQuarantinePatchHash"
+          }
+          $lifecycleQuarantinePatch = Join-Path $env:RUNNER_TEMP 'xbox-lifecycle-quarantine-670.patch'
+          [IO.File]::WriteAllText(
+            $lifecycleQuarantinePatch,
+            $lifecycleQuarantinePatchText,
+            [Text.UTF8Encoding]::new($false))
+
           $sdlMainHandledPatchSource = "$env:TPR_CONTROL\patches\uwp-sdl-main-handled-668.patch"
           $sdlMainHandledPatchText = [IO.File]::ReadAllText(
             $sdlMainHandledPatchSource).Replace("`r`n", "`n")
@@ -366,6 +386,8 @@ jobs:
           git -C "$env:TPR_SRC" apply $recoveryLifecyclePatch
           git -C "$env:TPR_SRC" apply --check $sdlMainHandledPatch
           git -C "$env:TPR_SRC" apply $sdlMainHandledPatch
+          git -C "$env:TPR_SRC" apply --check $lifecycleQuarantinePatch
+          git -C "$env:TPR_SRC" apply $lifecycleQuarantinePatch
           $uwpBootstrapSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\platforms\uwp\main.cpp")
           foreach ($entryPointMarker in @(
@@ -401,10 +423,10 @@ jobs:
           }
           $registrySource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\registry.cpp")
-          foreach ($serviceStage in @('module.lifecycle:{}','module.lifecycle-ready:{}')) {
-            if (-not $registrySource.Contains($serviceStage)) {
-              throw "Xbox per-service lifecycle stage is missing: $serviceStage"
-            }
+          if (-not $registrySource.Contains('modules.lifecycle-quarantined') -or
+              -not $registrySource.Contains(
+                'mod asset lifecycle synchronization is quarantined for startup safety')) {
+            throw 'Xbox asset lifecycle quarantine is missing.'
           }
           $overlaySource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp")
@@ -413,16 +435,15 @@ jobs:
             throw 'Xbox empty-overlay startup guard is missing.'
           }
           $mainSource = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
-          $recoveryStart = $mainSource.IndexOf('static void show_xbox_startup_recovery()')
-          if ($recoveryStart -lt 0) { throw 'Xbox recovery source block is missing.' }
-          $recoveryEnd = $mainSource.IndexOf(
-            'static void advance_xbox_startup_guard()', $recoveryStart)
-          if ($recoveryEnd -le $recoveryStart) { throw 'Xbox recovery source block is incomplete.' }
-          $recoveryBlock = $mainSource.Substring($recoveryStart, $recoveryEnd - $recoveryStart)
-          if (-not $recoveryBlock.Contains('dusk::ui::push_toast') -or
-              -not $recoveryBlock.Contains('Recovery will continue automatically.') -or
-              $recoveryBlock.Contains('dusk::ui::Modal')) {
-            throw 'Xbox recovery must be timed and non-blocking.'
+          if ($mainSource.Contains('show_xbox_startup_recovery') -or
+              $mainSource.Contains('Xbox Startup Recovery') -or
+              -not $mainSource.Contains('continuing without recovery UI')) {
+            throw 'Xbox startup still enters the unsafe recovery UI path.'
+          }
+          $startupGuardSource = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\src\dusk\startup_guard.hpp")
+          if (-not $startupGuardSource.Contains('detail::recoveryMode = false;')) {
+            throw 'Xbox startup journal still enables UI recovery mode.'
           }
           git -C "$env:TPR_SRC\extern\aurora" apply --check $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
@@ -450,7 +471,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.669"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.670"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -682,7 +703,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 669 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 670 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -709,17 +730,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 669 package
+      - name: Verify and collect full 670 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-669"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-670"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.669_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.670_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -731,7 +752,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.669"',
+            'Version="1.4.1.670"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
@@ -758,7 +779,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-669-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-670-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -855,15 +876,13 @@ jobs:
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
             'xbox-startup-stage.txt',
-            'Xbox Startup Recovery',
-            'Recovery will continue automatically.',
+            'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
             'hook.prepare:',
             'hook.commit:',
             'mods.lifecycle-apply',
-            'module.lifecycle:',
-            'module.lifecycle-ready:',
+            'modules.lifecycle-quarantined',
             'No overlay files; skipping initial Xbox overlay registration.',
             'Enemy Souls',
             'Darknut Soul',
@@ -876,7 +895,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-669-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-670-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -896,8 +915,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-669-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-669-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-670-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-670-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -940,11 +959,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-669.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-669.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-670.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-670.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.669'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.670'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -956,8 +975,9 @@ jobs:
             funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
             staticRandomizerPatchSha256 = 'b63fee8c7b24ef1fd0a8b3210add426f051ca418b89f0ff1a9d218076af5e6b3'
             recoveryLifecyclePatchSha256 = '814a266523f90ac0d7545eff771f0823b1c723697fcf7bf5373f856bc1e48a0a'
+            lifecycleQuarantinePatchSha256 = 'a85624ab23e58ece31c03af9c886907337aad6c2379330e3f175a303156a41a6'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
-            xboxStartupGuard = 'Persistent phase journal, timed non-blocking recovery, exact built-in mod/hook stages, and per-service lifecycle reporting'
+            xboxStartupGuard = 'Persistent phase journal with no startup UI; optional mod asset lifecycle services quarantined before the first frame'
             nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
             uwpDependency = '810cdcb672383045a8b03d1d55bb535352d7d46f'
             sdl3Sha256 = 'f288fd682ea19fa82bf9bbbfefab4132853555ad6dfe37cbe9f9c55acff4bf06'
@@ -969,13 +989,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-669.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-670.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.669-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.670-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -984,7 +1004,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.669-Xbox
-          path: TPR-Xbox-Package-669/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.670-Xbox
+          path: TPR-Xbox-Package-670/*
           if-no-files-found: error
           retention-days: 30

@@ -1,0 +1,163 @@
+diff --git a/src/dusk/mods/svc/registry.cpp b/src/dusk/mods/svc/registry.cpp
+--- a/src/dusk/mods/svc/registry.cpp
++++ b/src/dusk/mods/svc/registry.cpp
+@@ -226,13 +226,23 @@ void modules_mod_detached(LoadedMod& mod) {
+ }
+ 
+ void modules_lifecycle_applied() {
++#if defined(_UWP)
++    // The built-in Randomizer has completed initialization when this function runs. Xbox testing
++    // isolated the remaining pre-frame crash to the asset lifecycle batch (overlay, texture, and
++    // audio replacement synchronization). Keep those optional asset services quarantined until
++    // they can be reintroduced individually after the core game and Randomizer are stable.
++    startup_guard::stage("modules.lifecycle-quarantined");
++    DuskLog.warn("Xbox UWP: mod asset lifecycle synchronization is quarantined for startup safety");
++    return;
++#else
+     for (const auto* module : s_modules) {
+         if (module->lifecycleApplied != nullptr) {
+             startup_guard::stage(fmt::format("module.lifecycle:{}", module->id));
+             module->lifecycleApplied();
+             startup_guard::stage(fmt::format("module.lifecycle-ready:{}", module->id));
+         }
+     }
++#endif
+ }
+ 
+ void modules_frame_begin() {
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -71,11 +71,12 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+     } catch (...) {
+         detail::previousStage.clear();
+     }
+-    detail::recoveryMode = !detail::previousStage.empty();
++    // A recovery UI is not safe on Xbox: both the modal and toast paths can terminate before the
++    // first stable frame. Preserve the previous stage for the log, but always continue through the
++    // instrumented startup path so the next marker identifies the real failing boundary.
++    detail::recoveryMode = false;
+     detail::startupActive = true;
+-    if (!detail::recoveryMode) {
+-        detail::write_locked("startup.data-ready");
+-    }
++    detail::write_locked("startup.data-ready");
+ }
+ 
+ inline bool recovery_mode() noexcept {
+diff --git a/src/m_Do/m_Do_main.cpp b/src/m_Do/m_Do_main.cpp
+--- a/src/m_Do/m_Do_main.cpp
++++ b/src/m_Do/m_Do_main.cpp
+@@ -64,6 +64,5 @@
+ #include "dusk/ui/command_console.hpp"
+ #include "dusk/ui/menu_bar.hpp"
+-#include "dusk/ui/modal.hpp"
+ #include "dusk/ui/overlay.hpp"
+ #include "dusk/ui/prelaunch.hpp"
+ #include "dusk/ui/preset.hpp"
+@@ -95,7 +94,6 @@
+ #include <SDL3/SDL_init.h>
+ #include <tracy/Tracy.hpp>
+ 
+-#include <chrono>
+ #include <filesystem>
+ #include <system_error>
+ #include <thread>
+@@ -149,38 +147,7 @@ s32 LOAD_COPYDATE(void*) {
+ 
+ AuroraInfo auroraInfo;
+ 
+-#if defined(_UWP)
+-static std::chrono::steady_clock::time_point s_xboxRecoveryJournalDeadline{};
+-#endif
+-
+-static void show_xbox_startup_recovery() {
+-#if defined(_UWP)
+-    if (!dusk::startup_guard::recovery_mode()) {
+-        return;
+-    }
+-    const std::string previous = dusk::startup_guard::previous_stage();
+-    dusk::ui::push_toast({
+-        .type = "warning",
+-        .title = "Xbox Startup Recovery",
+-        .content = fmt::format(
+-            "The previous launch stopped during: {}. "
+-            "Randomizer code is still installed, but native mod activation is skipped for this "
+-            "recovery launch. Recovery will continue automatically.",
+-            previous.empty() ? "stage unavailable" : previous),
+-        .duration = std::chrono::seconds{10},
+-    });
+-    s_xboxRecoveryJournalDeadline = std::chrono::steady_clock::now() + std::chrono::seconds{8};
+-#endif
+-}
+-
+ static void advance_xbox_startup_guard() {
+-#if defined(_UWP)
+-    if (dusk::startup_guard::recovery_mode() &&
+-        std::chrono::steady_clock::now() < s_xboxRecoveryJournalDeadline)
+-    {
+-        return;
+-    }
+-#endif
+     dusk::startup_guard::complete_startup();
+ }
+ 
+@@ -670,6 +636,13 @@ int game_main(int argc, char* argv[]) {
+     dusk::startup_guard::stage("startup.logging");
+     dusk::InitializeLogging(dusk::CachePath, standardOptions);
+     const auto startupLogLevel = borealis::log::level();
++#if defined(_UWP)
++    const std::string previousXboxStage = dusk::startup_guard::previous_stage();
++    if (!previousXboxStage.empty()) {
++        DuskLog.warn("Previous Xbox launch ended at startup stage '{}'; continuing without recovery UI",
++            previousXboxStage);
++    }
++#endif
+ 
+     // Development Mode
+     if (parsed_arg_options.count("develop")) {
+@@ -803,10 +776,6 @@ int game_main(int argc, char* argv[]) {
+     // This is only a metadata check; full hash verification is handled by the prelaunch UI.
+     bool forcePreLaunchUI = false;
+     bool saveConfigBeforePrelaunch = false;
+-    const bool xboxStartupRecovery = dusk::startup_guard::recovery_mode();
+-    if (xboxStartupRecovery) {
+-        forcePreLaunchUI = true;
+-    }
+ 
+     borealis::io::PathAccess dvdPathAccess;
+     const auto resolveDvdLocation = [&dvdPathAccess](const std::string& location) {
+@@ -882,14 +851,6 @@ int game_main(int argc, char* argv[]) {
+         showPrelaunchAfterInit = false;
+     }
+ 
+-    if (xboxStartupRecovery) {
+-        // Always present a real frame before touching the phase that stopped the previous launch.
+-        // The saved disc and configuration remain intact.
+-        skipPreLaunchUI = false;
+-        showPrelaunchAfterInit = false;
+-        dusk::IsGameLaunched = false;
+-    }
+-
+     if (showPrelaunchAfterInit) {
+         // Force launchUILoop to not run, we know that the ISO will be loaded.
+         dusk::IsGameLaunched = true;
+@@ -913,6 +874,5 @@ int game_main(int argc, char* argv[]) {
+                 dusk::ui::push_document(std::make_unique<dusk::ui::Prelaunch>(), true);
+                 dusk::startup_guard::stage("startup.prelaunch-ready");
+-                show_xbox_startup_recovery();
+             }
+ 
+             // pre game launch ui main loop
+@@ -979,10 +939,7 @@ int game_main(int argc, char* argv[]) {
+     }
+ 
+     dusk::startup_guard::stage("startup.mods-init");
+-    if (xboxStartupRecovery) {
+-        DuskLog.warn("Xbox startup recovery: native mod activation skipped after stage '{}'",
+-            dusk::startup_guard::previous_stage());
+-    } else if (parsed_arg_options.contains("mods") &&
++    if (parsed_arg_options.contains("mods") &&
+             !parsed_arg_options["mods"].as<std::string>().empty())
+     {
+         mods_init(parsed_arg_options["mods"].as<std::string>());
