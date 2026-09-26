@@ -37,18 +37,7 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
              if (NOT DUSK_UWP_STORE_LIB_DIR OR
                      NOT IS_DIRECTORY "${DUSK_UWP_STORE_LIB_DIR}")
                  message(FATAL_ERROR
-@@ -203,7 +210,10 @@ function(add_mod target_name)
-             endif ()
-             target_compile_definitions(${target_name} PRIVATE
-                     _UWP=1
-                     WINAPI_FAMILY=WINAPI_FAMILY_APP)
-+            if (_builtin_static)
-+                target_compile_definitions(${target_name} PRIVATE DUSK_BUILDING_GAME=1)
-+            endif ()
-             target_link_directories(${target_name} BEFORE PRIVATE
-                     "${DUSK_UWP_STORE_LIB_DIR}")
-             target_link_libraries(${target_name} PRIVATE WindowsApp.lib OneCore.lib)
-@@ -277,7 +285,7 @@ function(add_mod target_name)
+@@ -277,7 +281,7 @@ function(add_mod target_name)
              # setup_windows_exports); cl and clang-cl both consume it in MSVC mode. Function
              # calls resolve through import thunks; game data is reachable only through
              # __declspec(dllimport), i.e. DUSK_GAME_DATA-annotated declarations.
@@ -57,7 +46,7 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
                  if (TARGET dusklight)
                      if (NOT DUSK_GAME_IMPLIB)
                          message(FATAL_ERROR
-@@ -317,16 +325,18 @@ function(add_mod target_name)
+@@ -317,16 +321,18 @@ function(add_mod target_name)
      set(_lib_strip_cmd "")
      set(_target_depend "")
      if (_has_lib)

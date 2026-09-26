@@ -301,7 +301,7 @@ jobs:
               $staticRandomizerPatchDigest) -replace '-', '').ToLowerInvariant()
           }
           finally { $hasher.Dispose() }
-          if ($staticRandomizerPatchHash -ne 'fac052db1704f15c3501bc8ad869bc51b3bd0112fd96e56562f7aa2b0892b0e8') {
+          if ($staticRandomizerPatchHash -ne '0de7287ba0cc922ce076a81224d1a3d9c101974fcd1312cb3c4f94e7f6735566') {
             throw "Xbox static Randomizer patch SHA-256 mismatch: $staticRandomizerPatchHash"
           }
           $staticRandomizerPatch = Join-Path $env:RUNNER_TEMP 'xbox-static-randomizer-668.patch'
@@ -322,6 +322,11 @@ jobs:
           git -C "$env:TPR_SRC" apply $funchookModuleBasePatch
           git -C "$env:TPR_SRC" apply --check $staticRandomizerPatch
           git -C "$env:TPR_SRC" apply $staticRandomizerPatch
+          $modSdkCmake = [IO.File]::ReadAllText("$env:TPR_SRC\cmake\ModSDK.cmake")
+          if ($modSdkCmake.Contains(
+              'target_compile_definitions(${target_name} PRIVATE DUSK_BUILDING_GAME=1)')) {
+            throw 'Built-in Randomizer must retain mod SDK compile semantics.'
+          }
           git -C "$env:TPR_SRC\extern\aurora" apply --check $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply --check $threadAffinityPatch
@@ -824,7 +829,7 @@ jobs:
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
             dawnCacheApiPatchSha256 = '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f'
             funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
-            staticRandomizerPatchSha256 = 'fac052db1704f15c3501bc8ad869bc51b3bd0112fd96e56562f7aa2b0892b0e8'
+            staticRandomizerPatchSha256 = '0de7287ba0cc922ce076a81224d1a3d9c101974fcd1312cb3c4f94e7f6735566'
             xboxStartupGuard = 'Persistent phase journal and automatic safe recovery launcher; exact built-in mod-init and hook-stage reporting'
             nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
             uwpDependency = '810cdcb672383045a8b03d1d55bb535352d7d46f'
