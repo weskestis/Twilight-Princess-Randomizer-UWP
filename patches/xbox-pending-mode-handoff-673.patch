@@ -1,0 +1,266 @@
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+index f3f17dc2e..ed0b867e9 100644
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -19,6 +19,7 @@ inline std::string previousStage;
+ inline bool initialized = false;
+ inline bool startupActive = false;
+ inline bool activityActive = false;
++inline bool activityAwaitingFrame = false;
+ inline bool recoveryMode = false;
+ inline std::mutex mutex;
+ 
+@@ -82,7 +83,7 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+     }
+     detail::initialized = true;
+     // Use a build-specific journal so a marker from an older build never changes this launch.
+-    detail::markerPath = userPath / "xbox-startup-stage-672.txt";
++    detail::markerPath = userPath / "xbox-startup-stage-673.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
+@@ -116,7 +117,9 @@ inline std::string previous_stage() noexcept {
+ 
+ inline void stage(std::string_view value) noexcept {
+     std::scoped_lock lock(detail::mutex);
+-    if ((detail::startupActive || detail::activityActive) && !detail::recoveryMode) {
++    if ((detail::startupActive || detail::activityActive || detail::activityAwaitingFrame) &&
++        !detail::recoveryMode)
++    {
+         detail::write_locked(value);
+     }
+ }
+@@ -124,6 +127,7 @@ inline void stage(std::string_view value) noexcept {
+ inline void begin_activity(std::string_view value) noexcept {
+     std::scoped_lock lock(detail::mutex);
+     detail::activityActive = true;
++    detail::activityAwaitingFrame = false;
+     if (!detail::recoveryMode) {
+         detail::write_locked(value);
+     }
+@@ -132,21 +136,21 @@ inline void begin_activity(std::string_view value) noexcept {
+ inline void end_activity(std::string_view resumeStage = "activity.complete") noexcept {
+     std::scoped_lock lock(detail::mutex);
+     detail::activityActive = false;
+-    if (detail::startupActive && !detail::recoveryMode) {
++    detail::activityAwaitingFrame = true;
++    if (!detail::recoveryMode) {
+         detail::write_locked(resumeStage);
+-    } else if (!detail::recoveryMode) {
+-        detail::clear_locked();
+     }
+ }
+ 
+ inline void complete_startup() noexcept {
+     std::scoped_lock lock(detail::mutex);
+-    if (!detail::startupActive) {
++    if (!detail::startupActive && !detail::activityAwaitingFrame) {
+         return;
+     }
+     detail::startupActive = false;
+     detail::recoveryMode = false;
+     if (!detail::activityActive) {
++        detail::activityAwaitingFrame = false;
+         detail::clear_locked();
+     }
+ }
+diff --git a/src/dusk/ui/prelaunch.cpp b/src/dusk/ui/prelaunch.cpp
+index c5199c09b..a7acbbade 100644
+--- a/src/dusk/ui/prelaunch.cpp
++++ b/src/dusk/ui/prelaunch.cpp
+@@ -501,11 +501,21 @@ std::vector<const gamemode::GameMode*> carousel_game_modes() {
+     return modes;
+ }
+ 
+-std::string game_mode_button_text() {
++const gamemode::GameMode* selected_game_mode(const gamemode::GameModeId* pendingGameModeId) {
++    if (pendingGameModeId != nullptr) {
++        const auto& registered = gamemode::getGameModeManager().getRegisteredGameModes();
++        if (const auto selected = registered.find(*pendingGameModeId); selected != registered.end()) {
++            return &selected->second;
++        }
++    }
++    return gamemode::getGameModeManager().getCurrentGameMode();
++}
++
++std::string game_mode_button_text(const gamemode::GameModeId* pendingGameModeId = nullptr) {
+     if (prelaunch_state().activeDiscPath.empty()) {
+         return "Select Disc Image";
+     }
+-    const auto* currentGameMode = gamemode::getGameModeManager().getCurrentGameMode();
++    const auto* currentGameMode = selected_game_mode(pendingGameModeId);
+     if (currentGameMode == nullptr || currentGameMode->getId() == gamemode::kVanillaGameModeId) {
+         return "Play";
+     }
+@@ -514,7 +524,9 @@ std::string game_mode_button_text() {
+ 
+ class GameModeButton final : public Button {
+ public:
+-    GameModeButton(Rml::Element* parent, ButtonCallback onPressed) : Button{parent, ""} {
++    GameModeButton(Rml::Element* parent, ButtonCallback onPressed,
++        gamemode::GameModeId* pendingGameModeId = nullptr)
++        : Button{parent, ""}, mPendingGameModeId{pendingGameModeId} {
+         root()->SetClass("game-mode-button", true);
+         mPrevious = append(root(), "game-mode-previous");
+         mLabelViewport = append(root(), "game-mode-label-viewport");
+@@ -559,7 +571,7 @@ private:
+             return;
+         }
+ 
+-        const auto* current = gamemode::getGameModeManager().getCurrentGameMode();
++        const auto* current = selected_game_mode(mPendingGameModeId);
+         const auto currentIt = std::ranges::find_if(modes, [current](const auto* mode) {
+             return current != nullptr && mode->getId() == current->getId();
+         });
+@@ -568,7 +580,10 @@ private:
+         const int count = static_cast<int>(modes.size());
+         const int nextIndex = ((currentIndex + direction) % count + count) % count;
+         const auto nextId = modes[nextIndex]->getId();
+-        if (gamemode::getGameModeManager().setCurrentGameMode(nextId)) {
++        if (mPendingGameModeId != nullptr) {
++            *mPendingGameModeId = nextId;
++            mDoAud_seStartMenu(kSoundItemChange);
++        } else if (gamemode::getGameModeManager().setCurrentGameMode(nextId)) {
+             mDoAud_seStartMenu(kSoundItemChange);
+         }
+         refresh(direction);
+@@ -577,7 +592,7 @@ private:
+     void refresh(int direction) {
+         root()->SetClass("can-cycle", can_cycle());
+ 
+-        const auto text = game_mode_button_text();
++        const auto text = game_mode_button_text(mPendingGameModeId);
+         if (text == mText) {
+             return;
+         }
+@@ -618,6 +633,7 @@ private:
+     Rml::Element* mNext = nullptr;
+     Rml::String mText;
+     size_t mActiveLabel = 0;
++    gamemode::GameModeId* mPendingGameModeId = nullptr;
+ };
+ 
+ }  // namespace
+@@ -876,7 +892,8 @@ Prelaunch::Prelaunch() : Document(kDocumentSource, false, DocumentScope::Prelaun
+         mStartupDiagnostic->SetAttribute("visible", "");
+     } else if (mStartupDiagnostic != nullptr && mods::ModLoader::instance().initialized()) {
+         set_text_content(
+-            mStartupDiagnostic, "Xbox safe launch: choose Randomizer with Left/Right, then Play.");
++            mStartupDiagnostic,
++            "Xbox safe launch: choose a mode with Left/Right; hooks start only after Play.");
+         mStartupDiagnostic->SetAttribute("visible", "");
+     }
+ #endif
+@@ -915,28 +932,36 @@ void Prelaunch::build_menu_buttons() {
+         if (!mGameModeInitialized) {
+             mGameModeInitialized = true;
+ #if defined(_UWP)
+-            // Never activate 151 Randomizer hook targets behind a blank transition frame. Xbox
+-            // starts on Vanilla and lets the user select Randomizer from the visible launcher,
+-            // where activation progress and any retained diagnostic stage remain observable.
++            // Selecting a carousel entry must not activate 151 Randomizer hook targets while the
++            // launcher is still drawing. Keep Vanilla active and track only a pending selection;
++            // Play performs the one-way handoff into the selected mode.
+             gamemode::getGameModeManager().setCurrentGameMode(gamemode::kVanillaGameModeId);
++            mPendingGameModeId = gamemode::kVanillaGameModeId;
+ #else
+             // Restore the previously selected game mode before creating the play control.
+             gamemode::getGameModeManager().setGameModeToPrevious();
+ #endif
+         }
+ 
++        gamemode::GameModeId* pendingGameModeId = nullptr;
++#if defined(_UWP)
++        pendingGameModeId = &mPendingGameModeId;
++#endif
++
+         auto playButton = std::make_unique<GameModeButton>(menuList, [this] {
+             if (prelaunch_state().activeDiscPath.empty()) {
+                 open_iso_picker();
+                 return;
+             }
+ 
++#if !defined(_UWP)
+             if (const auto* gameMode = gamemode::getGameModeManager().getCurrentGameMode();
+                 gameMode != nullptr && !gameMode->invokeOnPlayFunction())
+             {
+                 gamemode::getGameModeManager().setCurrentGameMode(gamemode::kVanillaGameModeId);
+                 return;
+             }
++#endif
+ 
+             mDoAud_seStartMenu(kSoundPlay);
+             show_menu_notification();
+@@ -959,10 +984,38 @@ void Prelaunch::build_menu_buttons() {
+             }
+ 
+             prelaunch_state().firstLaunch = false;
++#if defined(_UWP)
++            // All launcher audio, card, and menu work is complete before activating Randomizer.
++            // Once its hooks are live, close the document and make launchUILoop return without
++            // presenting another launcher frame.
++            MenuBar::refresh_tabs();
++            startup_guard::begin_activity(
++                fmt::format("prelaunch.play-select:{}", mPendingGameModeId));
++            if (!gamemode::getGameModeManager().setCurrentGameMode(mPendingGameModeId)) {
++                mPendingGameModeId = gamemode::kVanillaGameModeId;
++                startup_guard::end_activity("prelaunch.play-activation-failed");
++                return;
++            }
++            startup_guard::stage("prelaunch.play-activation-ready");
++            if (const auto* gameMode = gamemode::getGameModeManager().getCurrentGameMode();
++                gameMode != nullptr && !gameMode->invokeOnPlayFunction())
++            {
++                gamemode::getGameModeManager().setCurrentGameMode(
++                    gamemode::kVanillaGameModeId);
++                mPendingGameModeId = gamemode::kVanillaGameModeId;
++                startup_guard::end_activity("prelaunch.play-callback-failed");
++                return;
++            }
++            startup_guard::stage("prelaunch.play-close");
++            Document::hide(true);
++            startup_guard::end_activity("prelaunch.play-ready");
++            IsGameLaunched = true;
++#else
+             IsGameLaunched = true;
+             hide(true);
+             MenuBar::refresh_tabs();
+-        });
++#endif
++        }, pendingGameModeId);
+         apply_intro_animation(playButton->root(), "delay-1");
+         mMenuButtons.push_back(std::move(playButton));
+ 
+diff --git a/src/dusk/ui/prelaunch.hpp b/src/dusk/ui/prelaunch.hpp
+index 7e461d9f0..6dc2d1e52 100644
+--- a/src/dusk/ui/prelaunch.hpp
++++ b/src/dusk/ui/prelaunch.hpp
+@@ -32,6 +32,9 @@ private:
+     bool mEntranceAnimationStarted = false;
+     bool mRestartSuppressed = false;
+     bool mGameModeInitialized = false;
++#if defined(_UWP)
++    std::string mPendingGameModeId = "vanilla";
++#endif
+     std::vector<std::unique_ptr<Button>> mMenuButtons;
+     Button* mModsButton = nullptr;
+     Rml::Element* mRoot = nullptr;
+diff --git a/src/m_Do/m_Do_main.cpp b/src/m_Do/m_Do_main.cpp
+index 78b974704..b27987251 100644
+--- a/src/m_Do/m_Do_main.cpp
++++ b/src/m_Do/m_Do_main.cpp
+@@ -175,6 +175,14 @@ bool launchUILoop() {
+             event++;
+         }
+ 
++#if defined(_UWP)
++        // A Randomizer selection becomes active inside the Play event callback. Do not begin one
++        // more launcher frame with its game hooks installed; hand off directly to main01 instead.
++        if (!dusk::IsRunning || dusk::IsGameLaunched) {
++            return dusk::IsRunning;
++        }
++#endif
++
+         if (!aurora_begin_frame()) {
+             DuskLog.debug("aurora_begin_frame returned false, skipping draw this frame");
+             continue;
