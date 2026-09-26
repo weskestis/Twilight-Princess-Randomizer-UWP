@@ -310,6 +310,26 @@ jobs:
             $staticRandomizerPatchText,
             [Text.UTF8Encoding]::new($false))
 
+          $sdlMainHandledPatchSource = "$env:TPR_CONTROL\patches\uwp-sdl-main-handled-668.patch"
+          $sdlMainHandledPatchText = [IO.File]::ReadAllText(
+            $sdlMainHandledPatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $sdlMainHandledPatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($sdlMainHandledPatchText))
+            $sdlMainHandledPatchHash = ([BitConverter]::ToString(
+              $sdlMainHandledPatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($sdlMainHandledPatchHash -ne '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2') {
+            throw "UWP SDL entry-point patch SHA-256 mismatch: $sdlMainHandledPatchHash"
+          }
+          $sdlMainHandledPatch = Join-Path $env:RUNNER_TEMP 'uwp-sdl-main-handled-668.patch'
+          [IO.File]::WriteAllText(
+            $sdlMainHandledPatch,
+            $sdlMainHandledPatchText,
+            [Text.UTF8Encoding]::new($false))
+
           git -C "$env:TPR_SRC" apply --check $duskPatch
           git -C "$env:TPR_SRC" apply $duskPatch
           git -C "$env:TPR_SRC" apply --check $moduleUwpPatch
@@ -322,6 +342,18 @@ jobs:
           git -C "$env:TPR_SRC" apply $funchookModuleBasePatch
           git -C "$env:TPR_SRC" apply --check $staticRandomizerPatch
           git -C "$env:TPR_SRC" apply $staticRandomizerPatch
+          git -C "$env:TPR_SRC" apply --check $sdlMainHandledPatch
+          git -C "$env:TPR_SRC" apply $sdlMainHandledPatch
+          $uwpBootstrapSource = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\platforms\uwp\main.cpp")
+          foreach ($entryPointMarker in @(
+            '#define SDL_MAIN_HANDLED',
+            'int CALLBACK WinMain(',
+            'SDL_RunApp(0, nullptr, bootstrap, nullptr)')) {
+            if (-not $uwpBootstrapSource.Contains($entryPointMarker)) {
+              throw "UWP bootstrap entry-point patch is missing: $entryPointMarker"
+            }
+          }
           $modSdkCmake = [IO.File]::ReadAllText("$env:TPR_SRC\cmake\ModSDK.cmake")
           if ($modSdkCmake.Contains(
               'target_compile_definitions(${target_name} PRIVATE DUSK_BUILDING_GAME=1)')) {
@@ -830,6 +862,7 @@ jobs:
             dawnCacheApiPatchSha256 = '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f'
             funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
             staticRandomizerPatchSha256 = '0de7287ba0cc922ce076a81224d1a3d9c101974fcd1312cb3c4f94e7f6735566'
+            sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Persistent phase journal and automatic safe recovery launcher; exact built-in mod-init and hook-stage reporting'
             nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
             uwpDependency = '810cdcb672383045a8b03d1d55bb535352d7d46f'

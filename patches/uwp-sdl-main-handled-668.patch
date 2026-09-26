@@ -1,0 +1,10 @@
+diff --git a/platforms/uwp/main.cpp b/platforms/uwp/main.cpp
+--- a/platforms/uwp/main.cpp
++++ b/platforms/uwp/main.cpp
+@@ -1,5 +1,6 @@
+ #include <Windows.h>
+ 
++#define SDL_MAIN_HANDLED
+ #include <SDL3/SDL.h>
+ #include <SDL3/SDL_main.h>
+ 
