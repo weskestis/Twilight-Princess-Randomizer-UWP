@@ -1,0 +1,272 @@
+diff --git a/cmake/PatchFunchook.cmake b/cmake/PatchFunchook.cmake
+index a32c291ee..5f18d66bd 100644
+--- a/cmake/PatchFunchook.cmake
++++ b/cmake/PatchFunchook.cmake
+@@ -103,3 +103,35 @@ if (NOT _windows_content MATCHES "DUSK_UWP_MODULE_BASE")
+ #endif]=] _windows_content "${_windows_content}")
+     file(WRITE "${SOURCE_DIR}/src/funchook_windows.c" "${_windows_content}")
+ endif ()
++
++# Windows Store JIT pages must remain W^X: VirtualProtectFromApp rejects simultaneous write and
++# execute access. Funchook already creates its trampoline pages writable, fills them, and then
++# makes them executable, so route those transitions through the AppContainer APIs and make the
++# short target-patch window writable (not RWX). The package declares codeGeneration.
++if (NOT _windows_content MATCHES "DUSK_UWP_WX_MEMORY")
++    set(_internal_include "#include \"funchook_internal.h\"")
++    string(FIND "${_windows_content}" "${_internal_include}" _internal_include_position)
++    if (_internal_include_position EQUAL -1)
++        message(FATAL_ERROR "Funchook internal include site changed")
++    endif ()
++    string(REPLACE "${_internal_include}" [=[#include "funchook_internal.h"
++#if defined(DUSK_UWP)
++#define DUSK_UWP_WX_MEMORY 1
++#define VirtualAlloc VirtualAllocFromApp
++#define VirtualProtect VirtualProtectFromApp
++#define FUNCHOOK_TARGET_WRITE_PROTECTION PAGE_READWRITE
++#else
++#define FUNCHOOK_TARGET_WRITE_PROTECTION PAGE_EXECUTE_READWRITE
++#endif]=] _windows_content "${_windows_content}")
++
++    set(_target_unprotect
++        "    ok = VirtualProtect(mstate->addr, mstate->size, PAGE_EXECUTE_READWRITE, &mstate->protect);")
++    string(FIND "${_windows_content}" "${_target_unprotect}" _target_unprotect_position)
++    if (_target_unprotect_position EQUAL -1)
++        message(FATAL_ERROR "Funchook target protection site changed")
++    endif ()
++    string(REPLACE "${_target_unprotect}"
++        "    ok = VirtualProtect(mstate->addr, mstate->size, FUNCHOOK_TARGET_WRITE_PROTECTION, &mstate->protect);"
++        _windows_content "${_windows_content}")
++    file(WRITE "${SOURCE_DIR}/src/funchook_windows.c" "${_windows_content}")
++endif ()
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+index 1ad403f07..f3f17dc2e 100644
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -1,7 +1,9 @@
+ #pragma once
+ 
++#include <cstddef>
+ #include <filesystem>
+ #include <fstream>
++#include <memory>
+ #include <mutex>
+ #include <string>
+ #include <string_view>
+@@ -12,6 +14,7 @@ namespace dusk::startup_guard {
+ #if defined(_UWP)
+ namespace detail {
+ inline std::filesystem::path markerPath;
++inline std::unique_ptr<std::fstream> markerStream;
+ inline std::string previousStage;
+ inline bool initialized = false;
+ inline bool startupActive = false;
+@@ -34,16 +37,31 @@ inline void write_locked(std::string_view stage) noexcept {
+         return;
+     }
+     try {
+-        std::ofstream output(markerPath, std::ios::binary | std::ios::trunc);
+-        if (!output) {
++        if (!markerStream) {
++            markerStream = std::make_unique<std::fstream>(
++                markerPath, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
++        }
++        if (!*markerStream) {
++            markerStream.reset();
+             return;
+         }
++
++        // Hook activation records hundreds of stages. Reopening the LocalState file for every
++        // stage can stall Xbox for minutes, so keep one handle and overwrite a fixed-size record.
++        // The newline keeps the existing getline reader simple; padding removes stale text from a
++        // longer previous stage without another truncate/open cycle.
++        constexpr std::size_t kRecordSize = 1024;
+         const std::string value = clean_stage(stage);
+-        output.write(value.data(), static_cast<std::streamsize>(value.size()));
+-        output.put('\n');
+-        output.flush();
++        markerStream->clear();
++        markerStream->seekp(0);
++        markerStream->write(value.data(), static_cast<std::streamsize>(value.size()));
++        markerStream->put('\n');
++        const std::string padding(kRecordSize - value.size() - 1, ' ');
++        markerStream->write(padding.data(), static_cast<std::streamsize>(padding.size()));
++        markerStream->flush();
+     } catch (...) {
+         // The guard must never turn a diagnostic write failure into a startup failure.
++        markerStream.reset();
+     }
+ }
+ 
+@@ -51,6 +69,7 @@ inline void clear_locked() noexcept {
+     if (markerPath.empty()) {
+         return;
+     }
++    markerStream.reset();
+     std::error_code ec;
+     std::filesystem::remove(markerPath, ec);
+ }
+@@ -62,9 +81,8 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+         return;
+     }
+     detail::initialized = true;
+-    // Use a build-specific journal so an unresolved .670 marker does not put the first .671
+-    // launch into diagnostic recovery. A failed .671 launch is still recovered on its next run.
+-    detail::markerPath = userPath / "xbox-startup-stage-671.txt";
++    // Use a build-specific journal so a marker from an older build never changes this launch.
++    detail::markerPath = userPath / "xbox-startup-stage-672.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
+@@ -123,6 +141,9 @@ inline void end_activity(std::string_view resumeStage = "activity.complete") noe
+ 
+ inline void complete_startup() noexcept {
+     std::scoped_lock lock(detail::mutex);
++    if (!detail::startupActive) {
++        return;
++    }
+     detail::startupActive = false;
+     detail::recoveryMode = false;
+     if (!detail::activityActive) {
+diff --git a/src/dusk/ui/prelaunch.cpp b/src/dusk/ui/prelaunch.cpp
+index 39192d36a..c5199c09b 100644
+--- a/src/dusk/ui/prelaunch.cpp
++++ b/src/dusk/ui/prelaunch.cpp
+@@ -870,11 +870,14 @@ Prelaunch::Prelaunch() : Document(kDocumentSource, false, DocumentScope::Prelaun
+ 
+ #if defined(_UWP)
+     const std::string previousStage = startup_guard::previous_stage();
+-    mHoldForStartupDiagnostic = !previousStage.empty();
+     if (mStartupDiagnostic != nullptr && !previousStage.empty()) {
+         set_text_content(
+             mStartupDiagnostic, fmt::format("Previous Xbox stage: {}", previousStage));
+         mStartupDiagnostic->SetAttribute("visible", "");
++    } else if (mStartupDiagnostic != nullptr && mods::ModLoader::instance().initialized()) {
++        set_text_content(
++            mStartupDiagnostic, "Xbox safe launch: choose Randomizer with Left/Right, then Play.");
++        mStartupDiagnostic->SetAttribute("visible", "");
+     }
+ #endif
+ 
+@@ -909,20 +912,18 @@ Prelaunch::Prelaunch() : Document(kDocumentSource, false, DocumentScope::Prelaun
+ void Prelaunch::build_menu_buttons() {
+     mModsButton = nullptr;
+     if (auto* menuList = mDocument->GetElementById("menu-list")) {
+-        // Restore the previously selected game mode before creating the play control.
++        if (!mGameModeInitialized) {
++            mGameModeInitialized = true;
+ #if defined(_UWP)
+-        // Installing Randomizer hooks before the first game frame can leave Xbox alive on a black
+-        // screen. Let the vanilla engine present one frame, then restore the saved game mode from
+-        // update(). If this build is recovering a recorded .671 failure, stay on Vanilla so the
+-        // diagnostic text remains readable instead of immediately repeating the failing activity.
+-        mRestoreGameModeAfterFirstFrame =
+-            startup_guard::startup_active() && !mHoldForStartupDiagnostic;
+-        if (!startup_guard::startup_active()) {
+-            gamemode::getGameModeManager().setGameModeToPrevious();
+-        }
++            // Never activate 151 Randomizer hook targets behind a blank transition frame. Xbox
++            // starts on Vanilla and lets the user select Randomizer from the visible launcher,
++            // where activation progress and any retained diagnostic stage remain observable.
++            gamemode::getGameModeManager().setCurrentGameMode(gamemode::kVanillaGameModeId);
+ #else
+-        gamemode::getGameModeManager().setGameModeToPrevious();
++            // Restore the previously selected game mode before creating the play control.
++            gamemode::getGameModeManager().setGameModeToPrevious();
+ #endif
++        }
+ 
+         auto playButton = std::make_unique<GameModeButton>(menuList, [this] {
+             if (prelaunch_state().activeDiscPath.empty()) {
+@@ -1042,13 +1043,6 @@ void Prelaunch::hide(bool close) {
+ }
+ 
+ void Prelaunch::update() {
+-#if defined(_UWP)
+-    if (mRestoreGameModeAfterFirstFrame && !startup_guard::startup_active()) {
+-        mRestoreGameModeAfterFirstFrame = false;
+-        gamemode::getGameModeManager().setGameModeToPrevious();
+-    }
+-#endif
+-
+     if (mModsButton) {
+         mModsButton->set_disabled(!mods::ModLoader::instance().initialized());
+         set_mod_update_badge(*mModsButton);
+@@ -1068,9 +1062,11 @@ void Prelaunch::update() {
+     const bool discRestartPending =
+         activeDiscLoaded && state.configuredDiscPath != state.activeDiscPath;
+     mDocument->SetClass("disc-ready", IsGameLaunched);
+-    if (canLaunchConfiguredDisc && !mHoldForStartupDiagnostic) {
++#if !defined(_UWP)
++    if (canLaunchConfiguredDisc) {
+         IsGameLaunched = true;
+     }
++#endif
+ 
+     if (!mEntranceAnimationStarted && mDocument != nullptr) {
+         mDocument->SetClass("animate-in", true);
+diff --git a/src/dusk/ui/prelaunch.hpp b/src/dusk/ui/prelaunch.hpp
+index 934dfb253..7e461d9f0 100644
+--- a/src/dusk/ui/prelaunch.hpp
++++ b/src/dusk/ui/prelaunch.hpp
+@@ -31,8 +31,7 @@ protected:
+ private:
+     bool mEntranceAnimationStarted = false;
+     bool mRestartSuppressed = false;
+-    bool mHoldForStartupDiagnostic = false;
+-    bool mRestoreGameModeAfterFirstFrame = false;
++    bool mGameModeInitialized = false;
+     std::vector<std::unique_ptr<Button>> mMenuButtons;
+     Button* mModsButton = nullptr;
+     Rml::Element* mRoot = nullptr;
+diff --git a/src/m_Do/m_Do_main.cpp b/src/m_Do/m_Do_main.cpp
+index 04c6f8c62..78b974704 100644
+--- a/src/m_Do/m_Do_main.cpp
++++ b/src/m_Do/m_Do_main.cpp
+@@ -895,7 +895,7 @@ int game_main(int argc, char* argv[]) {
+     if (xboxStartupDiagnostic) {
+         // Render only the ordinary prelaunch document before disc/game initialization. Unlike the
+         // retired modal and toast paths, this screen has already been proven to present on Xbox.
+-        // It displays the cached .671 marker and waits for an explicit Play press.
++        // It displays the cached .672 marker and waits for an explicit Play press.
+         forcePreLaunchUI = true;
+         skipPreLaunchUI = false;
+         showPrelaunchAfterInit = false;
+@@ -1001,6 +1001,30 @@ int game_main(int argc, char* argv[]) {
+         mods_init(dusk::ConfigPath / "mods");
+     }
+ 
++#if defined(_UWP)
++    // Xbox must complete a visible launcher loop after the built-in mod has registered its game
++    // mode. Starting main01 immediately leaves only a blank transition frame while Randomizer
++    // installs its hooks. Start safely on Vanilla; the player explicitly selects Randomizer and
++    // then Play, so the UI remains observable throughout activation.
++    dusk::startup_guard::stage("startup.post-mod-prelaunch");
++    dusk::IsGameLaunched = false;
++    dusk::ui::push_document(std::make_unique<dusk::ui::Prelaunch>(), true);
++    dusk::startup_guard::stage("startup.post-mod-prelaunch-ready");
++    if (!launchUILoop()) {
++        borealis::shutdown();
++        borealis::sentry::shutdown();
++        borealis::log::shutdown();
++        fflush(stdout);
++        fflush(stderr);
++#if BOREALIS_HAS_DISCORD
++        dusk::discord::shutdown();
++#endif
++        dusk::ui::shutdown();
++        dusk::config::shutdown();
++        aurora_shutdown();
++        return 0;
++    }
++#else
+     if (!skipPreLaunchUI && showPrelaunchAfterInit) {
+         dusk::startup_guard::stage("startup.prelaunch-after-mods");
+         dusk::ui::push_document(std::make_unique<dusk::ui::Prelaunch>(), true);
+@@ -1016,6 +1040,7 @@ int game_main(int argc, char* argv[]) {
+             dusk::ui::prelaunch_state().firstLaunch = false;
+         }
+     }
++#endif
+ 
+ #if BOREALIS_HAS_SENTRY
+     if (borealis::sentry::get_consent() == borealis::sentry::Consent::Unknown) {
