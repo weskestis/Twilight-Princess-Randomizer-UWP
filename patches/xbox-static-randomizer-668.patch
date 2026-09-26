@@ -1,7 +1,8 @@
 diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
+index ef8afa7..89f76e2 100644
 --- a/cmake/ModSDK.cmake
 +++ b/cmake/ModSDK.cmake
-@@ -173,9 +173,18 @@ function(add_mod target_name)
+@@ -173,9 +173,20 @@ function(add_mod target_name)
      set(_needs_host_link FALSE)
      set(_lib_platform "")
      set(_lib_name "")
@@ -15,13 +16,15 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
 +            # game image instead. Other platforms retain the normal module path.
 +            set(_builtin_static TRUE)
 +            add_library(${target_name} STATIC ${ARG_SOURCES})
++            target_compile_definitions(${target_name} PRIVATE
++                    DUSK_STATIC_BUILTIN_MOD=1)
 +        else ()
 +            add_library(${target_name} MODULE ${ARG_SOURCES})
 +        endif ()
          _mod_lib_info(_lib_platform _lib_name)
          set_target_properties(${target_name} PROPERTIES
                  PREFIX ""
-@@ -189,13 +198,8 @@ function(add_mod target_name)
+@@ -187,13 +198,8 @@ function(add_mod target_name)
          target_link_libraries(${target_name} PRIVATE dusklight_mod_api)
  
          if (MSVC AND DUSK_UWP)
@@ -37,7 +40,27 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
              if (NOT DUSK_UWP_STORE_LIB_DIR OR
                      NOT IS_DIRECTORY "${DUSK_UWP_STORE_LIB_DIR}")
                  message(FATAL_ERROR
-@@ -277,7 +281,7 @@ function(add_mod target_name)
+@@ -227,7 +233,18 @@ function(add_mod target_name)
+                 _mod_add_webgpu_headers(${target_name})
+             endif ()
+             if (_feature STREQUAL "fmt")
+-                _mod_add_fmt(${target_name})
++                if (_builtin_static)
++                    # The host already links the compiled fmt library. Header-only
++                    # fmt would emit a second copy of its implementation into this
++                    # archive and collide when both are folded into the UWP image.
++                    if (NOT TARGET fmt::fmt)
++                        message(FATAL_ERROR
++                                "Built-in Randomizer requires the compiled fmt::fmt target")
++                    endif ()
++                    target_link_libraries(${target_name} PRIVATE fmt::fmt)
++                else ()
++                    _mod_add_fmt(${target_name})
++                endif ()
+             endif ()
+             if (_feature STREQUAL "game" OR _feature STREQUAL "webgpu")
+                 set(_needs_host_link TRUE)
+@@ -299,7 +316,7 @@ function(add_mod target_name)
              # setup_windows_exports); cl and clang-cl both consume it in MSVC mode. Function
              # calls resolve through import thunks; game data is reachable only through
              # __declspec(dllimport), i.e. DUSK_GAME_DATA-annotated declarations.
@@ -46,7 +69,7 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
                  if (TARGET dusklight)
                      if (NOT DUSK_GAME_IMPLIB)
                          message(FATAL_ERROR
-@@ -317,16 +321,18 @@ function(add_mod target_name)
+@@ -339,16 +356,18 @@ function(add_mod target_name)
      set(_lib_strip_cmd "")
      set(_target_depend "")
      if (_has_lib)
@@ -74,10 +97,25 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
      endif ()
      string(TOLOWER "${_lib_name}" _lib_name_key)
      set(_runtime_lib_name_keys "${_lib_name_key}")
+diff --git a/include/global.h b/include/global.h
+index 49ed52b..db57b9a 100644
+--- a/include/global.h
++++ b/include/global.h
+@@ -120,7 +120,8 @@ inline int __builtin_clz(unsigned int v) {
+ 
+ // Data symbols exported from the main exe need dllimport on the mod side. The game itself
+ // exports them through its generated .def, so the annotation is otherwise intentionally empty.
+-#if defined(TARGET_PC) && defined(_WIN32) && !defined(DUSK_BUILDING_GAME)
++#if defined(TARGET_PC) && defined(_WIN32) && !defined(DUSK_BUILDING_GAME) && \
++    !defined(DUSK_STATIC_BUILTIN_MOD)
+ #define DUSK_GAME_DATA __declspec(dllimport)
+ #else
+ #define DUSK_GAME_DATA
 diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
+index c68441e..d2f050f 100644
 --- a/platforms/uwp/CMakeLists.txt
 +++ b/platforms/uwp/CMakeLists.txt
-@@ -20,14 +20,22 @@ foreach (_required_dir DUSK_DIR DUSK_SOURCE_DIR UWP_DEP_SOURCE_DIR)
+@@ -21,14 +21,22 @@ foreach (_required_dir DUSK_DIR DUSK_SOURCE_DIR UWP_DEP_SOURCE_DIR)
  endforeach ()
  
  set(_feed_archive "${DUSK_DIR}/dusklight.lib")
@@ -102,7 +140,7 @@ diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
  set(_uwp_x64 "${UWP_DEP_SOURCE_DIR}/x64")
  foreach (_required_file
          "${_uwp_x64}/lib/SDL3.lib"
-@@ -89,11 +97,10 @@ set_source_files_properties(${_asset_files} PROPERTIES
+@@ -86,11 +94,10 @@ set_source_files_properties(${_asset_files} PROPERTIES
          VS_DEPLOYMENT_LOCATION "Assets")
  target_sources(${PROJECT_NAME} PRIVATE ${_asset_files})
  
@@ -118,7 +156,7 @@ diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
  set(_randomizer_package_dir "${CMAKE_CURRENT_BINARY_DIR}/packaged-randomizer")
  file(REMOVE_RECURSE "${_randomizer_package_dir}")
  file(MAKE_DIRECTORY "${_randomizer_package_dir}")
-@@ -103,12 +110,14 @@ file(ARCHIVE_EXTRACT
+@@ -99,12 +106,14 @@ file(ARCHIVE_EXTRACT
          DESTINATION "${_randomizer_package_dir}")
  
  foreach (_required_file
@@ -135,15 +173,15 @@ diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
  
  file(GLOB_RECURSE _randomizer_package_files
          LIST_DIRECTORIES FALSE
-@@ -157,6 +164,7 @@ set(_uwp_import_libraries
+@@ -147,6 +156,7 @@ set(_uwp_import_libraries
+     "${_uwp_x64}/lib/z.lib")
  
  target_link_libraries(${PROJECT_NAME} PRIVATE
 +    "${_randomizer_archive}"
      "${_feed_archive}"
      ${_feed_libraries}
      ${_uwp_import_libraries}
-     WindowsApp.lib
-@@ -166,8 +174,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
+@@ -157,8 +167,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
      Ws2_32.lib)
  
  target_link_options(${PROJECT_NAME} PRIVATE
@@ -154,9 +192,10 @@ diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
      /OPT:NOICF
      /INCREMENTAL:NO
 diff --git a/src/dusk/mods/loader/natives.cpp b/src/dusk/mods/loader/natives.cpp
+index 6b0e345..ba65d23 100644
 --- a/src/dusk/mods/loader/natives.cpp
 +++ b/src/dusk/mods/loader/natives.cpp
-@@ -339,6 +339,43 @@ bool parse_meta(NativeMod& native, LoadedMod& mod) {
+@@ -340,6 +340,43 @@ bool parse_meta(NativeMod& native, LoadedMod& mod) {
      return true;
  }
  
@@ -200,7 +239,7 @@ diff --git a/src/dusk/mods/loader/natives.cpp b/src/dusk/mods/loader/natives.cpp
  std::string native_status_message(const NativeModStatus status) {
      switch (status) {
      case NativeModStatus::BuildDisabled:
-@@ -532,6 +569,18 @@ void ModLoader::load_native(
+@@ -535,6 +572,18 @@ void ModLoader::load_native(
  }
  
  bool ModLoader::load_native_if_present(LoadedMod& mod) {
@@ -219,7 +258,7 @@ diff --git a/src/dusk/mods/loader/natives.cpp b/src/dusk/mods/loader/natives.cpp
      const auto result = locate_native_runtime(*mod.bundle);
      if (const auto* failure = std::get_if<NativeLocateFailure>(&result)) {
          mod.nativeStatus = failure->status;
-@@ -564,6 +611,13 @@ void ModLoader::unload_native(LoadedMod& mod) {
+@@ -569,6 +618,13 @@ void ModLoader::unload_native(LoadedMod& mod) {
      if (!mod.native) {
          return;
      }

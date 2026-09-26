@@ -301,7 +301,7 @@ jobs:
               $staticRandomizerPatchDigest) -replace '-', '').ToLowerInvariant()
           }
           finally { $hasher.Dispose() }
-          if ($staticRandomizerPatchHash -ne '0de7287ba0cc922ce076a81224d1a3d9c101974fcd1312cb3c4f94e7f6735566') {
+          if ($staticRandomizerPatchHash -ne 'b63fee8c7b24ef1fd0a8b3210add426f051ca418b89f0ff1a9d218076af5e6b3') {
             throw "Xbox static Randomizer patch SHA-256 mismatch: $staticRandomizerPatchHash"
           }
           $staticRandomizerPatch = Join-Path $env:RUNNER_TEMP 'xbox-static-randomizer-668.patch'
@@ -358,6 +358,18 @@ jobs:
           if ($modSdkCmake.Contains(
               'target_compile_definitions(${target_name} PRIVATE DUSK_BUILDING_GAME=1)')) {
             throw 'Built-in Randomizer must retain mod SDK compile semantics.'
+          }
+          foreach ($staticMarker in @(
+            'DUSK_STATIC_BUILTIN_MOD=1',
+            'Built-in Randomizer requires the compiled fmt::fmt target',
+            'target_link_libraries(${target_name} PRIVATE fmt::fmt)')) {
+            if (-not $modSdkCmake.Contains($staticMarker)) {
+              throw "Built-in Randomizer static-link guard is missing: $staticMarker"
+            }
+          }
+          $globalHeader = [IO.File]::ReadAllText("$env:TPR_SRC\include\global.h")
+          if (-not $globalHeader.Contains('!defined(DUSK_STATIC_BUILTIN_MOD)')) {
+            throw 'Built-in Randomizer game-data symbols would still use DLL imports.'
           }
           git -C "$env:TPR_SRC\extern\aurora" apply --check $auroraPatch
           git -C "$env:TPR_SRC\extern\aurora" apply $auroraPatch
@@ -501,6 +513,29 @@ jobs:
             -DDUSK_UWP_STORE_LIB_DIR="$storeLib" `
             -DTRACY_ENABLE=OFF
           if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 UWP feed configuration failed.' }
+          $ninjaLines = @(Get-Content "$env:TPR_FEED\build.ninja")
+          $randomizerDefinitions = @()
+          for ($i = 0; $i -lt $ninjaLines.Count; $i++) {
+            if ($ninjaLines[$i] -match '^build .*randomizer\.dir.*\.(c|cc|cpp)\.obj:') {
+              for ($j = $i + 1; $j -lt [Math]::Min($i + 12, $ninjaLines.Count); $j++) {
+                if ($ninjaLines[$j] -match '^  DEFINES = ') {
+                  $randomizerDefinitions += $ninjaLines[$j]
+                  break
+                }
+              }
+            }
+          }
+          if ($randomizerDefinitions.Count -lt 1) {
+            throw 'Could not inspect built-in Randomizer compile definitions.'
+          }
+          foreach ($definitions in $randomizerDefinitions) {
+            if (-not $definitions.Contains('DUSK_STATIC_BUILTIN_MOD=1')) {
+              throw 'Built-in Randomizer objects are missing DUSK_STATIC_BUILTIN_MOD=1.'
+            }
+            if ($definitions.Contains('FMT_HEADER_ONLY')) {
+              throw 'Built-in Randomizer still embeds a duplicate header-only fmt implementation.'
+            }
+          }
 
       - name: Compile core, built-in Randomizer, and package
         shell: powershell
@@ -861,7 +896,7 @@ jobs:
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
             dawnCacheApiPatchSha256 = '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f'
             funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
-            staticRandomizerPatchSha256 = '0de7287ba0cc922ce076a81224d1a3d9c101974fcd1312cb3c4f94e7f6735566'
+            staticRandomizerPatchSha256 = 'b63fee8c7b24ef1fd0a8b3210add426f051ca418b89f0ff1a9d218076af5e6b3'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Persistent phase journal and automatic safe recovery launcher; exact built-in mod-init and hook-stage reporting'
             nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
