@@ -1,0 +1,14 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.671",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "upstream": "Dusklight v2.0.1",
+  "randomizer": "built into the signed Dusklight executable; packaged data bundle contains no native DLL",
+  "enemySouls": true,
+  "xboxLoaderHotfix": "Retains the single-native-image UWP layout and the Dusklight 2 runtime hook engine",
+  "uwpDependency": "SternXD/uwp-dep dusklight 810cdcb672383045a8b03d1d55bb535352d7d46f",
+  "xboxStartupGuard": "Randomizer activation is deferred until after the first presented game frame; a failed .671 stage is shown safely on the next prelaunch screen",
+  "lifecycleQuarantine": "Optional mod overlay, texture, and audio synchronization remains bypassed on Xbox while core Randomizer and Enemy Souls code remains installed"
+}

@@ -1,0 +1,318 @@
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -62,7 +62,9 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+         return;
+     }
+     detail::initialized = true;
+-    detail::markerPath = userPath / "xbox-startup-stage.txt";
++    // Use a build-specific journal so an unresolved .670 marker does not put the first .671
++    // launch into diagnostic recovery. A failed .671 launch is still recovered on its next run.
++    detail::markerPath = userPath / "xbox-startup-stage-671.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
+@@ -84,6 +86,11 @@ inline bool recovery_mode() noexcept {
+     return detail::recoveryMode;
+ }
+ 
++inline bool startup_active() noexcept {
++    std::scoped_lock lock(detail::mutex);
++    return detail::startupActive;
++}
++
+ inline std::string previous_stage() noexcept {
+     std::scoped_lock lock(detail::mutex);
+     return detail::previousStage;
+@@ -127,6 +134,7 @@ inline void complete_startup() noexcept {
+ 
+ inline void begin_startup(const std::filesystem::path&) noexcept {}
+ inline bool recovery_mode() noexcept { return false; }
++inline bool startup_active() noexcept { return false; }
+ inline std::string previous_stage() noexcept { return {}; }
+ inline void stage(std::string_view) noexcept {}
+ inline void begin_activity(std::string_view) noexcept {}
+diff --git a/src/dusk/ui/prelaunch.hpp b/src/dusk/ui/prelaunch.hpp
+--- a/src/dusk/ui/prelaunch.hpp
++++ b/src/dusk/ui/prelaunch.hpp
+@@ -31,12 +31,15 @@ protected:
+ private:
+     bool mEntranceAnimationStarted = false;
+     bool mRestartSuppressed = false;
++    bool mHoldForStartupDiagnostic = false;
++    bool mRestoreGameModeAfterFirstFrame = false;
+     std::vector<std::unique_ptr<Button>> mMenuButtons;
+     Button* mModsButton = nullptr;
+     Rml::Element* mRoot = nullptr;
+     Rml::Element* mDiscStatus = nullptr;
+     Rml::Element* mDiscDetail = nullptr;
+     Rml::Element* mVersion = nullptr;
++    Rml::Element* mStartupDiagnostic = nullptr;
+     Rml::Element* mUpdateStatus = nullptr;
+     Rml::Element* mUpdateMessage = nullptr;
+     Rml::Element* mUpdateDownload = nullptr;
+diff --git a/src/dusk/ui/prelaunch.cpp b/src/dusk/ui/prelaunch.cpp
+--- a/src/dusk/ui/prelaunch.cpp
++++ b/src/dusk/ui/prelaunch.cpp
+@@ -9,6 +9,7 @@
+ #include "dusk/main.h"
+ #include "dusk/mod_loader.hpp"
+ #include "dusk/settings.h"
++#include "dusk/startup_guard.hpp"
+ #include "dusk/ui/format.hpp"
+ #include "dusk/ui/menu_bar.hpp"
+ #include "mod_updates.hpp"
+@@ -70,6 +71,7 @@ const Rml::String kDocumentSource = R"RML(
+             <disc-version id="disc-version" />
+         </disc-info>
+         <version-info class="intro-item delay-6">
++            <startup-diagnostic id="startup-diagnostic" />
+             <version-label>Version <version-number id="version-text"></version-number></version-label>
+             <update-status id="update-status">
+                 <update-message id="update-message"></update-message>
+@@ -860,11 +862,22 @@ Prelaunch::Prelaunch() : Document(kDocumentSource, false, DocumentScope::Prelaunc
+     mDiscStatus = mDocument->GetElementById("disc-status");
+     mDiscDetail = mDocument->GetElementById("disc-version");
+     mVersion = mDocument->GetElementById("version-text");
++    mStartupDiagnostic = mDocument->GetElementById("startup-diagnostic");
+     mUpdateStatus = mDocument->GetElementById("update-status");
+     mUpdateMessage = mDocument->GetElementById("update-message");
+     mUpdateDownload = mDocument->GetElementById("update-download");
+     mUpdateDownloadLabel = mDocument->GetElementById("update-download-label");
+ 
++#if defined(_UWP)
++    const std::string previousStage = startup_guard::previous_stage();
++    mHoldForStartupDiagnostic = !previousStage.empty();
++    if (mStartupDiagnostic != nullptr && !previousStage.empty()) {
++        set_text_content(
++            mStartupDiagnostic, fmt::format("Previous Xbox stage: {}", previousStage));
++        mStartupDiagnostic->SetAttribute("visible", "");
++    }
++#endif
++
+     if (mUpdateDownload != nullptr) {
+         listen(mUpdateDownload, Rml::EventId::Click, [](Rml::Event& event) {
+             open_update_release();
+@@ -897,7 +909,19 @@ void Prelaunch::build_menu_buttons() {
+     mModsButton = nullptr;
+     if (auto* menuList = mDocument->GetElementById("menu-list")) {
+         // Restore the previously selected game mode before creating the play control.
++#if defined(_UWP)
++        // Installing Randomizer hooks before the first game frame can leave Xbox alive on a black
++        // screen. Let the vanilla engine present one frame, then restore the saved game mode from
++        // update(). If this build is recovering a recorded .671 failure, stay on Vanilla so the
++        // diagnostic text remains readable instead of immediately repeating the failing activity.
++        mRestoreGameModeAfterFirstFrame =
++            startup_guard::startup_active() && !mHoldForStartupDiagnostic;
++        if (!startup_guard::startup_active()) {
++            gamemode::getGameModeManager().setGameModeToPrevious();
++        }
++#else
+         gamemode::getGameModeManager().setGameModeToPrevious();
++#endif
+ 
+         auto playButton = std::make_unique<GameModeButton>(menuList, [this] {
+             if (prelaunch_state().activeDiscPath.empty()) {
+@@ -1017,6 +1042,13 @@ void Prelaunch::hide(bool close) {
+ }
+ 
+ void Prelaunch::update() {
++#if defined(_UWP)
++    if (mRestoreGameModeAfterFirstFrame && !startup_guard::startup_active()) {
++        mRestoreGameModeAfterFirstFrame = false;
++        gamemode::getGameModeManager().setGameModeToPrevious();
++    }
++#endif
++
+     if (mModsButton) {
+         mModsButton->set_disabled(!mods::ModLoader::instance().initialized());
+         set_mod_update_badge(*mModsButton);
+@@ -1036,7 +1068,7 @@ void Prelaunch::update() {
+     const bool discRestartPending =
+         activeDiscLoaded && state.configuredDiscPath != state.activeDiscPath;
+     mDocument->SetClass("disc-ready", IsGameLaunched);
+-    if (canLaunchConfiguredDisc) {
++    if (canLaunchConfiguredDisc && !mHoldForStartupDiagnostic) {
+         IsGameLaunched = true;
+     }
+ 
+diff --git a/res/rml/prelaunch.rcss b/res/rml/prelaunch.rcss
+--- a/res/rml/prelaunch.rcss
++++ b/res/rml/prelaunch.rcss
+@@ -280,6 +280,18 @@ body.mirrored version-info {
+     text-align: left;
+ }
+ 
++#startup-diagnostic {
++    display: none;
++    max-width: 720dp;
++    color: var(--color-prelaunch-accent);
++    font-size: var(--font-size-2xl);
++    white-space: normal;
++}
++
++#startup-diagnostic[visible] {
++    display: block;
++}
++
+ #disc-status {
+     display: flex;
+     align-items: center;
+@@ -561,6 +573,11 @@ body.mirrored update-status {
+         font-size: var(--font-size-md);
+     }
+ 
++    #startup-diagnostic {
++        max-width: 520dp;
++        font-size: var(--font-size-md);
++    }
++
+     body.mirrored disc-info {
+         right: auto;
+         left: 32dp;
+diff --git a/src/m_Do/m_Do_main.cpp b/src/m_Do/m_Do_main.cpp
+--- a/src/m_Do/m_Do_main.cpp
++++ b/src/m_Do/m_Do_main.cpp
+@@ -196,9 +196,15 @@ void main01(void) {
+     OS_REPORT("\x1b[m");
+ 
+     // 1. Setup
++    dusk::startup_guard::stage("main01.machine-create");
+     mDoMch_Create();
++    dusk::startup_guard::stage("main01.machine-ready");
++    dusk::startup_guard::stage("main01.graphics-create");
+     mDoGph_Create();
++    dusk::startup_guard::stage("main01.graphics-ready");
++    dusk::startup_guard::stage("main01.input-create");
+     mDoCPd_c::create();
++    dusk::startup_guard::stage("main01.input-ready");
+ 
+     // Console Setup
+     JUTConsole* console = JFWSystem::getSystemConsole();
+@@ -209,19 +215,29 @@ void main01(void) {
+     }
+ 
+     // Loader Init
++    dusk::startup_guard::stage("main01.dvd-callback-create");
+     mDoDvdThd_callback_c::create((mDoDvdThd_callback_func)LOAD_COPYDATE, NULL);
++    dusk::startup_guard::stage("main01.dvd-callback-ready");
+ 
+     OSReport("Calling fapGm_Create()...\n");
++    dusk::startup_guard::stage("main01.game-manager-create");
+     fapGm_Create();
++    dusk::startup_guard::stage("main01.game-manager-ready");
+ 
+     OSReport("Calling fopAcM_initManager()...\n");
++    dusk::startup_guard::stage("main01.actor-manager-create");
+     fopAcM_initManager();
++    dusk::startup_guard::stage("main01.actor-manager-ready");
+ 
+     OSReport("Calling cDyl_InitAsync()...\n");
++    dusk::startup_guard::stage("main01.dynamic-link-create");
+     cDyl_InitAsync();
++    dusk::startup_guard::stage("main01.dynamic-link-ready");
+ 
++    dusk::startup_guard::stage("main01.audio-heap-create");
+     g_mDoAud_audioHeap = JKRCreateSolidHeap(audioHeapSize, JKRGetCurrentHeap(), false);
+     JKRHEAP_NAME(g_mDoAud_audioHeap, "g_mDoAud_audioHeap");
++    dusk::startup_guard::stage("main01.audio-heap-ready");
+ 
+     if (DUSK_AUDIO_DISABLED) {
+         // Pretend the audio engine initialized already. This is a lie, but needed to boot.
+@@ -231,9 +247,11 @@ void main01(void) {
+     OSReport("Entering Main Loop (main01)...\n");
+ 
+     dusk::game_clock::initialize();
++    dusk::startup_guard::stage("main01.loop-ready");
+ 
+     do {
+         // 1. Update Window Events
++        dusk::startup_guard::stage("main01.event-pump");
+         const AuroraEvent* event = aurora_update();
+         while (true) {
+             switch (event->type) {
+@@ -275,17 +293,22 @@ void main01(void) {
+ 
+         eventsDone:;
+ 
++        dusk::startup_guard::stage("main01.frame-begin");
+         if (!aurora_begin_frame()) {
+             DuskLog.debug("aurora_begin_frame returned false, skipping draw this frame");
+             continue;
+         }
++        dusk::startup_guard::stage("main01.frame-ready");
+ 
+         VIWaitForRetrace();
++        dusk::startup_guard::stage("main01.retrace-ready");
+ 
+         dusk::lastFrameAuroraStats = *aurora_get_stats();
+         mDoGph_gInf_c::updateRenderSize();
+ 
++        dusk::startup_guard::stage("main01.ui-update");
+         dusk::ui::update();
++        dusk::startup_guard::stage("main01.ui-ready");
+ 
+         const auto timing = dusk::game_clock::advance();
+         if (timing.separatePresentation) {
+@@ -300,9 +323,13 @@ void main01(void) {
+                     dusk::mouse::read();
+                     dusk::gyro::read(dusk::game_clock::kSimPeriod);
+                     dusk::processGameCombos();
++                    dusk::startup_guard::stage("main01.game-execute");
+                     fapGm_Execute();
++                    dusk::startup_guard::stage("main01.game-ready");
+                     dusk::processCameraCommands();
++                    dusk::startup_guard::stage("main01.audio-execute");
+                     mDoAud_Execute();
++                    dusk::startup_guard::stage("main01.audio-ready");
+                     dusk::game_clock::commit_sim_tick();
+                 }
+             }
+@@ -324,13 +351,18 @@ void main01(void) {
+ 
+             // EXECUTE GAME LOGIC & RENDER
+             // This calls mDoGph_Painter -> JFWDisplay -> GX Functions
++            dusk::startup_guard::stage("main01.game-execute");
+             fapGm_Execute();
++            dusk::startup_guard::stage("main01.game-ready");
+             dusk::processCameraCommands();
+ 
++            dusk::startup_guard::stage("main01.audio-execute");
+             mDoAud_Execute();
++            dusk::startup_guard::stage("main01.audio-ready");
+             dusk::game_clock::commit_sim_tick();
+         }
+ 
++        dusk::startup_guard::stage("main01.frame-end");
+         aurora_end_frame();
+         advance_xbox_startup_guard();
+ 
+@@ -640,7 +672,8 @@ int game_main(int argc, char* argv[]) {
+     const auto startupLogLevel = borealis::log::level();
+ #if defined(_UWP)
+     const std::string previousXboxStage = dusk::startup_guard::previous_stage();
++    const bool xboxStartupDiagnostic = !previousXboxStage.empty();
+     if (!previousXboxStage.empty()) {
+         DuskLog.warn("Previous Xbox launch ended at startup stage '{}'; continuing without recovery UI",
+             previousXboxStage);
+     }
+@@ -846,6 +879,19 @@ int game_main(int argc, char* argv[]) {
+         showPrelaunchAfterInit = false;
+     }
+ 
++#if defined(_UWP)
++    if (xboxStartupDiagnostic) {
++        // Render only the ordinary prelaunch document before disc/game initialization. Unlike the
++        // retired modal and toast paths, this screen has already been proven to present on Xbox.
++        // It displays the cached .671 marker and waits for an explicit Play press.
++        forcePreLaunchUI = true;
++        skipPreLaunchUI = false;
++        showPrelaunchAfterInit = false;
++        dusk::IsGameLaunched = false;
++        dusk::startup_guard::stage("startup.diagnostic-prelaunch");
++    }
++#endif
++
+     if (showPrelaunchAfterInit) {
+         // Force launchUILoop to not run, we know that the ISO will be loaded.
+         dusk::IsGameLaunched = true;
