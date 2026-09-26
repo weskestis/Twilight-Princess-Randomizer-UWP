@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.669",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "upstream": "Dusklight v2.0.1",
+  "randomizer": "built into the signed Dusklight executable; packaged data bundle contains no native DLL",
+  "enemySouls": true,
+  "xboxLoaderHotfix": "Retains the single-native-image UWP layout and the Dusklight 2 runtime hook engine",
+  "uwpDependency": "SternXD/uwp-dep dusklight 810cdcb672383045a8b03d1d55bb535352d7d46f",
+  "xboxStartupGuard": "Timed non-blocking recovery, preserved prior crash stage, per-service lifecycle reporting, and empty-overlay startup bypass"
+}

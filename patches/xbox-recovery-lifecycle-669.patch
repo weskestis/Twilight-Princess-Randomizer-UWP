@@ -1,0 +1,218 @@
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+index 01c5eab..187525b 100644
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -445,10 +445,12 @@ void ModLoader::init() {
+         }
+     }
+ 
+-    startup_guard::stage("mods.lifecycle-ready");
++    startup_guard::stage("mods.lifecycle-apply");
+ 
+     svc::modules_lifecycle_applied();
+ 
++    startup_guard::stage("mods.lifecycle-ready");
++
+     auto active = std::ranges::count_if(mods(), [](const LoadedMod& m) { return m.active; });
+     Log.info("{}/{} mod(s) active", active, m_mods.size());
+ 
+diff --git a/src/dusk/mods/svc/overlay.cpp b/src/dusk/mods/svc/overlay.cpp
+index a8e8d04..1758a54 100644
+--- a/src/dusk/mods/svc/overlay.cpp
++++ b/src/dusk/mods/svc/overlay.cpp
+@@ -184,11 +184,6 @@ constexpr AuroraOverlayCallbacks s_overlayCallbacks = {
+ 
+ void overlay_sync_files() {
+     static bool callbacksRegistered = false;
+-    if (!callbacksRegistered) {
+-        aurora_dvd_overlay_callbacks(&s_overlayCallbacks);
+-        callbacksRegistered = true;
+-    }
+-
+     s_overlaysDirty = false;
+ 
+     std::vector<AuroraOverlayFile> files;
+@@ -202,6 +197,21 @@ void overlay_sync_files() {
+         }
+     }
+ 
++#if defined(_UWP)
++    // The Xbox Randomizer package has no DVD overlays. Avoid entering Aurora's overlay path until
++    // there is at least one file to serve; the initial empty registration is not needed and can
++    // fault in the UWP runtime.
++    if (files.empty() && !callbacksRegistered) {
++        Log.debug("No overlay files; skipping initial Xbox overlay registration.");
++        return;
++    }
++#endif
++
++    if (!callbacksRegistered) {
++        aurora_dvd_overlay_callbacks(&s_overlayCallbacks);
++        callbacksRegistered = true;
++    }
++
+     Log.debug("Registering {} overlay file(s).", files.size());
+     aurora_dvd_overlay_files(files.data(), files.size(), nullptr);
+     JKRArchive::notifyOverlayFilesChanged();
+diff --git a/src/dusk/mods/svc/registry.cpp b/src/dusk/mods/svc/registry.cpp
+index 69903fc..c04fcf6 100644
+--- a/src/dusk/mods/svc/registry.cpp
++++ b/src/dusk/mods/svc/registry.cpp
+@@ -3,6 +3,7 @@
+ #include "dusk/app_info.hpp"
+ #include "dusk/logging.h"
+ #include "dusk/mods/loader/loader.hpp"
++#include "dusk/startup_guard.hpp"
+ #include "dusk/utilities.hpp"
+ 
+ #include <fmt/format.h>
+@@ -226,7 +227,9 @@ void modules_mod_detached(LoadedMod& mod) {
+ void modules_lifecycle_applied() {
+     for (const auto* module : s_modules) {
+         if (module->lifecycleApplied != nullptr) {
++            startup_guard::stage(fmt::format("module.lifecycle:{}", module->id));
+             module->lifecycleApplied();
++            startup_guard::stage(fmt::format("module.lifecycle-ready:{}", module->id));
+         }
+     }
+ }
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+index 8324911..2ef4412 100644
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -73,7 +73,9 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+     }
+     detail::recoveryMode = !detail::previousStage.empty();
+     detail::startupActive = true;
+-    detail::write_locked("startup.data-ready");
++    if (!detail::recoveryMode) {
++        detail::write_locked("startup.data-ready");
++    }
+ }
+ 
+ inline bool recovery_mode() noexcept {
+@@ -88,7 +90,7 @@ inline std::string previous_stage() noexcept {
+ 
+ inline void stage(std::string_view value) noexcept {
+     std::scoped_lock lock(detail::mutex);
+-    if (detail::startupActive || detail::activityActive) {
++    if ((detail::startupActive || detail::activityActive) && !detail::recoveryMode) {
+         detail::write_locked(value);
+     }
+ }
+@@ -96,15 +98,17 @@ inline void stage(std::string_view value) noexcept {
+ inline void begin_activity(std::string_view value) noexcept {
+     std::scoped_lock lock(detail::mutex);
+     detail::activityActive = true;
+-    detail::write_locked(value);
++    if (!detail::recoveryMode) {
++        detail::write_locked(value);
++    }
+ }
+ 
+ inline void end_activity(std::string_view resumeStage = "activity.complete") noexcept {
+     std::scoped_lock lock(detail::mutex);
+     detail::activityActive = false;
+-    if (detail::startupActive) {
++    if (detail::startupActive && !detail::recoveryMode) {
+         detail::write_locked(resumeStage);
+-    } else {
++    } else if (!detail::recoveryMode) {
+         detail::clear_locked();
+     }
+ }
+@@ -112,6 +116,7 @@ inline void end_activity(std::string_view resumeStage = "activity.complete") noe
+ inline void complete_startup() noexcept {
+     std::scoped_lock lock(detail::mutex);
+     detail::startupActive = false;
++    detail::recoveryMode = false;
+     if (!detail::activityActive) {
+         detail::clear_locked();
+     }
+diff --git a/src/m_Do/m_Do_main.cpp b/src/m_Do/m_Do_main.cpp
+index 5d86cc2..c8dece1 100644
+--- a/src/m_Do/m_Do_main.cpp
++++ b/src/m_Do/m_Do_main.cpp
+@@ -95,6 +95,7 @@
+ #include <SDL3/SDL_init.h>
+ #include <tracy/Tracy.hpp>
+ 
++#include <chrono>
+ #include <filesystem>
+ #include <system_error>
+ #include <thread>
+@@ -149,34 +150,39 @@ s32 LOAD_COPYDATE(void*) {
+ 
+ AuroraInfo auroraInfo;
+ 
++#if defined(_UWP)
++static std::chrono::steady_clock::time_point s_xboxRecoveryJournalDeadline{};
++#endif
++
+ static void show_xbox_startup_recovery() {
+ #if defined(_UWP)
+     if (!dusk::startup_guard::recovery_mode()) {
+         return;
+     }
+     const std::string previous = dusk::startup_guard::previous_stage();
+-    auto dismiss = [](dusk::ui::Modal& modal) { modal.pop(); };
+-    dusk::ui::push_document(std::make_unique<dusk::ui::Modal>(dusk::ui::Modal::Props{
++    dusk::ui::push_toast({
++        .type = "warning",
+         .title = "Xbox Startup Recovery",
+-        .bodyText = fmt::format(
+-            "The previous launch stopped during:\n\n{}\n\n"
++        .content = fmt::format(
++            "The previous launch stopped during: {}. "
+             "Randomizer code is still installed, but native mod activation is skipped for this "
+-            "recovery launch. Please photograph this message.",
++            "recovery launch. Recovery will continue automatically.",
+             previous.empty() ? "stage unavailable" : previous),
+-        .actions =
+-            {
+-                dusk::ui::ModalAction{
+-                    .label = "OK",
+-                    .onPressed = dismiss,
+-                },
+-            },
+-        .onDismiss = dismiss,
+-        .icon = "warning",
+-    }));
+-    if (auto* document = dusk::ui::top_document()) {
+-        document->focus();
++        .duration = std::chrono::seconds{10},
++    });
++    s_xboxRecoveryJournalDeadline = std::chrono::steady_clock::now() + std::chrono::seconds{8};
++#endif
++}
++
++static void advance_xbox_startup_guard() {
++#if defined(_UWP)
++    if (dusk::startup_guard::recovery_mode() &&
++        std::chrono::steady_clock::now() < s_xboxRecoveryJournalDeadline)
++    {
++        return;
+     }
+ #endif
++    dusk::startup_guard::complete_startup();
+ }
+ 
+ bool launchUILoop() {
+@@ -213,7 +219,7 @@ bool launchUILoop() {
+         dusk::g_imguiConsole.PostDraw();
+ 
+         aurora_end_frame();
+-        dusk::startup_guard::complete_startup();
++        advance_xbox_startup_guard();
+     }
+ 
+     return dusk::IsRunning;
+@@ -359,7 +365,7 @@ void main01(void) {
+         }
+ 
+         aurora_end_frame();
+-        dusk::startup_guard::complete_startup();
++        advance_xbox_startup_guard();
+ 
+         FrameMark;
+ 
