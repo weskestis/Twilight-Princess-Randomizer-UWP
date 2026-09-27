@@ -237,7 +237,7 @@ jobs:
           $testLog = Join-Path $env:RUNNER_TEMP 'generator-tests-58.txt'
           & $test.FullName 2>&1 | Tee-Object -FilePath $testLog
           if ($LASTEXITCODE -ne 0) { throw "Randomizer generator scenarios failed: $LASTEXITCODE" }
-          if (-not (Select-String -LiteralPath $testLog -SimpleMatch 'All Settings Tests passed' -Quiet)) {
+          if (-not (Select-String -LiteralPath $testLog -SimpleMatch 'All 58 Settings Tests passed' -Quiet)) {
             throw 'The generator did not report that every settings test passed.'
           }
           "TPR_TEST_LOG=$testLog" >> $env:GITHUB_ENV
