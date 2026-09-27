@@ -1,0 +1,89 @@
+diff --git a/src/hooks.cpp b/src/hooks.cpp
+index 1907012..254b58a 100644
+--- a/src/hooks.cpp
++++ b/src/hooks.cpp
+@@ -148,6 +148,7 @@ DEFINE_HOOK(&daObjBm_c::initActionDead, daObjBm_c__initActionDead_EnemySouls);
+ 
+ DEFINE_HOOK(&dFile_select_c::selectDataNameMove, dFile_select_c__selectDataNameMove);
+ DEFINE_HOOK(&dFile_select_c::dataSelect, dFile_select_c__dataSelect);
++DEFINE_HOOK(&dFile_select_c::nameInputWait, dFile_select_c__nameInputWait_RandomizerGate);
+ 
+ DEFINE_HOOK(&dFile_info_c::setSaveData, dFile_info_c__setSaveData);
+ 
+@@ -1140,6 +1141,31 @@ HookAction hookPreSelectDataNameMove(ModContext*, void* args, void* retval, void
+     return HOOK_SKIP_ORIGINAL;
+ }
+ 
++HookAction hookPreNameInputWaitRandomizerGate(
++    ModContext*, void* args, void*, void*)
++{
++    // A missing or invalid memory card reaches the name entry screen through
++    // ToNameMove/ToNameMove2 instead of selectDataNameMove.  The normal
++    // Randomizer gate is therefore never shown on that path, leaving no seed
++    // selected and causing the new-save callback to fail after horse naming.
++    // Catch the shared final state so every route must pass the seed gate.
++    if (ui::g_file_select_window_ctx.is_proceed) {
++        return HOOK_CONTINUE;
++    }
++
++    if (ui::g_dialogSelectModeState == ui::SelectReady) {
++        ui::g_dialogSelectModeState = ui::SelectWait;
++        auto* fileSelect = mods::arg<dFile_select_c*>(args, 0);
++        const ModResult result = ui::buildFileSelectGateMenu(fileSelect);
++        if (result != MOD_OK) {
++            ui::g_dialogSelectModeState = ui::SelectReady;
++            mods::log::error("Failed to build Randomizer gate before name entry");
++        }
++    }
++
++    return HOOK_SKIP_ORIGINAL;
++}
++
+ void hookPostSetSaveData(ModContext* ctx, void* args, void* retval, void* userdata) {
+     dFile_info_c* i_this = mods::arg<dFile_info_c*>(args, 0);
+     u8 i_dataNo = mods::arg<u8>(args, 3);
+@@ -4482,6 +4508,8 @@ ModResult initialize() {
+ 
+     ADD_HOOK_PRE(dFile_select_c__selectDataNameMove, hookPreSelectDataNameMove);
+     ADD_HOOK_PRE(dFile_select_c__dataSelect, hookPreDataSelect);
++    ADD_HOOK_PRE(dFile_select_c__nameInputWait_RandomizerGate,
++                 hookPreNameInputWaitRandomizerGate);
+ 
+     ADD_HOOK_POST(dFile_info_c__setSaveData, hookPostSetSaveData);
+ 
+@@ -4745,6 +4773,7 @@ ModResult uninstall() {
+ 
+     mods::hook::uninstall<dFile_select_c__selectDataNameMove>(svc_hook);
+     mods::hook::uninstall<dFile_select_c__dataSelect>(svc_hook);
++    mods::hook::uninstall<dFile_select_c__nameInputWait_RandomizerGate>(svc_hook);
+ 
+     mods::hook::uninstall<dFile_info_c__setSaveData>(svc_hook);
+ 
+diff --git a/src/session.cpp b/src/session.cpp
+index 243aa70..86dcc84 100644
+--- a/src/session.cpp
++++ b/src/session.cpp
+@@ -457,14 +457,18 @@ void registerStageEdits() {
+     }
+ }
+ 
+-ModResult onNewSave(void*, ModError*) {
++ModResult onNewSave(void*, ModError* error) {
+     const std::string hash = g_pending_seed_hash;
+-    if (hash.empty())
+-        return MOD_ERROR;
++    if (hash.empty()) {
++        return mods::set_error(error, MOD_ERROR,
++            "No Randomizer seed was selected before creating the save");
++    }
+ 
+     deactivateSeed();
+-    if (!activateSeed(hash.c_str()))
+-        return MOD_ERROR;
++    if (!activateSeed(hash.c_str())) {
++        return mods::set_error(error, MOD_ERROR,
++            "The selected Randomizer seed could not be loaded");
++    }
+ 
+     svc_mng.save->set_blob(svc_mng.mod_ctx, kSeedHashBlobName, hash.data(), hash.size());
+     setAncientDocumentNum(0);

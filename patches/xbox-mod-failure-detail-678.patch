@@ -1,0 +1,71 @@
+diff --git a/src/dusk/mod_loader.hpp b/src/dusk/mod_loader.hpp
+--- a/src/dusk/mod_loader.hpp
++++ b/src/dusk/mod_loader.hpp
+@@ -340,7 +340,11 @@
+     std::vector<ModSearchDir> m_searchDirs;
+     std::filesystem::path m_cacheDir;
+     std::vector<Request> m_pendingRequests;
+-    std::vector<std::string> m_pendingFailures;
++    struct PendingFailure {
++        std::string name;
++        std::string reason;
++    };
++    std::vector<PendingFailure> m_pendingFailures;
+     std::vector<RetiredNative> m_retiredNatives;
+     uint64_t m_generation = 0;
+     bool m_initialized = false;
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -548,7 +548,7 @@
+ 
+ void ModLoader::notify_mod_failure(LoadedMod& mod, bool firstFailure) {
+     if (firstFailure) {
+-        m_pendingFailures.push_back(mod.metadata.name);
++        m_pendingFailures.push_back({mod.metadata.name, mod.failureReason});
+     }
+     // Startup failures are handled inline by activate_mod
+     if (!m_startupComplete) {
+@@ -565,7 +565,7 @@
+         return;
+     }
+ 
+-    const auto names = std::exchange(m_pendingFailures, {});
++    const auto failures = std::exchange(m_pendingFailures, {});
+ 
+     // Skip displaying toasts if the mods window is currently open
+     if (const auto* window = dynamic_cast<const ui::ModsWindow*>(ui::top_document())) {
+@@ -575,17 +575,17 @@
+     }
+ 
+     ui::Toast toast{.type = "warning", .duration = std::chrono::seconds{5}};
+-    if (names.size() == 1) {
++    if (failures.size() == 1) {
+         toast.title = "Mod failed";
+         toast.content =
+             fmt::format("<div><b>{}</b> failed and was disabled.</div><div>Check Mods for "
+-                        "more information.</div>",
+-                ui::escape(names.front()));
++                        "more information.</div><div class=\"mt-2\">Reason: {}</div>",
++                ui::escape(failures.front().name), ui::escape(failures.front().reason));
+     } else {
+         toast.title = "Mods failed";
+         toast.content = fmt::format("<div><b>{} mods</b> failed and were disabled.</div><div>Check "
+                                     "Mods for more information.</div>",
+-            names.size());
++            failures.size());
+     }
+     ui::push_toast(std::move(toast));
+ }
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -92,7 +92,7 @@
+     }
+     detail::initialized = true;
+     // Use a build-specific journal so a marker from an older build never changes this launch.
+-    detail::markerPath = userPath / "xbox-startup-stage-677.txt";
++    detail::markerPath = userPath / "xbox-startup-stage-678.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
