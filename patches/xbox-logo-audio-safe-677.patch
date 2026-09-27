@@ -1,0 +1,233 @@
+--- a/src/d/d_s_logo.cpp
++++ b/src/d/d_s_logo.cpp
+@@ -29,6 +29,7 @@
+ #include "dusk/logging.h"
+ #include "dusk/main.h"
+ #include "dusk/mods/svc/save.hpp"
++#include "dusk/startup_guard.hpp"
+ #include "dusk/version.hpp"
+ #include "m_Do/m_Do_MemCard.h"
+ #endif
+@@ -865,12 +866,14 @@
+ 
+ dScnLogo_c::~dScnLogo_c() {
+     if (mDoRst::isReset()) {
++        #if !defined(_UWP)
+         #if !(PLATFORM_WII || PLATFORM_SHIELD)
+         if (mDoAud_zelAudio_c::isInitFlag())
+         #endif
+         {
+             Z2AudioMgr::getInterface()->resetProcess(5, true);
+         }
++        #endif
+ 
+         mDoRst_reset(0, 0x80000000, 0);
+     }
+@@ -1046,6 +1049,9 @@
+ }
+ 
+ static int phase_0(dScnLogo_c* i_this) {
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.phase0");
++    #endif
+     mDoGph_gInf_c::setFadeColor(*(JUtility::TColor*)&g_blackColor);
+     dComIfGp_particle_create();
+ 
+@@ -1091,15 +1097,29 @@
+     OSSetPowerCallback(mDoRst_shutdownCallBack);
+     #endif
+ 
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.phase0-ready");
++    #endif
+     return cPhs_NEXT_e;
+ }
+ 
+ static int phase_1(dScnLogo_c* i_this) {
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.phase1");
++    #endif
+     if (!cDyl_InitAsyncIsDone()) {
++        #if defined(_UWP)
++        dusk::startup_guard::stage("logo.dyl-wait");
++        #endif
+         return cPhs_INIT_e;
+     }
+ 
+-    #if !(PLATFORM_WII || PLATFORM_SHIELD)
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.dyl-ready");
++    // The UWP audio backend is deliberately disabled during Xbox startup. The normal logo
++    // gate waits for first-wave audio work that will never be queued in that configuration.
++    dusk::startup_guard::stage("logo.audio-bypassed");
++    #elif !(PLATFORM_WII || PLATFORM_SHIELD)
+     if (!mDoAud_zelAudio_c::isInitFlag() || Z2AudioMgr::getInterface()->checkFirstWaves()) {
+         return cPhs_INIT_e;
+     }
+@@ -1118,6 +1138,9 @@
+     #endif
+ 
+     int rt;
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.object-res");
++    #endif
+     #if PLATFORM_WII || PLATFORM_SHIELD
+     switch (i_this->getPalLanguage()) {
+     case 0:
+@@ -1137,17 +1160,33 @@
+ 
+     JUT_ASSERT(1652, rt == 1);
+ 
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.object-res-ready");
++    #endif
++
+     mDoRst::setLogoScnFlag(1);
+ 
+     OS_REPORT("\x1b[32m%d archiveHeap->getTotalFreeSize %08x\n\x1b[m", 1667, archiveHeap->getTotalFreeSize());
+     archiveHeap->dump_sort();
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.phase1-ready");
++    #endif
+     return cPhs_NEXT_e;
+ }
+ 
+ static int phase_2(dScnLogo_c* i_this) {
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.phase2");
++    #endif
+     if (dComIfG_syncAllObjectRes()) {
++        #if defined(_UWP)
++        dusk::startup_guard::stage("logo.object-sync-wait");
++        #endif
+         return cPhs_INIT_e;
+     } else {
++        #if defined(_UWP)
++        dusk::startup_guard::stage("logo.res-ready");
++        #endif
+         return cPhs_COMPLEATE_e;
+     }
+ }
+@@ -1175,6 +1214,10 @@
+ 
+     DuskLog.debug("dScnLogo_c::create resLoad COMPLETE, continuing init...");
+ 
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.heap-init");
++    #endif
++
+     #if PLATFORM_WII
+     data_8053a730 = 1;
+     #endif
+@@ -1189,13 +1232,27 @@
+ 
+     JKRSetCurrentHeap(mpHeap);
+ 
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.ui-ready");
++    #endif
++
+     OS_REPORT("\x1b[31m%d gameHeap->getFreeSize %08x(%d)\n\x1b[m", 1732, mDoExt_getGameHeap()->getFreeSize(), mDoExt_getGameHeap()->getFreeSize());
+ 
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.dvd-load");
++    #endif
+     dvdDataLoad();
+ 
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.dvd-load-ready");
++    #endif
++
+     OS_REPORT("\x1b[31m%d gameHeap->getFreeSize %08x(%d)\n\x1b[m", 1738, mDoExt_getGameHeap()->getFreeSize(), mDoExt_getGameHeap()->getFreeSize());
+ 
+-    #if !(PLATFORM_WII || PLATFORM_SHIELD)
++    #if defined(_UWP)
++    // No static audio waves exist when DUSK_AUDIO_DISABLED is active on Xbox/UWP.
++    dusk::startup_guard::stage("logo.static-waves-bypassed");
++    #elif !(PLATFORM_WII || PLATFORM_SHIELD)
+     Z2AudioMgr::getInterface()->loadStaticWaves();
+     #endif
+ 
+@@ -1250,6 +1307,9 @@
+     dHomeButton_c::lbl_8053A724 = 0;
+     #endif
+ 
++    #if defined(_UWP)
++    dusk::startup_guard::stage("logo.ready");
++    #endif
+     return phase_state;
+ }
+ 
+--- a/src/f_pc/f_pc_stdcreate_req.cpp
++++ b/src/f_pc/f_pc_stdcreate_req.cpp
+@@ -18,6 +18,10 @@
+ #include "os_report.h"
+ #include "dusk/logging.h"
+ 
++#if TARGET_PC
++#include "dusk/startup_guard.hpp"
++#endif
++
+ typedef struct standard_create_request_class {
+     /* 0x00 */ create_request base;
+     /* 0x48 */ request_of_phase_process_class phase_request;
+@@ -31,7 +35,13 @@
+ } standard_create_request_class;
+ 
+ int fpcSCtRq_phase_Load(standard_create_request_class* i_request) {
++#if defined(_UWP)
++    dusk::startup_guard::stage("fpc.create-load");
++#endif
+     int ret = fpcLd_Load(i_request->process_name);
++#if defined(_UWP)
++    dusk::startup_guard::stage("fpc.create-load-ready");
++#endif
+     DuskLog.debug("[DIAG] fpcSCtRq_phase_Load: procName={} ret={}", i_request->process_name, ret);
+ 
+     switch (ret) {
+@@ -47,6 +57,9 @@
+ }
+ 
+ int fpcSCtRq_phase_CreateProcess(standard_create_request_class* i_request) {
++#if defined(_UWP)
++    dusk::startup_guard::stage("fpc.create-process");
++#endif
+     DuskLog.debug("fpcSCtRq_phase_CreateProcess: procName={}", i_request->process_name);
+     fpcLy_SetCurrentLayer(i_request->base.layer);
+     i_request->base.process =
+@@ -58,6 +71,9 @@
+         fpcLd_Free(i_request->process_name);
+         return cPhs_ERROR_e;
+     } else {
++#if defined(_UWP)
++        dusk::startup_guard::stage("fpc.create-process-ready");
++#endif
+         DuskLog.debug("fpcSCtRq_phase_CreateProcess: fpcBs_Create OK proc={}", (void*)i_request->base.process);
+         i_request->base.process->create_req = &i_request->base;
+         return cPhs_NEXT_e;
+@@ -65,8 +81,14 @@
+ }
+ 
+ int fpcSCtRq_phase_SubCreateProcess(standard_create_request_class* i_request) {
++#if defined(_UWP)
++    dusk::startup_guard::stage("fpc.subcreate");
++#endif
+     fpcLy_SetCurrentLayer(i_request->base.layer);
+     int ret = fpcBs_SubCreate(i_request->base.process);
++#if defined(_UWP)
++    dusk::startup_guard::stage("fpc.subcreate-ready");
++#endif
+     static int sSubCreateLogCount = 0;
+     if (sSubCreateLogCount < 20) {
+         DuskLog.debug("fpcSCtRq_phase_SubCreateProcess: pid={} procName={:04x} ret={}", i_request->base.id, i_request->process_name, ret);
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -92,7 +92,7 @@
+     }
+     detail::initialized = true;
+     // Use a build-specific journal so a marker from an older build never changes this launch.
+-    detail::markerPath = userPath / "xbox-startup-stage-676.txt";
++    detail::markerPath = userPath / "xbox-startup-stage-677.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
