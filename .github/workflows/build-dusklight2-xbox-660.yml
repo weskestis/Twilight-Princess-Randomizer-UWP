@@ -1011,7 +1011,7 @@ jobs:
             -DBOREALIS_ENABLE_DISCORD=OFF `
             -DBOREALIS_ENABLE_SENTRY=OFF `
             -DBOREALIS_HTTP_BACKEND=uwp `
-            -DBOREALIS_APP_VERSION_OVERRIDE=v2.0.1+xbox.680 `
+            '-DBOREALIS_APP_VERSION_OVERRIDE=v2.0.1+xbox.680' `
             -DAURORA_ENABLE_TESTS=OFF `
             -DAURORA_UWP_DEP_SOURCE_DIR="$env:TPR_UWP_DEP" `
             -DDUSK_UWP_STORE_LIB_DIR="$storeLib" `
