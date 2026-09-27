@@ -1,0 +1,31 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "packageVersion": "1.4.1.680",
+  "displayVersion": "2.0.1+xbox.680",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "upstream": "Dusklight v2.0.1",
+  "randomizer": "built into the signed Dusklight executable; packaged data bundle contains no native DLL",
+  "restoredSeedSettings": [
+    "Enemy Randomization",
+    "Boss Souls",
+    "Enemy Souls",
+    "Enemy First-Defeat Checks",
+    "Pots",
+    "Pumpkins",
+    "Seed-Aware Junk"
+  ],
+  "duplicateSettingOptions": "removed and guarded by build-time and runtime validation",
+  "transparentTrackers": "Item & Check Tracker, Pure Item Tracker, death counter, and game timer",
+  "inputViewer": "transparent, movable and resizable controller viewer with outline, sticks, analog values, gyro, and lock controls",
+  "controllerCursor": "hold L3+R3 in a Dusklight menu; move with the right stick and click or drag with A",
+  "texturePacks": "loose files and ZIP packs under texture_replacements load automatically at startup",
+  "menuColors": "manual, Rainbow, per-seed, and every-load menu palette modes",
+  "onlineBackend": "Windows.Web.Http and MessageWebSocket with internetClient capability",
+  "overlayStartup": "DVD overlays are deferred until the first valid runtime frame and empty overlay sets are skipped",
+  "xboxLoaderHotfix": "Uses AppContainer JIT memory APIs with write-or-execute transitions for built-in Randomizer hook trampolines",
+  "uwpDependency": "SternXD/uwp-dep dusklight 810cdcb672383045a8b03d1d55bb535352d7d46f",
+  "xboxAudioSafeBoot": "Game audio remains temporarily disabled on UWP; audio replacement lifecycle remains isolated",
+  "xboxNewSaveGate": "All new-save routes, including missing or damaged virtual memory cards, must complete Randomizer seed selection before name entry"
+}
