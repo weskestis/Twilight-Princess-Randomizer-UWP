@@ -441,7 +441,7 @@ jobs:
               $audioSafeBootPatchDigest) -replace '-', '').ToLowerInvariant()
           }
           finally { $hasher.Dispose() }
-          if ($audioSafeBootPatchHash -ne 'cd98ffbe695225e7f0861d4b40007c180e5a8096920783b522e45ff81f363d6e') {
+          if ($audioSafeBootPatchHash -ne '0b8405d7fff93bb290952ee55f8e90b8d641ce5afff3a157ad20ed8d1c19d7c8') {
             throw "Xbox audio-safe boot patch SHA-256 mismatch: $audioSafeBootPatchHash"
           }
           $audioSafeBootPatch = Join-Path $env:RUNNER_TEMP 'xbox-audio-safe-boot-675.patch'
@@ -581,6 +581,13 @@ jobs:
               -not $audioHeader.Contains(
                 '#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;')) {
             throw 'Xbox UWP audio-safe boot guard is missing.'
+          }
+          $audioApiHeader = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\include\m_Do\m_Do_audio.h")
+          if (-not $audioApiHeader.Contains('#if defined(_UWP)') -or
+              -not $audioApiHeader.Contains(
+                '#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;')) {
+            throw 'Built-in Randomizer audio calls are not covered by the UWP audio guard.'
           }
           $audioSystemSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\audio\DuskAudioSystem.cpp")
@@ -1185,7 +1192,7 @@ jobs:
             safeLaunchWxPatchSha256 = 'd75adfa5d7bf74c616f28c93bfe81cddc80ee03717a1251adcee6e5865c2ce9f'
             pendingModeHandoffPatchSha256 = '31f084d8a87015c8c80121f8a913a1d88148e8f5e98339bc30950f0256c4b287'
             earlyFrameTracePatchSha256 = 'b8de40d4e3cc081fa26af294edfbc98f70e9d3c2e65034c1d4b48e2d5acfeaa9'
-            audioSafeBootPatchSha256 = 'cd98ffbe695225e7f0861d4b40007c180e5a8096920783b522e45ff81f363d6e'
+            audioSafeBootPatchSha256 = '0b8405d7fff93bb290952ee55f8e90b8d641ce5afff3a157ad20ed8d1c19d7c8'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Mode carousel is selection-only; Play activates hooks and exits before another launcher frame; UWP game audio is bypassed to avoid the first-tick mDoAud deadlock; bounded subsystem journal remains armed through the first 12 game frames'
             nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'

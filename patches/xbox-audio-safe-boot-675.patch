@@ -1,3 +1,20 @@
+diff --git a/include/m_Do/m_Do_audio.h b/include/m_Do/m_Do_audio.h
+index 43d0b8176..fcb40238e 100644
+--- a/include/m_Do/m_Do_audio.h
++++ b/include/m_Do/m_Do_audio.h
+@@ -8,8 +8,12 @@
+ #include "dusk/audio.h"
+ #include "dusk/settings.h"
+ #else
++#if defined(_UWP)
++#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;
++#else
+ #define DUSK_AUDIO_SKIP(...)
+ #endif
++#endif
+ 
+ class mDoAud_zelAudio_c : public Z2AudioMgr {
+ public:
 diff --git a/src/dusk/audio.h b/src/dusk/audio.h
 index 0f247689f..4e0f0ed84 100644
 --- a/src/dusk/audio.h
