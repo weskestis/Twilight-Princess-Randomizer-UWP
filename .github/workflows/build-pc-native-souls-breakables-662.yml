@@ -1,0 +1,517 @@
+name: Build PC Native Souls and Breakables 662
+
+on:
+  push:
+    branches:
+      - codex/pc-native-souls-breakables-662
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-desktop-x64:
+    name: Windows desktop x64 handoff
+    runs-on: windows-2022
+    timeout-minutes: 240
+
+    steps:
+      - name: Check out build controls
+        uses: actions/checkout@v4
+        with:
+          path: _control
+
+      - name: Enable MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Prepare short build paths
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
+          if (Test-Path 'S:\') { subst S: /D | Out-Null }
+          subst S: "$env:GITHUB_WORKSPACE"
+          New-Item -ItemType Directory -Force S:\tmp,S:\b | Out-Null
+          "TPR_CONTROL=S:\_control" >> $env:GITHUB_ENV
+          "TPR_SRC=S:\s" >> $env:GITHUB_ENV
+          "TPR_BUILD=S:\b\pc" >> $env:GITHUB_ENV
+          "TPR_INSPECT=S:\b\inspect" >> $env:GITHUB_ENV
+          "TPR_STAGE=S:\b\stage\TPR-PC-Native-Souls-Breakables-662" >> $env:GITHUB_ENV
+          "TMP=S:\tmp" >> $env:GITHUB_ENV
+          "TEMP=S:\tmp" >> $env:GITHUB_ENV
+          choco install ninja -y --no-progress
+          cmake --version
+          ninja --version
+          Get-Command cl | Select-Object -ExpandProperty Source
+
+      - name: Fetch exact Dusklight 2.0.1 and Randomizer revisions
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git init "$env:TPR_SRC"
+          git -C "$env:TPR_SRC" remote add origin https://github.com/TwilitRealm/dusklight.git
+          git -C "$env:TPR_SRC" fetch --depth 1 origin 422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7
+          git -C "$env:TPR_SRC" checkout --detach FETCH_HEAD
+          git -C "$env:TPR_SRC" submodule update --init --recursive --depth 1
+          git -C "$env:TPR_SRC\mods\randomizer" fetch --depth 1 origin d0ceae8f18bbef4a40287a72a2791a3c06c9aca5
+          git -C "$env:TPR_SRC\mods\randomizer" checkout --detach FETCH_HEAD
+
+          $pins = @{
+            "$env:TPR_SRC" = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
+            "$env:TPR_SRC\extern\aurora" = 'd0933b745abe0eb9815bedcea8047575da18698d'
+            "$env:TPR_SRC\extern\borealis" = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
+            "$env:TPR_SRC\mods\randomizer" = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5'
+            "$env:TPR_SRC\mods\cosmetics" = 'fd93491089fa95441789244f2b2fd22a451ecbcc'
+          }
+          foreach ($entry in $pins.GetEnumerator()) {
+            $actual = (git -C $entry.Key rev-parse HEAD).Trim()
+            if ($actual -ne $entry.Value) {
+              throw "Revision mismatch for $($entry.Key): expected $($entry.Value), got $actual"
+            }
+          }
+
+      - name: Decode and apply the verified 662 Randomizer checkpoint
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stem = 'randomizer-662-checkpoint'
+          $parts = @(Get-ChildItem "$env:TPR_CONTROL\patches\$stem.patch.gz.b64.part*" -File |
+            Sort-Object Name)
+          if ($parts.Count -ne 1) { throw "Expected one encoded checkpoint part; found $($parts.Count)." }
+
+          $normalizedEncoded = (Get-Content $parts[0].FullName -Raw) -replace "`r`n", "`n"
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $digest = $hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalizedEncoded))
+            $encodedHash = ([BitConverter]::ToString($digest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($encodedHash -ne '1d89f69d1cc7cb04e2f1b0efed2e06749b4704d82d790920cafdb69992e22198') {
+            throw "Encoded checkpoint SHA-256 mismatch: $encodedHash"
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $gzipPath = Join-Path $env:RUNNER_TEMP "$stem.patch.gz"
+          [IO.File]::WriteAllBytes($gzipPath, [Convert]::FromBase64String($encoded))
+          $gzipHash = (Get-FileHash $gzipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gzipHash -ne '6d269e542e5472021eb413131cb5e150739a856a4843b18c9fade4a7ddbd06cf') {
+            throw "Checkpoint gzip SHA-256 mismatch: $gzipHash"
+          }
+
+          $patchPath = Join-Path $env:RUNNER_TEMP "$stem.patch"
+          $input = [IO.File]::OpenRead($gzipPath)
+          try {
+            $decoder = [IO.Compression.GZipStream]::new(
+              $input, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create($patchPath)
+              try { $decoder.CopyTo($output) }
+              finally { $output.Dispose() }
+            }
+            finally { $decoder.Dispose() }
+          }
+          finally { $input.Dispose() }
+
+          $patchHash = (Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne 'a7d7986b7c33cbf025e3290fd75074dc5d59ab1cf014aea952d3ecf439b6c4cc') {
+            throw "Decoded checkpoint SHA-256 mismatch: $patchHash"
+          }
+
+          git -C "$env:TPR_SRC\mods\randomizer" apply --binary --check $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'The 662 checkpoint does not apply to the pinned Randomizer base.' }
+          git -C "$env:TPR_SRC\mods\randomizer" apply --binary $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'The 662 checkpoint could not be applied.' }
+          git -C "$env:TPR_SRC\mods\randomizer" diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'The patched Randomizer source failed git diff --check.' }
+          "TPR_PATCH=$patchPath" >> $env:GITHUB_ENV
+
+      - name: Verify requested feature source and resources
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $randomizer = "$env:TPR_SRC\mods\randomizer"
+          $sourceFiles = @(Get-ChildItem $randomizer -Recurse -File -Include `
+            '*.c','*.cc','*.cpp','*.h','*.hpp','*.yaml','*.yml','*.json','*.txt')
+          function Assert-SourceMarker([string]$marker) {
+            $match = $sourceFiles | Select-String -SimpleMatch $marker -List | Select-Object -First 1
+            if (-not $match) { throw "Required feature marker is missing: $marker" }
+            Write-Host "$marker -> $($match.Path)"
+          }
+
+          @(
+            'Name: Boss Souls',
+            'Name: Enemy Souls',
+            'Name: Enemy First-Defeat Checks',
+            'Name: Pots',
+            'Name: Pumpkins',
+            'kEnemySoulCount = 85',
+            'Poe Enemy Soul',
+            'PreserveFirstSoulSource',
+            'fpcMtd_Create_EnemySouls',
+            'fopAc_Execute_EnemySouls',
+            'fpcMtd_Delete_EnemySouls',
+            'hookPreDarknutEnding',
+            'hookPreKingBulblinEnding',
+            'hookPreDeathSwordDeath',
+            'hookPreNpcDamage',
+            'breakables::spawn_shuffled_item',
+            'Pot or pumpkin location has an unencodable shuffled item',
+            'Diababa Soul',
+            'Can Defeat Stallord'
+          ) | ForEach-Object { Assert-SourceMarker $_ }
+
+          $expectedModels = @{
+            'boss_soul_argorok.bmd'   = '8a9dad267a5945e13c0abf14b726c6a4833de06d9726b2121a0191aebd08aeff'
+            'boss_soul_armogohma.bmd' = 'e63da75f8e9e71a889c68641d6e2d841c0bec732359b9130eae3e94561a1227c'
+            'boss_soul_blizzeta.bmd'   = '25a3f92896768af7f88864d4786ccc94881429bc4f524ad8439f43bf047aadab'
+            'boss_soul_diababa.bmd'    = '4833e2fb266699014f5a31d5b7150094f63a9e69c7e5fad067907c0ab528b35d'
+            'boss_soul_fyrus.bmd'      = 'ce40bfc48b51960b4dd1079acc45adfe7944249969fafaea97331ccf8de5debe'
+            'boss_soul_morpheel.bmd'   = 'e3d18ed0cd76eb64087c24b7198aea42f94dbe661892e5378940eacf6a6e7ce7'
+            'boss_soul_stallord.bmd'   = '47e8e17f2cf7fc273fff279d1ee6a6bb3a7d79e55ef1f2f335bbf93f24c0ef23'
+            'boss_soul_zant.bmd'       = '05dc6213e0dad2930c8db1c32434e011dc41017c274544b2a3de7e076ea30bd6'
+          }
+          $models = @(Get-ChildItem $randomizer -Recurse -File -Filter 'boss_soul_*.bmd')
+          if ($models.Count -ne 8) { throw "Expected eight Boss Soul models; found $($models.Count)." }
+          foreach ($model in $models) {
+            if (-not $expectedModels.ContainsKey($model.Name)) { throw "Unexpected Boss Soul model: $($model.Name)" }
+            $actual = (Get-FileHash $model.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expectedModels[$model.Name]) {
+              throw "Boss Soul model hash mismatch for $($model.Name): $actual"
+            }
+          }
+
+          $conflicts = $sourceFiles | Select-String -Pattern '^(<<<<<<<|=======|>>>>>>>)' -List
+          if ($conflicts) { throw "Unresolved conflict markers remain: $($conflicts.Path -join ', ')" }
+
+      - name: Configure native Windows desktop build
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S "$env:TPR_SRC" -B "$env:TPR_BUILD" -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
+            -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DDUSK_ENABLE_CODE_MODS=ON `
+            -DDUSK_ENABLE_OPUS=OFF `
+            -DBOREALIS_BUILD_TESTS=OFF `
+            -DBOREALIS_ENABLE_DISCORD=OFF `
+            -DBOREALIS_ENABLE_SENTRY=OFF `
+            -DBOREALIS_HTTP_BACKEND=none `
+            -DAURORA_ENABLE_TESTS=OFF `
+            -DTRACY_ENABLE=OFF
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows desktop configuration failed.' }
+
+      - name: Compile desktop core and Randomizer package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --build "$env:TPR_BUILD" --target dusklight --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop Dusklight core failed to build.' }
+          cmake --build "$env:TPR_BUILD" --target randomizer_package --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop Randomizer package failed to build.' }
+          $bundle = "$env:TPR_BUILD\bundled_mods\randomizer.dusk"
+          if (-not (Test-Path $bundle -PathType Leaf)) { throw 'Desktop randomizer.dusk was not produced.' }
+          "TPR_BUNDLE=$bundle" >> $env:GITHUB_ENV
+
+      - name: Run all 58 Randomizer generator scenarios
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scenarioFiles = @(Get-ChildItem `
+            "$env:TPR_SRC\mods\randomizer\generator\data\tests\logic" `
+            -Recurse -File -Filter 'settings.yaml')
+          if ($scenarioFiles.Count -ne 58) {
+            throw "Expected 58 generator scenarios; found $($scenarioFiles.Count)."
+          }
+          cmake --build "$env:TPR_BUILD" --target randomizer_generator_tests --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Randomizer generator tests failed to compile.' }
+          $test = Get-ChildItem "$env:TPR_BUILD" -Recurse -File -Filter 'randomizer_generator_tests.exe' |
+            Select-Object -First 1
+          if (-not $test) { throw 'randomizer_generator_tests.exe is missing.' }
+          $testLog = Join-Path $env:RUNNER_TEMP 'generator-tests-58.txt'
+          & $test.FullName 2>&1 | Tee-Object -FilePath $testLog
+          if ($LASTEXITCODE -ne 0) { throw "Randomizer generator scenarios failed: $LASTEXITCODE" }
+          if (-not (Select-String -LiteralPath $testLog -SimpleMatch 'All Settings Tests passed' -Quiet)) {
+            throw 'The generator did not report that every settings test passed.'
+          }
+          "TPR_TEST_LOG=$testLog" >> $env:GITHUB_ENV
+
+      - name: Inspect the native desktop module
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force "$env:TPR_INSPECT" | Out-Null
+          7z x "$env:TPR_BUNDLE" "-o$env:TPR_INSPECT" -y | Out-Host
+          $module = Get-ChildItem "$env:TPR_INSPECT" -Recurse -File -Filter 'mod.dll' |
+            Select-Object -First 1
+          if (-not $module) { throw 'randomizer.dusk has no Windows mod.dll.' }
+
+          $headers = & dumpbin /nologo /headers $module.FullName | Out-String
+          if ($headers -notmatch '(?i)machine [(]x64[)]') { throw 'Randomizer module is not x86-64.' }
+          $imports = & dumpbin /nologo /imports $module.FullName | Out-String
+          if ($imports -notmatch '(?i)dusklight[.]exe') {
+            throw 'Randomizer module is not linked to the desktop dusklight.exe import surface.'
+          }
+          if ($imports -match '(?i)TwilightPrincessRandomizer[.]exe') {
+            throw 'Randomizer module still imports the Xbox/UWP executable.'
+          }
+
+          $moduleText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($module.FullName))
+          foreach ($marker in @(
+            'Boss Souls',
+            'Enemy Souls',
+            'Enemy First-Defeat Checks',
+            'Pots',
+            'Pumpkins',
+            'Torch Slug Soul',
+            'Darknut Soul',
+            'King Bulblin Castle Soul',
+            'Fail-closed Enemy Soul gate blocked')) {
+            if (-not $moduleText.Contains($marker)) {
+              throw "Compiled Randomizer module is missing feature marker: $marker"
+            }
+          }
+
+          $expectedModelHashes = @(
+            '8a9dad267a5945e13c0abf14b726c6a4833de06d9726b2121a0191aebd08aeff',
+            'e63da75f8e9e71a889c68641d6e2d841c0bec732359b9130eae3e94561a1227c',
+            '25a3f92896768af7f88864d4786ccc94881429bc4f524ad8439f43bf047aadab',
+            '4833e2fb266699014f5a31d5b7150094f63a9e69c7e5fad067907c0ab528b35d',
+            'ce40bfc48b51960b4dd1079acc45adfe7944249969fafaea97331ccf8de5debe',
+            'e3d18ed0cd76eb64087c24b7198aea42f94dbe661892e5378940eacf6a6e7ce7',
+            '47e8e17f2cf7fc273fff279d1ee6a6bb3a7d79e55ef1f2f335bbf93f24c0ef23',
+            '05dc6213e0dad2930c8db1c32434e011dc41017c274544b2a3de7e076ea30bd6')
+          $packagedModels = @(Get-ChildItem "$env:TPR_INSPECT" -Recurse -File -Filter 'boss_soul_*.bmd')
+          if ($packagedModels.Count -ne 8) {
+            throw "Packaged module has $($packagedModels.Count) Boss Soul models instead of eight."
+          }
+          $actualModelHashes = @($packagedModels | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          } | Sort-Object)
+          if ((Compare-Object ($expectedModelHashes | Sort-Object) $actualModelHashes)) {
+            throw 'Packaged Boss Soul model hashes do not match the reviewed assets.'
+          }
+
+          $headers | Set-Content (Join-Path $env:RUNNER_TEMP 'mod-dumpbin-headers.txt') -Encoding UTF8
+          $imports | Set-Content (Join-Path $env:RUNNER_TEMP 'mod-dumpbin-imports.txt') -Encoding UTF8
+          "TPR_MODULE=$($module.FullName)" >> $env:GITHUB_ENV
+
+      - name: Assemble official-team PC handoff
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = $env:TPR_STAGE
+          $randomizer = "$env:TPR_SRC\mods\randomizer"
+          $directories = @(
+            "$stage\build\windows-x64",
+            "$stage\source\dusklight-randomizer",
+            "$stage\patches",
+            "$stage\docs",
+            "$stage\metadata",
+            "$stage\reproducibility")
+          New-Item -ItemType Directory -Force -Path $directories | Out-Null
+
+          Copy-Item "$env:TPR_BUNDLE" "$stage\build\windows-x64\randomizer.dusk" -Force
+          Copy-Item "$env:TPR_PATCH" "$stage\patches\randomizer-662-checkpoint.patch" -Force
+          Copy-Item "$env:TPR_TEST_LOG" "$stage\metadata\generator-tests-58.txt" -Force
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'mod-dumpbin-headers.txt') `
+            "$stage\metadata\mod-dumpbin-headers.txt" -Force
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'mod-dumpbin-imports.txt') `
+            "$stage\metadata\mod-dumpbin-imports.txt" -Force
+          Copy-Item "$env:TPR_CONTROL\.github\workflows\build-pc-native-souls-breakables-662.yml" `
+            "$stage\reproducibility\github-actions-windows-x64.yml" -Force
+
+          robocopy $randomizer "$stage\source\dusklight-randomizer" /E /XD .git /XF .git /NFL /NDL /NJH /NJS /NP
+          if ($LASTEXITCODE -ge 8) { throw "Source snapshot copy failed with robocopy code $LASTEXITCODE." }
+          $global:LASTEXITCODE = 0
+
+          git -C $randomizer diff --stat | Set-Content "$stage\metadata\PATCH-DIFFSTAT.txt" -Encoding UTF8
+          git -C $randomizer diff --name-status | Set-Content "$stage\metadata\PATCH-FILES.txt" -Encoding UTF8
+
+          $bundleHash = (Get-FileHash "$stage\build\windows-x64\randomizer.dusk" -Algorithm SHA256).Hash.ToLowerInvariant()
+          $moduleHash = (Get-FileHash $env:TPR_MODULE -Algorithm SHA256).Hash.ToLowerInvariant()
+          $patchHash = (Get-FileHash "$stage\patches\randomizer-662-checkpoint.patch" -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          $pins = [ordered]@{
+            package = 'TPR PC Native Souls and Breakables 662'
+            platform = 'Windows desktop x86-64'
+            dusklightRelease = 'v2.0.1'
+            dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
+            aurora = 'd0933b745abe0eb9815bedcea8047575da18698d'
+            borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
+            randomizerRelease = 'v1.0.4'
+            randomizerBase = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5'
+            cosmetics = 'fd93491089fa95441789244f2b2fd22a451ecbcc'
+            checkpointPatchSha256 = $patchHash
+            controlRevision = $env:GITHUB_SHA
+            workflowRun = $env:GITHUB_RUN_ID
+          }
+          $pins | ConvertTo-Json | Set-Content "$stage\metadata\UPSTREAM-PINS.json" -Encoding UTF8
+
+          $validation = [ordered]@{
+            result = 'passed'
+            target = 'Windows desktop x86-64 (not UWP)'
+            generatorScenariosPassed = 58
+            moduleImports = 'dusklight.exe'
+            moduleSha256 = $moduleHash
+            randomizerDuskSha256 = $bundleHash
+            sourceDiffCheck = 'passed'
+            bossSoulModels = 8
+            enemySoulDefinitions = 85
+            features = [ordered]@{
+              bossSouls = $true
+              enemySouls = $true
+              firstEnemyDefeatChecks = $true
+              enemyRandomization = $true
+              potRandomization = $true
+              pumpkinRandomization = $true
+            }
+          }
+          $validation | ConvertTo-Json -Depth 4 |
+            Set-Content "$stage\metadata\VALIDATION.json" -Encoding UTF8
+
+          $sourceFiles = @(Get-ChildItem $randomizer -Recurse -File -Include `
+            '*.c','*.cc','*.cpp','*.h','*.hpp','*.yaml','*.yml','*.json','*.txt')
+          $featureAnchors = [ordered]@{
+            'Boss Souls' = @('Boss Souls','Diababa Soul','Can Defeat Stallord','boss_soul_stallord.bmd')
+            'Enemy Souls' = @('kEnemySoulCount = 85','Poe Enemy Soul','fpcMtd_Create_EnemySouls')
+            'First enemy defeat' = @('Enemy First-Defeat Checks','hookPreDarknutEnding','hookPreKingBulblinEnding')
+            'Enemy randomization' = @('PreserveFirstSoulSource','BeginStageActorBatch')
+            'Pots and pumpkins' = @('Name: Pots','Name: Pumpkins','breakables::spawn_shuffled_item')
+          }
+          $featureLines = @('# Feature source index','')
+          foreach ($feature in $featureAnchors.GetEnumerator()) {
+            $featureLines += "## $($feature.Key)"
+            $featureLines += ''
+            foreach ($anchor in $feature.Value) {
+              $matches = @($sourceFiles | Select-String -SimpleMatch $anchor -List |
+                ForEach-Object { [IO.Path]::GetRelativePath($randomizer, $_.Path).Replace('\','/') } |
+                Sort-Object -Unique)
+              $featureLines += "- ``$anchor``: $($matches -join ', ')"
+            }
+            $featureLines += ''
+          }
+          $featureLines | Set-Content "$stage\docs\FEATURE-SOURCE-INDEX.md" -Encoding UTF8
+
+          @'
+          # Twilight Princess Randomizer — PC native handoff (.662)
+
+          This package is the desktop Windows x86-64 turn of the last verified Dusklight
+          v2.0.1 checkpoint. It is based on official Dusklight v2.0.1 and official
+          Randomizer v1.0.4, with the reviewed `.662` Randomizer checkpoint applied.
+
+          It supersedes the earlier review-only pre-Dusklight-2 handoff: the included
+          `randomizer.dusk` is a real native PC build linked to `dusklight.exe`, and the
+          complete patched Randomizer source is included for maintainer review.
+
+          ## Requested feature scope
+
+          | Feature | Included |
+          | --- | --- |
+          | Boss Souls | Yes — eight reviewed model resources |
+          | Enemy Souls | Yes — 85 authored enemy/miniboss soul definitions |
+          | First enemy defeat checks | Yes |
+          | Enemy randomization | Yes, including Soul-source preservation |
+          | Pot randomization | Yes |
+          | Pumpkin randomization | Yes |
+
+          ## Package map
+
+          - `build/windows-x64/randomizer.dusk` — ready-built desktop mod bundle.
+          - `source/dusklight-randomizer/` — complete patched source snapshot.
+          - `patches/randomizer-662-checkpoint.patch` — reviewable patch against the exact base.
+          - `docs/FEATURE-SOURCE-INDEX.md` — source navigation by feature and search anchor.
+          - `docs/BUILDING.md` — exact reproduction and integration instructions.
+          - `metadata/UPSTREAM-PINS.json` — immutable upstream revisions.
+          - `metadata/VALIDATION.json` — machine-readable build/test result.
+          - `metadata/generator-tests-58.txt` — full generator regression output.
+          - `metadata/PATCH-DIFFSTAT.txt` and `PATCH-FILES.txt` — review scope.
+          - `reproducibility/github-actions-windows-x64.yml` — exact CI recipe used here.
+          - `SHA256SUMS.txt` — hashes for every packaged file.
+
+          ## Important boundaries
+
+          This is a source-and-mod handoff, not a distribution of Twilight Princess or
+          its copyrighted disc assets. The recipient must supply a legitimate game dump
+          as required by Dusklight. Xbox/UWP-only core and Aurora patches are deliberately
+          absent; this package targets the official desktop executable and does not import
+          `TwilightPrincessRandomizer.exe`.
+          '@ | Set-Content "$stage\README.md" -Encoding UTF8
+
+          @'
+          # Reproduce the Windows x86-64 build
+
+          ## Exact bases
+
+          - Dusklight v2.0.1: `422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7`
+          - Randomizer v1.0.4: `d0ceae8f18bbef4a40287a72a2791a3c06c9aca5`
+          - Patch SHA-256: `a7d7986b7c33cbf025e3290fd75074dc5d59ab1cf014aea952d3ecf439b6c4cc`
+
+          ## Apply
+
+          1. Clone Dusklight recursively and check out the pinned Dusklight commit.
+          2. In `mods/randomizer`, check out the pinned Randomizer commit.
+          3. Run `git apply --binary --check randomizer-662-checkpoint.patch`.
+          4. Run `git apply --binary randomizer-662-checkpoint.patch`.
+          5. Run `git diff --check` before compiling.
+
+          ## Configure and compile
+
+          From an x64 MSVC developer shell with CMake 3.25+ and Ninja available:
+
+          ```powershell
+          cmake -S . -B build/pc -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DDUSK_ENABLE_CODE_MODS=ON `
+            -DDUSK_ENABLE_OPUS=OFF
+          cmake --build build/pc --target dusklight --parallel 2
+          cmake --build build/pc --target randomizer_package --parallel 2
+          cmake --build build/pc --target randomizer_generator_tests --parallel 2
+          ```
+
+          The mod output is `build/pc/bundled_mods/randomizer.dusk`. Run the generated
+          `randomizer_generator_tests.exe`; the checkpoint contains and passes 58 logic
+          scenarios. The included CI recipe records all dependency-reduction switches and
+          performs the stronger source, PE import, model-hash, and feature-marker checks.
+
+          ## Integration choices for maintainers
+
+          - Review the standalone patch against the pinned official Randomizer base, or
+          - diff `source/dusklight-randomizer/` directly against that base.
+
+          Only the Randomizer module is changed for the PC handoff. No UWP platform layer
+          is required for the desktop port.
+          '@ | Set-Content "$stage\docs\BUILDING.md" -Encoding UTF8
+
+          $hashLines = Get-ChildItem $stage -Recurse -File |
+            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+            ForEach-Object {
+              $relative = [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\','/')
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $relative"
+            } | Sort-Object
+          $hashLines | Set-Content "$stage\SHA256SUMS.txt" -Encoding ASCII
+
+          $zip = "$env:GITHUB_WORKSPACE\Twilight-Princess-Randomizer-PC-Native-Souls-Enemies-Breakables-Dusklight-v2.0.1-662.zip"
+          Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
+          if (-not (Test-Path $zip -PathType Leaf)) { throw 'Handoff ZIP was not created.' }
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Handoff ZIP SHA-256: $zipHash"
+          7z t $zip | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'Handoff ZIP integrity check failed.' }
+
+      - name: Upload PC-native handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-Princess-Randomizer-PC-Native-Souls-Enemies-Breakables-662
+          path: Twilight-Princess-Randomizer-PC-Native-Souls-Enemies-Breakables-Dusklight-v2.0.1-662.zip
+          if-no-files-found: error
+          retention-days: 30
