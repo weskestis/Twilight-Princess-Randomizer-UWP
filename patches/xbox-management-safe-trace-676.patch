@@ -1,0 +1,450 @@
+diff --git a/src/d/d_drawlist.cpp b/src/d/d_drawlist.cpp
+index d50c050..c1d186c 100644
+--- a/src/d/d_drawlist.cpp
++++ b/src/d/d_drawlist.cpp
+@@ -1845,7 +1845,16 @@ void dDlst_peekZ_c::peekData() {
+     dDlst_peekZ_entry* entry = mEntries;
+ 
+     for (int i = 0; i < mCount; i++) {
++#if defined(_UWP)
++        // Aurora's normal fallback is zero until an asynchronous depth snapshot is available.
++        // Do not request that GPU readback on Xbox/UWP: the first game-management frame can
++        // otherwise stall while the backend tries to create or resolve the snapshot resources.
++        if (entry->dst != nullptr) {
++            *entry->dst = 0;
++        }
++#else
+         GXPeekZ(entry->x, entry->y, entry->dst);
++#endif
+         entry++;
+     }
+ 
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+index 9a050ae..e2a811c 100644
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -92,7 +92,7 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+     }
+     detail::initialized = true;
+     // Use a build-specific journal so a marker from an older build never changes this launch.
+-    detail::markerPath = userPath / "xbox-startup-stage-675.txt";
++    detail::markerPath = userPath / "xbox-startup-stage-676.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
+diff --git a/src/f_pc/f_pc_draw.cpp b/src/f_pc/f_pc_draw.cpp
+index 8c53618..66a13f6 100644
+--- a/src/f_pc/f_pc_draw.cpp
++++ b/src/f_pc/f_pc_draw.cpp
+@@ -11,6 +11,7 @@
+ 
+ #if TARGET_PC
+ #include "dusk/logging.h"
++#include "dusk/startup_guard.hpp"
+ #endif
+ 
+ int fpcDw_Execute(base_process_class* i_proc) {
+@@ -38,12 +39,24 @@ int fpcDw_Execute(base_process_class* i_proc) {
+ int fpcDw_Handler(fpcDw_HandlerFuncFunc i_iterHandler, fpcDw_HandlerFunc i_func) {
+     static int sDwLogCount = 0;
+     int ret;
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.draw-before");
++#endif
+     if (sDwLogCount < 5) { DuskLog.debug("fpcDw_Handler: before BeforeOfDraw"); }
+     cAPIGph_BeforeOfDraw();
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.draw-before-ready");
++#endif
+     if (sDwLogCount < 5) { DuskLog.debug("fpcDw_Handler: before draw iteration"); }
+     ret = i_iterHandler(i_func);
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.draw-iteration-ready");
++#endif
+     if (sDwLogCount < 5) { DuskLog.debug("fpcDw_Handler: before AfterOfDraw"); }
+     cAPIGph_AfterOfDraw();
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.draw-after-ready");
++#endif
+     if (sDwLogCount < 5) { DuskLog.debug("fpcDw_Handler: done"); }
+     sDwLogCount++;
+     return ret;
+diff --git a/src/f_pc/f_pc_manager.cpp b/src/f_pc/f_pc_manager.cpp
+index b9952a2..e42c747 100644
+--- a/src/f_pc/f_pc_manager.cpp
++++ b/src/f_pc/f_pc_manager.cpp
+@@ -23,13 +23,57 @@
+ 
+ #if TARGET_PC
+ #include "dusk/game_clock.h"
++#include "dusk/startup_guard.hpp"
+ 
+ #include "m_Do/m_Do_graphic.h"
+ 
+ #include <tracy/Tracy.hpp>
+ #endif
+ 
++#if defined(_UWP)
++#include <algorithm>
++#include <charconv>
++#include <string_view>
++
++namespace {
++void trace_process(std::string_view phase, const base_process_class* process) noexcept {
++    if (process == nullptr) {
++        dusk::startup_guard::stage(phase);
++        return;
++    }
++
++    char stage[128]{};
++    char* cursor = stage;
++    char* const end = stage + sizeof(stage);
++    const auto append = [&cursor, end](std::string_view value) {
++        const std::size_t available = static_cast<std::size_t>(end - cursor);
++        const std::size_t count = value.size() < available ? value.size() : available;
++        std::copy_n(value.data(), count, cursor);
++        cursor += count;
++    };
++    const auto append_number = [&cursor, end](auto value) {
++        const auto result = std::to_chars(cursor, end, value);
++        if (result.ec == std::errc{}) {
++            cursor = result.ptr;
++        }
++    };
++
++    append(phase);
++    append(":id=");
++    append_number(process->id);
++    append(":name=");
++    append_number(process->name);
++    append(":profile=");
++    append_number(process->profname);
++    dusk::startup_guard::stage(std::string_view(stage, static_cast<std::size_t>(cursor - stage)));
++}
++}  // namespace
++#endif
++
+ void fpcM_Draw(void* i_proc) {
++#if defined(_UWP)
++    trace_process("fpc.draw", static_cast<base_process_class*>(i_proc));
++#endif
+     fpcDw_Execute((base_process_class*)i_proc);
+ }
+ 
+@@ -38,10 +82,16 @@ int fpcM_DrawIterater(fpcM_DrawIteraterFunc i_drawIterFunc) {
+ }
+ 
+ int fpcM_Execute(void* i_proc) {
++#if defined(_UWP)
++    trace_process("fpc.execute", static_cast<base_process_class*>(i_proc));
++#endif
+     return fpcEx_Execute((base_process_class*)i_proc);
+ }
+ 
+ int fpcM_Delete(void* i_proc) {
++#if defined(_UWP)
++    trace_process("fpc.delete", static_cast<base_process_class*>(i_proc));
++#endif
+     return fpcDt_Delete((base_process_class*)i_proc);
+ }
+ 
+@@ -51,21 +101,51 @@ BOOL fpcM_IsCreating(fpc_ProcID i_id) {
+ 
+ void fpcM_Management(fpcM_ManagementFunc i_preExecuteFn, fpcM_ManagementFunc i_postExecuteFn) {
+     ZoneScoped;
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.matrix");
++#endif
+     MtxInit();
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.matrix-ready");
++#endif
+     if (!fapGm_HIO_c::isCaptureScreen()) {
++#if TARGET_PC
++        dusk::startup_guard::stage("fpc.peek-z");
++#endif
+         dComIfGd_peekZdata();
++#if TARGET_PC
++        dusk::startup_guard::stage("fpc.peek-z-ready");
++#endif
+     }
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.capture");
++#endif
+     fapGm_HIO_c::executeCaptureScreen();
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.capture-ready");
++    dusk::startup_guard::stage("fpc.shutdown-check");
++#endif
+ 
+     bool shutdownRet = dShutdownErrorMsg_c::execute();
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.shutdown-ready");
++#endif
+     if (!shutdownRet) {
+         static bool l_dvdError = false;
+ 
++#if TARGET_PC
++        dusk::startup_guard::stage("fpc.dvd-check");
++#endif
+         bool dvdErrRet = dDvdErrorMsg_c::execute();
++#if TARGET_PC
++        dusk::startup_guard::stage("fpc.dvd-ready");
++#endif
+         if (!dvdErrRet) {
+             if (l_dvdError) {
+                 dLib_time_c::startTime();
++#if !defined(_UWP)
+                 Z2GetSoundMgr()->pauseAllGameSound(false);
++#endif
+                 l_dvdError = false;
+             }
+ 
+@@ -78,46 +158,92 @@ void fpcM_Management(fpcM_ManagementFunc i_preExecuteFn, fpcM_ManagementFunc i_p
+ #endif
+ 
+             // The main loop manages painting when simulation and presentation are separated.
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.painter");
++#endif
+             IF_DUSK_BLOCK(!dusk::game_clock::g_frameTiming.separatePresentation)
+             cAPIGph_Painter();
+             IF_DUSK_BLOCK_END
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.painter-ready");
++            dusk::startup_guard::stage("fpc.delete-handler");
++#endif
+ 
+             if (!dPa_control_c::isStatus(1)) {
+                 fpcDt_Handler();
+             } else {
+                 dPa_control_c::offStatus(1);
+             }
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.delete-ready");
++            dusk::startup_guard::stage("fpc.priority-handler");
++#endif
+ 
+             if (!fpcPi_Handler()) {
+                 JUT_ASSERT(353, FALSE);
+             }
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.priority-ready");
++            dusk::startup_guard::stage("fpc.create-handler");
++#endif
+ 
+             if (!fpcCt_Handler()) {
+                 JUT_ASSERT(357, FALSE);
+             }
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.create-ready");
++            dusk::startup_guard::stage("fpc.pre-execute");
++#endif
+ 
+             if (i_preExecuteFn != NULL) {
+                 i_preExecuteFn();
+             }
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.pre-execute-ready");
++#endif
+ 
+             if (!fapGm_HIO_c::isCaptureScreen()) {
++#if TARGET_PC
++                dusk::startup_guard::stage("fpc.execute-handler");
++#endif
+                 fpcEx_Handler((fpcLnIt_QueueFunc)fpcM_Execute);
++#if TARGET_PC
++                dusk::startup_guard::stage("fpc.execute-ready");
++#endif
+             }
+ 
+             if (!fapGm_HIO_c::isCaptureScreen() || fapGm_HIO_c::getCaptureScreenDivH() != 1) {
++#if TARGET_PC
++                dusk::startup_guard::stage("fpc.draw-handler");
++#endif
+                 fpcDw_Handler((fpcDw_HandlerFuncFunc)fpcM_DrawIterater, (fpcDw_HandlerFunc)fpcM_Draw);
++#if TARGET_PC
++                dusk::startup_guard::stage("fpc.draw-ready");
++#endif
+             }
+ 
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.simple-model");
++#endif
+             IF_DUSK(dComIfGp_drawSimpleModel());
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.simple-model-ready");
++            dusk::startup_guard::stage("fpc.post-execute");
++#endif
+ 
+             if (i_postExecuteFn != NULL) {
+                 i_postExecuteFn();
+             }
++#if TARGET_PC
++            dusk::startup_guard::stage("fpc.post-execute-ready");
++#endif
+ 
+             IF_NOT_DUSK(dComIfGp_drawSimpleModel());
+         } else if (!l_dvdError) {
+             dLib_time_c::stopTime();
++#if !defined(_UWP)
+             Z2GetSoundMgr()->pauseAllGameSound(true);
++#endif
+ #if PLATFORM_GCN
+ #define FPCM_MANAGEMENT_GAMEPAD_COUNT 1
+ #elif PLATFORM_SHIELD && !DEBUG
+@@ -131,6 +257,9 @@ void fpcM_Management(fpcM_ManagementFunc i_preExecuteFn, fpcM_ManagementFunc i_p
+             l_dvdError = true;
+         }
+     }
++#if TARGET_PC
++    dusk::startup_guard::stage("fpc.ready");
++#endif
+ }
+ 
+ void fpcM_Init() {
+diff --git a/src/m_Do/m_Do_graphic.cpp b/src/m_Do/m_Do_graphic.cpp
+index 18ed4fe..9b81f8e 100644
+--- a/src/m_Do/m_Do_graphic.cpp
++++ b/src/m_Do/m_Do_graphic.cpp
+@@ -53,6 +53,7 @@
+ #include "dusk/interp/frame_interpolation.h"
+ #include "dusk/logging.h"
+ #include "dusk/settings.h"
++#include "dusk/startup_guard.hpp"
+ #include "helpers/endian.h"
+ #include "helpers/gx_helper.h"
+ 
+@@ -2175,6 +2176,10 @@ static void drawItem3D() {
+ int mDoGph_Painter() {
+     ZoneScoped;
+ 
++#if TARGET_PC
++    dusk::startup_guard::stage("painter.begin");
++#endif
++
+     // Diagnostic: log windowNum to track game state machine progress
+     static bool sDiagLoggedWindow = false;
+     if (!sDiagLoggedWindow) {
+@@ -2185,6 +2190,7 @@ int mDoGph_Painter() {
+ 
+ #if TARGET_PC
+     dusk::g_imguiConsole.PreDraw();
++    dusk::startup_guard::stage("painter.predraw-ready");
+ #endif
+ 
+     #if DEBUG
+@@ -2196,6 +2202,9 @@ int mDoGph_Painter() {
+     JFWDisplay::getManager()->setFader(mDoGph_gInf_c::getFader());
+     mDoGph_gInf_c::setClearColor(mDoGph_gInf_c::getBackColor());
+     mDoGph_gInf_c::beginRender();
++#if TARGET_PC
++    dusk::startup_guard::stage("painter.render-begin-ready");
++#endif
+ 
+     #if DEBUG
+     fapGm_HIO_c::startCpuTimer();
+@@ -2219,6 +2228,9 @@ int mDoGph_Painter() {
+ 
+     dComIfGp_setCurrentGrafPort(&ortho);
+     GX_DEBUG_GROUP(dComIfGd_drawCopy2D);
++#if TARGET_PC
++    dusk::startup_guard::stage("painter.copy2d-ready");
++#endif
+ 
+     #if DEBUG
+     // "↓↓↓↓↓↓↓↓↓↓ CPU time measuring start ↓↓↓↓↓↓↓↓↓↓"
+@@ -2234,6 +2246,9 @@ int mDoGph_Painter() {
+         camera_process_class* camera_p = dComIfGp_getCamera(camera_id);
+ 
+         if (camera_p != NULL) {
++#if TARGET_PC
++            dusk::startup_guard::stage("painter.scene-begin");
++#endif
+             #if DEBUG
+             fapGm_HIO_c::startCpuTimer();
+             #endif
+@@ -2327,6 +2342,9 @@ int mDoGph_Painter() {
+ #endif
+             GX_DEBUG_GROUP(dComIfGd_drawOpaListSky);
+             GX_DEBUG_GROUP(dComIfGd_drawXluListSky);
++#if TARGET_PC
++            dusk::startup_guard::stage("painter.sky-ready");
++#endif
+ 
+             GXSetClipMode(GX_CLIP_ENABLE);
+ 
+@@ -2344,6 +2362,9 @@ int mDoGph_Painter() {
+             GX_DEBUG_GROUP(dComIfGd_drawOpaListBG);
+             GX_DEBUG_GROUP(dComIfGd_drawOpaListDarkBG);
+             GX_DEBUG_GROUP(dComIfGd_drawOpaListMiddle);
++#if TARGET_PC
++            dusk::startup_guard::stage("painter.background-ready");
++#endif
+ 
+             if (fapGmHIO_getParticle()) {
+                 GX_DEBUG_GROUP(dComIfGp_particle_drawFogPri0_B, &draw_info);
+@@ -2390,6 +2411,9 @@ int mDoGph_Painter() {
+ #endif
+ 
+             GX_DEBUG_GROUP(dComIfGd_drawOpaListPacket);
++#if TARGET_PC
++            dusk::startup_guard::stage("painter.opaque-ready");
++#endif
+ 
+ #if TARGET_PC
+             dusk::mods::gfx_run_stage(GFX_STAGE_SCENE_AFTER_OPAQUE, &camera_p->view, view_port);
+@@ -2426,6 +2450,9 @@ int mDoGph_Painter() {
+             } else {
+                 GX_DEBUG_GROUP(dComIfGd_drawXluListDark);
+             }
++#if TARGET_PC
++            dusk::startup_guard::stage("painter.translucent-ready");
++#endif
+ 
+             #if DEBUG
+             // "drawing up to Object (Translucent)"
+@@ -2673,6 +2700,10 @@ int mDoGph_Painter() {
+                     dComIfGp_particle_draw2Dgame(&draw_info2);
+                 }
+ 
++#if TARGET_PC
++                dusk::startup_guard::stage("painter.effects-ready");
++#endif
++
+                 trimming(&camera_p->view, view_port);
+ 
+                 if (strcmp(dComIfGp_getStartStageName(), "F_SP127") != 0 &&
+@@ -2756,6 +2787,7 @@ int mDoGph_Painter() {
+     #endif
+ 
+ #if TARGET_PC
++    dusk::startup_guard::stage("painter.hud");
+     dusk::mods::gfx_run_stage(GFX_STAGE_FRAME_BEFORE_HUD);
+ #endif
+ 
+@@ -2818,6 +2850,7 @@ int mDoGph_Painter() {
+ 
+ #if TARGET_PC
+     dusk::mods::gfx_run_stage(GFX_STAGE_FRAME_AFTER_HUD);
++    dusk::startup_guard::stage("painter.hud-ready");
+ #endif
+ 
+     #if DEBUG
+@@ -2834,9 +2867,16 @@ int mDoGph_Painter() {
+ 
+ #if TARGET_PC
+     dusk::g_imguiConsole.PostDraw();
++    dusk::startup_guard::stage("painter.postdraw-ready");
+ #endif
+ 
++#if TARGET_PC
++    dusk::startup_guard::stage("painter.end-render");
++#endif
+     mDoGph_gInf_c::endRender();
++#if TARGET_PC
++    dusk::startup_guard::stage("painter.ready");
++#endif
+ 
+     #if WIDESCREEN_SUPPORT
+     mDoGph_gInf_c::offWideZoom();
