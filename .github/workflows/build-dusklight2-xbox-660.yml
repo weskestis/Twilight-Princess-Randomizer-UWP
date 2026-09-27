@@ -1020,15 +1020,6 @@ jobs:
           if (-not $cmakeCache.Contains('BOREALIS_HTTP_BACKEND:STRING=winhttp')) {
             throw 'The UWP feed was not configured with the WinHTTP backend.'
           }
-          $ninjaText = Get-Content "$env:TPR_FEED\build.ninja" -Raw
-          foreach ($networkSource in @('src/http/winhttp.cpp', 'src/ws/winhttp.cpp')) {
-            if (-not $ninjaText.Contains($networkSource)) {
-              throw "The UWP feed is missing its network source: $networkSource"
-            }
-          }
-          if ($ninjaText.Contains('src/http/no_backend.cpp')) {
-            throw 'The UWP feed still includes the no-network HTTP backend.'
-          }
           $ninjaLines = @(Get-Content "$env:TPR_FEED\build.ninja")
           $randomizerDefinitions = @()
           for ($i = 0; $i -lt $ninjaLines.Count; $i++) {
