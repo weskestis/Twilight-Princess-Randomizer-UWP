@@ -1,0 +1,1840 @@
+diff --git a/files.cmake b/files.cmake
+index 0834dc9..4561df8 100644
+--- a/files.cmake
++++ b/files.cmake
+@@ -1606,6 +1606,8 @@ set(DUSK_FILES
+         src/dusk/ui/logs_window.hpp
+         src/dusk/ui/list.cpp
+         src/dusk/ui/list.hpp
++        src/dusk/ui/menu_colors.cpp
++        src/dusk/ui/menu_colors.hpp
+         src/dusk/ui/menu_bar.cpp
+         src/dusk/ui/menu_bar.hpp
+         src/dusk/ui/mod_browser.cpp
+diff --git a/include/dusk/menu_colors.h b/include/dusk/menu_colors.h
+new file mode 100644
+index 0000000..3ed146d
+--- /dev/null
++++ b/include/dusk/menu_colors.h
+@@ -0,0 +1,12 @@
++#pragma once
++
++#include <string>
++
++namespace dusk::ui {
++
++// Restores the integrated Xbox menu-color system while keeping the Randomizer
++// module ABI unchanged on platforms where it remains a separate DLL.
++void apply_per_seed_menu_colors(const std::string& seedHash) noexcept;
++void randomize_menu_colors_for_load_screen() noexcept;
++
++}  // namespace dusk::ui
+diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
+index d2f050f..b841acb 100644
+--- a/platforms/uwp/CMakeLists.txt
++++ b/platforms/uwp/CMakeLists.txt
+@@ -164,6 +164,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
+     OneCore.lib
+     ntdll.lib
+     DXGI.lib
++    Winhttp.lib
+     Ws2_32.lib)
+ 
+ target_link_options(${PROJECT_NAME} PRIVATE
+diff --git a/res/rml/overlay.rcss b/res/rml/overlay.rcss
+index ac38eac..e7be50d 100644
+--- a/res/rml/overlay.rcss
++++ b/res/rml/overlay.rcss
+@@ -363,3 +363,50 @@ logo img.outer {
+         top: 20dp;
+     }
+ }
++
++/* Xbox / SOH-style controller cursor. */
++controller-cursor {
++    display: none;
++    position: absolute;
++    width: 24dp;
++    height: 24dp;
++    z-index: 10000;
++    pointer-events: none;
++    border: 3dp #111111;
++    border-radius: 12dp;
++    background-color: #ffffff;
++    box-shadow: 0 0 8dp 3dp rgba(0, 0, 0, 85%);
++}
++
++controller-cursor[open] {
++    display: block;
++}
++
++controller-cursor[pressed] {
++    background-color: #C2A42D;
++    transform: scale(0.82);
++}
++
++cursor-mode-status {
++    display: none;
++    position: absolute;
++    left: 50%;
++    top: 34%;
++    z-index: 10001;
++    pointer-events: none;
++    transform: translateX(-50%);
++    padding: 16dp 28dp;
++    border: 2dp #C2A42D;
++    border-radius: 12dp;
++    background-color: rgba(12, 13, 10, 88%);
++    color: #ffffff;
++    font-family: "Fira Sans Condensed";
++    font-size: 34dp;
++    font-weight: bold;
++    text-align: center;
++    white-space: nowrap;
++}
++
++cursor-mode-status[open] {
++    display: block;
++}
+diff --git a/src/d/d_s_play.cpp b/src/d/d_s_play.cpp
+index ab342d6..b93329e 100644
+--- a/src/d/d_s_play.cpp
++++ b/src/d/d_s_play.cpp
+@@ -41,6 +41,7 @@
+ 
+ #if TARGET_PC
+ #include "dusk/autosave.h"
++#include "dusk/menu_colors.h"
+ #include "dusk/memory.h"
+ #include "dusk/mods/item.hpp"
+ #include "dusk/trigger_viewer.h"
+@@ -1162,6 +1163,9 @@ static int phase_1(dScnPly_c* i_this) {
+     dStage_roomControl_c::setProcID(fopScnM_GetID(i_this));
+ 
+     dComIfGp_setStartStage(dComIfGp_getNextStartStage());
++#if TARGET_PC
++    dusk::ui::randomize_menu_colors_for_load_screen();
++#endif
+ 
+     if (dComIfGp_getStartStageLayer() < 0 && daPy_py_c::checkRoomRestartStart()) {
+         int layer = dComIfG_play_c::getLayerNo_common_common(dComIfGp_getStartStageName(), dComIfGp_getStartStageRoomNo(), dComIfGp_getStartStageLayer());
+diff --git a/src/dusk/mods/svc/registry.cpp b/src/dusk/mods/svc/registry.cpp
+index a17c0d1..d2046d1 100644
+--- a/src/dusk/mods/svc/registry.cpp
++++ b/src/dusk/mods/svc/registry.cpp
+@@ -225,23 +225,22 @@ void modules_mod_detached(LoadedMod& mod) {
+ }
+ 
+ void modules_lifecycle_applied() {
+-#if defined(_UWP)
+-    // The built-in Randomizer has completed initialization when this function runs. Xbox testing
+-    // isolated the remaining pre-frame crash to the asset lifecycle batch (overlay, texture, and
+-    // audio replacement synchronization). Keep those optional asset services quarantined until
+-    // they can be reintroduced individually after the core game and Randomizer are stable.
+-    startup_guard::stage("modules.lifecycle-quarantined");
+-    DuskLog.warn("Xbox UWP: mod asset lifecycle synchronization is quarantined for startup safety");
+-    return;
+-#else
+     for (const auto* module : s_modules) {
++#if defined(_UWP)
++        // Audio replacement synchronization was the unsafe member of the old
++        // all-or-nothing quarantine. Keep it disabled with the UWP audio engine,
++        // while allowing Randomizer overlays and texture registrations to work.
++        if (module == &g_audioResModule) {
++            startup_guard::stage("module.lifecycle-skipped:audio-res");
++            continue;
++        }
++#endif
+         if (module->lifecycleApplied != nullptr) {
+             startup_guard::stage(fmt::format("module.lifecycle:{}", module->id));
+             module->lifecycleApplied();
+             startup_guard::stage(fmt::format("module.lifecycle-ready:{}", module->id));
+         }
+     }
+-#endif
+ }
+ 
+ void modules_frame_begin() {
+diff --git a/src/dusk/settings.cpp b/src/dusk/settings.cpp
+index 1c6d6b9..8a8ccd0 100644
+--- a/src/dusk/settings.cpp
++++ b/src/dusk/settings.cpp
+@@ -111,6 +111,9 @@ UserSettings g_userSettings = {
+         .enableTouchControls {"game.enableTouchControls", false},
+         .touchTargeting {"game.touchTargeting", TouchTargeting::Hybrid},
+         .enableMenuPointer {"game.enableMenuPointer", true},
++        .controllerCursorSpeed {"game.controllerCursorSpeed", 1.0f},
++        .controllerCursorDeadzone {"game.controllerCursorDeadzone", 0.18f},
++        .controllerCursorAcceleration {"game.controllerCursorAcceleration", true},
+         .touchControlsLayout {"game.touchControlsLayout", ui::ControlLayout{}},
+         .invertCameraXAxis {"game.invertCameraXAxis", false},
+         .invertCameraYAxis {"game.invertCameraYAxis", false},
+@@ -186,6 +189,18 @@ UserSettings g_userSettings = {
+         .enableAdvancedSettings {"backend.enableAdvancedSettings", false},
+     },
+ 
++    .cosmetics = {
++        .menuAccentColor {"cosmetics.menuAccentColor", ""},
++        .menuBackgroundColor {"cosmetics.menuBackgroundColor", ""},
++        .menuTextColor {"cosmetics.menuTextColor", ""},
++        .menuBorderColor {"cosmetics.menuBorderColor", ""},
++        .rainbowAllColors {"cosmetics.rainbowAllColors", false},
++        .randomizeAllColorsPerSeed {"cosmetics.randomizeAllColorsPerSeed", false},
++        .randomizeAllColorsEveryLoad {"cosmetics.randomizeAllColorsEveryLoad", false},
++        .rainbowCycleSpeed {"cosmetics.rainbowCycleSpeed", 1},
++        .perSeedRandomizedColors {"cosmetics.perSeedRandomizedColors", ""},
++    },
++
+     // Not sure if there's a better way to declare this
+     .actionBindings = {
+         .firstPersonCamera {
+@@ -383,6 +398,9 @@ void registerSettings() {
+     Register(g_userSettings.game.enableTouchControls);
+     Register(g_userSettings.game.touchTargeting);
+     Register(g_userSettings.game.enableMenuPointer);
++    Register(g_userSettings.game.controllerCursorSpeed);
++    Register(g_userSettings.game.controllerCursorDeadzone);
++    Register(g_userSettings.game.controllerCursorAcceleration);
+     Register(g_userSettings.game.touchControlsLayout);
+     Register(g_userSettings.game.debugFlyCam);
+     Register(g_userSettings.game.debugFlyCamLockEvents);
+@@ -404,6 +422,16 @@ void registerSettings() {
+     Register(g_userSettings.backend.cardFileType);
+     Register(g_userSettings.backend.enableAdvancedSettings);
+ 
++    Register(g_userSettings.cosmetics.menuAccentColor);
++    Register(g_userSettings.cosmetics.menuBackgroundColor);
++    Register(g_userSettings.cosmetics.menuTextColor);
++    Register(g_userSettings.cosmetics.menuBorderColor);
++    Register(g_userSettings.cosmetics.rainbowAllColors);
++    Register(g_userSettings.cosmetics.randomizeAllColorsPerSeed);
++    Register(g_userSettings.cosmetics.randomizeAllColorsEveryLoad);
++    Register(g_userSettings.cosmetics.rainbowCycleSpeed);
++    Register(g_userSettings.cosmetics.perSeedRandomizedColors);
++
+     Register(g_userSettings.actionBindings.firstPersonCamera[0]);
+     Register(g_userSettings.actionBindings.firstPersonCamera[1]);
+     Register(g_userSettings.actionBindings.firstPersonCamera[2]);
+diff --git a/src/dusk/settings.h b/src/dusk/settings.h
+index 651a4cd..fe17298 100644
+--- a/src/dusk/settings.h
++++ b/src/dusk/settings.h
+@@ -276,6 +276,9 @@ struct UserSettings {
+         ConfigVar<bool> enableTouchControls;
+         ConfigVar<TouchTargeting> touchTargeting;
+         ConfigVar<bool> enableMenuPointer;
++        ConfigVar<float> controllerCursorSpeed;
++        ConfigVar<float> controllerCursorDeadzone;
++        ConfigVar<bool> controllerCursorAcceleration;
+         ConfigVar<ui::ControlLayout> touchControlsLayout;
+         ConfigVar<bool> invertCameraXAxis;
+         ConfigVar<bool> invertCameraYAxis;
+@@ -347,6 +350,20 @@ struct UserSettings {
+         ConfigVar<bool> enableAdvancedSettings;
+     } backend;
+ 
++    // Xbox menu palette customization. The persisted names intentionally
++    // match the earlier integrated build so existing user choices migrate.
++    struct {
++        ConfigVar<std::string> menuAccentColor;
++        ConfigVar<std::string> menuBackgroundColor;
++        ConfigVar<std::string> menuTextColor;
++        ConfigVar<std::string> menuBorderColor;
++        ConfigVar<bool> rainbowAllColors;
++        ConfigVar<bool> randomizeAllColorsPerSeed;
++        ConfigVar<bool> randomizeAllColorsEveryLoad;
++        ConfigVar<int> rainbowCycleSpeed;
++        ConfigVar<std::string> perSeedRandomizedColors;
++    } cosmetics;
++
+     // Arrays of size 4 for 4 ports
+     struct {
+         std::array<ActionBindConfigVar, 4> firstPersonCamera;
+diff --git a/src/dusk/texture_replacements.cpp b/src/dusk/texture_replacements.cpp
+index 118989c..db65960 100644
+--- a/src/dusk/texture_replacements.cpp
++++ b/src/dusk/texture_replacements.cpp
+@@ -1,17 +1,383 @@
+ #include "dusk/texture_replacements.hpp"
+ 
+ #include <aurora/texture.hpp>
++#include <fmt/format.h>
+ 
++#include "dusk/io.hpp"
+ #include "dusk/logging.h"
+ #include "dusk/main.h"
+ #include "dusk/settings.h"
++#include "miniz.h"
++
++#include <algorithm>
++#include <filesystem>
++#include <limits>
++#include <memory>
++#include <mutex>
++#include <stdexcept>
++#include <string>
++#include <string_view>
++#include <unordered_map>
++#include <vector>
++
++#if defined(_UWP)
++#include <SDL3/SDL_error.h>
++#include <SDL3/SDL_iostream.h>
++#endif
+ 
+ namespace dusk::texture_replacements {
+ namespace {
+ aurora::texture::ReplacementGroup s_directoryGroup;
++aurora::texture::ReplacementGroup s_zipGroup;
++
++unsigned char ascii_lower(unsigned char ch) noexcept {
++    if (ch >= 'A' && ch <= 'Z') {
++        return static_cast<unsigned char>(ch - 'A' + 'a');
++    }
++    return ch;
++}
++
++bool iequals_ascii(std::string_view lhs, std::string_view rhs) noexcept {
++    if (lhs.size() != rhs.size()) {
++        return false;
++    }
++    for (std::size_t i = 0; i < lhs.size(); ++i) {
++        if (ascii_lower(static_cast<unsigned char>(lhs[i])) !=
++            ascii_lower(static_cast<unsigned char>(rhs[i])))
++        {
++            return false;
++        }
++    }
++    return true;
++}
++
++int compare_ascii_ci(std::string_view lhs, std::string_view rhs) noexcept {
++    const auto count = std::min(lhs.size(), rhs.size());
++    for (std::size_t i = 0; i < count; ++i) {
++        const auto lhsCh = ascii_lower(static_cast<unsigned char>(lhs[i]));
++        const auto rhsCh = ascii_lower(static_cast<unsigned char>(rhs[i]));
++        if (lhsCh != rhsCh) {
++            return lhsCh < rhsCh ? -1 : 1;
++        }
++    }
++    if (lhs.size() == rhs.size()) {
++        return 0;
++    }
++    return lhs.size() < rhs.size() ? -1 : 1;
++}
++
++std::vector<std::string> virtual_path_components(std::string_view path) {
++    std::vector<std::string> result;
++    std::size_t offset = 0;
++    while (offset <= path.size()) {
++        const auto slash = path.find('/', offset);
++        const auto count =
++            slash == std::string_view::npos ? path.size() - offset : slash - offset;
++        if (count != 0) {
++            result.emplace_back(path.substr(offset, count));
++        }
++        if (slash == std::string_view::npos) {
++            break;
++        }
++        offset = slash + 1;
++    }
++    return result;
++}
++
++bool is_sidecar_mip(std::string_view stem) noexcept {
++    constexpr std::string_view tag = "_mip";
++    std::size_t i = stem.size();
++    while (i > 0 && stem[i - 1] >= '0' && stem[i - 1] <= '9') {
++        --i;
++    }
++    return i != stem.size() && i >= tag.size() &&
++           stem.substr(i - tag.size(), tag.size()) == tag;
++}
++
++std::string_view filename_of(std::string_view path) noexcept {
++    const auto slash = path.rfind('/');
++    return slash == std::string_view::npos ? path : path.substr(slash + 1);
++}
++
++std::string_view extension_of(std::string_view path) noexcept {
++    const auto filename = filename_of(path);
++    const auto dot = filename.rfind('.');
++    return dot == std::string_view::npos ? std::string_view{} : filename.substr(dot);
++}
++
++std::string_view stem_of(std::string_view path) noexcept {
++    const auto filename = filename_of(path);
++    const auto dot = filename.rfind('.');
++    return dot == std::string_view::npos ? filename : filename.substr(0, dot);
++}
++
++#if defined(_UWP)
++std::size_t sdl_zip_read_at(void* opaque, mz_uint64 offset, void* output, std::size_t bytes) {
++    auto* stream = static_cast<SDL_IOStream*>(opaque);
++    if (stream == nullptr ||
++        offset > static_cast<mz_uint64>(std::numeric_limits<Sint64>::max()))
++    {
++        return 0;
++    }
++    if (SDL_SeekIO(stream, static_cast<Sint64>(offset), SDL_IO_SEEK_SET) < 0) {
++        return 0;
++    }
++    return SDL_ReadIO(stream, output, bytes);
++}
++#endif
++
++class TextureZipArchive final {
++public:
++    explicit TextureZipArchive(const std::filesystem::path& path) : m_path(path) {
++        const auto pathString = io::fs_path_to_string(path);
++#if defined(_UWP)
++        m_stream = SDL_IOFromFile(pathString.c_str(), "rb");
++        if (m_stream == nullptr) {
++            throw std::runtime_error(fmt::format("opening file failed: {}", SDL_GetError()));
++        }
++        const Sint64 streamSize = SDL_GetIOSize(m_stream);
++        if (streamSize < 0) {
++            const std::string error = SDL_GetError();
++            SDL_CloseIO(m_stream);
++            m_stream = nullptr;
++            throw std::runtime_error(fmt::format("reading file size failed: {}", error));
++        }
++        m_zip.m_pRead = sdl_zip_read_at;
++        m_zip.m_pIO_opaque = m_stream;
++        if (!mz_zip_reader_init(&m_zip, static_cast<mz_uint64>(streamSize), 0)) {
++            const auto error = mz_zip_get_last_error(&m_zip);
++            SDL_CloseIO(m_stream);
++            m_stream = nullptr;
++            throw std::runtime_error(
++                fmt::format("opening ZIP failed: {}", mz_zip_get_error_string(error)));
++        }
++#else
++        if (!mz_zip_reader_init_file(&m_zip, pathString.c_str(), 0)) {
++            const auto error = mz_zip_get_last_error(&m_zip);
++            throw std::runtime_error(
++                fmt::format("opening ZIP failed: {}", mz_zip_get_error_string(error)));
++        }
++#endif
++        m_open = true;
++
++        try {
++            const auto count = mz_zip_reader_get_num_files(&m_zip);
++            m_files.reserve(count);
++            m_indices.reserve(count);
++            for (mz_uint i = 0; i < count; ++i) {
++                mz_zip_archive_file_stat stat{};
++                if (!mz_zip_reader_file_stat(&m_zip, i, &stat) ||
++                    mz_zip_reader_is_file_a_directory(&m_zip, i))
++                {
++                    continue;
++                }
++
++                std::string name{stat.m_filename};
++                std::replace(name.begin(), name.end(), '\\', '/');
++                while (!name.empty() && name.front() == '/') {
++                    name.erase(name.begin());
++                }
++                while (name.starts_with("./")) {
++                    name.erase(0, 2);
++                }
++                if (name.empty()) {
++                    continue;
++                }
++
++                const auto [unused, inserted] = m_indices.emplace(name, i);
++                if (inserted) {
++                    m_files.push_back(std::move(name));
++                }
++            }
++        } catch (...) {
++            close();
++            throw;
++        }
++    }
++
++    TextureZipArchive(const TextureZipArchive&) = delete;
++    TextureZipArchive& operator=(const TextureZipArchive&) = delete;
++
++    ~TextureZipArchive() { close(); }
++
++    const std::filesystem::path& path() const noexcept { return m_path; }
++    const std::vector<std::string>& files() const noexcept { return m_files; }
++
++    bool read(const char* path, std::vector<uint8_t>& outBytes) noexcept {
++        if (path == nullptr) {
++            return false;
++        }
++        try {
++            std::lock_guard lock{m_mutex};
++            const auto entry = m_indices.find(path);
++            if (entry == m_indices.end()) {
++                return false;
++            }
++
++            std::size_t size = 0;
++            void* data = mz_zip_reader_extract_to_heap(&m_zip, entry->second, &size, 0);
++            if (data == nullptr) {
++                return false;
++            }
++            try {
++                const auto* begin = static_cast<const uint8_t*>(data);
++                outBytes.assign(begin, begin + size);
++            } catch (...) {
++                mz_free(data);
++                throw;
++            }
++            mz_free(data);
++            return true;
++        } catch (...) {
++            return false;
++        }
++    }
++
++private:
++    void close() noexcept {
++        if (m_open) {
++            mz_zip_reader_end(&m_zip);
++            m_open = false;
++        }
++#if defined(_UWP)
++        if (m_stream != nullptr) {
++            SDL_CloseIO(m_stream);
++            m_stream = nullptr;
++        }
++#endif
++    }
++
++    std::filesystem::path m_path;
++    mz_zip_archive m_zip{};
++    bool m_open = false;
++#if defined(_UWP)
++    SDL_IOStream* m_stream = nullptr;
++#endif
++    std::mutex m_mutex;
++    std::vector<std::string> m_files;
++    std::unordered_map<std::string, mz_uint> m_indices;
++};
++
++std::vector<std::shared_ptr<TextureZipArchive>> s_zipArchives;
++
++bool read_zip_member(void* userData, const char* path, std::vector<uint8_t>& outBytes) {
++    if (userData == nullptr) {
++        return false;
++    }
++    return static_cast<TextureZipArchive*>(userData)->read(path, outBytes);
++}
++
++struct ZipCandidate {
++    std::shared_ptr<TextureZipArchive> archive;
++    std::size_t archiveOrder = 0;
++    std::string path;
++    std::vector<std::string> components;
++};
++
++bool compare_zip_candidates(const ZipCandidate& lhs, const ZipCandidate& rhs) noexcept {
++    if (lhs.archiveOrder != rhs.archiveOrder) {
++        return lhs.archiveOrder < rhs.archiveOrder;
++    }
++    const auto count = std::min(lhs.components.size(), rhs.components.size());
++    for (std::size_t i = 0; i < count; ++i) {
++        const auto cmp = compare_ascii_ci(lhs.components[i], rhs.components[i]);
++        if (cmp != 0) {
++            return cmp < 0;
++        }
++        if (lhs.components[i] != rhs.components[i]) {
++            return lhs.components[i] < rhs.components[i];
++        }
++    }
++    if (lhs.components.size() != rhs.components.size()) {
++        return lhs.components.size() < rhs.components.size();
++    }
++    return io::fs_path_to_string(lhs.archive->path()) <
++           io::fs_path_to_string(rhs.archive->path());
++}
++
++void unload_zip_replacements() {
++    aurora::texture::unregister_replacements(s_zipGroup);
++    s_zipGroup.registrations.clear();
++    s_zipArchives.clear();
++}
++
++void load_zip_replacements(const std::filesystem::path& root) {
++    std::vector<std::filesystem::path> zipPaths;
++    std::error_code ec;
++    for (std::filesystem::directory_iterator it(
++             root, std::filesystem::directory_options::skip_permission_denied, ec);
++         !ec && it != std::filesystem::directory_iterator(); it.increment(ec))
++    {
++        if (!it->is_regular_file(ec) || ec) {
++            ec.clear();
++            continue;
++        }
++        if (iequals_ascii(io::fs_path_to_string(it->path().extension()), ".zip")) {
++            zipPaths.push_back(it->path());
++        }
++    }
++    std::sort(zipPaths.begin(), zipPaths.end(), [](const auto& lhs, const auto& rhs) {
++        const auto lhsText = io::fs_path_to_string(lhs.filename());
++        const auto rhsText = io::fs_path_to_string(rhs.filename());
++        const auto cmp = compare_ascii_ci(lhsText, rhsText);
++        return cmp != 0 ? cmp < 0 : lhsText < rhsText;
++    });
++
++    std::vector<ZipCandidate> candidates;
++    for (std::size_t zipIndex = 0; zipIndex < zipPaths.size(); ++zipIndex) {
++        const auto& zipPath = zipPaths[zipIndex];
++        try {
++            auto archive = std::make_shared<TextureZipArchive>(zipPath);
++            for (const auto& member : archive->files()) {
++                const auto extension = extension_of(member);
++                if ((!iequals_ascii(extension, ".dds") && !iequals_ascii(extension, ".png")) ||
++                    is_sidecar_mip(stem_of(member)))
++                {
++                    continue;
++                }
++                candidates.push_back(
++                    {archive, zipIndex, member, virtual_path_components(member)});
++            }
++            s_zipArchives.push_back(std::move(archive));
++        } catch (const std::exception& error) {
++            DuskLog.warn("Texture ZIP '{}' was skipped: {}",
++                io::fs_path_to_string(zipPath), error.what());
++        }
++    }
++
++    std::sort(candidates.begin(), candidates.end(), compare_zip_candidates);
++    std::vector<aurora::texture::TextureSourceKey> registeredKeys;
++    registeredKeys.reserve(candidates.size());
++    std::size_t currentArchive = std::numeric_limits<std::size_t>::max();
++    for (const auto& candidate : candidates) {
++        if (candidate.archiveOrder != currentArchive) {
++            currentArchive = candidate.archiveOrder;
++            registeredKeys.clear();
++        }
++        const auto parsed =
++            aurora::texture::parse_replacement_filename(filename_of(candidate.path));
++        if (!parsed.has_value() ||
++            std::find(registeredKeys.begin(), registeredKeys.end(), *parsed) !=
++                registeredKeys.end())
++        {
++            continue;
++        }
++        registeredKeys.push_back(*parsed);
++        auto registration = aurora::texture::register_virtual_replacement(candidate.path,
++            {.read = read_zip_member, .userData = candidate.archive.get()},
++            {.priority = kUserTextureReplacementPriority});
++        if (registration.id != 0) {
++            s_zipGroup.registrations.push_back(std::move(registration));
++        }
++    }
++
++    DuskLog.info("Texture ZIP loading complete: {} archive(s), {} registration(s)",
++        s_zipArchives.size(), s_zipGroup.registrations.size());
++}
+ }
+ 
+ void reload() {
++    unload_zip_replacements();
+     aurora::texture::unregister_replacements(s_directoryGroup);
+     s_directoryGroup.registrations.clear();
+ 
+@@ -24,9 +390,14 @@ void reload() {
+         root, {.priority = kUserTextureReplacementPriority});
+     DuskLog.info("Texture replacement directory loaded: {} registration(s)",
+                  s_directoryGroup.registrations.size());
++
++    // Loose files keep their original behavior; ZIP packs are additive and
++    // load automatically from the same data-folder directory at startup.
++    load_zip_replacements(root);
+ }
+ 
+ void shutdown() {
++    unload_zip_replacements();
+     aurora::texture::unregister_replacements(s_directoryGroup);
+     s_directoryGroup.registrations.clear();
+ }
+diff --git a/src/dusk/ui/input.cpp b/src/dusk/ui/input.cpp
+index d386bad..fbfd55a 100644
+--- a/src/dusk/ui/input.cpp
++++ b/src/dusk/ui/input.cpp
+@@ -14,6 +14,7 @@
+ #include <cmath>
+ 
+ #include "dusk/action_bindings.h"
++#include "dusk/settings.h"
+ 
+ namespace dusk::ui::input {
+ namespace {
+@@ -23,6 +24,9 @@ constexpr double kGamepadRepeatStartInterval = 0.12;
+ constexpr double kGamepadRepeatMinInterval = 0.045;
+ constexpr double kGamepadRepeatRampDuration = 1.0;
+ constexpr double kGamepadMenuChordGraceDuration = 0.12;
++constexpr double kControllerCursorToggleHold = 0.35;
++constexpr double kControllerCursorStatusDuration = 1.35;
++constexpr float kControllerCursorSpeed = 1150.0f;
+ constexpr Sint16 kGamepadAxisPressThreshold = 16384;
+ constexpr Sint16 kGamepadAxisReleaseThreshold = 12000;
+ constexpr float kNavAxisDeadZone = 0.12f;
+@@ -67,10 +71,173 @@ std::array<Rml::Vector2f, SDL_GAMEPAD_AXIS_COUNT> sNavAxisContributions;
+ SDL_JoystickID sNavAxisSource = 0;
+ double sLastInputUpdateAt = 0.0;
+ 
++// SOH-style controller cursor: hold L3+R3 to toggle, move with the
++// right stick, and use A as a true pointer click/drag.
++bool sControllerCursorActive = false;
++bool sControllerCursorL3Held = false;
++bool sControllerCursorR3Held = false;
++bool sControllerCursorChordConsumed = false;
++bool sControllerCursorClickHeld = false;
++bool sControllerCursorPositionInitialized = false;
++double sControllerCursorChordStartedAt = 0.0;
++double sControllerCursorStatusUntil = 0.0;
++double sControllerCursorLastUpdateAt = 0.0;
++Sint16 sControllerCursorAxisX = 0;
++Sint16 sControllerCursorAxisY = 0;
++float sControllerCursorX = 0.0f;
++float sControllerCursorY = 0.0f;
++
+ double now_seconds() noexcept {
+     return static_cast<double>(SDL_GetTicksNS()) / 1000000000.0;
+ }
+ 
++bool is_controller_cursor_chord_button(SDL_GamepadButton button) noexcept {
++    return button == SDL_GAMEPAD_BUTTON_LEFT_STICK ||
++           button == SDL_GAMEPAD_BUTTON_RIGHT_STICK;
++}
++
++void emit_controller_cursor_move(Rml::Context& context) noexcept {
++    context.ProcessMouseMove(
++        static_cast<int>(sControllerCursorX), static_cast<int>(sControllerCursorY), 0);
++}
++
++void emit_controller_cursor_button(Rml::Context& context, bool down) noexcept {
++    if (down) {
++        context.ProcessMouseButtonDown(0, 0);
++    } else {
++        context.ProcessMouseButtonUp(0, 0);
++    }
++}
++
++void set_controller_cursor_chord_button(SDL_GamepadButton button, bool held) noexcept {
++    if (button == SDL_GAMEPAD_BUTTON_LEFT_STICK) {
++        sControllerCursorL3Held = held;
++    } else if (button == SDL_GAMEPAD_BUTTON_RIGHT_STICK) {
++        sControllerCursorR3Held = held;
++    }
++
++    if (sControllerCursorL3Held && sControllerCursorR3Held) {
++        if (sControllerCursorChordStartedAt <= 0.0) {
++            sControllerCursorChordStartedAt = now_seconds();
++        }
++    } else {
++        sControllerCursorChordStartedAt = 0.0;
++        sControllerCursorChordConsumed = false;
++    }
++}
++
++void rumble_controller_cursor_toggle() noexcept {
++    const s32 index = PADGetIndexForPort(PAD_CHAN0);
++    if (index < 0) {
++        return;
++    }
++    if (SDL_Gamepad* gamepad = PADGetSDLGamepadForIndex(static_cast<u32>(index))) {
++        SDL_RumbleGamepad(gamepad, 0x3000, 0x6000, 120);
++    }
++}
++
++float controller_cursor_axis_response(Sint16 raw) noexcept {
++    const float normalized = std::clamp(static_cast<float>(raw) / 32767.0f, -1.0f, 1.0f);
++    const float magnitude = std::abs(normalized);
++    const float deadzone = std::clamp(
++        dusk::getSettings().game.controllerCursorDeadzone.getValue(), 0.0f, 0.50f);
++    if (magnitude <= deadzone) {
++        return 0.0f;
++    }
++    const float scaled =
++        std::clamp((magnitude - deadzone) / std::max(1.0f - deadzone, 0.001f), 0.0f, 1.0f);
++    const float shaped = dusk::getSettings().game.controllerCursorAcceleration.getValue() ?
++                             scaled * scaled :
++                             scaled;
++    return normalized < 0.0f ? -shaped : shaped;
++}
++
++void release_controller_cursor_click(Rml::Context& context) noexcept {
++    if (!sControllerCursorClickHeld) {
++        return;
++    }
++    emit_controller_cursor_button(context, false);
++    sControllerCursorClickHeld = false;
++}
++
++void disable_controller_cursor(Rml::Context& context, bool showStatus) noexcept {
++    if (!sControllerCursorActive) {
++        return;
++    }
++    release_controller_cursor_click(context);
++    sControllerCursorActive = false;
++    sControllerCursorAxisX = 0;
++    sControllerCursorAxisY = 0;
++    context.ProcessMouseLeave();
++    if (showStatus) {
++        sControllerCursorStatusUntil = now_seconds() + kControllerCursorStatusDuration;
++        rumble_controller_cursor_toggle();
++    } else {
++        sControllerCursorStatusUntil = 0.0;
++    }
++}
++
++void update_controller_cursor(Rml::Context& context) noexcept {
++    const double now = now_seconds();
++    const bool uiVisible = any_document_visible();
++
++    if (!uiVisible) {
++        if (sControllerCursorActive) {
++            disable_controller_cursor(context, false);
++        }
++        sControllerCursorL3Held = false;
++        sControllerCursorR3Held = false;
++        sControllerCursorChordConsumed = false;
++        sControllerCursorChordStartedAt = 0.0;
++    }
++
++    if (sControllerCursorL3Held && sControllerCursorR3Held &&
++        !sControllerCursorChordConsumed && sControllerCursorChordStartedAt > 0.0 &&
++        now - sControllerCursorChordStartedAt >= kControllerCursorToggleHold && uiVisible)
++    {
++        sControllerCursorChordConsumed = true;
++        if (sControllerCursorActive) {
++            disable_controller_cursor(context, true);
++        } else {
++            sControllerCursorActive = true;
++            sControllerCursorStatusUntil = now + kControllerCursorStatusDuration;
++            rumble_controller_cursor_toggle();
++            const auto dimensions = context.GetDimensions();
++            if (!sControllerCursorPositionInitialized) {
++                sControllerCursorX = static_cast<float>(dimensions.x) * 0.5f;
++                sControllerCursorY = static_cast<float>(dimensions.y) * 0.5f;
++                sControllerCursorPositionInitialized = true;
++            }
++            emit_controller_cursor_move(context);
++        }
++    }
++
++    if (!sControllerCursorActive) {
++        sControllerCursorLastUpdateAt = now;
++        return;
++    }
++
++    const auto dimensions = context.GetDimensions();
++    const double elapsed = sControllerCursorLastUpdateAt > 0.0 ?
++                               now - sControllerCursorLastUpdateAt :
++                               0.0;
++    const float dt = static_cast<float>(std::clamp(elapsed, 0.0, kMaxNavAxisDt));
++    sControllerCursorLastUpdateAt = now;
++    const float speed = kControllerCursorSpeed * std::clamp(
++        dusk::getSettings().game.controllerCursorSpeed.getValue(), 0.25f, 2.50f);
++    const float dx = controller_cursor_axis_response(sControllerCursorAxisX) * speed * dt;
++    const float dy = controller_cursor_axis_response(sControllerCursorAxisY) * speed * dt;
++    if (dx == 0.0f && dy == 0.0f) {
++        return;
++    }
++
++    sControllerCursorX = std::clamp(
++        sControllerCursorX + dx, 0.0f, static_cast<float>(std::max(dimensions.x - 1, 0)));
++    sControllerCursorY = std::clamp(
++        sControllerCursorY + dy, 0.0f, static_cast<float>(std::max(dimensions.y - 1, 0)));
++    emit_controller_cursor_move(context);
++}
++
+ bool is_menu_chord_part(PADButton button) noexcept {
+     return button == PAD_TRIGGER_R || button == PAD_BUTTON_START;
+ }
+@@ -838,6 +1005,22 @@ void release_input_block() noexcept {
+ void reset_input_state() noexcept {
+     clear_gamepad_repeats();
+     reset_touch_menu_tap();
++    if (auto* context = aurora::rmlui::get_context()) {
++        release_controller_cursor_click(*context);
++        if (sControllerCursorActive) {
++            context->ProcessMouseLeave();
++        }
++    }
++    sControllerCursorActive = false;
++    sControllerCursorL3Held = false;
++    sControllerCursorR3Held = false;
++    sControllerCursorChordConsumed = false;
++    sControllerCursorChordStartedAt = 0.0;
++    sControllerCursorStatusUntil = 0.0;
++    sControllerCursorLastUpdateAt = 0.0;
++    sControllerCursorAxisX = 0;
++    sControllerCursorAxisY = 0;
++    sControllerCursorPositionInitialized = false;
+     sNavAxis = {};
+     sNavAxisContributions = {};
+     sNavAxisSource = 0;
+@@ -874,6 +1057,21 @@ void handle_event(const SDL_Event& event) noexcept {
+     }
+ 
+     if (event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION) {
++        const auto nativeAxis = static_cast<SDL_GamepadAxis>(event.gaxis.axis);
++        if (nativeAxis == SDL_GAMEPAD_AXIS_RIGHTX) {
++            sControllerCursorAxisX = event.gaxis.value;
++            if (sControllerCursorActive) {
++                sync_input_block();
++                return;
++            }
++        } else if (nativeAxis == SDL_GAMEPAD_AXIS_RIGHTY) {
++            sControllerCursorAxisY = event.gaxis.value;
++            if (sControllerCursorActive) {
++                sync_input_block();
++                return;
++            }
++        }
++
+         if (update_nav_axis(event.gaxis)) {
+             dispatch_nav_axis(*context, 0.0);
+         }
+@@ -883,6 +1081,25 @@ void handle_event(const SDL_Event& event) noexcept {
+         return;
+     }
+ 
++    const auto nativeCursorButton = static_cast<SDL_GamepadButton>(event.gbutton.button);
++    const bool cursorButtonDown = event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
++    if (is_controller_cursor_chord_button(nativeCursorButton) && any_document_visible()) {
++        set_controller_cursor_chord_button(nativeCursorButton, cursorButtonDown);
++        sync_input_block();
++        return;
++    }
++    if (sControllerCursorActive && nativeCursorButton == SDL_GAMEPAD_BUTTON_SOUTH) {
++        if (cursorButtonDown && !sControllerCursorClickHeld) {
++            emit_controller_cursor_button(*context, true);
++            sControllerCursorClickHeld = true;
++        } else if (!cursorButtonDown && sControllerCursorClickHeld) {
++            emit_controller_cursor_button(*context, false);
++            sControllerCursorClickHeld = false;
++        }
++        sync_input_block();
++        return;
++    }
++
+     auto* repeat = button_repeat_state(static_cast<SDL_GamepadButton>(event.gbutton.button));
+     u32 port = 0;
+     PADButton button = 0;
+@@ -932,6 +1149,8 @@ void handle_event(const SDL_Event& event) noexcept {
+ void update_input() noexcept {
+     auto* context = aurora::rmlui::get_context();
+     if (context != nullptr) {
++        update_controller_cursor(*context);
++        sync_input_block();
+         const double now = now_seconds();
+         const double dtSeconds = sLastInputUpdateAt == 0.0 ?
+                                      0.0 :
+@@ -976,4 +1195,24 @@ void update_input() noexcept {
+     }
+ }
+ 
++bool controller_cursor_active() noexcept {
++    return sControllerCursorActive;
++}
++
++bool controller_cursor_status_visible() noexcept {
++    return now_seconds() < sControllerCursorStatusUntil;
++}
++
++bool controller_cursor_pressed() noexcept {
++    return sControllerCursorClickHeld;
++}
++
++float controller_cursor_x() noexcept {
++    return sControllerCursorX;
++}
++
++float controller_cursor_y() noexcept {
++    return sControllerCursorY;
++}
++
+ }  // namespace dusk::ui::input
+diff --git a/src/dusk/ui/input.hpp b/src/dusk/ui/input.hpp
+index 7a30e89..2781f38 100644
+--- a/src/dusk/ui/input.hpp
++++ b/src/dusk/ui/input.hpp
+@@ -11,5 +11,10 @@ void update_input() noexcept;
+ void reset_input_state() noexcept;
+ void sync_input_block() noexcept;
+ void release_input_block() noexcept;
++bool controller_cursor_active() noexcept;
++bool controller_cursor_status_visible() noexcept;
++bool controller_cursor_pressed() noexcept;
++float controller_cursor_x() noexcept;
++float controller_cursor_y() noexcept;
+ 
+ }  // namespace dusk::ui
+diff --git a/src/dusk/ui/menu_bar.cpp b/src/dusk/ui/menu_bar.cpp
+index 614c28b..0d34bfc 100644
+--- a/src/dusk/ui/menu_bar.cpp
++++ b/src/dusk/ui/menu_bar.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include "achievements.hpp"
+ #include "editor.hpp"
++#include "menu_colors.hpp"
+ #include "mod_updates.hpp"
+ #include "modal.hpp"
+ #include "mods_window.hpp"
+@@ -72,6 +73,7 @@ MenuBar::MenuBar()
+ 
+ void MenuBar::build_tabs() {
+     mTabBar->add_tab("Settings", [this] { push(std::make_unique<SettingsWindow>()); });
++    mTabBar->add_tab("Menu Colors", [this] { push(std::make_unique<MenuColorsWindow>()); });
+ 
+     if (getSettings().backend.enableAdvancedSettings) {
+         mTabBar->add_tab("Warp", [this] { push(std::make_unique<WarpWindow>()); });
+diff --git a/src/dusk/ui/menu_colors.cpp b/src/dusk/ui/menu_colors.cpp
+new file mode 100644
+index 0000000..e30dc12
+--- /dev/null
++++ b/src/dusk/ui/menu_colors.cpp
+@@ -0,0 +1,688 @@
++#include "menu_colors.hpp"
++
++#include "bool_button.hpp"
++#include "color_input.hpp"
++#include "pane.hpp"
++
++#include "dusk/config.hpp"
++#include "dusk/settings.h"
++
++#include <fmt/format.h>
++
++#include <algorithm>
++#include <array>
++#include <atomic>
++#include <cctype>
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <functional>
++#include <limits>
++#include <ranges>
++#include <string>
++#include <string_view>
++
++namespace dusk::ui {
++namespace {
++
++enum class MenuRole : std::size_t {
++    Accent,
++    Background,
++    Text,
++    Border,
++    Count,
++};
++
++constexpr std::size_t kRoleCount = static_cast<std::size_t>(MenuRole::Count);
++constexpr std::uint8_t kAllRoles = (1u << kRoleCount) - 1u;
++constexpr std::string_view kThemeId = "tpr-user-menu-theme";
++
++struct MenuPalette {
++    std::array<std::string, kRoleCount> colors;
++};
++
++constexpr std::array<std::array<std::string_view, kRoleCount>, 8> kSafePalettes{{
++    {{"c2a42d", "151610", "e0dbc8", "92875b"}},
++    {{"4da3ff", "0b1520", "e8f2ff", "6b9bc4"}},
++    {{"c084fc", "180d22", "f7eaff", "a875c2"}},
++    {{"5fd38d", "0b1a12", "e9fff1", "5fa77a"}},
++    {{"ff7a72", "210d0c", "fff0ed", "c47a70"}},
++    {{"42d8cf", "091b1b", "e8ffff", "5faaa6"}},
++    {{"f0a34b", "20130a", "fff3df", "c18b56"}},
++    {{"f07bb4", "21101a", "ffeafa", "c3789d"}},
++}};
++
++struct Rgb {
++    int red = 0;
++    int green = 0;
++    int blue = 0;
++};
++
++struct RuntimeState {
++    std::string seedHash;
++    MenuPalette seedPalette;
++    MenuPalette loadPalette;
++    std::array<bool, kRoleCount> ownedOverrides{};
++    std::uint8_t seedMask = 0;
++    bool seedRainbow = false;
++    bool loadActive = false;
++    bool loadRainbow = false;
++    std::uint64_t rainbowFrame = std::numeric_limits<std::uint64_t>::max();
++};
++
++RuntimeState& runtime_state() {
++    static RuntimeState state;
++    return state;
++}
++
++std::array<ConfigVar<std::string>*, kRoleCount> color_vars() {
++    auto& settings = getSettings().cosmetics;
++    return {
++        &settings.menuAccentColor,
++        &settings.menuBackgroundColor,
++        &settings.menuTextColor,
++        &settings.menuBorderColor,
++    };
++}
++
++constexpr std::array<std::string_view, kRoleCount> kRoleLabels{
++    "Menu Accent Color",
++    "Menu Background Color",
++    "Menu Text Color",
++    "Menu Border Color",
++};
++
++int hex_nibble(char value) noexcept {
++    if (value >= '0' && value <= '9') {
++        return value - '0';
++    }
++    if (value >= 'a' && value <= 'f') {
++        return value - 'a' + 10;
++    }
++    if (value >= 'A' && value <= 'F') {
++        return value - 'A' + 10;
++    }
++    return -1;
++}
++
++bool parse_rgb(std::string_view value, Rgb& color) noexcept {
++    if (value.starts_with('#')) {
++        value.remove_prefix(1);
++    }
++    if (value.size() != 6) {
++        return false;
++    }
++    std::array<int, 6> digits{};
++    for (std::size_t i = 0; i < digits.size(); ++i) {
++        digits[i] = hex_nibble(value[i]);
++        if (digits[i] < 0) {
++            return false;
++        }
++    }
++    color = {
++        digits[0] * 16 + digits[1],
++        digits[2] * 16 + digits[3],
++        digits[4] * 16 + digits[5],
++    };
++    return true;
++}
++
++std::string normalize_color(std::string value) {
++    if (!value.empty() && value.front() == '#') {
++        value.erase(value.begin());
++    }
++    std::ranges::transform(value, value.begin(), [](unsigned char ch) {
++        return static_cast<char>(std::tolower(ch));
++    });
++    return value;
++}
++
++bool is_rainbow(std::string_view value) noexcept {
++    return value == "rainbow" || value == "Rainbow";
++}
++
++bool valid_color(std::string_view value) noexcept {
++    Rgb unused;
++    return parse_rgb(value, unused);
++}
++
++double linear_channel(int channel) noexcept {
++    const double value = static_cast<double>(channel) / 255.0;
++    return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
++}
++
++double luminance(const Rgb& color) noexcept {
++    return 0.2126 * linear_channel(color.red) + 0.7152 * linear_channel(color.green) +
++           0.0722 * linear_channel(color.blue);
++}
++
++double contrast(const Rgb& first, const Rgb& second) noexcept {
++    const double a = luminance(first);
++    const double b = luminance(second);
++    return (std::max(a, b) + 0.05) / (std::min(a, b) + 0.05);
++}
++
++bool palette_readable(const MenuPalette& palette) noexcept {
++    std::array<Rgb, kRoleCount> rgb{};
++    for (std::size_t i = 0; i < kRoleCount; ++i) {
++        if (!parse_rgb(palette.colors[i], rgb[i])) {
++            return false;
++        }
++    }
++    const auto background = static_cast<std::size_t>(MenuRole::Background);
++    return contrast(rgb[static_cast<std::size_t>(MenuRole::Text)], rgb[background]) >= 4.5 &&
++           contrast(rgb[static_cast<std::size_t>(MenuRole::Accent)], rgb[background]) >= 3.0 &&
++           contrast(rgb[static_cast<std::size_t>(MenuRole::Border)], rgb[background]) >= 3.0;
++}
++
++MenuPalette palette_at(std::size_t index) {
++    MenuPalette result;
++    const auto& source = kSafePalettes[index % kSafePalettes.size()];
++    for (std::size_t i = 0; i < kRoleCount; ++i) {
++        result.colors[i] = source[i];
++    }
++    return result;
++}
++
++MenuPalette default_palette() {
++    return palette_at(0);
++}
++
++MenuPalette saved_palette() {
++    auto palette = default_palette();
++    const auto vars = color_vars();
++    for (std::size_t i = 0; i < vars.size(); ++i) {
++        const std::string value = normalize_color(vars[i]->getValueForSave());
++        if (valid_color(value)) {
++            palette.colors[i] = value;
++        }
++    }
++    return palette_readable(palette) ? palette : default_palette();
++}
++
++std::uint64_t stable_hash(std::string_view value, std::string_view salt = {}) noexcept {
++    std::uint64_t hash = 1469598103934665603ULL;
++    const auto add = [&hash](std::string_view input) {
++        for (unsigned char ch : input) {
++            hash ^= ch;
++            hash *= 1099511628211ULL;
++        }
++    };
++    add(value);
++    add(salt);
++    hash ^= hash >> 30;
++    hash *= 0xbf58476d1ce4e5b9ULL;
++    hash ^= hash >> 27;
++    hash *= 0x94d049bb133111ebULL;
++    return hash ^ (hash >> 31);
++}
++
++bool per_seed_enabled(const ConfigVar<std::string>& option) {
++    const std::string token = std::string{"|"} + option.getName() + "|";
++    return getSettings().cosmetics.perSeedRandomizedColors.getValueForSave().find(token) !=
++           std::string::npos;
++}
++
++void set_per_seed_enabled(ConfigVar<std::string>& option, bool enabled) {
++    auto selections = getSettings().cosmetics.perSeedRandomizedColors.getValueForSave();
++    const std::string token = std::string{"|"} + option.getName() + "|";
++    const auto position = selections.find(token);
++    if (enabled && position == std::string::npos) {
++        selections += token;
++    } else if (!enabled && position != std::string::npos) {
++        selections.erase(position, token.size());
++    }
++    getSettings().cosmetics.perSeedRandomizedColors.setValue(std::move(selections));
++}
++
++std::uint8_t selected_seed_mask() {
++    if (getSettings().cosmetics.randomizeAllColorsPerSeed.getValue()) {
++        return kAllRoles;
++    }
++    std::uint8_t mask = 0;
++    const auto vars = color_vars();
++    for (std::size_t i = 0; i < vars.size(); ++i) {
++        if (per_seed_enabled(*vars[i])) {
++            mask |= static_cast<std::uint8_t>(1u << i);
++        }
++    }
++    return mask;
++}
++
++MenuPalette merged_safe_palette(std::uint64_t value, std::uint8_t mask) {
++    const MenuPalette base = saved_palette();
++    for (std::size_t attempt = 0; attempt < kSafePalettes.size(); ++attempt) {
++        const MenuPalette source = palette_at(static_cast<std::size_t>(value) + attempt);
++        MenuPalette candidate = base;
++        for (std::size_t role = 0; role < kRoleCount; ++role) {
++            if ((mask & (1u << role)) != 0) {
++                candidate.colors[role] = source.colors[role];
++            }
++        }
++        if (palette_readable(candidate)) {
++            return candidate;
++        }
++    }
++    return default_palette();
++}
++
++void set_runtime_color(std::size_t role, const std::string& value) {
++    auto& state = runtime_state();
++    auto* option = color_vars()[role];
++    if (!state.ownedOverrides[role] || option->getValue() != value) {
++        option->setOverrideValue(value);
++    }
++    state.ownedOverrides[role] = true;
++}
++
++bool clear_runtime_color(std::size_t role) {
++    auto& state = runtime_state();
++    if (!state.ownedOverrides[role]) {
++        return false;
++    }
++    color_vars()[role]->clearOverride();
++    state.ownedOverrides[role] = false;
++    return true;
++}
++
++bool clear_runtime_colors() {
++    bool changed = false;
++    for (std::size_t role = 0; role < kRoleCount; ++role) {
++        changed = clear_runtime_color(role) || changed;
++    }
++    return changed;
++}
++
++void apply_runtime_palette(const MenuPalette& palette, std::uint8_t mask) {
++    for (std::size_t role = 0; role < kRoleCount; ++role) {
++        if ((mask & (1u << role)) != 0) {
++            set_runtime_color(role, palette.colors[role]);
++        } else {
++            clear_runtime_color(role);
++        }
++    }
++}
++
++Rgb interpolate(Rgb first, Rgb second, double amount) noexcept {
++    const auto channel = [amount](int a, int b) {
++        return static_cast<int>(std::lround(a + (b - a) * amount));
++    };
++    return {
++        channel(first.red, second.red),
++        channel(first.green, second.green),
++        channel(first.blue, second.blue),
++    };
++}
++
++std::string format_rgb(Rgb color) {
++    return fmt::format("{:02x}{:02x}{:02x}", color.red, color.green, color.blue);
++}
++
++MenuPalette rainbow_palette(std::uint64_t elapsedMilliseconds) {
++    int speed = std::clamp(getSettings().cosmetics.rainbowCycleSpeed.getValueForSave(), 0, 2);
++    const std::uint64_t segment = speed == 0 ? 4000 : speed == 2 ? 1000 : 2000;
++    const std::size_t first = (elapsedMilliseconds / segment) % kSafePalettes.size();
++    const std::size_t second = (first + 1) % kSafePalettes.size();
++    const double amount = static_cast<double>(elapsedMilliseconds % segment) /
++                          static_cast<double>(segment);
++    MenuPalette result;
++    for (std::size_t role = 0; role < kRoleCount; ++role) {
++        Rgb a;
++        Rgb b;
++        parse_rgb(kSafePalettes[first][role], a);
++        parse_rgb(kSafePalettes[second][role], b);
++        result.colors[role] = format_rgb(interpolate(a, b, amount));
++    }
++    return result;
++}
++
++bool saved_menu_rainbow() {
++    return std::ranges::any_of(color_vars(), [](const auto* option) {
++        return is_rainbow(option->getValueForSave());
++    });
++}
++
++void apply_menu_theme() noexcept {
++    try {
++        MenuPalette palette = default_palette();
++        const auto vars = color_vars();
++        for (std::size_t role = 0; role < vars.size(); ++role) {
++            const auto value = normalize_color(vars[role]->getValue());
++            if (valid_color(value)) {
++                palette.colors[role] = value;
++            }
++        }
++        if (!palette_readable(palette)) {
++            palette = default_palette();
++        }
++
++        const auto& accent = palette.colors[static_cast<std::size_t>(MenuRole::Accent)];
++        const auto& background = palette.colors[static_cast<std::size_t>(MenuRole::Background)];
++        const auto& text = palette.colors[static_cast<std::size_t>(MenuRole::Text)];
++        const auto& border = palette.colors[static_cast<std::size_t>(MenuRole::Border)];
++        const std::string windowTheme =
++            "body { color: #" + text + "; }\n"
++            "window { background-color: #" + background + "e6; border-color: #" + border +
++            "; }\n"
++            "input { background-color: #11100a; color: #" + text + "; }\n"
++            "window tab-bar { border-bottom-color: #" + border + "; }\n"
++            "window content pane:not(:last-of-type), pane.excluded-locations-pane { "
++            "border-color: #" + border + "; }\n"
++            "tab-bar tab:selected { border-bottom-color: #" + accent + "; }\n"
++            "tab-bar tab:focus-visible, tab-bar tab:hover { decorator: vertical-gradient(#" +
++            accent + "00 #" + accent + "26); }\n"
++            "tab-bar tab:active { decorator: vertical-gradient(#" + accent + "10 #" + accent +
++            "40); }\n"
++            "button:not(:disabled):hover, button:not(:disabled):focus-visible, "
++            "select-button:not(:disabled):hover, select-button:not(:disabled):focus-visible { "
++            "background-color: #" + accent + "33; box-shadow: #" + accent +
++            " 0 0 0 2dp; }\n"
++            "button:not(:disabled):selected, button:not(:disabled):active, "
++            "select-button:not(:disabled):selected, select-button:not(:disabled):active { "
++            "background-color: #" + accent + "66; box-shadow: #" + accent +
++            " 0 0 0 2dp; }\n";
++        const std::string menuBarTheme =
++            "body, popup tab-bar tab { color: #" + text + "; }\n"
++            "popup { background-color: #" + background + "cc; border-bottom-color: #" + border +
++            "; }\n"
++            "tab-bar tab:selected { border-bottom-color: #" + accent + "; }\n"
++            "tab-bar tab:focus-visible, tab-bar tab:hover { decorator: vertical-gradient(#" +
++            accent + "00 #" + accent + "26); }\n"
++            "tab-bar tab:active { decorator: vertical-gradient(#" + accent + "10 #" + accent +
++            "40); }\n";
++        register_scoped_styles(DocumentScope::Window, std::string{kThemeId}, windowTheme);
++        register_scoped_styles(DocumentScope::MenuBar, std::string{kThemeId}, menuBarTheme);
++    } catch (...) {
++        // Cosmetics can never be allowed to interrupt the UI loop.
++    }
++}
++
++void update_menu_colors_impl(bool force) noexcept {
++    try {
++        auto& settings = getSettings().cosmetics;
++        auto& state = runtime_state();
++        const bool everyLoad = settings.randomizeAllColorsEveryLoad.getValue();
++        const bool seedMode = !everyLoad && state.seedMask != 0 && !state.seedHash.empty();
++        const bool rainbow = settings.rainbowAllColors.getValue() || saved_menu_rainbow() ||
++                             (everyLoad && state.loadActive && state.loadRainbow) ||
++                             (seedMode && state.seedRainbow);
++
++        if (rainbow) {
++            constexpr std::uint64_t kFrameMilliseconds = 50;
++            const auto elapsed = static_cast<std::uint64_t>(
++                std::chrono::duration_cast<std::chrono::milliseconds>(
++                    std::chrono::steady_clock::now().time_since_epoch())
++                    .count());
++            const std::uint64_t frame = elapsed / kFrameMilliseconds;
++            if (!force && frame == state.rainbowFrame) {
++                return;
++            }
++            state.rainbowFrame = frame;
++            apply_runtime_palette(rainbow_palette(frame * kFrameMilliseconds), kAllRoles);
++            apply_menu_theme();
++            return;
++        }
++
++        state.rainbowFrame = std::numeric_limits<std::uint64_t>::max();
++        if (everyLoad && state.loadActive) {
++            apply_runtime_palette(state.loadPalette, kAllRoles);
++        } else if (seedMode) {
++            apply_runtime_palette(state.seedPalette, state.seedMask);
++        } else {
++            clear_runtime_colors();
++        }
++        if (force) {
++            apply_menu_theme();
++        }
++    } catch (...) {
++        // Cosmetics can never be allowed to interrupt gameplay.
++    }
++}
++
++Rml::String color_label(const ConfigVar<std::string>& option) {
++    const auto value = option.getValueForSave();
++    if (value.empty()) {
++        return "Default";
++    }
++    if (is_rainbow(value)) {
++        return "Rainbow";
++    }
++    return Rml::String{"#"} + value;
++}
++
++void save_and_refresh() {
++    refresh_menu_colors();
++    config::save();
++}
++
++}  // namespace
++
++void initialize_menu_colors() noexcept {
++    apply_menu_theme();
++    update_menu_colors_impl(true);
++}
++
++void update_menu_colors() noexcept {
++    update_menu_colors_impl(false);
++}
++
++void refresh_menu_colors() noexcept {
++    auto& state = runtime_state();
++    if (!getSettings().cosmetics.randomizeAllColorsEveryLoad.getValue()) {
++        state.loadActive = false;
++        state.loadRainbow = false;
++    }
++    const std::uint8_t mask = selected_seed_mask();
++    if (!state.seedHash.empty() && mask != 0 &&
++        !getSettings().cosmetics.randomizeAllColorsEveryLoad.getValue())
++    {
++        apply_per_seed_menu_colors(state.seedHash);
++        return;
++    }
++    state.seedMask = 0;
++    state.seedRainbow = false;
++    update_menu_colors_impl(true);
++}
++
++void apply_per_seed_menu_colors(const std::string& seedHash) noexcept {
++    try {
++        auto& state = runtime_state();
++        state.seedHash = seedHash;
++        state.loadActive = false;
++        state.loadRainbow = false;
++        state.seedMask = selected_seed_mask();
++        state.seedRainbow = false;
++        if (seedHash.empty() || state.seedMask == 0 ||
++            getSettings().cosmetics.randomizeAllColorsEveryLoad.getValue())
++        {
++            update_menu_colors_impl(true);
++            return;
++        }
++        const auto value = stable_hash(seedHash, "menu-palette-v2");
++        state.seedPalette = merged_safe_palette(value, state.seedMask);
++        state.seedRainbow = stable_hash(seedHash, "menu-rainbow-v2") % 9 == 0;
++        update_menu_colors_impl(true);
++    } catch (...) {
++        // A seed must remain loadable even if a cosmetic preference is malformed.
++    }
++}
++
++void randomize_menu_colors_for_load_screen() noexcept {
++    try {
++        if (!getSettings().cosmetics.randomizeAllColorsEveryLoad.getValue()) {
++            return;
++        }
++        static std::atomic<std::uint64_t> counter{0};
++        const auto ticks = static_cast<std::uint64_t>(
++            std::chrono::steady_clock::now().time_since_epoch().count());
++        const auto value = stable_hash(fmt::format("{}:{}", ticks,
++            counter.fetch_add(1, std::memory_order_relaxed)), "menu-load-v2");
++        auto& state = runtime_state();
++        state.loadActive = true;
++        state.loadRainbow = value % 9 == 0;
++        state.loadPalette = palette_at(static_cast<std::size_t>(value));
++        update_menu_colors_impl(true);
++    } catch (...) {
++        // Area loading must not fail because of cosmetics.
++    }
++}
++
++MenuColorsWindow::MenuColorsWindow() {
++    auto& settings = getSettings().cosmetics;
++
++    add_tab("Randomize Colors", [this, &settings](Rml::Element* content) {
++        auto& left = add_child<Pane>(content, Pane::Type::Controlled);
++        auto& right = add_child<Pane>(content, Pane::Type::Uncontrolled);
++
++        const auto addMode = [&left, &right](const char* label, ConfigVar<bool>& option,
++                                 const char* description,
++                                 std::function<void(bool)> setValue) {
++            auto& button = left.add_child<BoolButton>(BoolButton::Props{
++                .key = label,
++                .getValue = [&option] { return option.getValue(); },
++                .setValue = [setValue = std::move(setValue)](bool value) {
++                    setValue(value);
++                    config::save();
++                },
++            });
++            left.register_control(button, right, [description](Pane& pane) {
++                pane.clear();
++                pane.add_text(description);
++            });
++        };
++
++        addMode("Rainbow All Menu Colors", settings.rainbowAllColors,
++            "Continuously fades the accent, background, text, and border through "
++            "contrast-safe coordinated palettes.",
++            [&settings](bool enabled) {
++                if (enabled) {
++                    settings.randomizeAllColorsPerSeed.setValue(false);
++                    settings.randomizeAllColorsEveryLoad.setValue(false);
++                }
++                settings.rainbowAllColors.setValue(enabled);
++                refresh_menu_colors();
++            });
++        addMode("Randomize Menu Colors Per Seed", settings.randomizeAllColorsPerSeed,
++            "Chooses a deterministic, readable menu palette from the active Randomizer seed.",
++            [&settings](bool enabled) {
++                if (enabled) {
++                    settings.rainbowAllColors.setValue(false);
++                    settings.randomizeAllColorsEveryLoad.setValue(false);
++                }
++                settings.randomizeAllColorsPerSeed.setValue(enabled);
++                refresh_menu_colors();
++            });
++        addMode("Randomize Menu Colors Every Load", settings.randomizeAllColorsEveryLoad,
++            "Chooses a new readable menu palette after each completed area load.",
++            [&settings](bool enabled) {
++                if (enabled) {
++                    settings.rainbowAllColors.setValue(false);
++                    settings.randomizeAllColorsPerSeed.setValue(false);
++                }
++                settings.randomizeAllColorsEveryLoad.setValue(enabled);
++                if (enabled) {
++                    randomize_menu_colors_for_load_screen();
++                } else {
++                    refresh_menu_colors();
++                }
++            });
++
++        left.register_control(left.add_select_button({
++                                  .key = "Rainbow Rotation Speed",
++                                  .getValue = [&settings] {
++                                      switch (settings.rainbowCycleSpeed.getValueForSave()) {
++                                      case 0:
++                                          return Rml::String{"Slow"};
++                                      case 2:
++                                          return Rml::String{"Fast"};
++                                      default:
++                                          return Rml::String{"Normal"};
++                                      }
++                                  },
++                              }),
++            right, [&settings](Pane& pane) {
++                pane.clear();
++                pane.add_text("Controls how quickly Rainbow moves between coordinated palettes.");
++                const auto addSpeed = [&pane, &settings](const char* label, int value) {
++                    pane.add_button(ControlledButton::Props{
++                        .text = label,
++                        .isSelected = [&settings, value] {
++                            return settings.rainbowCycleSpeed.getValueForSave() == value;
++                        },
++                    }).on_pressed([&settings, value] {
++                        settings.rainbowCycleSpeed.setValue(value);
++                        save_and_refresh();
++                    });
++                };
++                addSpeed("Slow", 0);
++                addSpeed("Normal", 1);
++                addSpeed("Fast", 2);
++            });
++    });
++
++    add_tab("Menu Colors", [this, &settings](Rml::Element* content) {
++        auto& left = add_child<Pane>(content, Pane::Type::Controlled);
++        auto& right = add_child<Pane>(content, Pane::Type::Controlled);
++        const auto vars = color_vars();
++        for (std::size_t role = 0; role < vars.size(); ++role) {
++            auto* option = vars[role];
++            const std::string label{kRoleLabels[role]};
++            left.register_control(left.add_select_button({
++                                      .key = label,
++                                      .getValue = [option] { return color_label(*option); },
++                                  }),
++                right, [option, label](Pane& pane) {
++                    pane.clear();
++                    pane.add_text("Choose a color, Rainbow, Default, or opt this role into the "
++                                  "seed-bound palette.");
++                    pane.add_child<ColorInput>(ColorInput::Props{
++                        .key = label,
++                        .getValue = [option] {
++                            auto value = normalize_color(option->getValueForSave());
++                            return is_rainbow(value) ? Rml::String{"rainbow"} : value;
++                        },
++                        .setValue = [option](Rml::String value) {
++                            value = normalize_color(std::move(value));
++                            if (!value.empty() && !valid_color(value) && !is_rainbow(value)) {
++                                return;
++                            }
++                            option->setValue(is_rainbow(value) ? "rainbow" : value);
++                            set_per_seed_enabled(*option, false);
++                            save_and_refresh();
++                        },
++                        .isDisabled = [] {
++                            const auto& colors = getSettings().cosmetics;
++                            return colors.rainbowAllColors.getValue() ||
++                                   colors.randomizeAllColorsPerSeed.getValue() ||
++                                   colors.randomizeAllColorsEveryLoad.getValue();
++                        },
++                        .isModified = [option] { return !option->getValueForSave().empty(); },
++                        .presets = {"rainbow", "c2a42d", "4da3ff", "c084fc", "5fd38d",
++                            "ff7a72", "42d8cf", "f0a34b", "f07bb4", "e0dbc8", "151610"},
++                    });
++                    pane.add_child<BoolButton>(BoolButton::Props{
++                        .key = "Randomize This Color Per Seed",
++                        .getValue = [option] {
++                            return getSettings().cosmetics.randomizeAllColorsPerSeed.getValue() ||
++                                   per_seed_enabled(*option);
++                        },
++                        .setValue = [option](bool enabled) {
++                            if (getSettings().cosmetics.randomizeAllColorsPerSeed.getValue()) {
++                                return;
++                            }
++                            set_per_seed_enabled(*option, enabled);
++                            save_and_refresh();
++                        },
++                        .isDisabled = [] {
++                            const auto& colors = getSettings().cosmetics;
++                            return colors.rainbowAllColors.getValue() ||
++                                   colors.randomizeAllColorsPerSeed.getValue() ||
++                                   colors.randomizeAllColorsEveryLoad.getValue();
++                        },
++                    });
++                });
++        }
++    });
++}
++
++}  // namespace dusk::ui
+diff --git a/src/dusk/ui/menu_colors.hpp b/src/dusk/ui/menu_colors.hpp
+new file mode 100644
+index 0000000..68c5553
+--- /dev/null
++++ b/src/dusk/ui/menu_colors.hpp
+@@ -0,0 +1,18 @@
++#pragma once
++
++#include "window.hpp"
++
++#include <dusk/menu_colors.h>
++
++namespace dusk::ui {
++
++void initialize_menu_colors() noexcept;
++void update_menu_colors() noexcept;
++void refresh_menu_colors() noexcept;
++
++class MenuColorsWindow : public Window {
++public:
++    MenuColorsWindow();
++};
++
++}  // namespace dusk::ui
+diff --git a/src/dusk/ui/overlay.cpp b/src/dusk/ui/overlay.cpp
+index 7280ea6..834b9de 100644
+--- a/src/dusk/ui/overlay.cpp
++++ b/src/dusk/ui/overlay.cpp
+@@ -1,6 +1,7 @@
+ #include "overlay.hpp"
+ 
+ #include "controller_config.hpp"
++#include "input.hpp"
+ #include "popover.hpp"
+ #include "window.hpp"
+ 
+@@ -49,6 +50,8 @@ const Rml::String kDocumentSource = R"RML(
+         <speedrun-rta id="speedrun-rta" />
+         <speedrun-igt id="speedrun-igt" />
+     </speedrun-timer>
++    <controller-cursor id="controller-cursor" />
++    <cursor-mode-status id="cursor-mode-status" />
+ </body>
+ </rml>
+ )RML";
+@@ -235,6 +238,8 @@ Overlay::Overlay() : Document(kDocumentSource, true, DocumentScope::Overlay) {
+     mSpeedrunTimer = mDocument->GetElementById("speedrun-timer");
+     mSpeedrunRta = mDocument->GetElementById("speedrun-rta");
+     mSpeedrunIgt = mDocument->GetElementById("speedrun-igt");
++    mControllerCursor = mDocument->GetElementById("controller-cursor");
++    mControllerCursorStatus = mDocument->GetElementById("cursor-mode-status");
+ 
+     listen(mDocument, Rml::EventId::Focus, [](Rml::Event&) { Log.warn("Overlay received focus"); });
+     listen(mDocument, Rml::EventId::Transitionend, [this](Rml::Event& event) {
+@@ -269,6 +274,34 @@ void Overlay::update() {
+         return;
+     }
+ 
++    if (mControllerCursor != nullptr) {
++        if (input::controller_cursor_active()) {
++            mControllerCursor->SetAttribute("open", "");
++            if (input::controller_cursor_pressed()) {
++                mControllerCursor->SetAttribute("pressed", "");
++            } else {
++                mControllerCursor->RemoveAttribute("pressed");
++            }
++            mControllerCursor->SetProperty(Rml::PropertyId::Left,
++                Rml::Property(input::controller_cursor_x() - 12.0f, Rml::Unit::PX));
++            mControllerCursor->SetProperty(Rml::PropertyId::Top,
++                Rml::Property(input::controller_cursor_y() - 12.0f, Rml::Unit::PX));
++        } else {
++            mControllerCursor->RemoveAttribute("open");
++            mControllerCursor->RemoveAttribute("pressed");
++        }
++    }
++
++    if (mControllerCursorStatus != nullptr) {
++        if (input::controller_cursor_status_visible()) {
++            set_text_content(mControllerCursorStatus,
++                input::controller_cursor_active() ? "CURSOR MODE ON" : "CURSOR MODE OFF");
++            mControllerCursorStatus->SetAttribute("open", "");
++        } else {
++            mControllerCursorStatus->RemoveAttribute("open");
++        }
++    }
++
+     if (mFpsCounter != nullptr) {
+         if (getSettings().video.enableFpsOverlay.getValue()) {
+             const int idx = getSettings().video.fpsOverlayCorner.getValue();
+diff --git a/src/dusk/ui/overlay.hpp b/src/dusk/ui/overlay.hpp
+index 34af2b1..934ebe8 100644
+--- a/src/dusk/ui/overlay.hpp
++++ b/src/dusk/ui/overlay.hpp
+@@ -29,6 +29,8 @@ private:
+     Rml::Element* mSpeedrunTimer = nullptr;
+     Rml::Element* mSpeedrunRta = nullptr;
+     Rml::Element* mSpeedrunIgt = nullptr;
++    Rml::Element* mControllerCursor = nullptr;
++    Rml::Element* mControllerCursorStatus = nullptr;
+     clock::time_point mCurrentToastStartTime;
+     clock::time_point mMenuNotificationStartTime;
+     clock::time_point mPipelineProgressStartTime;
+diff --git a/src/dusk/ui/settings.cpp b/src/dusk/ui/settings.cpp
+index 0d31277..25b4c81 100644
+--- a/src/dusk/ui/settings.cpp
++++ b/src/dusk/ui/settings.cpp
+@@ -1072,6 +1072,20 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
+         config_percent_select(leftPane, rightPane, getSettings().game.mouseCameraSensitivity,
+             "Mouse Camera Sensitivity", "Controls mouse camera sensitivity.", 25, 400, 5,
+             [] { return !getSettings().game.enableMouseCamera; });
++#if defined(_UWP)
++        leftPane.add_section("Xbox Controller Cursor");
++        config_percent_select(leftPane, rightPane, getSettings().game.controllerCursorSpeed,
++            "Controller Cursor Speed",
++            "Controls right-stick pointer speed while controller cursor mode is active.", 25,
++            250, 5);
++        config_percent_select(leftPane, rightPane, getSettings().game.controllerCursorDeadzone,
++            "Controller Cursor Deadzone",
++            "Controls how far the right stick must move before the pointer responds.", 0, 50, 1);
++        addOption("Controller Cursor Acceleration",
++            getSettings().game.controllerCursorAcceleration,
++            "Uses a precision curve near stick center while preserving full-speed movement at "
++            "the edge.");
++#endif
+         addOption("Invert Mouse Y", getSettings().game.invertMouseY,
+             "Invert vertical mouse control for both aiming and camera.",
+             [] { return !getSettings().game.enableMouseAim || !getSettings().game.enableMouseCamera; });
+diff --git a/src/dusk/ui/ui.cpp b/src/dusk/ui/ui.cpp
+index 88f19a5..37f21ef 100644
+--- a/src/dusk/ui/ui.cpp
++++ b/src/dusk/ui/ui.cpp
+@@ -4,6 +4,7 @@
+ #include "drop_install_modal.hpp"
+ #include "icon_provider.hpp"
+ #include "input.hpp"
++#include "menu_colors.hpp"
+ #include "mod_texture_provider.hpp"
+ #include "prelaunch.hpp"
+ #include "remote_texture_provider.hpp"
+@@ -119,6 +120,7 @@ bool initialize() noexcept {
+         .AddParser("color");
+     Rml::StyleSheetSpecification::RegisterProperty("mod-icon-background", "transparent", false)
+         .AddParser("color");
++    initialize_menu_colors();
+     sInitialized = true;
+     return true;
+ }
+@@ -474,6 +476,7 @@ void update() noexcept {
+     }
+ 
+     update_remote_texture_provider();
++    update_menu_colors();
+     for (size_t index = 0; index < sPendingDrops.size();) {
+         auto& pending = sPendingDrops[index];
+         if (!pending.inspection.ready()) {

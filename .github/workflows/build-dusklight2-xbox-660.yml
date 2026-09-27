@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 678
+name: Build Dusklight 2.0.1 Xbox 679
 
 on:
   push:
@@ -123,7 +123,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 678 identity
+      - name: Apply reviewed source layers and advance 679 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -530,6 +530,46 @@ jobs:
             $randomizerNewSaveGatePatchText,
             [Text.UTF8Encoding]::new($false))
 
+          $featureRestorationPatchSource = "$env:TPR_CONTROL\patches\xbox-feature-restoration-679.patch"
+          $featureRestorationPatchText = [IO.File]::ReadAllText(
+            $featureRestorationPatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $featureRestorationPatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($featureRestorationPatchText))
+            $featureRestorationPatchHash = ([BitConverter]::ToString(
+              $featureRestorationPatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($featureRestorationPatchHash -ne 'ce7098bb08ecdc2c7c82d150f455bf4837141dca887dc4ffc6e0eeb4f3848ae0') {
+            throw "Xbox feature-restoration patch SHA-256 mismatch: $featureRestorationPatchHash"
+          }
+          $featureRestorationPatch = Join-Path $env:RUNNER_TEMP 'xbox-feature-restoration-679.patch'
+          [IO.File]::WriteAllText(
+            $featureRestorationPatch,
+            $featureRestorationPatchText,
+            [Text.UTF8Encoding]::new($false))
+
+          $randomizerSettingsPatchSource = "$env:TPR_CONTROL\patches\randomizer-settings-restoration-679.patch"
+          $randomizerSettingsPatchText = [IO.File]::ReadAllText(
+            $randomizerSettingsPatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $randomizerSettingsPatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($randomizerSettingsPatchText))
+            $randomizerSettingsPatchHash = ([BitConverter]::ToString(
+              $randomizerSettingsPatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($randomizerSettingsPatchHash -ne 'ca67713022b871bfeb9fe65acbb3870b0c631452273cd4f4350d31ddf4189f4e') {
+            throw "Randomizer settings-restoration patch SHA-256 mismatch: $randomizerSettingsPatchHash"
+          }
+          $randomizerSettingsPatch = Join-Path $env:RUNNER_TEMP 'randomizer-settings-restoration-679.patch'
+          [IO.File]::WriteAllText(
+            $randomizerSettingsPatch,
+            $randomizerSettingsPatchText,
+            [Text.UTF8Encoding]::new($false))
+
           $sdlMainHandledPatchSource = "$env:TPR_CONTROL\patches\uwp-sdl-main-handled-668.patch"
           $sdlMainHandledPatchText = [IO.File]::ReadAllText(
             $sdlMainHandledPatchSource).Replace("`r`n", "`n")
@@ -584,6 +624,8 @@ jobs:
           git -C "$env:TPR_SRC" apply $logoAudioSafePatch
           git -C "$env:TPR_SRC" apply --check $modFailureDetailPatch
           git -C "$env:TPR_SRC" apply $modFailureDetailPatch
+          git -C "$env:TPR_SRC" apply --check $featureRestorationPatch
+          git -C "$env:TPR_SRC" apply $featureRestorationPatch
           $uwpBootstrapSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\platforms\uwp\main.cpp")
           foreach ($entryPointMarker in @(
@@ -619,10 +661,9 @@ jobs:
           }
           $registrySource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\registry.cpp")
-          if (-not $registrySource.Contains('modules.lifecycle-quarantined') -or
-              -not $registrySource.Contains(
-                'mod asset lifecycle synchronization is quarantined for startup safety')) {
-            throw 'Xbox asset lifecycle quarantine is missing.'
+          if (-not $registrySource.Contains('module.lifecycle-skipped:audio-res') -or
+              $registrySource.Contains('modules.lifecycle-quarantined')) {
+            throw 'Xbox lifecycle allowlist did not restore overlay/texture while isolating audio.'
           }
           $overlaySource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp")
@@ -806,6 +847,8 @@ jobs:
           git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerPatch
           git -C "$env:TPR_SRC\mods\randomizer" apply --check $randomizerNewSaveGatePatch
           git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerNewSaveGatePatch
+          git -C "$env:TPR_SRC\mods\randomizer" apply --check $randomizerSettingsPatch
+          git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerSettingsPatch
           $randomizerHooksSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\mods\randomizer\src\hooks.cpp")
           $randomizerSessionSource = [IO.File]::ReadAllText(
@@ -816,6 +859,30 @@ jobs:
               -not $randomizerSessionSource.Contains(
                 'No Randomizer seed was selected before creating the save')) {
             throw 'Randomizer alternate new-save gate is missing.'
+          }
+          python "$env:TPR_CONTROL\scripts\verify_randomizer_settings.py" `
+            "$env:TPR_SRC\mods\randomizer\generator\data\settings_list.yaml" `
+            "$env:TPR_SRC\mods\randomizer\src\ui\rando_config.cpp"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Randomizer settings schema or UI visibility verification failed.'
+          }
+          $textureSource = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\src\dusk\texture_replacements.cpp")
+          $inputSource = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\ui\input.cpp")
+          $menuColorSource = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\src\dusk\ui\menu_colors.cpp")
+          foreach ($featureMarker in @(
+            'class TextureZipArchive final',
+            'load_zip_replacements(root)',
+            'kControllerCursorToggleHold',
+            'controller_cursor_active()',
+            'Randomize Menu Colors Per Seed',
+            'Randomize Menu Colors Every Load')) {
+            if (-not ($textureSource.Contains($featureMarker) -or
+                      $inputSource.Contains($featureMarker) -or
+                      $menuColorSource.Contains($featureMarker))) {
+              throw "Restored Xbox feature marker is missing: $featureMarker"
+            }
           }
           $modLoaderHeaderSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mod_loader.hpp")
@@ -833,7 +900,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.678"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.679"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -943,12 +1010,25 @@ jobs:
             -DBOREALIS_BUILD_TESTS=OFF `
             -DBOREALIS_ENABLE_DISCORD=OFF `
             -DBOREALIS_ENABLE_SENTRY=OFF `
-            -DBOREALIS_HTTP_BACKEND=none `
+            -DBOREALIS_HTTP_BACKEND=winhttp `
             -DAURORA_ENABLE_TESTS=OFF `
             -DAURORA_UWP_DEP_SOURCE_DIR="$env:TPR_UWP_DEP" `
             -DDUSK_UWP_STORE_LIB_DIR="$storeLib" `
             -DTRACY_ENABLE=OFF
           if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 UWP feed configuration failed.' }
+          $cmakeCache = Get-Content "$env:TPR_FEED\CMakeCache.txt" -Raw
+          if (-not $cmakeCache.Contains('BOREALIS_HTTP_BACKEND:STRING=winhttp')) {
+            throw 'The UWP feed was not configured with the WinHTTP backend.'
+          }
+          $ninjaText = Get-Content "$env:TPR_FEED\build.ninja" -Raw
+          foreach ($networkSource in @('src/http/winhttp.cpp', 'src/ws/winhttp.cpp')) {
+            if (-not $ninjaText.Contains($networkSource)) {
+              throw "The UWP feed is missing its network source: $networkSource"
+            }
+          }
+          if ($ninjaText.Contains('src/http/no_backend.cpp')) {
+            throw 'The UWP feed still includes the no-network HTTP backend.'
+          }
           $ninjaLines = @(Get-Content "$env:TPR_FEED\build.ninja")
           $randomizerDefinitions = @()
           for ($i = 0; $i -lt $ninjaLines.Count; $i++) {
@@ -1065,7 +1145,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 678 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 679 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -1092,17 +1172,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 678 package
+      - name: Verify and collect full 679 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-678"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-679"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.678_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.679_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -1114,7 +1194,8 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.678"',
+            'Version="1.4.1.679"',
+            'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
@@ -1141,7 +1222,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-678-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-679-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -1219,6 +1300,9 @@ jobs:
           if ($exeImports -match '(?i)LoadLibraryExW') {
             throw 'Packaged executable retains the writable-path native module loader.'
           }
+          if ($exeImports -notmatch '(?im)^\s*(?:DLL Name:\s*)?WINHTTP[.]dll\s*$') {
+            throw 'Packaged executable is missing the WinHTTP network backend import.'
+          }
           foreach ($forbiddenXboxImport in @(
             'GetCurrentProcessorNumberEx',
             'GetLogicalProcessorInformationEx',
@@ -1248,7 +1332,7 @@ jobs:
             'hook.prepare:',
             'hook.commit:',
             'mods.lifecycle-apply',
-            'modules.lifecycle-quarantined',
+            'module.lifecycle-skipped:audio-res',
             'main01.frame-ready',
             'main01.ui-update',
             'main01.frame-end',
@@ -1280,7 +1364,16 @@ jobs:
             'prelaunch.play-activation-ready',
             'prelaunch.play-ready',
             'No overlay files; skipping initial Xbox overlay registration.',
+            'Texture ZIP loading complete:',
+            'CURSOR MODE ON',
+            'Randomize Menu Colors Per Seed',
+            'Randomize Menu Colors Every Load',
+            'Enemy Randomization',
+            'Boss Souls',
             'Enemy Souls',
+            'Enemy First-Defeat Checks',
+            'Pots',
+            'Pumpkins',
             'Darknut Soul',
             'Torch Slug Soul',
             'src/f_op/f_op_actor.cpp#fopAc_Create',
@@ -1289,9 +1382,12 @@ jobs:
               throw "Packaged executable is missing built-in runtime marker: $startupMarker"
             }
           }
+          if ($exeText.Contains('modules.lifecycle-quarantined')) {
+            throw 'Packaged executable still contains the all-services lifecycle quarantine.'
+          }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-678-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-679-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -1311,8 +1407,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-678-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-678-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-679-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-679-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -1355,16 +1451,16 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-678.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-678.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-679.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-679.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.678'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.679'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
             borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
-            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration + 678 alternate new-save gate'
+            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration + 678 alternate new-save gate + 679 restored settings UI/schema checks'
             xboxLoaderHotfix = 'Randomizer linked into the signed executable; Funchook uses AppContainer JIT allocation/protection APIs and write-or-execute transitions'
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
             dawnCacheApiPatchSha256 = '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f'
@@ -1381,6 +1477,8 @@ jobs:
             logoAudioSafePatchSha256 = '9cf1bcf5181e25b8f03c6e32b675c85ff75a020772b0c57f3839faf3b6c4b846'
             modFailureDetailPatchSha256 = '41bf55ae8c87fcfe2ba8369273471b0932380f224dc5a1e0df56a2ebfc56a317'
             randomizerNewSaveGatePatchSha256 = '7302f817471ef915b29fc97cced7afc5ff1ba898cf5d893c2e02fefbc8fad863'
+            featureRestorationPatchSha256 = 'ce7098bb08ecdc2c7c82d150f455bf4837141dca887dc4ffc6e0eeb4f3848ae0'
+            randomizerSettingsPatchSha256 = 'ca67713022b871bfeb9fe65acbb3870b0c631452273cd4f4350d31ddf4189f4e'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Mode carousel is selection-only; Play activates hooks and exits before another launcher frame; UWP game audio and logo audio waits are bypassed; damaged/no-card name-entry routes are gated through Randomizer seed selection; runtime mod-failure toasts include the exact reason'
             nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
@@ -1388,19 +1486,24 @@ jobs:
             sdl3Sha256 = 'f288fd682ea19fa82bf9bbbfefab4132853555ad6dfe37cbe9f9c55acff4bf06'
             dawnSha256 = 'd1126d70c0eee87d69b802d10527d3dc301fce7514a206112ed4056cbf5b6910'
             singleNativeImage = $true
+            networkBackend = 'WinHTTP'
+            controllerCursor = $true
+            textureZipAutoload = $true
+            menuColorRandomization = $true
+            restoredRandomizerRows = 7
             enemySouls = $true
             generatorScenarios = 58
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-678.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-679.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.678-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.679-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -1409,7 +1512,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.678-Xbox
-          path: TPR-Xbox-Package-678/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.679-Xbox
+          path: TPR-Xbox-Package-679/*
           if-no-files-found: error
           retention-days: 30

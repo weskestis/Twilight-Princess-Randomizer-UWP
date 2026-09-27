@@ -1,0 +1,180 @@
+diff --git a/generator/data/settings_list.yaml b/generator/data/settings_list.yaml
+index 8c59f99..25b3a59 100644
+--- a/generator/data/settings_list.yaml
++++ b/generator/data/settings_list.yaml
+@@ -117,8 +117,6 @@
+   Tracker Important: True
+   Default Option: "Off"
+   Options:
+-    - "Off": "Shop items will not be randomized. You may still be expected to purchase shop items that are important."
+-    - "On": "Shop items will be randomized."
+     - "Off": "Shop item locations will contain the item they have in the base game."
+     - "On": "The seven established one-time shop item locations will be randomized."
+     - "All": "The established shop items and every safe, selectable shop shelf will be randomized once. Story-layer copies share one check."
+@@ -644,7 +642,6 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Link will start outside his house."
+-    - "On": "Link will start in a random area. Turning this on will force the Skip Prologue and Skip Midna's Desperate Hour settings to be turned on."
+     - "On": "Link will start in a random area. This forces Skip Prologue and Skip Midna's Desparate Hour on."
+ 
+ - Name: Randomize Dungeon Entrances
+@@ -652,8 +649,6 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Entering a dungeon will lead to the vanilla dungeon."
+-    - "On": "Entering a dungeon will lead to a random dungeon. Turning this on will force the Skip Prologue and Skip Midna's Desperate Hour settings to be turned on."
+-    - "On + Hyrule Castle": "Entering a dungeon will lead to a random dungeon. Hyrule Castle's entrance will be shuffled as well. Turning this on will force the Skip Prologue and Skip Midna's Desperate Hour settings to be turned on."
+     - "On": "All eight main dungeon entrances, including City in the Sky, are shuffled. This forces Skip Prologue and Skip Midna's Desparate Hour on."
+     - "On + Hyrule Castle": "All eight main dungeon entrances, including City in the Sky, plus Hyrule Castle are shuffled. This forces Skip Prologue and Skip Midna's Desparate Hour on."
+ 
+@@ -662,15 +657,12 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Entering a boss door will lead to the intended boss."
+-    - "On": "Entering a boss door will lead to a random boss. Turning this on will force the Skip Prologue and Skip Midna's Desperate Hour settings to be turned on."
+     - "On": "Entering a boss door will lead to a random boss. This forces Skip Prologue and Skip Midna's Desparate Hour on."
+ 
+ - Name: Randomize Grotto Entrances
+   Tracker Important: True
+   Default Option: "Off"
+   Options:
+-    - "Off": "Entering a grotto will lead to the intended grotto."
+-    - "On": "Entering a grotto will lead to a random grotto. Turning this on will force the Skip Prologue and Skip Midna's Desperate Hour settings to be turned on."
+     - "Off": "Entering a grotto will lead to its vanilla grotto."
+     - "On": "All 21 grotto entrances are shuffled in their own pool. This forces Skip Prologue and Skip Midna's Desparate Hour on."
+ 
+@@ -678,8 +670,6 @@
+   Tracker Important: True
+   Default Option: "Off"
+   Options:
+-    - "Off": "Entering a door or loadzone that leads to a cave area will lead to the intended cave."
+-    - "On": "Entering a door or loadzone that leads to a cave area will lead to a random cave. Turning this on will force the Skip Prologue, Faron Twilight Cleared, and Skip Midna's Desperate Hour settings to be turned on."
+     - "Off": "Entering a cave will lead to its vanilla cave."
+     - "On": "All 10 cave entrances are shuffled in their own pool. This forces Skip Prologue, Faron Twilight Cleared, and Skip Midna's Desparate Hour on."
+ 
+@@ -688,7 +678,6 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Entering a door or loadzone that leads to an interior area will lead to the intended area."
+-    - "On": "Entering a door or loadzone that leads to an interior area will lead to a random intended area. Turning this on will force the Skip Prologue and Skip Midna's Desperate Hour settings to be turned on."
+     - "On": "All supported interior doors and loadzones are shuffled. This forces Skip Prologue and Skip Midna's Desparate Hour on."
+ 
+ - Name: Randomize Overworld Entrances
+@@ -696,7 +685,6 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Entering a loadzone that leads to an overworld area will lead to the intended area."
+-    - "On": "Entering a loadzone that leads to an overworld area will lead to a random area. Turning this on will force the Skip Prologue, Skip Midna's Desperate Hour, and all Twilight Cleared settings to be turned on."
+     - "On": "All supported overworld loadzones are shuffled. This forces Skip Prologue, Skip Midna's Desparate Hour, and all Twilight Cleared settings on."
+ 
+ - Name: Decouple Double Door Entrances
+diff --git a/generator/seedgen/settings.cpp b/generator/seedgen/settings.cpp
+index 49a0f18..f16dfa1 100644
+--- a/generator/seedgen/settings.cpp
++++ b/generator/seedgen/settings.cpp
+@@ -12,6 +12,7 @@
+ #include "../logic/entrance_shuffle.hpp"
+ 
+ #include <unordered_map>
++#include <unordered_set>
+ #include <algorithm>
+ #include <memory>
+ 
+@@ -278,6 +279,7 @@ namespace randomizer::seedgen::settings
+             const auto& defaultOption = settingNode["Default Option"].as<std::string>();
+             std::vector<std::string> options = {};
+             std::vector<std::string> descriptions = {};
++            std::unordered_set<std::string> optionNames;
+             for (const auto& optionNodes : settingNode["Options"])
+             {
+                 for (const auto& optionNode : optionNodes)
+@@ -294,12 +296,23 @@ namespace randomizer::seedgen::settings
+                         int upperBound = std::stoi(ops[1]);
+                         for (auto i = lowerBound; i <= upperBound; i++)
+                         {
+-                            options.push_back(std::to_string(i));
++                            const auto expandedOption = std::to_string(i);
++                            if (!optionNames.insert(expandedOption).second)
++                            {
++                                throw std::runtime_error(std::string("Duplicate option \"") +
++                                    expandedOption + "\" for setting \"" + name + "\"");
++                            }
++                            options.push_back(expandedOption);
+                             descriptions.push_back(description);
+                         }
+                     }
+                     else
+                     {
++                        if (!optionNames.insert(option).second)
++                        {
++                            throw std::runtime_error(std::string("Duplicate option \"") + option +
++                                                     "\" for setting \"" + name + "\"");
++                        }
+                         options.push_back(option);
+                         descriptions.push_back(description);
+                     }
+@@ -375,7 +388,10 @@ namespace randomizer::seedgen::settings
+                                                       randomHigh,
+                                                       trackerImportant,
+                                                       needInGame);
+-            settingInfoMap->emplace(name, std::move(info));
++            if (!settingInfoMap->emplace(name, std::move(info)).second)
++            {
++                throw std::runtime_error(std::string("Duplicate setting name \"") + name + "\"");
++            }
+         }
+ 
+         return std::move(settingInfoMap);
+diff --git a/src/session.cpp b/src/session.cpp
+index 86dcc84..ca039a9 100644
+--- a/src/session.cpp
++++ b/src/session.cpp
+@@ -24,6 +24,10 @@
+ 
+ #include <mods/items.h>
+ 
++#if defined(DUSK_STATIC_BUILTIN_MOD)
++#include <dusk/menu_colors.h>
++#endif
++
+ #include <cstdlib>
+ #include <cstring>
+ #include <mutex>
+@@ -291,6 +295,11 @@ bool activateSeed(const char* hash) {
+     svc_mng.item->observe_gives(mod_ctx, observe_give, nullptr, &s_check_observer);
+ 
+     registerStageEdits();
++#if defined(DUSK_STATIC_BUILTIN_MOD)
++    // The Xbox build links Randomizer into Dusklight, so seed-bound menu
++    // colors can be applied without adding a cross-DLL ABI surface.
++    dusk::ui::apply_per_seed_menu_colors(ctx.mHash);
++#endif
+     mods::log::info("activated seed {}", ctx.mHash);
+     g_seedActivated = true;
+     return true;
+diff --git a/src/ui/rando_config.cpp b/src/ui/rando_config.cpp
+index b99014a..1a23269 100644
+--- a/src/ui/rando_config.cpp
++++ b/src/ui/rando_config.cpp
+@@ -1040,13 +1040,20 @@ ModResult buildSeedOptionsTab(ModContext* ctx, UiWindowHandle, UiElementHandle l
+     add_select_setting(leftPane, "Sky Characters");
+     add_select_setting(leftPane, "Gifts From NPCs");
+     add_select_setting(leftPane, "Shop Items");
++    add_select_setting(leftPane, "Enemy Randomization");
++    add_select_setting(leftPane, "Boss Souls");
++    add_select_setting(leftPane, "Enemy Souls");
++    add_select_setting(leftPane, "Enemy First-Defeat Checks");
+     add_select_setting(leftPane, "Hidden Skills");
+     add_select_setting(leftPane, "Hidden Rupees");
+     add_select_setting(leftPane, "Freestanding Rupees");
++    add_select_setting(leftPane, "Pots");
++    add_select_setting(leftPane, "Pumpkins");
+     add_select_setting(leftPane, "Poe Souls");
+     add_select_setting(leftPane, "Ilia Memory Quest");
+     add_select_setting(leftPane, "Item Scarcity");
+     add_select_setting(leftPane, "Trap Item Frequency");
++    add_select_setting(leftPane, "Seed-Aware Junk");
+ 
+     add_section(leftPane, "Dungeon Items");
+     add_select_setting(leftPane, "Small Keys");
