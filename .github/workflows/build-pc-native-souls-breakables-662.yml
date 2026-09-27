@@ -302,6 +302,34 @@ jobs:
           $imports | Set-Content (Join-Path $env:RUNNER_TEMP 'mod-dumpbin-imports.txt') -Encoding UTF8
           "TPR_MODULE=$($module.FullName)" >> $env:GITHUB_ENV
 
+      - name: Preserve verified PC build checkpoint
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $checkpoint = "$env:GITHUB_WORKSPACE\verified-pc-checkpoint-662"
+          $checkpointDirs = @(
+            "$checkpoint\build\windows-x64",
+            "$checkpoint\source\dusklight-randomizer",
+            "$checkpoint\patches",
+            "$checkpoint\metadata")
+          New-Item -ItemType Directory -Force -Path $checkpointDirs | Out-Null
+          Copy-Item "$env:TPR_BUNDLE" "$checkpoint\build\windows-x64\randomizer.dusk" -Force
+          Copy-Item "$env:TPR_PATCH" "$checkpoint\patches\randomizer-662-checkpoint.patch" -Force
+          Copy-Item "$env:TPR_TEST_LOG" "$checkpoint\metadata\generator-tests-58.txt" -Force
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'mod-dumpbin-headers.txt') "$checkpoint\metadata\mod-dumpbin-headers.txt" -Force
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'mod-dumpbin-imports.txt') "$checkpoint\metadata\mod-dumpbin-imports.txt" -Force
+          robocopy "$env:TPR_SRC\mods\randomizer" "$checkpoint\source\dusklight-randomizer" /E /XD .git /XF .git /NFL /NDL /NJH /NJS /NP
+          if ($LASTEXITCODE -ge 8) { throw "Checkpoint source copy failed with robocopy code $LASTEXITCODE." }
+          $global:LASTEXITCODE = 0
+
+      - name: Upload verified PC build checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: TPR-PC-Verified-Checkpoint-662
+          path: verified-pc-checkpoint-662/*
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Assemble official-team PC handoff
         shell: powershell
         run: |
@@ -391,7 +419,7 @@ jobs:
             $featureLines += ''
             foreach ($anchor in $feature.Value) {
               $matches = @($sourceFiles | Select-String -SimpleMatch $anchor -List |
-                ForEach-Object { [IO.Path]::GetRelativePath($randomizer, $_.Path).Replace('\','/') } |
+                ForEach-Object { $_.Path.Substring($randomizer.Length).TrimStart([char]'\').Replace('\','/') } |
                 Sort-Object -Unique)
               $featureLines += "- ``$anchor``: $($matches -join ', ')"
             }
@@ -494,7 +522,7 @@ jobs:
           $hashLines = Get-ChildItem $stage -Recurse -File |
             Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
             ForEach-Object {
-              $relative = [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\','/')
+              $relative = $_.FullName.Substring($stage.Length).TrimStart([char]'\').Replace('\','/')
               $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
               "$hash  $relative"
             } | Sort-Object
