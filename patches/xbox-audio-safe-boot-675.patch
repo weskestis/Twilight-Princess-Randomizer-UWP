@@ -1,0 +1,64 @@
+diff --git a/src/dusk/audio.h b/src/dusk/audio.h
+index 0f247689f..4e0f0ed84 100644
+--- a/src/dusk/audio.h
++++ b/src/dusk/audio.h
+@@ -1,13 +1,12 @@
+ #pragma once
+ 
+-#if TARGET_PC
+-#define DUSK_AUDIO_DISABLED 0
++#if defined(_UWP)
++// SDL's Xbox/UWP audio callback can deadlock the first game tick inside
++// mDoAud_Execute(). Keep the launcher and game running without audio until the
++// platform backend can be made safe.
++#define DUSK_AUDIO_DISABLED 1
++#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;
+ #else
+ #define DUSK_AUDIO_DISABLED 0
+-#endif
+-
+-#if TARGET_PC
+-#define DUSK_AUDIO_SKIP(...)
+-#else
+ #define DUSK_AUDIO_SKIP(...)
+ #endif
+diff --git a/src/dusk/audio/DuskAudioSystem.cpp b/src/dusk/audio/DuskAudioSystem.cpp
+index bdb2acaf6..58477c50a 100644
+--- a/src/dusk/audio/DuskAudioSystem.cpp
++++ b/src/dusk/audio/DuskAudioSystem.cpp
+@@ -133,6 +133,10 @@ void dusk::audio::SetMasterVolume(const f32 value) {
+ }
+ 
+ void dusk::audio::SetPaused(const bool paused) {
++    if (!PlaybackStream) {
++        return;
++    }
++
+     if (paused) {
+         SDL_PauseAudioStreamDevice(PlaybackStream);
+     } else {
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+index b04bb76a3..9a050aee6 100644
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -92,7 +92,7 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+     }
+     detail::initialized = true;
+     // Use a build-specific journal so a marker from an older build never changes this launch.
+-    detail::markerPath = userPath / "xbox-startup-stage-674.txt";
++    detail::markerPath = userPath / "xbox-startup-stage-675.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
+diff --git a/src/m_Do/m_Do_main.cpp b/src/m_Do/m_Do_main.cpp
+index b27987251..64c9b1935 100644
+--- a/src/m_Do/m_Do_main.cpp
++++ b/src/m_Do/m_Do_main.cpp
+@@ -250,6 +250,7 @@ void main01(void) {
+     if (DUSK_AUDIO_DISABLED) {
+         // Pretend the audio engine initialized already. This is a lie, but needed to boot.
+         mDoAud_zelAudio_c::onInitFlag();
++        dusk::startup_guard::stage("main01.audio-disabled");
+     }
+ 
+     OSReport("Entering Main Loop (main01)...\n");
