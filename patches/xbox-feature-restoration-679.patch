@@ -251,13 +251,14 @@ index 651a4cd..fe17298 100644
      struct {
          std::array<ActionBindConfigVar, 4> firstPersonCamera;
 diff --git a/src/dusk/texture_replacements.cpp b/src/dusk/texture_replacements.cpp
-index 118989c..db65960 100644
+index 118989c..3ce1a6b 100644
 --- a/src/dusk/texture_replacements.cpp
 +++ b/src/dusk/texture_replacements.cpp
-@@ -1,17 +1,383 @@
+@@ -1,17 +1,384 @@
  #include "dusk/texture_replacements.hpp"
  
  #include <aurora/texture.hpp>
++#include <borealis/io.hpp>
 +#include <fmt/format.h>
  
 +#include "dusk/io.hpp"
@@ -386,7 +387,7 @@ index 118989c..db65960 100644
 +class TextureZipArchive final {
 +public:
 +    explicit TextureZipArchive(const std::filesystem::path& path) : m_path(path) {
-+        const auto pathString = io::fs_path_to_string(path);
++        const auto pathString = borealis::io::fs_path_to_string(path);
 +#if defined(_UWP)
 +        m_stream = SDL_IOFromFile(pathString.c_str(), "rb");
 +        if (m_stream == nullptr) {
@@ -548,8 +549,8 @@ index 118989c..db65960 100644
 +    if (lhs.components.size() != rhs.components.size()) {
 +        return lhs.components.size() < rhs.components.size();
 +    }
-+    return io::fs_path_to_string(lhs.archive->path()) <
-+           io::fs_path_to_string(rhs.archive->path());
++    return borealis::io::fs_path_to_string(lhs.archive->path()) <
++           borealis::io::fs_path_to_string(rhs.archive->path());
 +}
 +
 +void unload_zip_replacements() {
@@ -569,13 +570,13 @@ index 118989c..db65960 100644
 +            ec.clear();
 +            continue;
 +        }
-+        if (iequals_ascii(io::fs_path_to_string(it->path().extension()), ".zip")) {
++        if (iequals_ascii(borealis::io::fs_path_to_string(it->path().extension()), ".zip")) {
 +            zipPaths.push_back(it->path());
 +        }
 +    }
 +    std::sort(zipPaths.begin(), zipPaths.end(), [](const auto& lhs, const auto& rhs) {
-+        const auto lhsText = io::fs_path_to_string(lhs.filename());
-+        const auto rhsText = io::fs_path_to_string(rhs.filename());
++        const auto lhsText = borealis::io::fs_path_to_string(lhs.filename());
++        const auto rhsText = borealis::io::fs_path_to_string(rhs.filename());
 +        const auto cmp = compare_ascii_ci(lhsText, rhsText);
 +        return cmp != 0 ? cmp < 0 : lhsText < rhsText;
 +    });
@@ -598,7 +599,7 @@ index 118989c..db65960 100644
 +            s_zipArchives.push_back(std::move(archive));
 +        } catch (const std::exception& error) {
 +            DuskLog.warn("Texture ZIP '{}' was skipped: {}",
-+                io::fs_path_to_string(zipPath), error.what());
++                borealis::io::fs_path_to_string(zipPath), error.what());
 +        }
 +    }
 +
@@ -638,7 +639,7 @@ index 118989c..db65960 100644
      aurora::texture::unregister_replacements(s_directoryGroup);
      s_directoryGroup.registrations.clear();
  
-@@ -24,9 +390,14 @@ void reload() {
+@@ -24,9 +391,14 @@ void reload() {
          root, {.priority = kUserTextureReplacementPriority});
      DuskLog.info("Texture replacement directory loaded: {} registration(s)",
                   s_directoryGroup.registrations.size());
