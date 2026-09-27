@@ -1,0 +1,200 @@
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+index 187525ba3..02dbcf9e6 100644
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -1247,14 +1247,18 @@ void ModLoader::apply_pending_requests() {
+ }
+ 
+ void ModLoader::tick() {
++    startup_guard::stage("mods.frame-begin");
+     svc::modules_frame_begin();
++    startup_guard::stage("mods.frame-services-ready");
+     apply_pending_requests();
++    startup_guard::stage("mods.pending-ready");
+ 
+     for (auto& mod : mods()) {
+         if (!mod.active || (!mod.native && !mod.runtime.has_value())) {
+             continue;
+         }
+         try {
++            startup_guard::stage("mods.update");
+             ModError error = MOD_ERROR_INIT;
+             const bool delegated = !mod.native;
+             const auto result = delegated ?
+@@ -1266,6 +1270,7 @@ void ModLoader::tick() {
+                     lifecycle_error_message(
+                         delegated ? "runtime update" : "mod_update", result, error));
+             }
++            startup_guard::stage("mods.update-ready");
+         } catch (const std::exception& e) {
+             fail_mod(mod, MOD_ERROR, fmt::format("Exception in mod update: {}", e.what()));
+         } catch (...) {
+@@ -1273,8 +1278,11 @@ void ModLoader::tick() {
+         }
+     }
+ 
++    startup_guard::stage("mods.frame-end");
+     svc::modules_frame_end();
++    startup_guard::stage("mods.frame-end-ready");
+     flush_toasts();
++    startup_guard::stage("mods.toasts-ready");
+ }
+ 
+ void ModLoader::shutdown() {
+diff --git a/src/dusk/startup_guard.hpp b/src/dusk/startup_guard.hpp
+index ed0b867e9..b04bb76a3 100644
+--- a/src/dusk/startup_guard.hpp
++++ b/src/dusk/startup_guard.hpp
+@@ -1,5 +1,6 @@
+ #pragma once
+ 
++#include <atomic>
+ #include <cstddef>
+ #include <filesystem>
+ #include <fstream>
+@@ -20,9 +21,17 @@ inline bool initialized = false;
+ inline bool startupActive = false;
+ inline bool activityActive = false;
+ inline bool activityAwaitingFrame = false;
++inline unsigned int activityFramesRemaining = 0;
+ inline bool recoveryMode = false;
++inline std::atomic_bool traceEnabled{false};
+ inline std::mutex mutex;
+ 
++// Randomizer activation can complete and present one game frame before an Xbox-only hook is first
++// exercised. Keep the journal alive across a small, bounded set of subsequent frames so a freeze
++// in early game execution is not mistaken for a successful handoff. The fixed stream keeps this
++// bounded trace cheap compared with reopening the LocalState file for every checkpoint.
++inline constexpr unsigned int kActivityTraceFrames = 12;
++
+ inline std::string clean_stage(std::string_view stage) {
+     std::string value{stage.substr(0, 768)};
+     for (char& ch : value) {
+@@ -83,7 +92,7 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+     }
+     detail::initialized = true;
+     // Use a build-specific journal so a marker from an older build never changes this launch.
+-    detail::markerPath = userPath / "xbox-startup-stage-673.txt";
++    detail::markerPath = userPath / "xbox-startup-stage-674.txt";
+     try {
+         std::ifstream input(detail::markerPath, std::ios::binary);
+         if (input) {
+@@ -97,6 +106,7 @@ inline void begin_startup(const std::filesystem::path& userPath) noexcept {
+     // instrumented startup path so the next marker identifies the real failing boundary.
+     detail::recoveryMode = false;
+     detail::startupActive = true;
++    detail::traceEnabled.store(true, std::memory_order_relaxed);
+     detail::write_locked("startup.data-ready");
+ }
+ 
+@@ -116,6 +126,9 @@ inline std::string previous_stage() noexcept {
+ }
+ 
+ inline void stage(std::string_view value) noexcept {
++    if (!detail::traceEnabled.load(std::memory_order_relaxed)) {
++        return;
++    }
+     std::scoped_lock lock(detail::mutex);
+     if ((detail::startupActive || detail::activityActive || detail::activityAwaitingFrame) &&
+         !detail::recoveryMode)
+@@ -126,8 +139,10 @@ inline void stage(std::string_view value) noexcept {
+ 
+ inline void begin_activity(std::string_view value) noexcept {
+     std::scoped_lock lock(detail::mutex);
++    detail::traceEnabled.store(true, std::memory_order_relaxed);
+     detail::activityActive = true;
+     detail::activityAwaitingFrame = false;
++    detail::activityFramesRemaining = 0;
+     if (!detail::recoveryMode) {
+         detail::write_locked(value);
+     }
+@@ -137,6 +152,7 @@ inline void end_activity(std::string_view resumeStage = "activity.complete") noe
+     std::scoped_lock lock(detail::mutex);
+     detail::activityActive = false;
+     detail::activityAwaitingFrame = true;
++    detail::activityFramesRemaining = detail::kActivityTraceFrames;
+     if (!detail::recoveryMode) {
+         detail::write_locked(resumeStage);
+     }
+@@ -150,8 +166,14 @@ inline void complete_startup() noexcept {
+     detail::startupActive = false;
+     detail::recoveryMode = false;
+     if (!detail::activityActive) {
++        if (detail::activityAwaitingFrame && detail::activityFramesRemaining > 1) {
++            --detail::activityFramesRemaining;
++            return;
++        }
+         detail::activityAwaitingFrame = false;
++        detail::activityFramesRemaining = 0;
+         detail::clear_locked();
++        detail::traceEnabled.store(false, std::memory_order_relaxed);
+     }
+ }
+ 
+diff --git a/src/f_ap/f_ap_game.cpp b/src/f_ap/f_ap_game.cpp
+index 6d8c621e5..74fbd96c5 100644
+--- a/src/f_ap/f_ap_game.cpp
++++ b/src/f_ap/f_ap_game.cpp
+@@ -30,6 +30,7 @@
+ #include "dusk/logging.h"
+ #include "dusk/menu_pointer.h"
+ #include "dusk/mod_loader.hpp"
++#include "dusk/startup_guard.hpp"
+ 
+ #include <tracy/Tracy.hpp>
+ #endif
+@@ -804,12 +805,17 @@ static void duskExecute() {
+         dComIfGp_setOxygen(dComIfGp_getMaxOxygen());
+     }
+ 
++    dusk::startup_guard::stage("fap.mod-loader");
+     dusk::mods::ModLoader::instance().tick();
++    dusk::startup_guard::stage("fap.mod-loader-ready");
+ }
+ #endif
+ 
+ void fapGm_Execute() {
+     ZoneScoped;
++#if TARGET_PC
++    dusk::startup_guard::stage("fap.frame-begin");
++#endif
+     static u32 sExecCount = 0;
+     if (sExecCount < 10 || (sExecCount % 300 == 0)) {
+         DuskLog.debug("fapGm_Execute frame={}", sExecCount);
+@@ -821,25 +827,36 @@ void fapGm_Execute() {
+     #endif
+ 
+ #if TARGET_PC
++    dusk::startup_guard::stage("fap.dusk-execute");
+     duskExecute();
++    dusk::startup_guard::stage("fap.dusk-ready");
+ #endif
+ 
+ #ifdef TARGET_PC
++    dusk::startup_guard::stage("fap.management");
+     fpcM_Management(fapGm_Before, fapGm_AfterRecord);
++    dusk::startup_guard::stage("fap.management-ready");
+ #else
+     fpcM_ManagementFunc(NULL, fapGm_After);
+ #endif
+ 
+     cCt_Counter(0);
+ #if TARGET_PC
++    dusk::startup_guard::stage("fap.particles");
+     dComIfGp_particle_calcMenu();
++    dusk::startup_guard::stage("fap.particles-ready");
+     const dusk::gamemode::GameMode* gameMode =
+         dusk::gamemode::getGameModeManager().getCurrentGameMode();
+     if (gameMode) {
++        dusk::startup_guard::stage("fap.game-mode-tick");
+         gameMode->invokeOnTickFunction();
++        dusk::startup_guard::stage("fap.game-mode-ready");
+     }
++    dusk::startup_guard::stage("fap.achievements");
+     dusk::AchievementSystem::get().tick();
++    dusk::startup_guard::stage("fap.pointer-end");
+     dusk::menu_pointer::end_game_frame();
++    dusk::startup_guard::stage("fap.frame-ready");
+ #endif
+ }
+ 
