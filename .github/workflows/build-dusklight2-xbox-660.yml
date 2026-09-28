@@ -321,7 +321,7 @@ jobs:
               $singleImageLoaderPatchDigest) -replace '-', '').ToLowerInvariant()
           }
           finally { $hasher.Dispose() }
-          if ($singleImageLoaderPatchHash -ne '6dc786ca79614b3ce7b86267281dd3e5e0571382bc1d7b22faf26fc6bef414c7') {
+          if ($singleImageLoaderPatchHash -ne 'f3299e4a1478d0ce01c9d27bafb6f22425b26fdd751a9139956c4d6cf2dcd764') {
             throw "Xbox single-image native-loader patch SHA-256 mismatch: $singleImageLoaderPatchHash"
           }
           $singleImageLoaderPatch = Join-Path $env:RUNNER_TEMP 'xbox-single-image-native-loader-680.patch'
@@ -658,7 +658,7 @@ jobs:
           if (-not $nativeModuleSource.Contains(
                 'Native runtime modules are unavailable in Xbox single-image builds.') -or
               -not $nativeModuleSource.Contains(
-                '#if defined(_WIN32) && !defined(_UWP)') -or
+                '#if defined(_WIN32) && !defined(DUSK_XBOX_SINGLE_IMAGE)') -or
               $nativeModuleSource.Contains('LoadPackagedLibrary')) {
             throw 'Xbox single-image native-module loader quarantine is missing.'
           }
@@ -1035,6 +1035,7 @@ jobs:
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
             -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON `
             -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DCMAKE_CXX_FLAGS=/DDUSK_XBOX_SINGLE_IMAGE=1 `
             -DDUSK_UWP=ON `
             -DDUSK_ENABLE_CODE_MODS=ON `
             -DDUSK_ENABLE_OPUS=OFF `
@@ -1049,6 +1050,9 @@ jobs:
             -DTRACY_ENABLE=OFF
           if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 UWP feed configuration failed.' }
           $cmakeCache = Get-Content "$env:TPR_FEED\CMakeCache.txt" -Raw
+          if (-not $cmakeCache.Contains('CMAKE_CXX_FLAGS:STRING=/DDUSK_XBOX_SINGLE_IMAGE=1')) {
+            throw 'Xbox single-image compile define is missing from the UWP feed.'
+          }
           if (-not $cmakeCache.Contains('BOREALIS_HTTP_BACKEND:STRING=uwp')) {
             throw 'The UWP feed was not configured with the Windows Runtime HTTP backend.'
           }
@@ -1152,6 +1156,7 @@ jobs:
             -DCMAKE_SYSTEM_NAME=WindowsStore `
             -DCMAKE_SYSTEM_VERSION=10.0 `
             -DCMAKE_OBJECT_PATH_MAX=180 `
+            -DCMAKE_CXX_FLAGS=/DDUSK_XBOX_SINGLE_IMAGE=1 `
             -DDUSK_DIR="$env:TPR_FEED" `
             -DDUSK_SOURCE_DIR="$env:TPR_SRC" `
             -DUWP_DEP_SOURCE_DIR="$env:TPR_UWP_DEP"
