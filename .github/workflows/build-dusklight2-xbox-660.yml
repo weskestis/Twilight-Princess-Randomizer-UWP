@@ -587,7 +587,7 @@ jobs:
               $overlayRuntimePatchDigest) -replace '-', '').ToLowerInvariant()
           }
           finally { $hasher.Dispose() }
-          if ($overlayRuntimePatchHash -ne 'f8309413d709f0a682434edbdf744134dca1543f36e642b6dde4c94b12737ac0') {
+          if ($overlayRuntimePatchHash -ne '14ce6714583a84f4258dacd4b00f1a6897bff4b867b19c4d5aeacb99aa2b0b8f') {
             throw "Xbox overlay-runtime patch SHA-256 mismatch: $overlayRuntimePatchHash"
           }
           $overlayRuntimePatch = Join-Path $env:RUNNER_TEMP 'xbox-overlay-runtime-defer-680.patch'
@@ -1541,7 +1541,7 @@ jobs:
             randomizerNewSaveGatePatchSha256 = '7302f817471ef915b29fc97cced7afc5ff1ba898cf5d893c2e02fefbc8fad863'
             featureRestorationPatchSha256 = '10c97326e865b94faa993da78524951da61e5bc917c86d996f07ecb1a67bacdb'
             randomizerSettingsPatchSha256 = 'ca67713022b871bfeb9fe65acbb3870b0c631452273cd4f4350d31ddf4189f4e'
-            overlayRuntimePatchSha256 = 'f8309413d709f0a682434edbdf744134dca1543f36e642b6dde4c94b12737ac0'
+            overlayRuntimePatchSha256 = '14ce6714583a84f4258dacd4b00f1a6897bff4b867b19c4d5aeacb99aa2b0b8f'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Mode carousel is selection-only; Play activates hooks and exits before another launcher frame; UWP game audio and logo audio waits are bypassed; damaged/no-card name-entry routes are gated through Randomizer seed selection; runtime mod-failure toasts include the exact reason'
             nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
