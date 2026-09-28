@@ -532,9 +532,9 @@ jobs:
 
           $completeRestorationPatch = Expand-ControlPatch `
             'xbox-complete-restoration-680' `
-            'd5b60175007312b22404d13a8fc818bb73b7d6a5593c8bfa7c91ccd23be5cac2' `
-            '5bdbf1eea8d5135e6031714977de3bc257766627fdf77b800b0e03e847794241' `
-            'da6eb7ee9cc5379d3138187ca524facadfe3409c71173a37cda6cf92e8eaaa79'
+            '2adcda484eb4ab3cf1042a2d7be144602b9176429a58b888460a3fbdb94043d4' `
+            '4736b6ef4078d16e19be254d3a78e9142dbaf6633d415d575659c787981a7d86' `
+            '1c79fa6d45bf3321881a5498fe96a8c77475d86fb9e5d1356359a6515bad2e10'
           $randomizerRestorationPatch = Expand-ControlPatch `
             'randomizer-complete-restoration-680' `
             '160a547daaa718a4db837eb10f051cd233de88a44ca9eb9a91bd4f5e2bb810cc' `
@@ -1481,7 +1481,7 @@ jobs:
             logoAudioSafePatchSha256 = '9cf1bcf5181e25b8f03c6e32b675c85ff75a020772b0c57f3839faf3b6c4b846'
             modFailureDetailPatchSha256 = '41bf55ae8c87fcfe2ba8369273471b0932380f224dc5a1e0df56a2ebfc56a317'
             randomizerNewSaveGatePatchSha256 = '7302f817471ef915b29fc97cced7afc5ff1ba898cf5d893c2e02fefbc8fad863'
-            completeRestorationPatchSha256 = 'da6eb7ee9cc5379d3138187ca524facadfe3409c71173a37cda6cf92e8eaaa79'
+            completeRestorationPatchSha256 = '1c79fa6d45bf3321881a5498fe96a8c77475d86fb9e5d1356359a6515bad2e10'
             randomizerRestorationPatchSha256 = '96632c3897ebe964f95461e53d0e86b96f136d9cf809d7433021ca4741069a5e'
             borealisOnlinePatchSha256 = '31a0f6740fb44354ae8c329872f4d8bfc7863387c81877851e52d70d3aa7a132'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
