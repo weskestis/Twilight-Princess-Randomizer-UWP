@@ -310,6 +310,26 @@ jobs:
             $staticRandomizerPatchText,
             [Text.UTF8Encoding]::new($false))
 
+          $singleImageLoaderPatchSource = "$env:TPR_CONTROL\patches\xbox-single-image-native-loader-680.patch"
+          $singleImageLoaderPatchText = [IO.File]::ReadAllText(
+            $singleImageLoaderPatchSource).Replace("`r`n", "`n")
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+            $singleImageLoaderPatchDigest = $hasher.ComputeHash(
+              [Text.Encoding]::UTF8.GetBytes($singleImageLoaderPatchText))
+            $singleImageLoaderPatchHash = ([BitConverter]::ToString(
+              $singleImageLoaderPatchDigest) -replace '-', '').ToLowerInvariant()
+          }
+          finally { $hasher.Dispose() }
+          if ($singleImageLoaderPatchHash -ne '6dc786ca79614b3ce7b86267281dd3e5e0571382bc1d7b22faf26fc6bef414c7') {
+            throw "Xbox single-image native-loader patch SHA-256 mismatch: $singleImageLoaderPatchHash"
+          }
+          $singleImageLoaderPatch = Join-Path $env:RUNNER_TEMP 'xbox-single-image-native-loader-680.patch'
+          [IO.File]::WriteAllText(
+            $singleImageLoaderPatch,
+            $singleImageLoaderPatchText,
+            [Text.UTF8Encoding]::new($false))
+
           $recoveryLifecyclePatchSource = "$env:TPR_CONTROL\patches\xbox-recovery-lifecycle-669.patch"
           $recoveryLifecyclePatchText = [IO.File]::ReadAllText(
             $recoveryLifecyclePatchSource).Replace("`r`n", "`n")
@@ -578,6 +598,8 @@ jobs:
           git -C "$env:TPR_SRC" apply $funchookModuleBasePatch
           git -C "$env:TPR_SRC" apply --check $staticRandomizerPatch
           git -C "$env:TPR_SRC" apply $staticRandomizerPatch
+          git -C "$env:TPR_SRC" apply --check $singleImageLoaderPatch
+          git -C "$env:TPR_SRC" apply $singleImageLoaderPatch
           git -C "$env:TPR_SRC" apply --check $recoveryLifecyclePatch
           git -C "$env:TPR_SRC" apply $recoveryLifecyclePatch
           git -C "$env:TPR_SRC" apply --check $sdlMainHandledPatch
@@ -630,6 +652,15 @@ jobs:
           $globalHeader = [IO.File]::ReadAllText("$env:TPR_SRC\include\global.h")
           if (-not $globalHeader.Contains('!defined(DUSK_STATIC_BUILTIN_MOD)')) {
             throw 'Built-in Randomizer game-data symbols would still use DLL imports.'
+          }
+          $nativeModuleSource = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\src\dusk\mods\loader\native_module.cpp")
+          if (-not $nativeModuleSource.Contains(
+                'Native runtime modules are unavailable in Xbox single-image builds.') -or
+              -not $nativeModuleSource.Contains(
+                '#if defined(_WIN32) && !defined(_UWP)') -or
+              $nativeModuleSource.Contains('LoadPackagedLibrary')) {
+            throw 'Xbox single-image native-module loader quarantine is missing.'
           }
           $loaderSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\loader\loader.cpp")
@@ -1293,8 +1324,10 @@ jobs:
               $exeImports -match '(?i)GetMappedFileNameA') {
             throw 'Packaged executable retains the desktop-only PSAPI mapped-file diagnostic import.'
           }
-          if ($exeImports -match '(?i)LoadLibraryExW') {
-            throw 'Packaged executable retains the writable-path native module loader.'
+          foreach ($nativeLoaderImport in @('LoadLibraryExW', 'LoadPackagedLibrary')) {
+            if ($exeImports -match "(?i)\b$nativeLoaderImport\b") {
+              throw "Packaged executable retains a native module loader import: $nativeLoaderImport"
+            }
           }
           if ($exeImports -match '(?im)^\s*(?:DLL Name:\s*)?WINHTTP[.]dll\s*$' -or
               $exeImports -match '(?i)\bWinHttp(Open|Connect|SendRequest)\b') {
@@ -1470,6 +1503,7 @@ jobs:
             dawnCacheApiPatchSha256 = '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f'
             funchookModuleBasePatchSha256 = 'f61ee177fedaaced7024d21c481a5b35c3fb3ea1b08f7dd9b40c47ab796cea5e'
             staticRandomizerPatchSha256 = 'b63fee8c7b24ef1fd0a8b3210add426f051ca418b89f0ff1a9d218076af5e6b3'
+            singleImageNativeLoaderPatchSha256 = '6dc786ca79614b3ce7b86267281dd3e5e0571382bc1d7b22faf26fc6bef414c7'
             recoveryLifecyclePatchSha256 = '814a266523f90ac0d7545eff771f0823b1c723697fcf7bf5373f856bc1e48a0a'
             lifecycleQuarantinePatchSha256 = 'a85624ab23e58ece31c03af9c886907337aad6c2379330e3f175a303156a41a6'
             firstFrameDeferPatchSha256 = 'dcbcf3b27419e7063a9bd08cdb8624d20da74896e9f5cec53240ee68d8df2d4f'
@@ -1486,7 +1520,7 @@ jobs:
             borealisOnlinePatchSha256 = '31a0f6740fb44354ae8c329872f4d8bfc7863387c81877851e52d70d3aa7a132'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Mode carousel is selection-only; Play activates hooks and exits before another launcher frame; UWP game audio and logo audio waits are bypassed; damaged/no-card name-entry routes are gated through Randomizer seed selection; runtime mod-failure toasts include the exact reason'
-            nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
+            nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL; UWP runtime native-module loading is disabled'
             uwpDependency = '810cdcb672383045a8b03d1d55bb535352d7d46f'
             sdl3Sha256 = 'f288fd682ea19fa82bf9bbbfefab4132853555ad6dfe37cbe9f9c55acff4bf06'
             dawnSha256 = 'd1126d70c0eee87d69b802d10527d3dc301fce7514a206112ed4056cbf5b6910'

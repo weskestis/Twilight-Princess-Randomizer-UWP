@@ -1,0 +1,58 @@
+diff --git a/src/dusk/mods/loader/native_module.cpp b/src/dusk/mods/loader/native_module.cpp
+--- a/src/dusk/mods/loader/native_module.cpp
++++ b/src/dusk/mods/loader/native_module.cpp
+@@ -1,41 +1,27 @@
+ #include "native_module.hpp"
+ 
+-#if defined(_UWP)
+-#include "dusk/data.hpp"
+-#endif
+-
+-#if defined(_WIN32)
++#if defined(_WIN32) && !defined(_UWP)
+ #define WIN32_LEAN_AND_MEAN
+ #define NOMINMAX
+ #include <Windows.h>
+ #endif
+ 
+ namespace {
+-#if defined(_WIN32)
+-void* pl_dlopen(const std::filesystem::path& p) {
+ #if defined(_UWP)
+-    // Xbox UWP can execute native modules only from the signed package graph.
+-    // The built-in modules are deployed below the package's mods/ directory,
+-    // so convert their absolute discovery path back to a package-relative path
+-    // and use the packaged-app loader. Never fall back to loading executable
+-    // code extracted into writable LocalState.
+-    const auto packageRoot = dusk::data::base_path_relative({}).lexically_normal();
+-    const auto relative = p.lexically_normal().lexically_relative(packageRoot);
+-    if (relative.empty() || relative.is_absolute()) {
+-        SetLastError(ERROR_ACCESS_DENIED);
+-        return nullptr;
+-    }
+-    for (const auto& component : relative) {
+-        if (component == L"..") {
+-            SetLastError(ERROR_ACCESS_DENIED);
+-            return nullptr;
+-        }
+-    }
+-    return LoadPackagedLibrary(relative.wstring().c_str(), 0);
+-#else
++void* pl_dlopen(const std::filesystem::path&) {
++    return nullptr;
++}
++void* pl_dlsym(void*, const char*) {
++    return nullptr;
++}
++void pl_dlclose(void*) {}
++std::string pl_dlerror() {
++    return "Native runtime modules are unavailable in Xbox single-image builds.";
++}
++#elif defined(_WIN32)
++void* pl_dlopen(const std::filesystem::path& p) {
+     return LoadLibraryExW(p.wstring().c_str(), nullptr,
+         LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+-#endif
+ }
+ void* pl_dlsym(void* h, const char* name) {
+     return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(h), name));
