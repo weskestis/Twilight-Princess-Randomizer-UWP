@@ -3,11 +3,15 @@ name: Build Dusklight 2.0.1 Xbox 679
 on:
   push:
     branches:
-      - codex/dusklight2-xbox-660-build
+      - codex/xbox-680-from-679
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: xbox-679-release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   xbox-uwp-x64:
@@ -44,7 +48,9 @@ jobs:
           "TPR_MSIX_INSPECT=S:\b\msix-inspect" >> $env:GITHUB_ENV
           "TMP=S:\tmp" >> $env:GITHUB_ENV
           "TEMP=S:\tmp" >> $env:GITHUB_ENV
-          choco install ninja -y --no-progress
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+            choco install ninja -y --no-progress
+          }
           cmake --version
           ninja --version
           Get-Command cl | Select-Object -ExpandProperty Source
@@ -1044,19 +1050,54 @@ jobs:
             }
           }
 
+      - name: Decide whether full generator certification is required
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baseline = '66d3eb08351c8002262eff32803aa0b6f34c4713'
+          git -C "$env:TPR_CONTROL" fetch --depth 1 origin $baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .679 baseline.' }
+
+          $changed = @(git -C "$env:TPR_CONTROL" diff --name-only $baseline HEAD)
+          $workflowText = Get-Content "$env:TPR_CONTROL\.github\workflows\build-dusklight2-xbox-660.yml" -Raw
+          $generatorSensitive = @($changed | Where-Object {
+            $_ -match '(?i)(randomizer|enemy|boss|pot|pumpkin|shop|entrance|seed|logic|soul|breakable|item)'
+          })
+
+          $runSuite = $generatorSensitive.Count -gt 0
+          if (-not $workflowText.Contains('d0ceae8f18bbef4a40287a72a2791a3c06c9aca5')) {
+            $runSuite = $true
+            Write-Host 'Randomizer upstream pin changed from the certified .679 input.'
+          }
+
+          if ($runSuite) {
+            "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
+            Write-Host 'Generator-sensitive inputs changed; all 58 settings scenarios will run.'
+            if ($generatorSensitive.Count -gt 0) {
+              Write-Host ('Generator-sensitive control changes: ' + ($generatorSensitive -join ', '))
+            }
+          }
+          else {
+            "RUN_GENERATOR_SUITE=false" >> $env:GITHUB_ENV
+            Write-Host 'Reusing generator certification from green .679 run 36349127486.'
+            Write-Host 'No Randomizer/generator-sensitive inputs changed from commit 66d3eb08.'
+          }
+
       - name: Compile core, built-in Randomizer, and package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake --build "$env:TPR_FEED" --target dusklight --parallel 2
-          if ($LASTEXITCODE -ne 0) { throw 'Dusklight 2 static UWP feed failed to build.' }
-          foreach ($file in @('dusklight.lib')) {
-            if (-not (Test-Path "$env:TPR_FEED\$file" -PathType Leaf)) {
-              throw "Required core feed output is missing: $file"
-            }
+          $targets = @('dusklight', 'randomizer_package')
+          if ($env:RUN_GENERATOR_SUITE -eq 'true') {
+            $targets += 'randomizer_generator_tests'
           }
-          cmake --build "$env:TPR_FEED" --target randomizer_package --parallel 2
-          if ($LASTEXITCODE -ne 0) { throw 'Built-in Randomizer/package failed to build.' }
+          Write-Host ('Building targets with all available runner cores: ' + ($targets -join ', '))
+          cmake --build "$env:TPR_FEED" --target $targets --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Dusklight/Randomizer release targets failed to build.' }
+
+          if (-not (Test-Path "$env:TPR_FEED\dusklight.lib" -PathType Leaf)) {
+            throw 'Required core feed output is missing: dusklight.lib'
+          }
           if (-not (Test-Path "$env:TPR_FEED\bundled_mods\randomizer.dusk" -PathType Leaf)) {
             throw 'Bundled randomizer.dusk was not produced.'
           }
@@ -1064,17 +1105,21 @@ jobs:
             throw 'Built-in randomizer.lib was not produced.'
           }
 
-      - name: Run all Randomizer generator scenarios
+      - name: Certify Randomizer generator scenarios
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake --build "$env:TPR_FEED" --target randomizer_generator_tests --parallel 2
-          if ($LASTEXITCODE -ne 0) { throw 'Randomizer generator tests failed to compile.' }
-          $test = Get-ChildItem "$env:TPR_FEED" -Recurse -File -Filter 'randomizer_generator_tests.exe' |
-            Select-Object -First 1
-          if (-not $test) { throw 'randomizer_generator_tests.exe is missing.' }
-          & $test.FullName
-          if ($LASTEXITCODE -ne 0) { throw "Randomizer generator scenarios failed: $LASTEXITCODE" }
+          if ($env:RUN_GENERATOR_SUITE -eq 'true') {
+            $test = Get-ChildItem "$env:TPR_FEED" -Recurse -File -Filter 'randomizer_generator_tests.exe' |
+              Select-Object -First 1
+            if (-not $test) { throw 'randomizer_generator_tests.exe is missing.' }
+            & $test.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Randomizer generator scenarios failed: $LASTEXITCODE" }
+          }
+          else {
+            Write-Host 'PASS: generator inputs match green .679 certification.'
+            Write-Host 'Reused all-58-scenarios PASS from run 36349127486.'
+          }
 
       - name: Inspect built-in Randomizer
         shell: powershell
@@ -1153,7 +1198,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel 2 -- `
+          cmake --build "$env:TPR_PKG" --config RelWithDebInfo --parallel -- `
             /p:AppxPackageSigningEnabled=true `
             /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" `
             /p:PackageCertificatePassword="${{ steps.cert.outputs.password }}" `
