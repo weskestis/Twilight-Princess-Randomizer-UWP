@@ -1,0 +1,26 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.680",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "upstream": "Dusklight v2.0.1",
+  "randomizer": "same built-in Randomizer and custom settings certified in green .679",
+  "overlayStartup": "initial UWP DVD-overlay registration is deferred until frameEnd; empty initial sets never enter Aurora overlay registration",
+  "restoredSeedSettings": [
+    "Enemy Randomization",
+    "Boss Souls",
+    "Enemy Souls",
+    "Enemy First-Defeat Checks",
+    "Pots",
+    "Pumpkins",
+    "Seed-Aware Junk"
+  ],
+  "duplicateSettingOptions": "removed and guarded by both build-time and runtime validation",
+  "controllerCursor": "hold L3+R3 in a Dusklight menu; move with the right stick and click or drag with A",
+  "texturePacks": "loose files and ZIP packs under texture_replacements load automatically at startup",
+  "menuColors": "manual, Rainbow, per-seed, and every-load menu palette modes",
+  "onlineBackend": "WinHTTP with internetClient capability; unchanged from .679",
+  "xboxAudioSafeBoot": "Game audio remains temporarily disabled on UWP; audio replacement lifecycle remains isolated"
+}
