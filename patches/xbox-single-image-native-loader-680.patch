@@ -4,12 +4,12 @@ diff --git a/src/dusk/mods/loader/native_module.cpp b/src/dusk/mods/loader/nativ
 @@ -1,41 +1,27 @@
  #include "native_module.hpp"
  
--#if defined(_UWP)
+-#if defined(DUSK_XBOX_SINGLE_IMAGE)
 -#include "dusk/data.hpp"
 -#endif
 -
 -#if defined(_WIN32)
-+#if defined(_WIN32) && !defined(_UWP)
++#if defined(_WIN32) && !defined(DUSK_XBOX_SINGLE_IMAGE)
  #define WIN32_LEAN_AND_MEAN
  #define NOMINMAX
  #include <Windows.h>
