@@ -1,8 +1,8 @@
 diff --git a/src/dusk/mods/svc/overlay.cpp b/src/dusk/mods/svc/overlay.cpp
-index 1758a54..9e91d10 100644
 --- a/src/dusk/mods/svc/overlay.cpp
 +++ b/src/dusk/mods/svc/overlay.cpp
-@@ -187,6 +187,10 @@ void overlay_sync_files() {
+@@ -185,5 +185,9 @@
+ void overlay_sync_files() {
      static bool callbacksRegistered = false;
 +#if defined(_UWP)
 +    static bool deferInitialXboxSync = true;
@@ -11,7 +11,7 @@ index 1758a54..9e91d10 100644
      s_overlaysDirty = false;
  
      std::vector<AuroraOverlayFile> files;
-@@ -198,12 +202,26 @@ void overlay_sync_files() {
+@@ -198,12 +202,23 @@
      }
  
  #if defined(_UWP)
@@ -33,11 +33,10 @@ index 1758a54..9e91d10 100644
 +        s_overlaysDirty = true;
 +        Log.debug("Deferring {} DVD overlay file(s) until the Xbox runtime frame.", files.size());
          return;
-     }
++    }
 +    if (deferredXboxFiles) {
 +        deferredXboxFiles = false;
 +        Log.info("Xbox runtime ready; applying deferred DVD overlays.");
-+    }
+     }
  #endif
  
-     if (!callbacksRegistered) {
