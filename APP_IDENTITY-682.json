@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.682",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green 1.4.1.681 build from commit 133ad48ec1c15351ef2b7eccd1c0ab68634c05f4",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "runtimeEvidence": "1.4.1.681 relaunch journal stopped at module.lifecycle:dev.twilitrealm.dusklight.texture",
+  "overlayStartup": "initial overlay synchronization remains deferred before active-mod/bundle enumeration",
+  "textureStartup": "initial mod texture synchronization is deferred until the first game ModLoader frameEnd",
+  "startupJournal": "xbox-startup-stage-682.txt",
+  "launcherVersion": "1.4.1.682",
+  "randomizer": "unchanged from the green .681 build"
+}
