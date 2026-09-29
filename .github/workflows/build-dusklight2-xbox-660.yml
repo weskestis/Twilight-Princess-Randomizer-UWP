@@ -1468,11 +1468,11 @@ jobs:
           $randoConfigSourcePath = "$env:TPR_SRC\mods\randomizer\src\ui\rando_config.cpp"
           $seedGenerationPath = "$env:TPR_SRC\mods\randomizer\src\ui\rando_seed_generation.cpp"
           $randoConfigHeader = [IO.File]::ReadAllText($randoConfigHeaderPath).Replace(
-            ([char]13 + [char]10), [char]10)
+            "`r`n", "`n")
           $randoConfigSource = [IO.File]::ReadAllText($randoConfigSourcePath).Replace(
-            ([char]13 + [char]10), [char]10)
+            "`r`n", "`n")
           $seedGenerationSource = [IO.File]::ReadAllText($seedGenerationPath).Replace(
-            ([char]13 + [char]10), [char]10)
+            "`r`n", "`n")
 
           $contextDeclOld = @(
             '    std::optional<std::string> LoadFromHash(const std::string& hash);',
