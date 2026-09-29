@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 680
+name: Build Dusklight 2.0.1 Xbox 681
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-680-release-${{ github.ref }}
+  group: xbox-681-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 680 identity
+      - name: Apply reviewed source layers and advance 681 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -654,6 +654,102 @@ jobs:
           git -C "$env:TPR_SRC" apply $featureRestorationPatch
           git -C "$env:TPR_SRC" apply --check $overlayRuntimePatch
           git -C "$env:TPR_SRC" apply $overlayRuntimePatch
+          # .681: the .680 defer still enumerated active mod overlay files before returning.
+          # The Xbox crash journal proves the failure is inside the overlay lifecycle itself, so
+          # return before touching ModLoader/bundles on the initial lifecycle call. frameEnd will
+          # consume the dirty flag and perform the real synchronization after the runtime is live.
+          $overlayPath = "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp"
+          $overlayText = [IO.File]::ReadAllText($overlayPath).Replace("`r`n", "`n")
+          $oldOverlayHead = @'
+#if defined(_UWP)
+    static bool deferInitialXboxSync = true;
+    static bool deferredXboxFiles = false;
+#endif
+    s_overlaysDirty = false;
+'@.Replace("`r`n", "`n")
+          $newOverlayHead = @'
+#if defined(_UWP)
+    static bool deferInitialXboxSync = true;
+    static bool deferredXboxFiles = false;
+    if (deferInitialXboxSync) {
+        deferInitialXboxSync = false;
+        deferredXboxFiles = true;
+        s_overlaysDirty = true;
+        Log.debug("Deferring initial Xbox DVD overlay synchronization until the runtime frame.");
+        return;
+    }
+    if (deferredXboxFiles) {
+        deferredXboxFiles = false;
+        Log.info("Xbox runtime ready; applying deferred DVD overlays.");
+    }
+#endif
+    s_overlaysDirty = false;
+'@.Replace("`r`n", "`n")
+          if (-not $overlayText.Contains($oldOverlayHead)) {
+            throw 'The .680 overlay head changed; refusing an unsafe .681 rewrite.'
+          }
+          $overlayText = $overlayText.Replace($oldOverlayHead, $newOverlayHead)
+
+          $oldOverlayTail = @'
+#if defined(_UWP)
+    // Never enter Aurora's DVD overlay registration from the startup lifecycle. The Xbox runtime
+    // may not have completed its first game frame yet, which can fault even with a valid overlay
+    // set. Re-run a non-empty initial set from frameEnd, after the runtime is live.
+    if (deferInitialXboxSync) {
+        deferInitialXboxSync = false;
+        if (files.empty()) {
+            Log.debug("No overlay files; skipping initial Xbox overlay registration.");
+            return;
+        }
+        deferredXboxFiles = true;
+        s_overlaysDirty = true;
+        Log.debug("Deferring {} DVD overlay file(s) until the Xbox runtime frame.", files.size());
+        return;
+    }
+    if (deferredXboxFiles) {
+        deferredXboxFiles = false;
+        Log.info("Xbox runtime ready; applying deferred DVD overlays.");
+    }
+#endif
+'@.Replace("`r`n", "`n")
+          $newOverlayTail = @'
+#if defined(_UWP)
+    if (files.empty() && !callbacksRegistered) {
+        Log.debug("No overlay files; skipping initial Xbox overlay registration.");
+        return;
+    }
+#endif
+'@.Replace("`r`n", "`n")
+          if (-not $overlayText.Contains($oldOverlayTail)) {
+            throw 'The .680 late overlay defer changed; refusing an unsafe .681 rewrite.'
+          }
+          $overlayText = $overlayText.Replace($oldOverlayTail, $newOverlayTail)
+          [IO.File]::WriteAllText($overlayPath, $overlayText, [Text.UTF8Encoding]::new($false))
+
+          # Start .681 with a fresh journal so the .680 overlay crash marker cannot influence the
+          # first launch. A genuine .681 crash will still be reported on its following launch.
+          $startupGuardPath = "$env:TPR_SRC\src\dusk\startup_guard.hpp"
+          $startupGuard681 = [IO.File]::ReadAllText($startupGuardPath).Replace("`r`n", "`n")
+          if (-not $startupGuard681.Contains('xbox-startup-stage-681.txt')) {
+            throw 'Expected .678 startup journal marker is missing before .681 rollover.'
+          }
+          $startupGuard681 = $startupGuard681.Replace(
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-681.txt')
+          [IO.File]::WriteAllText(
+            $startupGuardPath, $startupGuard681, [Text.UTF8Encoding]::new($false))
+
+          # The package manifest already carries 1.4.1.681; make the launcher report the same
+          # version instead of BOREALIS_APP_DESCRIBE's UNKNOWN-VERSION on this detached CI build.
+          $prelaunchPath = "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp"
+          $prelaunch681 = [IO.File]::ReadAllText($prelaunchPath).Replace("`r`n", "`n")
+          $versionExpr = 'std::string_view versionStr(BOREALIS_APP_DESCRIBE);'
+          if (-not $prelaunch681.Contains($versionExpr)) {
+            throw 'Prelaunch version expression changed before .681 identity fix.'
+          }
+          $prelaunch681 = $prelaunch681.Replace(
+            $versionExpr, 'std::string_view versionStr("1.4.1.681");')
+          [IO.File]::WriteAllText(
+            $prelaunchPath, $prelaunch681, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\platforms\uwp\main.cpp")
           foreach ($entryPointMarker in @(
@@ -698,10 +794,18 @@ jobs:
           if (-not $overlaySource.Contains(
                 'No overlay files; skipping initial Xbox overlay registration.') -or
               -not $overlaySource.Contains(
-                'Deferring {} DVD overlay file(s) until the Xbox runtime frame.') -or
+                'Deferring initial Xbox DVD overlay synchronization until the runtime frame.') -or
               -not $overlaySource.Contains(
                 'Xbox runtime ready; applying deferred DVD overlays.')) {
-            throw 'Xbox deferred/empty overlay startup guard is missing.'
+            throw 'Xbox early-deferred/empty overlay startup guard is missing.'
+          }
+          $overlayDeferPos = $overlaySource.IndexOf(
+            'Deferring initial Xbox DVD overlay synchronization until the runtime frame.')
+          $overlayEnumeratePos = $overlaySource.IndexOf(
+            'std::vector<AuroraOverlayFile> files;')
+          if ($overlayDeferPos -lt 0 -or $overlayEnumeratePos -lt 0 -or
+              $overlayDeferPos -gt $overlayEnumeratePos) {
+            throw 'Xbox overlay defer still occurs after mod/bundle enumeration.'
           }
           $mainSource = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
           if ($mainSource.Contains('show_xbox_startup_recovery') -or
@@ -834,6 +938,9 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.681");')) {
+            throw 'Xbox launcher version still depends on UNKNOWN-VERSION describe metadata.'
+          }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
               -not $prelaunchSource.Contains('mGameModeInitialized') -or
               -not $prelaunchSource.Contains('Previous Xbox stage: {}') -or
@@ -932,7 +1039,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.680"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.681"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -1207,7 +1314,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 680 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 681 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -1234,17 +1341,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 680 package
+      - name: Verify and collect full 681 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-680"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-681"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.680_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.681_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -1256,7 +1363,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.680"',
+            'Version="1.4.1.681"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -1284,7 +1391,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-680-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-681-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -1449,7 +1556,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-680-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-681-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -1469,8 +1576,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-680-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-680-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-681-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-681-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -1513,11 +1620,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-680.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-680.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-681.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-681.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.680'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.681'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -1560,13 +1667,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-680.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-681.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.680-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.681-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -1575,7 +1682,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.680-Xbox
-          path: TPR-Xbox-Package-680/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.681-Xbox
+          path: TPR-Xbox-Package-681/*
           if-no-files-found: error
           retention-days: 30

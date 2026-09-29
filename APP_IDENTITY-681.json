@@ -1,0 +1,28 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.681",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green 1.4.1.680 commit 20b449c5d12e0048d9807f9f7d8d574cd6a479d4",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "upstream": "Dusklight v2.0.1",
+  "randomizer": "same built-in Randomizer and custom settings certified in green .679/.680",
+  "overlayStartup": "the initial UWP overlay lifecycle returns before enumerating active mods or bundles; synchronization is deferred to frameEnd",
+  "startupJournal": "fresh xbox-startup-stage-681.txt so .680 crash state cannot contaminate first launch",
+  "launcherVersion": "hard-set to 1.4.1.681 in the Xbox build instead of UNKNOWN-VERSION",
+  "restoredSeedSettings": [
+    "Enemy Randomization",
+    "Boss Souls",
+    "Enemy Souls",
+    "Enemy First-Defeat Checks",
+    "Pots",
+    "Pumpkins",
+    "Seed-Aware Junk"
+  ],
+  "controllerCursor": "hold L3+R3 in a Dusklight menu; move with the right stick and click or drag with A",
+  "texturePacks": "loose files and ZIP packs under texture_replacements load automatically at startup",
+  "menuColors": "manual, Rainbow, per-seed, and every-load menu palette modes",
+  "onlineBackend": "WinHTTP with internetClient capability; update-check failure remains visible for separate diagnosis",
+  "xboxAudioSafeBoot": "Game audio remains temporarily disabled on UWP; audio replacement lifecycle remains isolated"
+}
