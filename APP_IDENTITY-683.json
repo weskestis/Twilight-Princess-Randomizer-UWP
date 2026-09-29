@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.683",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green 1.4.1.682 commit f194183e6fbf2e0ed7a334177e76a00663a56be0",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "runtimeEvidence": "1.4.1.682 boots; selecting Randomizer crashes with previous stage mods.frame-end",
+  "activationGate": "overlay and texture synchronization stay pending through the 12-frame Randomizer activation trace window",
+  "diagnostics": "every service frameEnd callback is journaled by module id during the activation window",
+  "startupJournal": "xbox-startup-stage-683.txt",
+  "launcherVersion": "1.4.1.683",
+  "randomizer": "unchanged from green .682"
+}

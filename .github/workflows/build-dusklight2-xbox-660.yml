@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 682
+name: Build Dusklight 2.0.1 Xbox 683
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-682-release-${{ github.ref }}
+  group: xbox-683-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 682 identity
+      - name: Apply reviewed source layers and advance 683 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -684,7 +684,7 @@ jobs:
             '    s_overlaysDirty = false;'
           ) -join "`n"
           if (-not $overlayText.Contains($oldOverlayHead)) {
-            throw 'The green .680 overlay head changed; refusing an unsafe .682 rewrite.'
+            throw 'The green .680 overlay head changed; refusing an unsafe .683 rewrite.'
           }
           $overlayText = $overlayText.Replace($oldOverlayHead, $newOverlayHead)
 
@@ -719,18 +719,49 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $overlayText.Contains($oldOverlayTail)) {
-            throw 'The green .680 late overlay block changed; refusing an unsafe .682 rewrite.'
+            throw 'The green .680 late overlay block changed; refusing an unsafe .683 rewrite.'
           }
           $overlayText = $overlayText.Replace($oldOverlayTail, $newOverlayTail)
+
+          $overlayIncludeAnchor = '#include "dusk/mods/loader/loader.hpp"'
+          if (-not $overlayText.Contains($overlayIncludeAnchor)) {
+            throw 'Overlay include anchor changed before .683 activation gate.'
+          }
+          $overlayText = $overlayText.Replace(
+            $overlayIncludeAnchor,
+            $overlayIncludeAnchor + "`n" + '#include "dusk/startup_guard.hpp"')
+
+          $overlayDeferredAnchor = @(
+            '    if (deferredXboxFiles) {',
+            '        deferredXboxFiles = false;',
+            '        Log.info("Xbox runtime ready; applying deferred DVD overlays.");',
+            '    }'
+          ) -join "`n"
+          $overlayDeferredReplacement = @(
+            '    if (deferredXboxFiles && startup_guard::activity_pending()) {',
+            '        s_overlaysDirty = true;',
+            '        return;',
+            '    }',
+            '    if (deferredXboxFiles) {',
+            '        deferredXboxFiles = false;',
+            '        Log.info("Xbox runtime ready; applying deferred DVD overlays.");',
+            '    }'
+          ) -join "`n"
+          if (-not $overlayText.Contains($overlayDeferredAnchor)) {
+            throw 'Overlay deferred-sync anchor changed before .683 activation gate.'
+          }
+          $overlayText = $overlayText.Replace(
+            $overlayDeferredAnchor, $overlayDeferredReplacement)
           [IO.File]::WriteAllText($overlayPath, $overlayText, [Text.UTF8Encoding]::new($false))
 
-          # .682: .681 moved past overlay and the crash journal now stops at the texture lifecycle.
+          # .683 retains the .682 texture defer and keeps both asset services out of the
+          # Randomizer activation journal window.
           # Defer the texture service's initial active-mod/bundle scan until the first game ModLoader tick.
           $texturePath = "$env:TPR_SRC\src\dusk\mods\svc\texture.cpp"
           $textureText = [IO.File]::ReadAllText($texturePath).Replace("`r`n", "`n")
           $textureIncludeAnchor = '#include "dusk/mods/loader/loader.hpp"'
           if (-not $textureText.Contains($textureIncludeAnchor)) {
-            throw 'Texture service include anchor changed before .682 defer.'
+            throw 'Texture service include anchor changed before .683 defer.'
           }
           $textureText = $textureText.Replace(
             $textureIncludeAnchor,
@@ -738,7 +769,7 @@ jobs:
 
           $textureStateAnchor = 'uint64_t s_nextTextureHandle = 1;'
           if (-not $textureText.Contains($textureStateAnchor)) {
-            throw 'Texture service state anchor changed before .682 defer.'
+            throw 'Texture service state anchor changed before .683 defer.'
           }
           $textureStateReplacement = @(
             'uint64_t s_nextTextureHandle = 1;',
@@ -751,7 +782,7 @@ jobs:
 
           $textureFunctionAnchor = 'uint64_t texture_register_raw('
           if (-not $textureText.Contains($textureFunctionAnchor)) {
-            throw 'Texture service function anchor changed before .682 defer.'
+            throw 'Texture service function anchor changed before .683 defer.'
           }
           $textureDeferredFunctions = @(
             'void textures_lifecycle_applied() {',
@@ -771,6 +802,9 @@ jobs:
             '    if (!s_pendingXboxTextureSync) {',
             '        return;',
             '    }',
+            '    if (startup_guard::activity_pending()) {',
+            '        return;',
+            '    }',
             '    s_pendingXboxTextureSync = false;',
             '    startup_guard::stage("module.frame-end:dev.twilitrealm.dusklight.texture-deferred");',
             '    Log.info("Xbox runtime ready; applying deferred texture replacements.");',
@@ -785,7 +819,7 @@ jobs:
 
           $textureLifecycleAnchor = '    .lifecycleApplied = textures_sync_replacements,'
           if (-not $textureText.Contains($textureLifecycleAnchor)) {
-            throw 'Texture service lifecycle anchor changed before .682 defer.'
+            throw 'Texture service lifecycle anchor changed before .683 defer.'
           }
           $textureLifecycleReplacement = @(
             '    .lifecycleApplied = textures_lifecycle_applied,',
@@ -795,28 +829,95 @@ jobs:
             $textureLifecycleAnchor, $textureLifecycleReplacement)
           [IO.File]::WriteAllText($texturePath, $textureText, [Text.UTF8Encoding]::new($false))
 
-          # Give .682 its own crash journal so the .681 texture marker cannot affect first launch.
-          $startupGuardPath = "$env:TPR_SRC\src\dusk\startup_guard.hpp"
-          $startupGuard682 = [IO.File]::ReadAllText($startupGuardPath).Replace("`r`n", "`n")
-          if (-not $startupGuard682.Contains('xbox-startup-stage-678.txt')) {
-            throw 'Expected green-baseline startup journal marker is missing before .682 rollover.'
+          # .683: the .682 relaunch marker is only "mods.frame-end". Journal each service callback
+          # so any remaining failure identifies the exact service.
+          $registryFramePath = "$env:TPR_SRC\src\dusk\mods\svc\registry.cpp"
+          $registryFrameText = [IO.File]::ReadAllText($registryFramePath).Replace("`r`n", "`n")
+          $oldFrameEnd = @(
+            'void modules_frame_end() {',
+            '    for (const auto* module : s_modules) {',
+            '        if (module->frameEnd != nullptr) {',
+            '            module->frameEnd();',
+            '        }',
+            '    }',
+            '}'
+          ) -join "`n"
+          $newFrameEnd = @(
+            'void modules_frame_end() {',
+            '    for (const auto* module : s_modules) {',
+            '        if (module->frameEnd != nullptr) {',
+            '#if defined(_UWP)',
+            '            startup_guard::stage(fmt::format("module.frame-end:{}", module->id));',
+            '#endif',
+            '            module->frameEnd();',
+            '#if defined(_UWP)',
+            '            startup_guard::stage(fmt::format("module.frame-end-ready:{}", module->id));',
+            '#endif',
+            '        }',
+            '    }',
+            '}'
+          ) -join "`n"
+          if (-not $registryFrameText.Contains($oldFrameEnd)) {
+            throw 'Service frameEnd registry anchor changed before .683 instrumentation.'
           }
-          $startupGuard682 = $startupGuard682.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-682.txt')
+          $registryFrameText = $registryFrameText.Replace($oldFrameEnd, $newFrameEnd)
           [IO.File]::WriteAllText(
-            $startupGuardPath, $startupGuard682, [Text.UTF8Encoding]::new($false))
+            $registryFramePath, $registryFrameText, [Text.UTF8Encoding]::new($false))
+
+          # Give .683 its own crash journal so the .682 frame-end marker cannot affect first launch.
+          $startupGuardPath = "$env:TPR_SRC\src\dusk\startup_guard.hpp"
+          $startupGuard683 = [IO.File]::ReadAllText($startupGuardPath).Replace("`r`n", "`n")
+          if (-not $startupGuard683.Contains('xbox-startup-stage-678.txt')) {
+            throw 'Expected green-baseline startup journal marker is missing before .683 rollover.'
+          }
+          $startupGuard683 = $startupGuard683.Replace(
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-683.txt')
+
+          $startupActiveAccessor = @(
+            'inline bool startup_active() noexcept {',
+            '    std::scoped_lock lock(detail::mutex);',
+            '    return detail::startupActive;',
+            '}'
+          ) -join "`n"
+          $activityAccessor = @(
+            'inline bool startup_active() noexcept {',
+            '    std::scoped_lock lock(detail::mutex);',
+            '    return detail::startupActive;',
+            '}',
+            '',
+            'inline bool activity_pending() noexcept {',
+            '    std::scoped_lock lock(detail::mutex);',
+            '    return detail::activityActive || detail::activityAwaitingFrame;',
+            '}'
+          ) -join "`n"
+          if (-not $startupGuard683.Contains($startupActiveAccessor)) {
+            throw 'Xbox startup guard accessor anchor changed before .683.'
+          }
+          $startupGuard683 = $startupGuard683.Replace(
+            $startupActiveAccessor, $activityAccessor)
+
+          $startupStub = 'inline bool startup_active() noexcept { return false; }'
+          if (-not $startupGuard683.Contains($startupStub)) {
+            throw 'Non-UWP startup guard stub anchor changed before .683.'
+          }
+          $startupGuard683 = $startupGuard683.Replace(
+            $startupStub,
+            $startupStub + "`n" + 'inline bool activity_pending() noexcept { return false; }')
+
+          [IO.File]::WriteAllText(
+            $startupGuardPath, $startupGuard683, [Text.UTF8Encoding]::new($false))
 
           # Detached CI source reports UNKNOWN-VERSION; make the Xbox launcher match the MSIX.
           $prelaunchPath = "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp"
-          $prelaunch682 = [IO.File]::ReadAllText($prelaunchPath).Replace("`r`n", "`n")
+          $prelaunch683 = [IO.File]::ReadAllText($prelaunchPath).Replace("`r`n", "`n")
           $versionExpr = 'std::string_view versionStr(BOREALIS_APP_DESCRIBE);'
-          if (-not $prelaunch682.Contains($versionExpr)) {
-            throw 'Prelaunch version expression changed before .682 identity fix.'
+          if (-not $prelaunch683.Contains($versionExpr)) {
+            throw 'Prelaunch version expression changed before .683 identity fix.'
           }
-          $prelaunch682 = $prelaunch682.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.682");')
+          $prelaunch683 = $prelaunch683.Replace(
+            $versionExpr, 'std::string_view versionStr("1.4.1.683");')
           [IO.File]::WriteAllText(
-            $prelaunchPath, $prelaunch682, [Text.UTF8Encoding]::new($false))
+            $prelaunchPath, $prelaunch683, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\platforms\uwp\main.cpp")
           foreach ($entryPointMarker in @(
@@ -856,6 +957,10 @@ jobs:
               $registrySource.Contains('modules.lifecycle-quarantined')) {
             throw 'Xbox lifecycle allowlist did not restore overlay/texture while isolating audio.'
           }
+          if (-not $registrySource.Contains('module.frame-end:{}') -or
+              -not $registrySource.Contains('module.frame-end-ready:{}')) {
+            throw 'Xbox per-service frameEnd journal instrumentation is missing.'
+          }
           $overlaySource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp")
           if (-not $overlaySource.Contains(
@@ -873,6 +978,10 @@ jobs:
               $overlayDeferPos -gt $overlayEnumeratePos) {
             throw 'Xbox overlay defer still occurs after active-mod/bundle enumeration.'
           }
+          if (-not $overlaySource.Contains(
+              'deferredXboxFiles && startup_guard::activity_pending()')) {
+            throw 'Xbox deferred overlay sync can still run during Randomizer activation.'
+          }
           $textureServiceSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\texture.cpp")
           foreach ($textureMarker in @(
@@ -884,6 +993,9 @@ jobs:
             if (-not $textureServiceSource.Contains($textureMarker)) {
               throw "Xbox deferred texture lifecycle marker is missing: $textureMarker"
             }
+          }
+          if (-not $textureServiceSource.Contains('startup_guard::activity_pending()')) {
+            throw 'Xbox deferred texture sync can still run during Randomizer activation.'
           }
           $mainSource = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
           if ($mainSource.Contains('show_xbox_startup_recovery') -or
@@ -907,10 +1019,11 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-682.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-683.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 12') -or
+              -not $startupGuardSource.Contains('inline bool activity_pending() noexcept') -or
               -not $startupGuardSource.Contains('std::atomic_bool traceEnabled') -or
               -not $startupGuardSource.Contains(
                 'if (!detail::startupActive && !detail::activityAwaitingFrame)')) {
@@ -1016,7 +1129,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.682");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.683");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -1117,7 +1230,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.682"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.683"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -1392,7 +1505,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 682 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 683 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -1419,17 +1532,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 682 package
+      - name: Verify and collect full 683 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-682"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-683"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.682_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.683_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -1441,7 +1554,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.682"',
+            'Version="1.4.1.683"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -1469,7 +1582,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-682-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-683-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -1572,7 +1685,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-682.txt',
+            'xbox-startup-stage-683.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -1634,7 +1747,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-682-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-683-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -1654,8 +1767,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-682-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-682-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-683-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-683-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -1698,11 +1811,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-682.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-682.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-683.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-683.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.682'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.683'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -1745,13 +1858,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-682.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-683.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.682-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.683-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -1760,7 +1873,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.682-Xbox
-          path: TPR-Xbox-Package-682/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.683-Xbox
+          path: TPR-Xbox-Package-683/*
           if-no-files-found: error
           retention-days: 30
