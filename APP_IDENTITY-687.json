@@ -1,0 +1,14 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.687",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green 1.4.1.686 commit f275b13ece6d3d3284a78e671fe74f067f45f1ac",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "seedSelectorFix": "compressed seed.dat files are decoded before compatibility checks; Play seed dropdown refreshes immediately after successful generation and auto-selects the new seed",
+  "seedAudit": "format v4 independently counts Boss Souls and Enemy Souls; starting Enemy Souls remain dynamic 0-4 by Twilight-cleared settings",
+  "generatorCertification": "forced full generator suite for .687",
+  "startupJournal": "xbox-startup-stage-687.txt",
+  "launcherVersion": "1.4.1.687"
+}
