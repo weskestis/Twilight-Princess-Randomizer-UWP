@@ -1,0 +1,14 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.685",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green 1.4.1.684 commit ad1784a74b95c246c9b2e68d53895118e772bc72",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "runtimeEvidence": "1.4.1.684 boots and reaches Randomizer seed generation; seed serialization failed on unresolved group-2 Kakariko Malo Mart Red Potion Sold Out reference",
+  "seedFix": "Kakariko Malo Mart sold-out custom targets are always defined while source links remain conditional on Shop_Items",
+  "generatorCertification": "forced full generator suite for .685",
+  "startupJournal": "xbox-startup-stage-685.txt",
+  "launcherVersion": "1.4.1.685"
+}

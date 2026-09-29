@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 684
+name: Build Dusklight 2.0.1 Xbox 685
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-684-release-${{ github.ref }}
+  group: xbox-685-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 684 identity
+      - name: Apply reviewed source layers and advance 685 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-684.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-685.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -995,7 +995,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.684");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.685");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -1086,7 +1086,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-684.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-685.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 60') -or
@@ -1196,7 +1196,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.684");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.685");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -1246,6 +1246,53 @@ jobs:
           git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerNewSaveGatePatch
           git -C "$env:TPR_SRC\mods\randomizer" apply --check $randomizerSettingsPatch
           git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerSettingsPatch
+          # .685: Xbox reached seed generation and exposed an unresolved symbolic flow target:
+          # group 2 -> Kakariko Malo Mart Red Potion Sold Out. The source links remain conditional
+          # on Shop_Items == On, but their custom target nodes must always be present in the flow
+          # name table so validation and runtime serialization cannot diverge.
+          $flowPatchPath = "$env:TPR_SRC\mods\randomizer\generator\data\flow_patches.yaml"
+          $flowPatchText = [IO.File]::ReadAllText($flowPatchPath).Replace("`r`n", "`n")
+
+          foreach ($shopFlowName in @(
+            'Kakariko Malo Mart Red Potion Sold Out',
+            'Kakariko Malo Mart Wooden Shield Sold Out')) {
+            $conditionalTarget = @(
+              "  - name: $shopFlowName",
+              '    only if: Shop_Items == On',
+              '    group: 2'
+            ) -join "`n"
+            $unconditionalTarget = @(
+              "  - name: $shopFlowName",
+              '    group: 2'
+            ) -join "`n"
+            if (-not $flowPatchText.Contains($conditionalTarget)) {
+              throw "Expected conditional Malo Mart custom target is missing: $shopFlowName"
+            }
+            $flowPatchText = $flowPatchText.Replace($conditionalTarget, $unconditionalTarget)
+          }
+
+          foreach ($requiredConditionalLink in @(
+            'next: Kakariko Malo Mart Red Potion Sold Out',
+            'next: Kakariko Malo Mart Wooden Shield Sold Out')) {
+            if (-not $flowPatchText.Contains($requiredConditionalLink)) {
+              throw "Expected Malo Mart source link is missing: $requiredConditionalLink"
+            }
+          }
+
+          [IO.File]::WriteAllText(
+            $flowPatchPath, $flowPatchText, [Text.UTF8Encoding]::new($false))
+          $flowPatchVerify = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\mods\randomizer\generator\data\flow_patches.yaml")
+          foreach ($shopFlowName in @(
+            'Kakariko Malo Mart Red Potion Sold Out',
+            'Kakariko Malo Mart Wooden Shield Sold Out')) {
+            $badConditionalTarget = "  - name: $shopFlowName`n    only if: Shop_Items == On`n    group: 2"
+            $goodTarget = "  - name: $shopFlowName`n    group: 2"
+            if ($flowPatchVerify.Contains($badConditionalTarget) -or
+                -not $flowPatchVerify.Contains($goodTarget)) {
+              throw "Malo Mart custom flow target is still conditionally missing: $shopFlowName"
+            }
+          }
           $randomizerHooksSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\mods\randomizer\src\hooks.cpp")
           $randomizerSessionSource = [IO.File]::ReadAllText(
@@ -1297,7 +1344,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.684"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.685"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -1473,6 +1520,9 @@ jobs:
             Write-Host 'Reusing generator certification from green .679 run 36349127486.'
             Write-Host 'No Randomizer/generator-sensitive inputs changed from commit 66d3eb08.'
           }
+          # .685 changes embedded flow data used by seed serialization; always recertify all scenarios.
+          "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
+          Write-Host '.685 seed-data fix: forcing the complete Randomizer generator suite.'
 
       - name: Compile core, built-in Randomizer, and package
         shell: powershell
@@ -1572,7 +1622,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 684 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 685 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -1599,17 +1649,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 684 package
+      - name: Verify and collect full 685 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-684"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-685"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.684_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.685_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -1621,7 +1671,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.684"',
+            'Version="1.4.1.685"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -1649,7 +1699,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-684-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-685-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -1752,7 +1802,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-684.txt',
+            'xbox-startup-stage-685.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -1800,6 +1850,8 @@ jobs:
             'Boss Souls',
             'Enemy Souls',
             'Enemy First-Defeat Checks',
+            'Kakariko Malo Mart Red Potion Sold Out',
+            'Kakariko Malo Mart Wooden Shield Sold Out',
             'Pots',
             'Pumpkins',
             'Darknut Soul',
@@ -1815,7 +1867,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-684-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-685-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -1835,8 +1887,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-684-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-684-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-685-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-685-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -1879,11 +1931,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-684.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-684.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-685.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-685.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.684'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.685'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -1926,13 +1978,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-684.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-685.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.684-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.685-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -1941,7 +1993,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.684-Xbox
-          path: TPR-Xbox-Package-684/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.685-Xbox
+          path: TPR-Xbox-Package-685/*
           if-no-files-found: error
           retention-days: 30
