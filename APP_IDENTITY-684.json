@@ -1,0 +1,16 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.684",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green 1.4.1.683 commit a871f796c15a2f69c87b61e0a11cc91d65837e89",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "runtimeEvidence": "1.4.1.683 boots; Randomizer activation advances beyond the previous frameEnd point but then crashes after the 12-frame journal clears",
+  "assetServices": "UWP mod DVD-overlay and mod texture-service synchronization quarantined; separate user texture_replacements loader remains present",
+  "activationTrace": "extended from 12 to 60 frames",
+  "diagnostics": "per-service frameEnd journaling retained",
+  "startupJournal": "xbox-startup-stage-684.txt",
+  "launcherVersion": "1.4.1.684",
+  "randomizer": "unchanged from green .683"
+}
