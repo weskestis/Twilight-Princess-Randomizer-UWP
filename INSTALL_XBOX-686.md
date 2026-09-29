@@ -12,3 +12,10 @@ The verification popup now includes:
 Older audit-format seeds remain load-compatible; the new soul rows are shown only for v4 audits.
 
 The complete Randomizer generator suite is forced again for this build.
+
+
+Starting Enemy Souls are now conditional instead of always four:
+- Faron Soul is pre-granted only if Faron Twilight is not already cleared.
+- Eldin Soul is pre-granted only if Eldin Twilight is not already cleared.
+- Lanayru Insect + Twilit Bloat Souls are pre-granted only if Lanayru Twilight is not already cleared.
+- With all three Twilight sections skipped, Starting Enemy Souls is 0 and those four remain part of the normal 85-Soul shuffle.

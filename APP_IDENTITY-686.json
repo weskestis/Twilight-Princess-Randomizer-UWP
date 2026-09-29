@@ -7,9 +7,10 @@
   "base": "green 1.4.1.685 commit 9e5869b065877d67afe1395f00f23f2a7301e0b4",
   "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
   "runtimeEvidence": "1.4.1.685 generated and verified a real Xbox seed successfully",
-  "seedAudit": "format v4 adds independently counted Boss Souls and Enemy Souls, including starting Enemy Souls",
+  "seedAudit": "format v4 independently counts Boss Souls and Enemy Souls; starting Enemy Souls are granted only for uncleared Twilight sections",
   "expectedBossSoulsWhenEnabled": 8,
   "expectedEnemySoulsWhenEnabled": 85,
+  "startingEnemySouls": "dynamic 0-4 based on Faron/Eldin/Lanayru Twilight Cleared settings",
   "generatorCertification": "forced full generator suite for .686",
   "startupJournal": "xbox-startup-stage-686.txt",
   "launcherVersion": "1.4.1.686"

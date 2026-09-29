@@ -576,26 +576,6 @@ jobs:
             $randomizerSettingsPatchText,
             [Text.UTF8Encoding]::new($false))
 
-          $soulAuditPatchSource = "$env:TPR_CONTROL\patches\randomizer-soul-audit-686.patch"
-          $soulAuditPatchText = [IO.File]::ReadAllText(
-            $soulAuditPatchSource).Replace("`r`n", "`n")
-          $hasher = [Security.Cryptography.SHA256]::Create()
-          try {
-            $soulAuditPatchDigest = $hasher.ComputeHash(
-              [Text.Encoding]::UTF8.GetBytes($soulAuditPatchText))
-            $soulAuditPatchHash = ([BitConverter]::ToString(
-              $soulAuditPatchDigest) -replace '-', '').ToLowerInvariant()
-          }
-          finally { $hasher.Dispose() }
-          if ($soulAuditPatchHash -ne 'a6970872e958a73d395e2a8f9978eeabf7001b9700369b349e65dc00487ef623') {
-            throw "Randomizer soul-audit patch SHA-256 mismatch: $soulAuditPatchHash"
-          }
-          $soulAuditPatch = Join-Path $env:RUNNER_TEMP 'randomizer-soul-audit-686.patch'
-          [IO.File]::WriteAllText(
-            $soulAuditPatch,
-            $soulAuditPatchText,
-            [Text.UTF8Encoding]::new($false))
-
           $overlayRuntimePatchSource = "$env:TPR_CONTROL\patches\xbox-overlay-runtime-defer-680.patch"
           $overlayRuntimePatchText = [IO.File]::ReadAllText(
             $overlayRuntimePatchSource).Replace("`r`n", "`n")
@@ -1266,8 +1246,225 @@ jobs:
           git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerNewSaveGatePatch
           git -C "$env:TPR_SRC\mods\randomizer" apply --check $randomizerSettingsPatch
           git -C "$env:TPR_SRC\mods\randomizer" apply $randomizerSettingsPatch
-          git -C "$env:TPR_SRC\mods\randomizer" apply --check $soulAuditPatch
-          git -C "$env:TPR_SRC\mods\randomizer" apply $soulAuditPatch
+
+          # .686: add fail-closed Boss/Enemy Soul counts directly to the reviewed
+          # Randomizer source. Direct transforms avoid another fragile diff-hunk layer.
+          $contextHeaderPath = "$env:TPR_SRC\mods\randomizer\src\randomizer_context.hpp"
+          $contextSourcePath = "$env:TPR_SRC\mods\randomizer\src\randomizer_context.cpp"
+          $itemPoolPath = "$env:TPR_SRC\mods\randomizer\generator\logic\item_pool.cpp"
+          $contextHeader = [IO.File]::ReadAllText($contextHeaderPath).Replace("`r`n", "`n")
+          $contextSource = [IO.File]::ReadAllText($contextSourcePath).Replace("`r`n", "`n")
+          $itemPoolSource = [IO.File]::ReadAllText($itemPoolPath).Replace("`r`n", "`n")
+
+          if (-not $contextHeader.Contains('static constexpr u16 CURRENT_FORMAT_VERSION = 3;')) {
+            throw 'Seed audit format-version anchor changed before .686.'
+          }
+          $contextHeader = $contextHeader.Replace(
+            'static constexpr u16 CURRENT_FORMAT_VERSION = 3;',
+            'static constexpr u16 CURRENT_FORMAT_VERSION = 4;')
+
+          $auditFieldsOld = @(
+            '        AuditCount shopShelves{};',
+            '        AuditCount enemyFirstDefeats{};',
+            '        AuditCount startingSpawn{};'
+          ) -join "`n"
+          $auditFieldsNew = @(
+            '        AuditCount shopShelves{};',
+            '        AuditCount enemyFirstDefeats{};',
+            '        AuditCount bossSouls{};',
+            '        AuditCount enemySouls{};',
+            '        AuditCount startingSpawn{};'
+          ) -join "`n"
+          if (-not $contextHeader.Contains($auditFieldsOld)) {
+            throw 'Seed audit field anchor changed before .686.'
+          }
+          $contextHeader = $contextHeader.Replace($auditFieldsOld, $auditFieldsNew)
+
+          $writeAuditOld = @(
+            '        writeCount("shopShelves", this->mSeedAudit.shopShelves);',
+            '        writeCount("enemyFirstDefeats", this->mSeedAudit.enemyFirstDefeats);',
+            '        writeCount("startingSpawn", this->mSeedAudit.startingSpawn);'
+          ) -join "`n"
+          $writeAuditNew = @(
+            '        writeCount("shopShelves", this->mSeedAudit.shopShelves);',
+            '        writeCount("enemyFirstDefeats", this->mSeedAudit.enemyFirstDefeats);',
+            '        writeCount("bossSouls", this->mSeedAudit.bossSouls);',
+            '        writeCount("enemySouls", this->mSeedAudit.enemySouls);',
+            '        writeCount("startingSpawn", this->mSeedAudit.startingSpawn);'
+          ) -join "`n"
+          if (-not $contextSource.Contains($writeAuditOld)) {
+            throw 'Seed audit serialization anchor changed before .686.'
+          }
+          $contextSource = $contextSource.Replace($writeAuditOld, $writeAuditNew)
+
+          $readAuditOld = @(
+            '        if (formatVersion >= 2) {',
+            '            readCount("enemyFirstDefeats", this->mSeedAudit.enemyFirstDefeats);',
+            '        }',
+            '        if (formatVersion >= 3) {',
+            '            readCount("startingSpawn", this->mSeedAudit.startingSpawn);',
+            '        }'
+          ) -join "`n"
+          $readAuditNew = @(
+            '        if (formatVersion >= 2) {',
+            '            readCount("enemyFirstDefeats", this->mSeedAudit.enemyFirstDefeats);',
+            '        }',
+            '        if (formatVersion >= 4) {',
+            '            readCount("bossSouls", this->mSeedAudit.bossSouls);',
+            '            readCount("enemySouls", this->mSeedAudit.enemySouls);',
+            '        }',
+            '        if (formatVersion >= 3) {',
+            '            readCount("startingSpawn", this->mSeedAudit.startingSpawn);',
+            '        }'
+          ) -join "`n"
+          if (-not $contextSource.Contains($readAuditOld)) {
+            throw 'Seed audit load anchor changed before .686.'
+          }
+          $contextSource = $contextSource.Replace($readAuditOld, $readAuditNew)
+
+          $reportOld = @(
+            '        addCount("Shop shelves", this->mSeedAudit.shopShelves);',
+            '        addCount("Enemy first defeats", this->mSeedAudit.enemyFirstDefeats);',
+            '        if (const auto enemyMode = this->mSettings.find(ENEMY_RANDOMIZATION);'
+          ) -join "`n"
+          $reportNew = @(
+            '        addCount("Shop shelves", this->mSeedAudit.shopShelves);',
+            '        addCount("Enemy first defeats", this->mSeedAudit.enemyFirstDefeats);',
+            '        if (this->mSeedAudit.formatVersion >= 4) {',
+            '            addCount("Boss Souls", this->mSeedAudit.bossSouls);',
+            '            addCount("Enemy Souls", this->mSeedAudit.enemySouls);',
+            '            if (this->mSeedAudit.enemySouls.enabled) {',
+            '                report << "  Starting Enemy Souls: " << this->mStartingEnemySouls.size()',
+            "                       << '\\n';",
+            '            }',
+            '        }',
+            '        if (const auto enemyMode = this->mSettings.find(ENEMY_RANDOMIZATION);'
+          ) -join "`n"
+          if (-not $contextSource.Contains($reportOld)) {
+            throw 'Seed audit report anchor changed before .686.'
+          }
+          $contextSource = $contextSource.Replace($reportOld, $reportNew)
+
+          $generationAnchor = @(
+            '    audit.enemyFirstDefeats = RandomizerContext::AuditCount{',
+            '        .actual = static_cast<u32>(randoData.mEnemyFirstDefeatOverrides.size()),',
+            '        .expected = static_cast<u32>(world->GetExpectedEnemyFirstDefeatCount()),',
+            '        .enabled = world->Setting("Enemy First-Defeat Checks") == "On",',
+            '    };',
+            '',
+            '    const auto verifyCount = [](const char* label,',
+            '                                const RandomizerContext::AuditCount& count) {'
+          ) -join "`n"
+          $generationReplacement = @(
+            '    audit.enemyFirstDefeats = RandomizerContext::AuditCount{',
+            '        .actual = static_cast<u32>(randoData.mEnemyFirstDefeatOverrides.size()),',
+            '        .expected = static_cast<u32>(world->GetExpectedEnemyFirstDefeatCount()),',
+            '        .enabled = world->Setting("Enemy First-Defeat Checks") == "On",',
+            '    };',
+            '',
+            '    static constexpr std::array<std::string_view, 8> kBossSoulAuditNames{',
+            '        "Diababa Soul", "Fyrus Soul", "Morpheel Soul", "Stallord Soul",',
+            '        "Blizzeta Soul", "Armogohma Soul", "Argorok Soul", "Zant Soul",',
+            '    };',
+            '    const auto isBossSoul = [](const std::string_view name) {',
+            '        return std::ranges::find(kBossSoulAuditNames, name) != kBossSoulAuditNames.end();',
+            '    };',
+            '    u32 placedBossSouls = 0;',
+            '    u32 placedEnemySouls = 0;',
+            '    const auto countSoulItem = [&](const auto* item) {',
+            '        if (item == nullptr) {',
+            '            return;',
+            '        }',
+            '        if (isBossSoul(item->GetName())) {',
+            '            ++placedBossSouls;',
+            '        }',
+            '        const int itemId = item->GetID();',
+            '        if (itemId >= 0 && itemId <= 0xFFFF &&',
+            '            randomizer::enemy_souls::is_enemy_soul(static_cast<u16>(itemId))) {',
+            '            ++placedEnemySouls;',
+            '        }',
+            '    };',
+            '    for (const auto& location : world->GetAllLocations()) {',
+            '        countSoulItem(location->GetCurrentItem());',
+            '    }',
+            '    for (const auto& item : world->GetStartingItemPool()) {',
+            '        countSoulItem(item);',
+            '    }',
+            '    const bool bossSoulsEnabled = world->Setting("Boss Souls") == "On";',
+            '    audit.bossSouls = RandomizerContext::AuditCount{',
+            '        .actual = placedBossSouls,',
+            '        .expected = bossSoulsEnabled ? 8U : 0U,',
+            '        .enabled = bossSoulsEnabled,',
+            '    };',
+            '    const bool enemySoulsEnabled = world->Setting("Enemy Souls") == "On";',
+            '    audit.enemySouls = RandomizerContext::AuditCount{',
+            '        .actual = placedEnemySouls,',
+            '        .expected = enemySoulsEnabled ?',
+            '            static_cast<u32>(randomizer::enemy_souls::kDefinitions.size()) : 0U,',
+            '        .enabled = enemySoulsEnabled,',
+            '    };',
+            '',
+            '    const auto verifyCount = [](const char* label,',
+            '                                const RandomizerContext::AuditCount& count) {'
+          ) -join "`n"
+          if (-not $contextSource.Contains($generationAnchor)) {
+            throw 'Seed audit generation anchor changed before .686.'
+          }
+          $contextSource = $contextSource.Replace($generationAnchor, $generationReplacement)
+
+          $verifyOld = @(
+            '    verifyCount("Shop shuffle", audit.shopShelves);',
+            '    verifyCount("Enemy First-Defeat checks", audit.enemyFirstDefeats);'
+          ) -join "`n"
+          $verifyNew = @(
+            '    verifyCount("Shop shuffle", audit.shopShelves);',
+            '    verifyCount("Enemy First-Defeat checks", audit.enemyFirstDefeats);',
+            '    verifyCount("Boss Soul shuffle", audit.bossSouls);',
+            '    verifyCount("Enemy Soul shuffle", audit.enemySouls);'
+          ) -join "`n"
+          if (-not $contextSource.Contains($verifyOld)) {
+            throw 'Seed audit verification anchor changed before .686.'
+          }
+          $contextSource = $contextSource.Replace($verifyOld, $verifyNew)
+
+          # Starting Soul permissions are needed only for Twilight sections that
+          # still occur in this seed. Cleared/skipped sections leave those Souls
+          # in the normal 85-Soul shuffle instead of granting them at sphere zero.
+          $startingSoulOld = @(
+            '        if (world->Setting("Enemy Souls") == "On")',
+            '        {',
+            '            startingItems["Faron Twilit Insect Soul"] = 1;',
+            '            startingItems["Eldin Twilit Insect Soul"] = 1;',
+            '            startingItems["Lanayru Twilit Insect Soul"] = 1;',
+            '            startingItems["Twilit Bloat Soul"] = 1;',
+            '        }'
+          ) -join "`n"
+          $startingSoulNew = @(
+            '        if (world->Setting("Enemy Souls") == "On")',
+            '        {',
+            '            if (world->Setting("Faron Twilight Cleared") != "On") {',
+            '                startingItems["Faron Twilit Insect Soul"] = 1;',
+            '            }',
+            '            if (world->Setting("Eldin Twilight Cleared") != "On") {',
+            '                startingItems["Eldin Twilit Insect Soul"] = 1;',
+            '            }',
+            '            if (world->Setting("Lanayru Twilight Cleared") != "On") {',
+            '                startingItems["Lanayru Twilit Insect Soul"] = 1;',
+            '                startingItems["Twilit Bloat Soul"] = 1;',
+            '            }',
+            '        }'
+          ) -join "`n"
+          if (-not $itemPoolSource.Contains($startingSoulOld)) {
+            throw 'Enemy Soul starting-inventory anchor changed before .686.'
+          }
+          $itemPoolSource = $itemPoolSource.Replace($startingSoulOld, $startingSoulNew)
+
+          [IO.File]::WriteAllText(
+            $contextHeaderPath, $contextHeader, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText(
+            $contextSourcePath, $contextSource, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText(
+            $itemPoolPath, $itemPoolSource, [Text.UTF8Encoding]::new($false))
           # .685: Xbox reached seed generation and exposed an unresolved symbolic flow target:
           # group 2 -> Kakariko Malo Mart Red Potion Sold Out. The source links remain conditional
           # on Shop_Items == On, but their custom target nodes must always be present in the flow
@@ -1331,6 +1528,16 @@ jobs:
             'randomizer::enemy_souls::kDefinitions.size()')) {
             if (-not $randomizerAuditSource.Contains($auditMarker)) {
               throw "Randomizer soul audit marker is missing: $auditMarker"
+            }
+          }
+          $itemPoolVerify = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\mods\randomizer\generator\logic\item_pool.cpp")
+          foreach ($startingSoulMarker in @(
+            'world->Setting("Faron Twilight Cleared") != "On"',
+            'world->Setting("Eldin Twilight Cleared") != "On"',
+            'world->Setting("Lanayru Twilight Cleared") != "On"')) {
+            if (-not $itemPoolVerify.Contains($startingSoulMarker)) {
+              throw "Dynamic starting Enemy Soul marker is missing: $startingSoulMarker"
             }
           }
           $randomizerHooksSource = [IO.File]::ReadAllText(
@@ -2002,7 +2209,6 @@ jobs:
             randomizerNewSaveGatePatchSha256 = '7302f817471ef915b29fc97cced7afc5ff1ba898cf5d893c2e02fefbc8fad863'
             featureRestorationPatchSha256 = '10c97326e865b94faa993da78524951da61e5bc917c86d996f07ecb1a67bacdb'
             randomizerSettingsPatchSha256 = 'ca67713022b871bfeb9fe65acbb3870b0c631452273cd4f4350d31ddf4189f4e'
-            soulAuditPatchSha256 = 'a6970872e958a73d395e2a8f9978eeabf7001b9700369b349e65dc00487ef623'
             overlayRuntimePatchSha256 = '14ce6714583a84f4258dacd4b00f1a6897bff4b867b19c4d5aeacb99aa2b0b8f'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Mode carousel is selection-only; Play activates hooks and exits before another launcher frame; UWP game audio and logo audio waits are bypassed; damaged/no-card name-entry routes are gated through Randomizer seed selection; runtime mod-failure toasts include the exact reason'
