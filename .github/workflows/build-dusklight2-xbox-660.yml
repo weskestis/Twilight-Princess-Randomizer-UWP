@@ -654,92 +654,88 @@ jobs:
           git -C "$env:TPR_SRC" apply $featureRestorationPatch
           git -C "$env:TPR_SRC" apply --check $overlayRuntimePatch
           git -C "$env:TPR_SRC" apply $overlayRuntimePatch
-          # .681: the .680 defer still enumerated active mod overlay files before returning.
-          # The Xbox crash journal proves the failure is inside the overlay lifecycle itself, so
-          # return before touching ModLoader/bundles on the initial lifecycle call. frameEnd will
-          # consume the dirty flag and perform the real synchronization after the runtime is live.
+          # .681: .680 still enumerated active mod bundles before its defer check.
+          # Return before any ModLoader/bundle access on the initial lifecycle call.
           $overlayPath = "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp"
           $overlayText = [IO.File]::ReadAllText($overlayPath).Replace("`r`n", "`n")
-          $oldOverlayHead = @'
-#if defined(_UWP)
-    static bool deferInitialXboxSync = true;
-    static bool deferredXboxFiles = false;
-#endif
-    s_overlaysDirty = false;
-'@.Replace("`r`n", "`n")
-          $newOverlayHead = @'
-#if defined(_UWP)
-    static bool deferInitialXboxSync = true;
-    static bool deferredXboxFiles = false;
-    if (deferInitialXboxSync) {
-        deferInitialXboxSync = false;
-        deferredXboxFiles = true;
-        s_overlaysDirty = true;
-        Log.debug("Deferring initial Xbox DVD overlay synchronization until the runtime frame.");
-        return;
-    }
-    if (deferredXboxFiles) {
-        deferredXboxFiles = false;
-        Log.info("Xbox runtime ready; applying deferred DVD overlays.");
-    }
-#endif
-    s_overlaysDirty = false;
-'@.Replace("`r`n", "`n")
+          $oldOverlayHead = @(
+            '#if defined(_UWP)',
+            '    static bool deferInitialXboxSync = true;',
+            '    static bool deferredXboxFiles = false;',
+            '#endif',
+            '    s_overlaysDirty = false;'
+          ) -join "`n"
+          $newOverlayHead = @(
+            '#if defined(_UWP)',
+            '    static bool deferInitialXboxSync = true;',
+            '    static bool deferredXboxFiles = false;',
+            '    if (deferInitialXboxSync) {',
+            '        deferInitialXboxSync = false;',
+            '        deferredXboxFiles = true;',
+            '        s_overlaysDirty = true;',
+            '        Log.debug("Deferring initial Xbox DVD overlay synchronization until the runtime frame.");',
+            '        return;',
+            '    }',
+            '    if (deferredXboxFiles) {',
+            '        deferredXboxFiles = false;',
+            '        Log.info("Xbox runtime ready; applying deferred DVD overlays.");',
+            '    }',
+            '#endif',
+            '    s_overlaysDirty = false;'
+          ) -join "`n"
           if (-not $overlayText.Contains($oldOverlayHead)) {
-            throw 'The .680 overlay head changed; refusing an unsafe .681 rewrite.'
+            throw 'The green .680 overlay head changed; refusing an unsafe .681 rewrite.'
           }
           $overlayText = $overlayText.Replace($oldOverlayHead, $newOverlayHead)
 
-          $oldOverlayTail = @'
-#if defined(_UWP)
-    // Never enter Aurora's DVD overlay registration from the startup lifecycle. The Xbox runtime
-    // may not have completed its first game frame yet, which can fault even with a valid overlay
-    // set. Re-run a non-empty initial set from frameEnd, after the runtime is live.
-    if (deferInitialXboxSync) {
-        deferInitialXboxSync = false;
-        if (files.empty()) {
-            Log.debug("No overlay files; skipping initial Xbox overlay registration.");
-            return;
-        }
-        deferredXboxFiles = true;
-        s_overlaysDirty = true;
-        Log.debug("Deferring {} DVD overlay file(s) until the Xbox runtime frame.", files.size());
-        return;
-    }
-    if (deferredXboxFiles) {
-        deferredXboxFiles = false;
-        Log.info("Xbox runtime ready; applying deferred DVD overlays.");
-    }
-#endif
-'@.Replace("`r`n", "`n")
-          $newOverlayTail = @'
-#if defined(_UWP)
-    if (files.empty() && !callbacksRegistered) {
-        Log.debug("No overlay files; skipping initial Xbox overlay registration.");
-        return;
-    }
-#endif
-'@.Replace("`r`n", "`n")
+          $oldOverlayTail = @(
+            '#if defined(_UWP)',
+            '    // Never enter Aurora''s DVD overlay registration from the startup lifecycle. The Xbox runtime',
+            '    // may not have completed its first game frame yet, which can fault even with a valid overlay',
+            '    // set. Re-run a non-empty initial set from frameEnd, after the runtime is live.',
+            '    if (deferInitialXboxSync) {',
+            '        deferInitialXboxSync = false;',
+            '        if (files.empty()) {',
+            '            Log.debug("No overlay files; skipping initial Xbox overlay registration.");',
+            '            return;',
+            '        }',
+            '        deferredXboxFiles = true;',
+            '        s_overlaysDirty = true;',
+            '        Log.debug("Deferring {} DVD overlay file(s) until the Xbox runtime frame.", files.size());',
+            '        return;',
+            '    }',
+            '    if (deferredXboxFiles) {',
+            '        deferredXboxFiles = false;',
+            '        Log.info("Xbox runtime ready; applying deferred DVD overlays.");',
+            '    }',
+            '#endif'
+          ) -join "`n"
+          $newOverlayTail = @(
+            '#if defined(_UWP)',
+            '    if (files.empty() && !callbacksRegistered) {',
+            '        Log.debug("No overlay files; skipping initial Xbox overlay registration.");',
+            '        return;',
+            '    }',
+            '#endif'
+          ) -join "`n"
           if (-not $overlayText.Contains($oldOverlayTail)) {
-            throw 'The .680 late overlay defer changed; refusing an unsafe .681 rewrite.'
+            throw 'The green .680 late overlay block changed; refusing an unsafe .681 rewrite.'
           }
           $overlayText = $overlayText.Replace($oldOverlayTail, $newOverlayTail)
           [IO.File]::WriteAllText($overlayPath, $overlayText, [Text.UTF8Encoding]::new($false))
 
-          # Start .681 with a fresh journal so the .680 overlay crash marker cannot influence the
-          # first launch. A genuine .681 crash will still be reported on its following launch.
+          # Give .681 its own crash journal so the .680 overlay marker cannot affect first launch.
           $startupGuardPath = "$env:TPR_SRC\src\dusk\startup_guard.hpp"
           $startupGuard681 = [IO.File]::ReadAllText($startupGuardPath).Replace("`r`n", "`n")
-          if (-not $startupGuard681.Contains('xbox-startup-stage-681.txt')) {
-            throw 'Expected .678 startup journal marker is missing before .681 rollover.'
+          if (-not $startupGuard681.Contains('xbox-startup-stage-678.txt')) {
+            throw 'Expected green-baseline startup journal marker is missing before .681 rollover.'
           }
           $startupGuard681 = $startupGuard681.Replace(
             'xbox-startup-stage-678.txt', 'xbox-startup-stage-681.txt')
           [IO.File]::WriteAllText(
             $startupGuardPath, $startupGuard681, [Text.UTF8Encoding]::new($false))
 
-          # The package manifest already carries 1.4.1.681; make the launcher report the same
-          # version instead of BOREALIS_APP_DESCRIBE's UNKNOWN-VERSION on this detached CI build.
+          # Detached CI source reports UNKNOWN-VERSION; make the Xbox launcher match the MSIX.
           $prelaunchPath = "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp"
           $prelaunch681 = [IO.File]::ReadAllText($prelaunchPath).Replace("`r`n", "`n")
           $versionExpr = 'std::string_view versionStr(BOREALIS_APP_DESCRIBE);'
@@ -801,11 +797,10 @@ jobs:
           }
           $overlayDeferPos = $overlaySource.IndexOf(
             'Deferring initial Xbox DVD overlay synchronization until the runtime frame.')
-          $overlayEnumeratePos = $overlaySource.IndexOf(
-            'std::vector<AuroraOverlayFile> files;')
+          $overlayEnumeratePos = $overlaySource.IndexOf('std::vector<AuroraOverlayFile> files;')
           if ($overlayDeferPos -lt 0 -or $overlayEnumeratePos -lt 0 -or
               $overlayDeferPos -gt $overlayEnumeratePos) {
-            throw 'Xbox overlay defer still occurs after mod/bundle enumeration.'
+            throw 'Xbox overlay defer still occurs after active-mod/bundle enumeration.'
           }
           $mainSource = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
           if ($mainSource.Contains('show_xbox_startup_recovery') -or
@@ -829,7 +824,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-678.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-681.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 12') -or
@@ -939,7 +934,7 @@ jobs:
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
           if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.681");')) {
-            throw 'Xbox launcher version still depends on UNKNOWN-VERSION describe metadata.'
+            throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
               -not $prelaunchSource.Contains('mGameModeInitialized') -or
