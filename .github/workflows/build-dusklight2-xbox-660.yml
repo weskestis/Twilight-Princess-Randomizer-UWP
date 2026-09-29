@@ -1489,7 +1489,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-678.txt',
+            'xbox-startup-stage-681.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
