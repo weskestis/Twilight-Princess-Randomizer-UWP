@@ -1989,7 +1989,6 @@ jobs:
             '        }',
             '        return reason;',
             '    };',
-            '    const char* loadSection = "seed header";',
             '',
             '    try {'
           ) -join "`n"
@@ -1997,33 +1996,6 @@ jobs:
             throw 'Runtime seed-loader failure-path anchor changed before .690.'
           }
           $contextSource = $contextSource.Replace($loadFailureOld, $loadFailureNew)
-
-          $sectionAnchors = [ordered]@{
-            '    // Necessary settings' = 'settings'
-            '    if (const auto audit = in["mSeedAudit"]; audit) {' = 'seed audit'
-            '    // Event flags' = 'starting flags'
-            '    // Starting inventory' = 'starting inventory'
-            '    // Chest overrides' = 'item overrides'
-            '    // Shop Items' = 'shop overrides'
-            '    if (const auto breakables = in["mBreakableOverrides"]; breakables) {' = 'breakable overrides'
-            '    if (const auto shops = in["mExpandedShopOverrides"]; shops) {' = 'expanded shop overrides'
-            '    // Starting hour' = 'starting state'
-            '    // Object Patches' = 'object patches'
-            '    for (const auto& flowNode : in["mFlowNodes"]) {' = 'flow nodes'
-            '    for (const auto& messageNode : in["mCustomMessages"]) {' = 'custom messages'
-            '    // Text Overrides' = 'text overrides'
-            '    // Attribute Overrides' = 'message attributes'
-            '    // Entrance Overrides' = 'entrance overrides'
-            '    // Return to Place Overrides' = 'return-place overrides'
-          }
-          foreach ($entry in $sectionAnchors.GetEnumerator()) {
-            if (-not $contextSource.Contains($entry.Key)) {
-              throw "Runtime seed-loader section anchor changed before .690: $($entry.Key)"
-            }
-            $contextSource = $contextSource.Replace(
-              $entry.Key,
-              ('    loadSection = "' + $entry.Value + '";' + "`n" + $entry.Key))
-          }
 
           $entranceWriteOld = @(
             '    out["mEntranceOverrideFormat"] = 3;',
@@ -2247,13 +2219,12 @@ jobs:
           $catchNew = @(
             '    } catch (const YAML::Exception& error) {',
             '        return failSeedLoad(fmt::format(',
-            '            "Seed data conversion failed while reading {}: {}", loadSection, error.what()));',
+            '            "Seed data conversion failed: {}", error.what()));',
             '    } catch (const std::exception& error) {',
             '        return failSeedLoad(fmt::format(',
-            '            "Seed data is invalid or incomplete while reading {}: {}", loadSection, error.what()));',
+            '            "Seed data is invalid or incomplete: {}", error.what()));',
             '    } catch (...) {',
-            '        return failSeedLoad(fmt::format(',
-            '            "Seed data is invalid or incomplete while reading {}: unknown error", loadSection));',
+            '        return failSeedLoad("Seed data is invalid or incomplete: unknown error");',
             '    }'
           ) -join "`n"
           if (-not $contextSource.Contains($catchOld)) {
