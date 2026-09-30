@@ -1575,40 +1575,6 @@ jobs:
             'std::vector<std::string> g_seedHashes = {};',
             'UiElementHandle g_seedSelectControl{};',
             '',
-            'void refresh_play_seed_options(bool selectLastGenerated) {',
-            '    g_seedHashes = {"None"};',
-            '    for (const auto& hash : get_compatible_seed_hashes()) {',
-            '        g_seedHashes.push_back(hash);',
-            '    }',
-            '',
-            '    if (selectLastGenerated) {',
-            '        const auto generatedHash = randomizer_GetLastGeneratedSeedHash();',
-            '        if (!generatedHash.empty() && std::ranges::contains(g_seedHashes, generatedHash)) {',
-            '            session::g_pending_seed_hash = generatedHash;',
-            '        }',
-            '    }',
-            '    if (!session::g_pending_seed_hash.empty() &&',
-            '        !std::ranges::contains(g_seedHashes, session::g_pending_seed_hash)) {',
-            '        session::g_pending_seed_hash.clear();',
-            '    }',
-            '',
-            '    if (g_seedSelectControl == 0 || session::svc_mng.ui->control_set_options == nullptr) {',
-            '        return;',
-            '    }',
-            '    std::vector<UiControlOption> options;',
-            '    options.reserve(g_seedHashes.size());',
-            '    for (const auto& hash : g_seedHashes) {',
-            '        UiControlOption option = UI_CONTROL_OPTION_INIT;',
-            '        option.label = hash.c_str();',
-            '        options.push_back(option);',
-            '    }',
-            '    const ModResult result = session::svc_mng.ui->control_set_options(',
-            '        session::svc_mng.mod_ctx, g_seedSelectControl, options.data(), options.size());',
-            '    if (result != MOD_OK) {',
-            '        mods::log::warn("Could not refresh generated seed selector: {}", static_cast<int>(result));',
-            '    }',
-            '}',
-            '',
             '// Seed Management Tab'
           ) -join [char]10
           if (-not $randoConfigSource.Contains($seedGlobalsOld)) {
@@ -1695,6 +1661,60 @@ jobs:
             throw 'Randomizer gate close anchor changed before .687.'
           }
           $randoConfigSource = $randoConfigSource.Replace($closedOld, $closedNew)
+
+          $externalRefreshAnchor = @(
+            '    return MOD_OK;',
+            '}',
+            '}',
+            '',
+            '// Function to call for pre-loading excluded location catalog when selecting randomizer game mode'
+          ) -join [char]10
+          $externalRefreshReplacement = @(
+            '    return MOD_OK;',
+            '}',
+            '}',
+            '',
+            'void refresh_play_seed_options(bool selectLastGenerated) {',
+            '    g_seedHashes = {"None"};',
+            '    for (const auto& hash : get_compatible_seed_hashes()) {',
+            '        g_seedHashes.push_back(hash);',
+            '    }',
+            '',
+            '    if (selectLastGenerated) {',
+            '        const auto generatedHash = randomizer_GetLastGeneratedSeedHash();',
+            '        if (!generatedHash.empty() && std::ranges::contains(g_seedHashes, generatedHash)) {',
+            '            session::g_pending_seed_hash = generatedHash;',
+            '        }',
+            '    }',
+            '    if (!session::g_pending_seed_hash.empty() &&',
+            '        !std::ranges::contains(g_seedHashes, session::g_pending_seed_hash)) {',
+            '        session::g_pending_seed_hash.clear();',
+            '    }',
+            '',
+            '    if (g_seedSelectControl == 0 || session::svc_mng.ui->control_set_options == nullptr) {',
+            '        return;',
+            '    }',
+            '    std::vector<UiControlOption> options;',
+            '    options.reserve(g_seedHashes.size());',
+            '    for (const auto& hash : g_seedHashes) {',
+            '        UiControlOption option = UI_CONTROL_OPTION_INIT;',
+            '        option.label = hash.c_str();',
+            '        options.push_back(option);',
+            '    }',
+            '    const ModResult result = session::svc_mng.ui->control_set_options(',
+            '        session::svc_mng.mod_ctx, g_seedSelectControl, options.data(), options.size());',
+            '    if (result != MOD_OK) {',
+            '        mods::log::warn("Could not refresh generated seed selector: {}", static_cast<int>(result));',
+            '    }',
+            '}',
+            '',
+            '// Function to call for pre-loading excluded location catalog when selecting randomizer game mode'
+          ) -join [char]10
+          if (-not $randoConfigSource.Contains($externalRefreshAnchor)) {
+            throw 'External seed-selector refresh insertion anchor changed before .687.'
+          }
+          $randoConfigSource = $randoConfigSource.Replace(
+            $externalRefreshAnchor, $externalRefreshReplacement)
 
           if (-not $seedGenerationSource.Contains('#include "rando_seed_generation.hpp"')) {
             throw 'Seed generation include anchor changed before .687.'
@@ -1815,7 +1835,8 @@ jobs:
             'RandomizerContext::IsCompatibleSeedHash(hash)',
             'UI_CONTROL_DROPDOWN',
             'refresh_play_seed_options(true)',
-            'control_set_options(')) {
+            'control_set_options(',
+            'void refresh_play_seed_options(bool selectLastGenerated)')) {
             if (-not ($seedIndexVerify.Contains($seedFixMarker) -or
                       $seedGenVerify.Contains($seedFixMarker))) {
               throw "Generated-seed selector fix marker is missing: $seedFixMarker"
@@ -1823,6 +1844,11 @@ jobs:
           }
           if ($seedIndexVerify.Contains('LoadYAML(entry.path() / "seed.dat")')) {
             throw 'Seed selector still tries to parse compressed seed.dat directly as YAML.'
+          }
+          $refreshDefinition = 'void refresh_play_seed_options(bool selectLastGenerated)'
+          $anonymousClose = [char]10 + '}' + [char]10 + [char]10 + $refreshDefinition
+          if (-not $seedIndexVerify.Contains($anonymousClose)) {
+            throw 'Generated-seed refresh function still has anonymous/internal linkage.'
           }
           $randomizerHooksSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\mods\randomizer\src\hooks.cpp")
