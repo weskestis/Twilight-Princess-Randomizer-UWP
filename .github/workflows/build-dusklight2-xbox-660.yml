@@ -1855,28 +1855,19 @@ jobs:
             '    return g_last_seed_activation_error;',
             '}'
           ) -join "`n"
-          if (-not $sessionSource.Contains($activateOld)) {
-            throw 'Seed activation implementation anchor changed before .688.'
+          $activatePattern =
+            '(?s)bool activateSeed\(const char\* hash\) \{.*?\n\}\n\nvoid deactivateSeed\(\) \{'
+          $activateMatches = [regex]::Matches($sessionSource, $activatePattern)
+          if ($activateMatches.Count -ne 1) {
+            throw "Seed activation function match count before .688: $($activateMatches.Count)"
           }
-          $sessionSource = $sessionSource.Replace($activateOld, $activateNew)
+          $sessionSource = [regex]::Replace(
+            $sessionSource,
+            $activatePattern,
+            ($activateNew + "`n`nvoid deactivateSeed() {"),
+            1)
 
-          $newSaveOld = @(
-            'ModResult onNewSave(void*, ModError* error) {',
-            '    const std::string hash = g_pending_seed_hash;',
-            '    if (hash.empty()) {',
-            '        return mods::set_error(error, MOD_ERROR,',
-            '            "No Randomizer seed was selected before creating the save");',
-            '    }',
-            '',
-            '    deactivateSeed();',
-            '    if (!activateSeed(hash.c_str())) {',
-            '        return mods::set_error(error, MOD_ERROR,',
-            '            "The selected Randomizer seed could not be loaded");',
-            '    }',
-            '',
-            '    svc_mng.save->set_blob(svc_mng.mod_ctx, kSeedHashBlobName, hash.data(), hash.size());'
-          ) -join "`n"
-          $newSaveNew = @(
+          $newSaveFunction = @(
             'ModResult onNewSave(void*, ModError* error) {',
             '    const std::string hash = g_pending_seed_hash;',
             '    if (hash.empty()) {',
@@ -1894,12 +1885,24 @@ jobs:
             '        }',
             '    }',
             '',
-            '    svc_mng.save->set_blob(svc_mng.mod_ctx, kSeedHashBlobName, hash.data(), hash.size());'
+            '    svc_mng.save->set_blob(svc_mng.mod_ctx, kSeedHashBlobName, hash.data(), hash.size());',
+            '    setAncientDocumentNum(0);',
+            '    setupRandomizerFile();',
+            '    saveAncientDocumentNum();',
+            '    return MOD_OK;',
+            '}'
           ) -join "`n"
-          if (-not $sessionSource.Contains($newSaveOld)) {
-            throw 'New-save activation anchor changed before .688.'
+          $newSavePattern =
+            '(?s)ModResult onNewSave\(void\*, ModError\* error\) \{.*?\n\}\n\nModResult onSaveLoaded\('
+          $newSaveMatches = [regex]::Matches($sessionSource, $newSavePattern)
+          if ($newSaveMatches.Count -ne 1) {
+            throw "New-save function match count before .688: $($newSaveMatches.Count)"
           }
-          $sessionSource = $sessionSource.Replace($newSaveOld, $newSaveNew)
+          $sessionSource = [regex]::Replace(
+            $sessionSource,
+            $newSavePattern,
+            ($newSaveFunction + "`n`nModResult onSaveLoaded("),
+            1)
 
           $startOld = @(
             '        desc.on_pressed = [](ModContext*, void* userdata) {',
