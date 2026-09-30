@@ -2359,10 +2359,10 @@ jobs:
             '        validationContext.FormatSeedAuditReport()));',
             '    return true;'
           ) -join "`n"
-          if (-not $seedGenerationSource.Contains($runtimeValidationOld)) {
+          if (-not $contextSource.Contains($runtimeValidationOld)) {
             throw 'Generated-seed runtime-validation anchor changed before .690.'
           }
-          $seedGenerationSource = $seedGenerationSource.Replace(
+          $contextSource = $contextSource.Replace(
             $runtimeValidationOld, $runtimeValidationNew)
 
           foreach ($runtimeMarker in @(
