@@ -1949,7 +1949,438 @@ jobs:
           [IO.File]::WriteAllText(
             $sessionSourcePath, $sessionSource, [Text.UTF8Encoding]::new($false))
 
-          # .689 Xbox isolation: retain the proven-safe UWP audio-disabled path.
+          # .690: generated seeds must survive the exact runtime parser before
+          # they can be advertised as verified or selected. 64-bit entrance
+          # identities are also stored as portable decimal scalars.
+          $loadDeclOld = '    std::optional<std::string> LoadFromHash(const std::string& hash);'
+          $loadDeclNew = '    std::optional<std::string> LoadFromHash(const std::string& hash, bool quiet = false);'
+          if (-not $contextHeader.Contains($loadDeclOld)) {
+            throw 'Runtime seed-validation declaration anchor changed before .690.'
+          }
+          $contextHeader = $contextHeader.Replace($loadDeclOld, $loadDeclNew)
+
+          $loadSignatureOld =
+            'std::optional<std::string> RandomizerContext::LoadFromHash(const std::string& hash) {'
+          $loadSignatureNew =
+            'std::optional<std::string> RandomizerContext::LoadFromHash(const std::string& hash, bool quiet) {'
+          if (-not $contextSource.Contains($loadSignatureOld)) {
+            throw 'Runtime seed-loader signature anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($loadSignatureOld, $loadSignatureNew)
+
+          $loadFailureOld = @(
+            '    auto failSeedLoad = [this, &hash](const std::string& reason)',
+            '        -> std::optional<std::string> {',
+            '        mods::log::error("Failed to load randomizer seed ''{}'': {}", hash, reason);',
+            '        *this = RandomizerContext{};',
+            '        PushToast("Randomizer Seed Error", reason, 7000, "warning");',
+            '        return reason;',
+            '    };',
+            '',
+            '    try {'
+          ) -join "`n"
+          $loadFailureNew = @(
+            '    auto failSeedLoad = [this, &hash, quiet](const std::string& reason)',
+            '        -> std::optional<std::string> {',
+            '        mods::log::error("Failed to load randomizer seed ''{}'': {}", hash, reason);',
+            '        *this = RandomizerContext{};',
+            '        if (!quiet) {',
+            '            PushToast("Randomizer Seed Error", reason, 7000, "warning");',
+            '        }',
+            '        return reason;',
+            '    };',
+            '    const char* loadSection = "seed header";',
+            '',
+            '    try {'
+          ) -join "`n"
+          if (-not $contextSource.Contains($loadFailureOld)) {
+            throw 'Runtime seed-loader failure-path anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($loadFailureOld, $loadFailureNew)
+
+          $sectionAnchors = [ordered]@{
+            '    // Necessary settings' = 'settings'
+            '    if (const auto audit = in["mSeedAudit"]; audit) {' = 'seed audit'
+            '    // Event flags' = 'starting flags'
+            '    // Starting inventory' = 'starting inventory'
+            '    // Chest overrides' = 'item overrides'
+            '    // Shop Items' = 'shop overrides'
+            '    if (const auto breakables = in["mBreakableOverrides"]; breakables) {' = 'breakable overrides'
+            '    if (const auto shops = in["mExpandedShopOverrides"]; shops) {' = 'expanded shop overrides'
+            '    // Starting hour' = 'starting state'
+            '    // Object Patches' = 'object patches'
+            '    for (const auto& flowNode : in["mFlowNodes"]) {' = 'flow nodes'
+            '    for (const auto& messageNode : in["mCustomMessages"]) {' = 'custom messages'
+            '    // Text Overrides' = 'text overrides'
+            '    // Attribute Overrides' = 'message attributes'
+            '    // Entrance Overrides' = 'entrance overrides'
+            '    // Return to Place Overrides' = 'return-place overrides'
+          }
+          foreach ($entry in $sectionAnchors.GetEnumerator()) {
+            if (-not $contextSource.Contains($entry.Key)) {
+              throw "Runtime seed-loader section anchor changed before .690: $($entry.Key)"
+            }
+            $contextSource = $contextSource.Replace(
+              $entry.Key,
+              ('    loadSection = "' + $entry.Value + '";' + "`n" + $entry.Key))
+          }
+
+          $entranceWriteOld = @(
+            '    out["mEntranceOverrideFormat"] = 3;',
+            '    for (const auto& [key, override] : mEntranceOverrides) {',
+            '        out["mEntranceOverrides"][key] = PackEntranceOverride(override);',
+            '    }',
+            '',
+            '    for (const auto& [key, data] : mEntranceLog) {',
+            '        out["mEntranceLog"][key]["source"] = data.source;',
+            '        out["mEntranceLog"][key]["destination"] = data.destination;',
+            '        out["mEntranceLog"][key]["category"] = data.category;',
+            '        out["mEntranceLog"][key]["sourceStage"] = static_cast<u16>(data.sourceStage);',
+            '        out["mEntranceLog"][key]["destinationStage"] =',
+            '            static_cast<u16>(data.destinationStage);',
+            '    }',
+            '',
+            '    for (const auto& [key, override] : mReturnToPlaceOverrides) {',
+            '        out["mReturnToPlaceOverrides"][key] = PackEntranceOverride(override);',
+            '    }'
+          ) -join "`n"
+          $entranceWriteNew = @(
+            '    out["mEntranceOverrideFormat"] = 4;',
+            '    for (const auto& [key, override] : mEntranceOverrides) {',
+            '        const std::string keyText = std::to_string(key);',
+            '        out["mEntranceOverrides"][keyText] =',
+            '            std::to_string(PackEntranceOverride(override));',
+            '    }',
+            '',
+            '    for (const auto& [key, data] : mEntranceLog) {',
+            '        const std::string keyText = std::to_string(key);',
+            '        out["mEntranceLog"][keyText]["source"] = data.source;',
+            '        out["mEntranceLog"][keyText]["destination"] = data.destination;',
+            '        out["mEntranceLog"][keyText]["category"] = data.category;',
+            '        out["mEntranceLog"][keyText]["sourceStage"] = static_cast<u16>(data.sourceStage);',
+            '        out["mEntranceLog"][keyText]["destinationStage"] =',
+            '            static_cast<u16>(data.destinationStage);',
+            '    }',
+            '',
+            '    for (const auto& [key, override] : mReturnToPlaceOverrides) {',
+            '        out["mReturnToPlaceOverrides"][key] =',
+            '            std::to_string(PackEntranceOverride(override));',
+            '    }'
+          ) -join "`n"
+          if (-not $contextSource.Contains($entranceWriteOld)) {
+            throw 'Portable entrance-writer anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($entranceWriteOld, $entranceWriteNew)
+
+          $entranceReadOld = @(
+            '    constexpr int entranceStageCount = sizeof(allStages) / sizeof(allStages[0]);',
+            '    const u16 entranceFormat = in["mEntranceOverrideFormat"]',
+            '                                   ? in["mEntranceOverrideFormat"].as<u16>()',
+            '                                   : 1;',
+            '    if (entranceFormat < 1 || entranceFormat > 3) {',
+            '        throw std::runtime_error("Seed data uses an unsupported entrance format");',
+            '    }',
+            '    const auto validateCoordinates = [entranceStageCount](const EntranceOverride& entrance) {',
+            '        return entrance.stageId < entranceStageCount &&',
+            '               entrance.roomNo >= -1 && entrance.roomNo < 64 &&',
+            '               entrance.pointNo >= -4 &&',
+            '               entrance.mapLayer >= -1 && entrance.mapLayer < 15;',
+            '    };',
+            '    const auto validateEntranceValue = [&validateCoordinates](const EntranceOverride& entrance) {',
+            '        return validateCoordinates(entrance) &&',
+            '               std::ranges::all_of(entrance.reserved, [](const u8 byte) { return byte == 0; });',
+            '    };',
+            '    const auto validateEntranceKey = [entranceFormat, entranceStageCount,',
+            '                                      &validateCoordinates](const EntranceOverride& entrance) {',
+            '        const bool validContext = entranceFormat >= 3',
+            '                                      ? entrance.reserved[0] <= entranceStageCount',
+            '                                      : entrance.reserved[0] == 0;',
+            '        return validateCoordinates(entrance) && validContext &&',
+            '               entrance.reserved[1] == 0 && entrance.reserved[2] == 0;',
+            '    };',
+            '    const bool wideEntranceFormat = entranceFormat >= 2;',
+            '    const auto readEntrance = [wideEntranceFormat](const YAML::Node& node) {',
+            '        return wideEntranceFormat',
+            '                   ? UnpackEntranceOverride(node.as<u64>())',
+            '                   : UpgradeLegacyEntranceOverride(node.as<s32>());',
+            '    };',
+            '    const auto readEntranceKey = [wideEntranceFormat](const YAML::Node& node) {',
+            '        return wideEntranceFormat',
+            '                   ? node.as<u64>()',
+            '                   : PackEntranceOverride(UpgradeLegacyEntranceOverride(node.as<s32>()));',
+            '    };'
+          ) -join "`n"
+          $entranceReadNew = @(
+            '    constexpr int entranceStageCount = sizeof(allStages) / sizeof(allStages[0]);',
+            '    const u16 entranceFormat = in["mEntranceOverrideFormat"]',
+            '                                   ? in["mEntranceOverrideFormat"].as<u16>()',
+            '                                   : 1;',
+            '    if (entranceFormat < 1 || entranceFormat > 4) {',
+            '        throw std::runtime_error("Seed data uses an unsupported entrance format");',
+            '    }',
+            '    const auto validateCoordinates = [entranceStageCount](const EntranceOverride& entrance) {',
+            '        return entrance.stageId < entranceStageCount &&',
+            '               entrance.roomNo >= -1 && entrance.roomNo < 64 &&',
+            '               entrance.pointNo >= -4 &&',
+            '               entrance.mapLayer >= -1 && entrance.mapLayer < 15;',
+            '    };',
+            '    const auto validateEntranceValue = [&validateCoordinates](const EntranceOverride& entrance) {',
+            '        return validateCoordinates(entrance) &&',
+            '               std::ranges::all_of(entrance.reserved, [](const u8 byte) { return byte == 0; });',
+            '    };',
+            '    const auto validateEntranceKey = [entranceFormat, entranceStageCount,',
+            '                                      &validateCoordinates](const EntranceOverride& entrance) {',
+            '        const bool validContext = entranceFormat >= 3',
+            '                                      ? entrance.reserved[0] <= entranceStageCount',
+            '                                      : entrance.reserved[0] == 0;',
+            '        return validateCoordinates(entrance) && validContext &&',
+            '               entrance.reserved[1] == 0 && entrance.reserved[2] == 0;',
+            '    };',
+            '    const auto parseWideEntranceScalar = [](const YAML::Node& node,',
+            '                                             const char* label) -> u64 {',
+            '        if (!node || !node.IsScalar()) {',
+            '            throw std::runtime_error(fmt::format(',
+            '                "Seed data {} is not a scalar", label));',
+            '        }',
+            '        const std::string text = node.Scalar();',
+            '        size_t parsedLength = 0;',
+            '        try {',
+            '            const u64 value = std::stoull(text, &parsedLength, 10);',
+            '            if (parsedLength != text.size()) {',
+            '                throw std::runtime_error("trailing characters");',
+            '            }',
+            '            return value;',
+            '        } catch (const std::exception&) {',
+            '            throw std::runtime_error(fmt::format(',
+            '                "Seed data {} is not a portable 64-bit decimal value", label));',
+            '        }',
+            '    };',
+            '    const bool wideEntranceFormat = entranceFormat >= 2;',
+            '    const auto readEntrance = [wideEntranceFormat, &parseWideEntranceScalar](',
+            '                                  const YAML::Node& node) {',
+            '        return wideEntranceFormat',
+            '                   ? UnpackEntranceOverride(',
+            '                         parseWideEntranceScalar(node, "entrance value"))',
+            '                   : UpgradeLegacyEntranceOverride(node.as<s32>());',
+            '    };',
+            '    const auto readEntranceKey = [wideEntranceFormat, &parseWideEntranceScalar](',
+            '                                     const YAML::Node& node) {',
+            '        return wideEntranceFormat',
+            '                   ? parseWideEntranceScalar(node, "entrance key")',
+            '                   : PackEntranceOverride(UpgradeLegacyEntranceOverride(node.as<s32>()));',
+            '    };'
+          ) -join "`n"
+          if (-not $contextSource.Contains($entranceReadOld)) {
+            throw 'Portable entrance-reader anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($entranceReadOld, $entranceReadNew)
+
+          $compatOld = @(
+            'bool RandomizerContext::IsCompatibleSeedHash(const std::string& hash) noexcept {',
+            '    try {',
+            '        if (hash.empty()) {',
+            '            return false;',
+            '        }',
+            '        RandomizerContext candidate{};',
+            '        candidate.mHash = hash;',
+            '        const auto storedBytes = ReadAllBytes(candidate.GetSeedDataPath());',
+            '        if (storedBytes.empty()) {',
+            '            return false;',
+            '        }',
+            '        const auto seedData = YAML::Load(DecodeSeedPayload(storedBytes));',
+            '        return seedData.IsMap() && seedData["formatVersion"] &&',
+            '               seedData["formatVersion"].as<u32>() == FORMAT_VERSION;',
+            '    } catch (...) {',
+            '        return false;',
+            '    }',
+            '}'
+          ) -join "`n"
+          $compatNew = @(
+            'bool RandomizerContext::IsCompatibleSeedHash(const std::string& hash) noexcept {',
+            '    try {',
+            '        if (hash.empty()) {',
+            '            return false;',
+            '        }',
+            '        RandomizerContext candidate{};',
+            '        const auto error = candidate.LoadFromHash(hash, true);',
+            '        return !error.has_value() && candidate.mHash == hash;',
+            '    } catch (...) {',
+            '        return false;',
+            '    }',
+            '}'
+          ) -join "`n"
+          if (-not $contextSource.Contains($compatOld)) {
+            throw 'Full runtime seed-compatibility anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($compatOld, $compatNew)
+
+          $successToastOld = @(
+            '        PushToast("Randomizer", fmt::format("Loaded Randomizer Seed {}", this->mHash),',
+            '                  3000, "success");',
+            '        if (const auto mismatch = randomizer_GetLogicMismatchReport(); !mismatch.empty()) {',
+            '            PushToast("Randomizer Logic Warning", mismatch, 9000, "warning");',
+            '        }',
+            '        return std::nullopt;'
+          ) -join "`n"
+          $successToastNew = @(
+            '        if (!quiet) {',
+            '            PushToast("Randomizer", fmt::format("Loaded Randomizer Seed {}", this->mHash),',
+            '                      3000, "success");',
+            '            if (const auto mismatch = randomizer_GetLogicMismatchReport(); !mismatch.empty()) {',
+            '                PushToast("Randomizer Logic Warning", mismatch, 9000, "warning");',
+            '            }',
+            '        }',
+            '        return std::nullopt;'
+          ) -join "`n"
+          if (-not $contextSource.Contains($successToastOld)) {
+            throw 'Quiet seed-load success anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($successToastOld, $successToastNew)
+
+          $catchOld = @(
+            '    } catch (const std::exception& error) {',
+            '        return failSeedLoad(fmt::format("Seed data is invalid or incomplete: {}", error.what()));',
+            '    } catch (...) {',
+            '        return failSeedLoad("Seed data is invalid or incomplete: unknown error");',
+            '    }'
+          ) -join "`n"
+          $catchNew = @(
+            '    } catch (const YAML::Exception& error) {',
+            '        return failSeedLoad(fmt::format(',
+            '            "Seed data conversion failed while reading {}: {}", loadSection, error.what()));',
+            '    } catch (const std::exception& error) {',
+            '        return failSeedLoad(fmt::format(',
+            '            "Seed data is invalid or incomplete while reading {}: {}", loadSection, error.what()));',
+            '    } catch (...) {',
+            '        return failSeedLoad(fmt::format(',
+            '            "Seed data is invalid or incomplete while reading {}: unknown error", loadSection));',
+            '    }'
+          ) -join "`n"
+          if (-not $contextSource.Contains($catchOld)) {
+            throw 'Runtime seed-loader catch anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($catchOld, $catchNew)
+
+          $entranceReportOld = @(
+            '        addCount("Starting spawn", this->mSeedAudit.startingSpawn);',
+            '        addCount("Dungeon entrances", this->mSeedAudit.dungeonEntrances);',
+            '        if (this->mSeedAudit.dungeonEntrances.enabled) {',
+            '            report << "  Vanilla matches: " << this->mSeedAudit.dungeonVanillaMatches',
+            '                   << ''\n'';',
+            '        }',
+            '        addCount("Boss entrances", this->mSeedAudit.bossEntrances);',
+            '        if (this->mSeedAudit.bossEntrances.enabled) {',
+            '            report << "  Vanilla matches: " << this->mSeedAudit.bossVanillaMatches << ''\n'';',
+            '        }',
+            '        addCount("Cave + grotto entrances", this->mSeedAudit.caveGrottoEntrances);',
+            '        if (this->mSeedAudit.caveGrottoEntrances.enabled) {',
+            '            report << "  Vanilla matches: "',
+            '                   << this->mSeedAudit.caveGrottoVanillaMatches << ''\n'';',
+            '        }'
+          ) -join "`n"
+          $entranceReportNew = @(
+            '        addCount("Starting spawn", this->mSeedAudit.startingSpawn);',
+            '        const auto changedFromVanilla = [](const AuditCount& count, u32 vanillaMatches) {',
+            '            return count.actual >= vanillaMatches ? count.actual - vanillaMatches : 0U;',
+            '        };',
+            '        addCount("Dungeon entrances", this->mSeedAudit.dungeonEntrances);',
+            '        if (this->mSeedAudit.dungeonEntrances.enabled) {',
+            '            report << "  Changed from vanilla: "',
+            '                   << changedFromVanilla(this->mSeedAudit.dungeonEntrances,',
+            '                                         this->mSeedAudit.dungeonVanillaMatches)',
+            '                   << ''/'' << this->mSeedAudit.dungeonEntrances.actual << ''\n'';',
+            '        }',
+            '        addCount("Boss entrances", this->mSeedAudit.bossEntrances);',
+            '        if (this->mSeedAudit.bossEntrances.enabled) {',
+            '            report << "  Changed from vanilla: "',
+            '                   << changedFromVanilla(this->mSeedAudit.bossEntrances,',
+            '                                         this->mSeedAudit.bossVanillaMatches)',
+            '                   << ''/'' << this->mSeedAudit.bossEntrances.actual << ''\n'';',
+            '        }',
+            '        addCount("Cave + grotto entrances", this->mSeedAudit.caveGrottoEntrances);',
+            '        if (this->mSeedAudit.caveGrottoEntrances.enabled) {',
+            '            report << "  Changed from vanilla: "',
+            '                   << changedFromVanilla(this->mSeedAudit.caveGrottoEntrances,',
+            '                                         this->mSeedAudit.caveGrottoVanillaMatches)',
+            '                   << ''/'' << this->mSeedAudit.caveGrottoEntrances.actual << ''\n'';',
+            '        }'
+          ) -join "`n"
+          if (-not $contextSource.Contains($entranceReportOld)) {
+            throw 'Entrance audit wording anchor changed before .690.'
+          }
+          $contextSource = $contextSource.Replace($entranceReportOld, $entranceReportNew)
+
+          $runtimeValidationOld = @(
+            '    randoData.mHash = r.GetConfig().GetHash();',
+            '    auto writeToFileResult = randoData.WriteToFile();',
+            '    if (writeToFileResult.has_value()) {',
+            '        randomizer::ui::UpdateGenerationStatusMsg(',
+            '            fmt::format("Failed to write seed data to file. Reason:\n{}", writeToFileResult.value()));',
+            '        DeleteFailedGenerationFiles(r);',
+            '        return false;',
+            '    }',
+            '',
+            '    {',
+            '        std::scoped_lock lock(sLastGeneratedSeedMutex);',
+            '        sLastGeneratedSeedHash = randoData.mHash;',
+            '    }',
+            '',
+            '    randomizer::ui::UpdateGenerationStatusMsg(fmt::format(',
+            '        "Seed generated and verified!\n\n{}", randoData.FormatSeedAuditReport()));',
+            '    return true;'
+          ) -join "`n"
+          $runtimeValidationNew = @(
+            '    randoData.mHash = r.GetConfig().GetHash();',
+            '    auto writeToFileResult = randoData.WriteToFile();',
+            '    if (writeToFileResult.has_value()) {',
+            '        randomizer::ui::UpdateGenerationStatusMsg(',
+            '            fmt::format("Failed to write seed data to file. Reason:\n{}", writeToFileResult.value()));',
+            '        DeleteFailedGenerationFiles(r);',
+            '        return false;',
+            '    }',
+            '',
+            '    RandomizerContext validationContext{};',
+            '    const auto runtimeValidation = validationContext.LoadFromHash(randoData.mHash, true);',
+            '    if (runtimeValidation.has_value() || validationContext.mHash.empty()) {',
+            '        randomizer::ui::UpdateGenerationStatusMsg(fmt::format(',
+            '            "Failed runtime seed validation. Reason:\n{}",',
+            '            runtimeValidation.value_or("Seed loader rejected the generated seed")));',
+            '        DeleteFailedGenerationFiles(r);',
+            '        return false;',
+            '    }',
+            '',
+            '    {',
+            '        std::scoped_lock lock(sLastGeneratedSeedMutex);',
+            '        sLastGeneratedSeedHash = randoData.mHash;',
+            '    }',
+            '',
+            '    randomizer::ui::UpdateGenerationStatusMsg(fmt::format(',
+            '        "Seed generated and runtime-verified!\n\n{}",',
+            '        validationContext.FormatSeedAuditReport()));',
+            '    return true;'
+          ) -join "`n"
+          if (-not $seedGenerationSource.Contains($runtimeValidationOld)) {
+            throw 'Generated-seed runtime-validation anchor changed before .690.'
+          }
+          $seedGenerationSource = $seedGenerationSource.Replace(
+            $runtimeValidationOld, $runtimeValidationNew)
+
+          foreach ($runtimeMarker in @(
+            'LoadFromHash(const std::string& hash, bool quiet = false)',
+            'mEntranceOverrideFormat"] = 4',
+            'parseWideEntranceScalar',
+            'candidate.LoadFromHash(hash, true)',
+            'Changed from vanilla:',
+            'Seed generated and runtime-verified!',
+            'Failed runtime seed validation')) {
+            if (-not ($contextHeader.Contains($runtimeMarker) -or
+                      $contextSource.Contains($runtimeMarker) -or
+                      $seedGenerationSource.Contains($runtimeMarker))) {
+              throw "Xbox .690 runtime seed marker is missing: $runtimeMarker"
+            }
+          }
+
+          # .690 retains the proven-safe .689 UWP audio-disabled path.
           # The .688 runtime journal stopped at main01.audio-execute after Randomizer launch,
           # so do not re-enable SDL/JAS playback in this build.
           $audioSafeHeader = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\audio.h")
@@ -1962,7 +2393,7 @@ jobs:
               -not $audioSafeMain.Contains('main01.audio-disabled') -or
               -not $audioSafeLogo.Contains('logo.audio-bypassed') -or
               -not $audioSafeLogo.Contains('logo.static-waves-bypassed')) {
-            throw 'Xbox .689 safe-audio isolation path is incomplete.'
+            throw 'Xbox .690 safe-audio isolation path is incomplete.'
           }
 
           [IO.File]::WriteAllText(
@@ -2146,7 +2577,7 @@ jobs:
                       $audioApi689Verify.Contains($safeAudioMarker) -or
                       $main689Verify.Contains($safeAudioMarker) -or
                       $logo689Verify.Contains($safeAudioMarker))) {
-              throw "Xbox .689 safe-audio marker is missing: $safeAudioMarker"
+              throw "Xbox .690 safe-audio marker is missing: $safeAudioMarker"
             }
           }
           foreach ($unsafeAudioMarker in @(
@@ -2155,7 +2586,7 @@ jobs:
             'logo.static-waves-loaded')) {
             if ($main689Verify.Contains($unsafeAudioMarker) -or
                 $logo689Verify.Contains($unsafeAudioMarker)) {
-              throw "Xbox .689 unexpectedly re-enabled staged audio: $unsafeAudioMarker"
+              throw "Xbox .690 unexpectedly re-enabled staged audio: $unsafeAudioMarker"
             }
           }
 
@@ -2845,7 +3276,10 @@ jobs:
             pendingModeHandoffPatchSha256 = '31f084d8a87015c8c80121f8a913a1d88148e8f5e98339bc30950f0256c4b287'
             earlyFrameTracePatchSha256 = 'b8de40d4e3cc081fa26af294edfbc98f70e9d3c2e65034c1d4b48e2d5acfeaa9'
             audioSafeBootPatchSha256 = '0b8405d7fff93bb290952ee55f8e90b8d641ce5afff3a157ad20ed8d1c19d7c8'
-            xboxAudioIsolation = '.689 keeps the proven-safe UWP audio-disabled path after .688 journal stopped at main01.audio-execute'
+            xboxAudioIsolation = '.690 retains the .689 safe UWP audio-disabled path after .688 journal stopped at main01.audio-execute'
+            runtimeSeedRoundTrip = $true
+            entranceScalarFormat = 'portable decimal strings, format 4'
+            entranceAuditWording = 'Changed from vanilla'
             managementSafeTracePatchSha256 = 'c5891b7f475674cf6387799d5b7f20aaf6c465c7c9c7a251be7e1d4654f47d25'
             logoAudioSafePatchSha256 = '9cf1bcf5181e25b8f03c6e32b675c85ff75a020772b0c57f3839faf3b6c4b846'
             modFailureDetailPatchSha256 = '41bf55ae8c87fcfe2ba8369273471b0932380f224dc5a1e0df56a2ebfc56a317'
