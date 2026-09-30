@@ -2234,6 +2234,28 @@ jobs:
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
+          # TEMP .690 source inspection: print the transformed seed serialization/runtime sections.
+          $ctxDiagPath = "$env:TPR_SRC\mods\randomizer\src\randomizer_context.cpp"
+          $ctxDiagHeader = "$env:TPR_SRC\mods\randomizer\src\randomizer_context.hpp"
+          $ctxDiag = Get-Content $ctxDiagPath
+          function Show-DiagRange([string]$label, [string]$pattern, [int]$before = 15, [int]$after = 80) {
+            $match = Select-String -Path $ctxDiagPath -Pattern $pattern | Select-Object -First 1
+            if (-not $match) { Write-Host "DIAG MISSING: $label / $pattern"; return }
+            $start = [Math]::Max(1, $match.LineNumber - $before)
+            $end = [Math]::Min($ctxDiag.Count, $match.LineNumber + $after)
+            Write-Host "===== DIAG $label lines $start-$end ====="
+            for ($n = $start; $n -le $end; $n++) {
+              Write-Host ("{0}: {1}" -f $n, $ctxDiag[$n - 1])
+            }
+          }
+          Show-DiagRange 'WriteToFile custom tail' 'std::optional<std::string> RandomizerContext::WriteToFile' 0 260
+          Show-DiagRange 'LoadFromHash custom tail' 'std::optional<std::string> RandomizerContext::LoadFromHash' 0 360
+          Show-DiagRange 'Seed audit report' 'std::string RandomizerContext::FormatSeedAuditReport' 0 160
+          Show-DiagRange 'WriteSeedData starting/custom' 'RandomizerContext WriteSeedData' 0 520
+          Write-Host '===== DIAG HEADER custom fields ====='
+          Select-String -Path $ctxDiagHeader -Pattern 'mStartingEnemySouls|mEnemyFirstDefeatOverrides|mBreakable|mShop|SeedAudit|EntranceAudit|StartingInventory' -Context 4,8 | ForEach-Object { $_.ToString() | Write-Host }
+          throw 'TEMP_SOURCE_INSPECTION_COMPLETE'
+
       - name: Restore verified UWP artwork and pipeline cache
         shell: powershell
         env:
