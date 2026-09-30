@@ -2150,8 +2150,8 @@ jobs:
             }
           }
           foreach ($unsafeAudioMarker in @(
-            'main01.audio-disabled',
-            'logo.audio-bypassed',
+            'main01.audio-playback-started',
+            'logo.audio-init-wait',
             'logo.static-waves-loaded')) {
             if ($main689Verify.Contains($unsafeAudioMarker) -or
                 $logo689Verify.Contains($unsafeAudioMarker)) {
