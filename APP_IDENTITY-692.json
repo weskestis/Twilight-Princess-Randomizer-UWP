@@ -1,0 +1,17 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.692",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.691 commit 125af633492c941329c880c92ef6a29d7fa86038",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "runtimeSeedFix": "shop override item IDs are deserialized using decltype(mShopOverrides)::mapped_type instead of hard-coded u8",
+  "failingRecord": "4456784 = 0x00440150 = Stage 68 / Room 1 / Item 0x50 (Barnes Bomb Bag)",
+  "generatorCertification": "full generator suite forced for .692",
+  "startupJournal": "xbox-startup-stage-692.txt",
+  "launcherVersion": "1.4.1.692",
+  "seedSerialization": "runtime round-trip validation and portable entrance decimal scalars retained",
+  "yamlFailureDiagnostics": "runtime YAML conversion errors include the nearby serialized line/key",
+  "audioRestore": "safe-disabled Xbox audio path retained"
+}
