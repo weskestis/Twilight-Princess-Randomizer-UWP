@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.689",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.688 commit 04221e3d5823ce3b84dcb3a214ce76925197dc66; Xbox runtime journal stopped at main01.audio-execute after Randomizer launch",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "seedLaunchFix": "selected seed is fully parsed and activated while the Randomizer gate remains open; new-save callback reuses that validated activation and preserves exact failure reasons",
+  "audioRestore": "disabled for .689 isolation; retain proven-safe UWP audio guard while preserving .688 seed activation fix",
+  "seedAudit": "v4 Boss Souls / Enemy Souls audit and dynamic starting Enemy Souls retained",
+  "generatorCertification": "reuse full 58-scenario PASS from run 36657213524 unless generator-sensitive inputs change",
+  "startupJournal": "xbox-startup-stage-689.txt",
+  "launcherVersion": "1.4.1.689"
+}
