@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 688
+name: Build Dusklight 2.0.1 Xbox 689
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-688-release-${{ github.ref }}
+  group: xbox-689-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-688.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-689.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -995,7 +995,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.688");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.689");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -1086,7 +1086,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-688.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-689.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 60') -or
@@ -1196,7 +1196,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.688");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.689");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -1944,223 +1944,21 @@ jobs:
           }
           $randoConfigSource = $randoConfigSource.Replace($startOld, $startNew)
 
-          # .688 Xbox audio restore: initialize all game audio normally, but keep the SDL
-          # callback paused until the first complete frame after the prelaunch UI closes.
-          # This preserves the .675 deadlock protection without muting the entire game.
-          $audioHeaderPath = "$env:TPR_SRC\src\dusk\audio.h"
-          $audioApiHeaderPath = "$env:TPR_SRC\include\m_Do\m_Do_audio.h"
-          $audioSystemHeaderPath = "$env:TPR_SRC\src\dusk\audio\DuskAudioSystem.h"
-          $audioSystemSourcePath = "$env:TPR_SRC\src\dusk\audio\DuskAudioSystem.cpp"
-          $mainAudioPath = "$env:TPR_SRC\src\m_Do\m_Do_main.cpp"
-          $logoAudioPath = "$env:TPR_SRC\src\d\d_s_logo.cpp"
-          $audioHeader688 = [IO.File]::ReadAllText($audioHeaderPath).Replace("`r`n", "`n")
-          $audioApiHeader688 = [IO.File]::ReadAllText($audioApiHeaderPath).Replace("`r`n", "`n")
-          $audioSystemHeader688 = [IO.File]::ReadAllText($audioSystemHeaderPath).Replace("`r`n", "`n")
-          $audioSystem688 = [IO.File]::ReadAllText($audioSystemSourcePath).Replace("`r`n", "`n")
-          $mainAudio688 = [IO.File]::ReadAllText($mainAudioPath).Replace("`r`n", "`n")
-          $logoAudio688 = [IO.File]::ReadAllText($logoAudioPath).Replace("`r`n", "`n")
-
-          $disabledAudioBlock = @(
-            '#if defined(_UWP)',
-            '// SDL''s Xbox/UWP audio callback can deadlock the first game tick inside',
-            '// mDoAud_Execute(). Keep the launcher and game running without audio until the',
-            '// platform backend can be made safe.',
-            '#define DUSK_AUDIO_DISABLED 1',
-            '#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;',
-            '#else'
-          ) -join "`n"
-          $stagedAudioBlock = @(
-            '#if defined(_UWP)',
-            '// Xbox/UWP initializes audio resources normally, but playback is resumed only',
-            '// after the first completed game frame so the SDL callback cannot deadlock startup.',
-            '#define DUSK_AUDIO_DISABLED 0',
-            '#define DUSK_AUDIO_SKIP(...)',
-            '#else'
-          ) -join "`n"
-          if (-not $audioHeader688.Contains($disabledAudioBlock)) {
-            throw 'Xbox disabled-audio block changed before .688.'
+          # .689 Xbox isolation: retain the proven-safe UWP audio-disabled path.
+          # The .688 runtime journal stopped at main01.audio-execute after Randomizer launch,
+          # so do not re-enable SDL/JAS playback in this build.
+          $audioSafeHeader = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\audio.h")
+          $audioSafeApi = [IO.File]::ReadAllText("$env:TPR_SRC\include\m_Do\m_Do_audio.h")
+          $audioSafeMain = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
+          $audioSafeLogo = [IO.File]::ReadAllText("$env:TPR_SRC\src\d\d_s_logo.cpp")
+          if (-not $audioSafeHeader.Contains('#define DUSK_AUDIO_DISABLED 1') -or
+              -not $audioSafeHeader.Contains('#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;') -or
+              -not $audioSafeApi.Contains('#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;') -or
+              -not $audioSafeMain.Contains('main01.audio-disabled') -or
+              -not $audioSafeLogo.Contains('logo.audio-bypassed') -or
+              -not $audioSafeLogo.Contains('logo.static-waves-bypassed')) {
+            throw 'Xbox .689 safe-audio isolation path is incomplete.'
           }
-          $audioHeader688 = $audioHeader688.Replace($disabledAudioBlock, $stagedAudioBlock)
-
-          $apiDisabled = @(
-            '#if defined(_UWP)',
-            '#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;',
-            '#else'
-          ) -join "`n"
-          $apiEnabled = @(
-            '#if defined(_UWP)',
-            '#define DUSK_AUDIO_SKIP(...)',
-            '#else'
-          ) -join "`n"
-          if (-not $audioApiHeader688.Contains($apiDisabled)) {
-            throw 'Xbox m_Do audio API guard changed before .688.'
-          }
-          $audioApiHeader688 = $audioApiHeader688.Replace($apiDisabled, $apiEnabled)
-
-          $audioDeclOld = @(
-            '    void Initialize();',
-            '',
-            '    void Reinitialize();'
-          ) -join "`n"
-          $audioDeclNew = @(
-            '    void Initialize();',
-            '',
-            '    bool StartPlayback();',
-            '',
-            '    void Reinitialize();'
-          ) -join "`n"
-          if (-not $audioSystemHeader688.Contains($audioDeclOld)) {
-            throw 'Audio playback declaration anchor changed before .688.'
-          }
-          $audioSystemHeader688 = $audioSystemHeader688.Replace($audioDeclOld, $audioDeclNew)
-
-          if (-not $audioSystem688.Contains('static SDL_AudioStream* PlaybackStream;')) {
-            throw 'Audio stream state anchor changed before .688.'
-          }
-          $audioSystem688 = $audioSystem688.Replace(
-            'static SDL_AudioStream* PlaybackStream;',
-            ('static SDL_AudioStream* PlaybackStream;' + [char]10 +
-             'static bool PlaybackStarted = false;'))
-
-          $initResumeOld = @(
-            '    SDL_ResumeAudioStreamDevice(PlaybackStream);',
-            '}',
-            '',
-            'void dusk::audio::Reinitialize() {',
-            '    // don''t re-init unless we''ve initialized first (using PlaybackStream being set as proxy)',
-            '    if (PlaybackStream && InitSDL3Output()) {',
-            '        SDL_ResumeAudioStreamDevice(PlaybackStream);',
-            '    }',
-            '}'
-          ) -join "`n"
-          $initResumeNew = @(
-            '#if defined(_UWP)',
-            '    // Keep the Xbox stream paused until a full post-prelaunch game frame completes.',
-            '    PlaybackStarted = false;',
-            '#else',
-            '    if (PlaybackStream) {',
-            '        SDL_ResumeAudioStreamDevice(PlaybackStream);',
-            '        PlaybackStarted = true;',
-            '    }',
-            '#endif',
-            '}',
-            '',
-            'bool dusk::audio::StartPlayback() {',
-            '    if (!PlaybackStream) {',
-            '        return false;',
-            '    }',
-            '    if (!PlaybackStarted) {',
-            '        SDL_ResumeAudioStreamDevice(PlaybackStream);',
-            '        PlaybackStarted = true;',
-            '    }',
-            '    return true;',
-            '}',
-            '',
-            'void dusk::audio::Reinitialize() {',
-            '    // don''t re-init unless we''ve initialized first (using PlaybackStream being set as proxy)',
-            '    if (PlaybackStream && InitSDL3Output()) {',
-            '        if (PlaybackStarted) {',
-            '            SDL_ResumeAudioStreamDevice(PlaybackStream);',
-            '        }',
-            '    }',
-            '}'
-          ) -join "`n"
-          if (-not $audioSystem688.Contains($initResumeOld)) {
-            throw 'Audio initialize/reinitialize anchor changed before .688.'
-          }
-          $audioSystem688 = $audioSystem688.Replace($initResumeOld, $initResumeNew)
-
-          $shutdownOld = @(
-            '    if (PlaybackStream) {',
-            '        SDL_DestroyAudioStream(PlaybackStream);',
-            '        PlaybackStream = nullptr;',
-            '    }',
-            '',
-            '    SDL_QuitSubSystem(SDL_INIT_AUDIO);'
-          ) -join "`n"
-          $shutdownNew = @(
-            '    if (PlaybackStream) {',
-            '        SDL_DestroyAudioStream(PlaybackStream);',
-            '        PlaybackStream = nullptr;',
-            '    }',
-            '    PlaybackStarted = false;',
-            '',
-            '    SDL_QuitSubSystem(SDL_INIT_AUDIO);'
-          ) -join "`n"
-          if (-not $audioSystem688.Contains($shutdownOld)) {
-            throw 'Audio shutdown anchor changed before .688.'
-          }
-          $audioSystem688 = $audioSystem688.Replace($shutdownOld, $shutdownNew)
-
-          $pauseOld = @(
-            '    if (paused) {',
-            '        SDL_PauseAudioStreamDevice(PlaybackStream);',
-            '    } else {',
-            '        SDL_ResumeAudioStreamDevice(PlaybackStream);',
-            '    }'
-          ) -join "`n"
-          $pauseNew = @(
-            '    if (paused) {',
-            '        SDL_PauseAudioStreamDevice(PlaybackStream);',
-            '    } else if (PlaybackStarted) {',
-            '        SDL_ResumeAudioStreamDevice(PlaybackStream);',
-            '    }'
-          ) -join "`n"
-          if (-not $audioSystem688.Contains($pauseOld)) {
-            throw 'Audio pause/resume anchor changed before .688.'
-          }
-          $audioSystem688 = $audioSystem688.Replace($pauseOld, $pauseNew)
-
-          $frameEndOld = '        aurora_end_frame();'
-          $frameEndNew = @(
-            '        aurora_end_frame();',
-            '',
-            '#if defined(_UWP)',
-            '        // Start the callback only after the first complete frame with prelaunch closed.',
-            '        static bool sXboxAudioPlaybackStarted = false;',
-            '        if (!sXboxAudioPlaybackStarted && !dusk::ui::is_prelaunch_open() &&',
-            '            dusk::audio::StartPlayback())',
-            '        {',
-            '            sXboxAudioPlaybackStarted = true;',
-            '            dusk::startup_guard::stage("main01.audio-playback-started");',
-            '        }',
-            '#endif'
-          ) -join "`n"
-          if (-not $mainAudio688.Contains($frameEndOld)) {
-            throw 'Main-loop audio resume anchor changed before .688.'
-          }
-          $mainAudio688 = $mainAudio688.Replace($frameEndOld, $frameEndNew)
-
-          $logoWaitOld = '    dusk::startup_guard::stage("logo.audio-bypassed");'
-          $logoWaitNew = @(
-            '    dusk::startup_guard::stage("logo.audio-init-wait");',
-            '    if (!mDoAud_zelAudio_c::isInitFlag()) {',
-            '        return cPhs_INIT_e;',
-            '    }'
-          ) -join "`n"
-          if (-not $logoAudio688.Contains($logoWaitOld)) {
-            throw 'Logo audio-wait bypass anchor changed before .688.'
-          }
-          $logoAudio688 = $logoAudio688.Replace($logoWaitOld, $logoWaitNew)
-
-          $logoWavesOld = '    dusk::startup_guard::stage("logo.static-waves-bypassed");'
-          $logoWavesNew = @(
-            '    dusk::startup_guard::stage("logo.static-waves-loaded");',
-            '    Z2AudioMgr::getInterface()->loadStaticWaves();'
-          ) -join "`n"
-          if (-not $logoAudio688.Contains($logoWavesOld)) {
-            throw 'Logo static-wave bypass anchor changed before .688.'
-          }
-          $logoAudio688 = $logoAudio688.Replace($logoWavesOld, $logoWavesNew)
-
-          [IO.File]::WriteAllText($sessionHeaderPath, $sessionHeader, [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText($sessionSourcePath, $sessionSource, [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText($audioHeaderPath, $audioHeader688, [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText($audioApiHeaderPath, $audioApiHeader688, [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText($audioSystemHeaderPath, $audioSystemHeader688, [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText($audioSystemSourcePath, $audioSystem688, [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText($mainAudioPath, $mainAudio688, [Text.UTF8Encoding]::new($false))
-          [IO.File]::WriteAllText($logoAudioPath, $logoAudio688, [Text.UTF8Encoding]::new($false))
 
           [IO.File]::WriteAllText(
             $randoConfigHeaderPath, $randoConfigHeader, [Text.UTF8Encoding]::new($false))
@@ -2329,28 +2127,31 @@ jobs:
               throw "Xbox .688 seed preactivation marker is missing: $seedLaunchMarker"
             }
           }
-          $audio688Verify = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\audio.h")
-          $audioSystem688Verify = [IO.File]::ReadAllText(
-            "$env:TPR_SRC\src\dusk\audio\DuskAudioSystem.cpp")
-          $main688Verify = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
-          $logo688Verify = [IO.File]::ReadAllText("$env:TPR_SRC\src\d\d_s_logo.cpp")
-          foreach ($audioRestoreMarker in @(
-            '#define DUSK_AUDIO_DISABLED 0',
-            'bool dusk::audio::StartPlayback()',
-            'PlaybackStarted = false;',
-            'main01.audio-playback-started',
-            'logo.audio-init-wait',
-            'logo.static-waves-loaded')) {
-            if (-not ($audio688Verify.Contains($audioRestoreMarker) -or
-                      $audioSystem688Verify.Contains($audioRestoreMarker) -or
-                      $main688Verify.Contains($audioRestoreMarker) -or
-                      $logo688Verify.Contains($audioRestoreMarker))) {
-              throw "Xbox .688 staged-audio marker is missing: $audioRestoreMarker"
+          $audio689Verify = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\audio.h")
+          $audioApi689Verify = [IO.File]::ReadAllText("$env:TPR_SRC\include\m_Do\m_Do_audio.h")
+          $main689Verify = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
+          $logo689Verify = [IO.File]::ReadAllText("$env:TPR_SRC\src\d\d_s_logo.cpp")
+          foreach ($safeAudioMarker in @(
+            '#define DUSK_AUDIO_DISABLED 1',
+            '#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;',
+            'main01.audio-disabled',
+            'logo.audio-bypassed',
+            'logo.static-waves-bypassed')) {
+            if (-not ($audio689Verify.Contains($safeAudioMarker) -or
+                      $audioApi689Verify.Contains($safeAudioMarker) -or
+                      $main689Verify.Contains($safeAudioMarker) -or
+                      $logo689Verify.Contains($safeAudioMarker))) {
+              throw "Xbox .689 safe-audio marker is missing: $safeAudioMarker"
             }
           }
-          if ($logo688Verify.Contains('logo.audio-bypassed') -or
-              $logo688Verify.Contains('logo.static-waves-bypassed')) {
-            throw 'Xbox .688 still contains a logo audio bypass marker.'
+          foreach ($unsafeAudioMarker in @(
+            'main01.audio-disabled',
+            'logo.audio-bypassed',
+            'logo.static-waves-loaded')) {
+            if ($main689Verify.Contains($unsafeAudioMarker) -or
+                $logo689Verify.Contains($unsafeAudioMarker)) {
+              throw "Xbox .689 unexpectedly re-enabled staged audio: $unsafeAudioMarker"
+            }
           }
 
           # The upstream logic tests intentionally use randomized seeds. A single unlucky
@@ -2424,7 +2225,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.688"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.689"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -2701,7 +2502,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 688 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 689 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -2728,17 +2529,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 688 package
+      - name: Verify and collect full 689 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-688"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-689"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.688_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.689_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -2750,7 +2551,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.688"',
+            'Version="1.4.1.689"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -2778,7 +2579,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-688-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-689-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -2881,7 +2682,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-688.txt',
+            'xbox-startup-stage-689.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -2905,7 +2706,7 @@ jobs:
             'painter.end-render',
             'painter.ready',
             'logo.audio-init-wait',
-            'logo.static-waves-loaded',
+            'logo.static-waves-bypassed',
             'logo.ready',
             'fap.game-mode-tick',
             'fap.achievements',
@@ -2953,7 +2754,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-688-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-689-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -2973,8 +2774,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-688-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-688-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-689-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-689-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -3017,11 +2818,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-688.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-688.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-689.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-689.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.688'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.689'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -3039,6 +2840,7 @@ jobs:
             pendingModeHandoffPatchSha256 = '31f084d8a87015c8c80121f8a913a1d88148e8f5e98339bc30950f0256c4b287'
             earlyFrameTracePatchSha256 = 'b8de40d4e3cc081fa26af294edfbc98f70e9d3c2e65034c1d4b48e2d5acfeaa9'
             audioSafeBootPatchSha256 = '0b8405d7fff93bb290952ee55f8e90b8d641ce5afff3a157ad20ed8d1c19d7c8'
+            xboxAudioIsolation = '.689 keeps the proven-safe UWP audio-disabled path after .688 journal stopped at main01.audio-execute'
             managementSafeTracePatchSha256 = 'c5891b7f475674cf6387799d5b7f20aaf6c465c7c9c7a251be7e1d4654f47d25'
             logoAudioSafePatchSha256 = '9cf1bcf5181e25b8f03c6e32b675c85ff75a020772b0c57f3839faf3b6c4b846'
             modFailureDetailPatchSha256 = '41bf55ae8c87fcfe2ba8369273471b0932380f224dc5a1e0df56a2ebfc56a317'
@@ -3065,13 +2867,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-688.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-689.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.688-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.689-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -3080,7 +2882,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.688-Xbox
-          path: TPR-Xbox-Package-688/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.689-Xbox
+          path: TPR-Xbox-Package-689/*
           if-no-files-found: error
           retention-days: 30
