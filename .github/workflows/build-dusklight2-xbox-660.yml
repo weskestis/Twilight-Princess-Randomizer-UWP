@@ -2248,13 +2248,14 @@ jobs:
               Write-Host ("{0}: {1}" -f $n, $ctxDiag[$n - 1])
             }
           }
-          Show-DiagRange 'WriteToFile custom tail' 'std::optional<std::string> RandomizerContext::WriteToFile' 0 260
-          Show-DiagRange 'LoadFromHash custom tail' 'std::optional<std::string> RandomizerContext::LoadFromHash' 0 360
-          Show-DiagRange 'Seed audit report' 'std::string RandomizerContext::FormatSeedAuditReport' 0 160
-          Show-DiagRange 'WriteSeedData starting/custom' 'RandomizerContext WriteSeedData' 0 520
+          Show-DiagRange 'WriteToFile custom tail' 'std::optional<std::string> RandomizerContext::WriteToFile' 240 360
+          Show-DiagRange 'LoadFromHash full remainder' 'std::optional<std::string> RandomizerContext::LoadFromHash' 0 900
+          Show-DiagRange 'Seed audit report' 'std::string RandomizerContext::FormatSeedAuditReport' 0 180
+          Show-DiagRange 'WriteSeedData starting/custom' 'RandomizerContext WriteSeedData' 0 700
+          Show-DiagRange 'GenerateAndWriteSeed' 'GenerateAndWriteSeed' 80 260
           Write-Host '===== DIAG HEADER custom fields ====='
-          Select-String -Path $ctxDiagHeader -Pattern 'mStartingEnemySouls|mEnemyFirstDefeatOverrides|mBreakable|mShop|SeedAudit|EntranceAudit|StartingInventory' -Context 4,8 | ForEach-Object { $_.ToString() | Write-Host }
-          throw 'TEMP_SOURCE_INSPECTION_COMPLETE'
+          Select-String -Path $ctxDiagHeader -Pattern 'mStartingEnemySouls|mEnemyFirstDefeatOverrides|mBreakable|mShop|SeedAudit|Entrance|Attribute|EnemyRandom|Override' -Context 4,10 | ForEach-Object { $_.ToString() | Write-Host }
+          throw 'TEMP_SOURCE_INSPECTION_COMPLETE_2'
 
       - name: Restore verified UWP artwork and pipeline cache
         shell: powershell
