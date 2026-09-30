@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 688 identity
+      - name: Apply reviewed source layers and advance 689 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1943,6 +1943,11 @@ jobs:
             throw 'Start Randomizer callback anchor changed before .688.'
           }
           $randoConfigSource = $randoConfigSource.Replace($startOld, $startNew)
+
+          [IO.File]::WriteAllText(
+            $sessionHeaderPath, $sessionHeader, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText(
+            $sessionSourcePath, $sessionSource, [Text.UTF8Encoding]::new($false))
 
           # .689 Xbox isolation: retain the proven-safe UWP audio-disabled path.
           # The .688 runtime journal stopped at main01.audio-execute after Randomizer launch,
