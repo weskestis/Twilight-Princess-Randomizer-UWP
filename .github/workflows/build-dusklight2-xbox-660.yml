@@ -1120,11 +1120,11 @@ jobs:
           foreach ($logoMarker in @(
             'logo.phase0',
             'logo.dyl-wait',
-            'logo.audio-init-wait',
+            'logo.audio-bypassed',
             'logo.object-res-ready',
             'logo.object-sync-wait',
             'logo.dvd-load-ready',
-            'logo.static-waves-loaded',
+            'logo.static-waves-bypassed',
             'logo.ready')) {
             if (-not $logoSource.Contains($logoMarker)) {
               throw "Xbox logo checkpoint is missing: $logoMarker"
