@@ -1,0 +1,17 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.691",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.690 commit 419a12768fe21b8f867a19fca2051e9454a8cdff",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "seedLaunchFix": "generated seed.dat must round-trip through RandomizerContext::LoadFromHash before it can be reported as verified or selected",
+  "audioRestore": "still disabled for .690; proven-safe Xbox guard retained while main01.audio-execute deadlock is investigated separately",
+  "seedAudit": "entrance rows report Changed from vanilla X/Y rather than ambiguous Vanilla matches",
+  "generatorCertification": "full generator suite required because runtime seed diagnostics changed source",
+  "startupJournal": "xbox-startup-stage-691.txt",
+  "launcherVersion": "1.4.1.691",
+  "seedSerialization": "entrance u64 keys/values are emitted and parsed as portable decimal scalars; old format-3 seeds remain readable",
+  "yamlFailureDiagnostics": "runtime YAML conversion errors include the nearby serialized line/key"
+}
