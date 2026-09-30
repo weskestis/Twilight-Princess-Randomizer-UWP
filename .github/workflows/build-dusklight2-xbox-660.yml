@@ -2572,9 +2572,9 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $baseline = '66d3eb08351c8002262eff32803aa0b6f34c4713'
+          $baseline = 'ed81ef9d93c354f842b44be98fa7c4030b136dd2'
           git -C "$env:TPR_CONTROL" fetch --depth 1 origin $baseline
-          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .679 baseline.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .688 generator baseline.' }
 
           $changed = @(git -C "$env:TPR_CONTROL" diff --name-only $baseline HEAD)
           $workflowText = Get-Content "$env:TPR_CONTROL\.github\workflows\build-dusklight2-xbox-660.yml" -Raw
@@ -2597,12 +2597,11 @@ jobs:
           }
           else {
             "RUN_GENERATOR_SUITE=false" >> $env:GITHUB_ENV
-            Write-Host 'Reusing generator certification from green .679 run 36349127486.'
-            Write-Host 'No Randomizer/generator-sensitive inputs changed from commit 66d3eb08.'
+            Write-Host 'Reusing all-58-scenario generator certification from .688 run 36657213524.'
+            Write-Host 'No Randomizer/generator-sensitive inputs changed from certified commit ed81ef9d.'
           }
-          # .688 changes seed activation timing/error handling and restores staged Xbox audio; recertify all scenarios.
-          "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
-          Write-Host '.688 seed-launch/audio restore: forcing the complete Randomizer generator suite.'
+          # Run 36657213524 certified all 58 generator scenarios with the 3-attempt harness at ed81ef9d.
+          # Re-run the suite only when generator-sensitive inputs change after that certified point.
 
       - name: Compile core, built-in Randomizer, and package
         shell: powershell
@@ -2638,8 +2637,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Randomizer generator scenarios failed: $LASTEXITCODE" }
           }
           else {
-            Write-Host 'PASS: generator inputs match green .679 certification.'
-            Write-Host 'Reused all-58-scenarios PASS from run 36349127486.'
+            Write-Host 'PASS: generator inputs match certified .688 inputs.'
+            Write-Host 'Reused all-58-scenarios PASS from run 36657213524 (certification step succeeded).'
           }
 
       - name: Inspect built-in Randomizer
@@ -2935,7 +2934,7 @@ jobs:
             'Starting Enemy Souls:',
             'Could not refresh generated seed selector',
             'Randomizer message/flow activation failed',
-            'Seed is fully parsed and activated before name/save creation begins.',
+            'Randomizer Seed Error',
             'main01.audio-playback-started',
             'Kakariko Malo Mart Red Potion Sold Out',
             'Kakariko Malo Mart Wooden Shield Sold Out',
