@@ -1,0 +1,16 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.693",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.692 commit 1c5d95c01c2ec921d6c1c1ad16c8c49ae6308ed3",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "runtimeSeedFix": "readCheckData derives key_type from destination map; shop check metadata is no longer truncated to u16",
+  "failingRecord": "4456784 = 0x00440150 = Stage 68 / Room 1 / Item 0x50",
+  "startupJournal": "xbox-startup-stage-693.txt",
+  "launcherVersion": "1.4.1.693",
+  "generatorCertification": "full generator suite forced; workflow also verifies generic metadata key deserialization",
+  "yamlFailureDiagnostics": "runtime YAML conversion errors include the nearby serialized line/key",
+  "audioRestore": "safe-disabled Xbox audio path retained"
+}
