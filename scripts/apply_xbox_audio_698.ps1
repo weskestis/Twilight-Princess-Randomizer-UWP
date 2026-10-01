@@ -135,14 +135,13 @@ $new = @'
 '@
 $audio = Replace-Once $audio $old $new 'audio output backend selection'
 
-$old = @'
-void dusk::audio::Reinitialize() {
-    // don't re-init unless we've initialized first (using PlaybackStream being set as proxy)
-    if (PlaybackStream && InitSDL3Output()) {
-        SDL_ResumeAudioStreamDevice(PlaybackStream);
-    }
+$nl = [string][char]10
+$start = $audio.IndexOf('void dusk::audio::Reinitialize() {', [StringComparison]::Ordinal)
+$end = $audio.IndexOf($nl + '}' + $nl + $nl + 'void dusk::audio::Shutdown', $start, [StringComparison]::Ordinal)
+if ($start -lt 0 -or $end -lt 0) {
+    throw 'Missing .698 transform anchor: Reinitialize function'
 }
-'@
+$old = $audio.Substring($start, $end - $start + 2)
 $new = @'
 void dusk::audio::Reinitialize() {
 #if defined(_UWP)
@@ -155,18 +154,14 @@ void dusk::audio::Reinitialize() {
 #endif
 }
 '@
-$audio = Replace-Once $audio $old $new 'audio reinitialize'
+$audio = $audio.Replace($old, $new)
 
-$old = @'
-void dusk::audio::Shutdown() {
-    if (PlaybackStream) {
-        SDL_DestroyAudioStream(PlaybackStream);
-        PlaybackStream = nullptr;
-    }
-
-    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+$start = $audio.IndexOf('void dusk::audio::Shutdown() {', [StringComparison]::Ordinal)
+$end = $audio.IndexOf($nl + '}' + $nl + $nl + 'void dusk::audio::SetMasterVolume', $start, [StringComparison]::Ordinal)
+if ($start -lt 0 -or $end -lt 0) {
+    throw 'Missing .698 transform anchor: Shutdown function'
 }
-'@
+$old = $audio.Substring($start, $end - $start + 2)
 $new = @'
 void dusk::audio::Shutdown() {
 #if defined(_UWP)
@@ -180,9 +175,8 @@ void dusk::audio::Shutdown() {
 #endif
 }
 '@
-$audio = Replace-Once $audio $old $new 'audio shutdown'
+$audio = $audio.Replace($old, $new)
 
-$nl = [string][char]10
 $start = $audio.IndexOf('void dusk::audio::SetPaused(const bool paused) {', [StringComparison]::Ordinal)
 $end = $audio.IndexOf($nl + '}' + $nl + $nl + 'void dusk::audio::SetEnableReverb', $start, [StringComparison]::Ordinal)
 if ($start -lt 0 -or $end -lt 0) {
