@@ -21,24 +21,21 @@ $cmakePath = "$env:TPR_SRC\platforms\uwp\CMakeLists.txt"
 $audio = Read-Lf $audioPath
 $cmake = Read-Lf $cmakePath
 
-$old = @'
-#include <array>
-#include <cassert>
-#include <span>
-'@
-$new = @'
+if (-not $audio.Contains('#include <array>')) {
+    throw 'Missing .698 transform anchor: <array> include'
+}
+if (-not $audio.Contains('#include <algorithm>')) {
+    $audio = $audio.Replace('#include <array>', @'
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <deque>
 #include <memory>
-#include <span>
 #include <vector>
 #if defined(_UWP)
 #include <xaudio2.h>
 #endif
-'@
-$audio = Replace-Once $audio $old $new 'standard audio includes'
+'@)
+}
 
 $old = 'static SDL_AudioStream* PlaybackStream;'
 $new = @'
