@@ -284,19 +284,13 @@ void dusk::audio::Pump() {
 '@
 $audio = $audio.Replace($old, $new)
 
-$old = @'
-    auto bytesToWrite = OutInterleaveBuffer.size_bytes();
-    SDL_PutAudioStreamData(PlaybackStream, OutInterleaveBuffer.data(), bytesToWrite);
-    return bytesToWrite;
-'@
+$old = '    SDL_PutAudioStreamData(PlaybackStream, OutInterleaveBuffer.data(), bytesToWrite);'
 $new = @'
-    auto bytesToWrite = OutInterleaveBuffer.size_bytes();
 #if !defined(_UWP)
     SDL_PutAudioStreamData(PlaybackStream, OutInterleaveBuffer.data(), bytesToWrite);
 #endif
-    return static_cast<int>(bytesToWrite);
 '@
-$audio = Replace-Once $audio $old $new 'audio subframe output'
+$audio = Replace-Once $audio $old $new 'audio subframe SDL write'
 
 $old = @'
     Winhttp.lib
