@@ -3735,7 +3735,7 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 695 package
+      - name: Verify and collect full 696 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -4051,7 +4051,9 @@ jobs:
             earlyFrameTracePatchSha256 = 'b8de40d4e3cc081fa26af294edfbc98f70e9d3c2e65034c1d4b48e2d5acfeaa9'
             audioSafeBootPatchSha256 = '0b8405d7fff93bb290952ee55f8e90b8d641ce5afff3a157ad20ed8d1c19d7c8'
             xboxAudioIsolation = '.696 re-enables core Xbox audio with callback-free main-thread queue pumping; mod audio-replacement lifecycle remains isolated'
-            xboxCoreAudio = 'SDL callback disabled; game thread renders JAS frames and keeps about 80 ms queued via SDL_GetAudioStreamQueued/SDL_PutAudioStreamData'`n            modAudioReplacement = 'still isolated via module.lifecycle-skipped:audio-res until core Xbox playback is proven'`n            runtimeSeedRoundTrip = $true
+            xboxCoreAudio = 'SDL callback disabled; game thread renders JAS frames and keeps about 80 ms queued via SDL_GetAudioStreamQueued/SDL_PutAudioStreamData'
+            modAudioReplacement = 'still isolated via module.lifecycle-skipped:audio-res until core Xbox playback is proven'
+            runtimeSeedRoundTrip = $true
             yamlFailureLineContext = $true
             entranceScalarFormat = 'portable decimal strings, format 4'
             entranceAuditWording = 'Changed from vanilla'
