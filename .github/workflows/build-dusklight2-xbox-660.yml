@@ -2417,6 +2417,20 @@ jobs:
             throw 'Xbox .692 safe-audio isolation path is incomplete.'
           }
 
+          Write-Host '=== .692 SHOP TYPE DIAGNOSTIC ==='
+          ($contextHeader -split "`n" | Where-Object { $_ -match 'mShopOverrides' }) | ForEach-Object { Write-Host $_ }
+          $shopWriteIndex = $contextSource.IndexOf('out["mShopOverrides"]')
+          if ($shopWriteIndex -ge 0) {
+            Write-Host $contextSource.Substring([Math]::Max(0,$shopWriteIndex-800),
+              [Math]::Min(2400,$contextSource.Length-[Math]::Max(0,$shopWriteIndex-800)))
+          }
+          $shopLoadIndex = $contextSource.IndexOf('for (const auto& shopNode : in["mShopOverrides"])')
+          if ($shopLoadIndex -ge 0) {
+            Write-Host $contextSource.Substring([Math]::Max(0,$shopLoadIndex-400),
+              [Math]::Min(2200,$contextSource.Length-[Math]::Max(0,$shopLoadIndex-400)))
+          }
+          Write-Host '=== END SHOP TYPE DIAGNOSTIC ==='
+
           [IO.File]::WriteAllText(
             $randoConfigHeaderPath, $randoConfigHeader, [Text.UTF8Encoding]::new($false))
           [IO.File]::WriteAllText(
