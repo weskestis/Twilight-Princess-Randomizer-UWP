@@ -136,22 +136,6 @@ $new = @'
 $audio = Replace-Once $audio $old $new 'audio output backend selection'
 
 $old = @'
-    if (outputReady && PlaybackStream) {
-        SDL_ResumeAudioStreamDevice(PlaybackStream);
-    }
-'@
-$new = @'
-#if !defined(_UWP)
-    if (outputReady && PlaybackStream) {
-        SDL_ResumeAudioStreamDevice(PlaybackStream);
-    }
-#else
-    (void)outputReady;
-#endif
-'@
-$audio = Replace-Once $audio $old $new 'initial playback resume'
-
-$old = @'
 void dusk::audio::Reinitialize() {
     // don't re-init unless we've initialized first (using PlaybackStream being set as proxy)
     if (PlaybackStream && InitSDL3Output()) {
