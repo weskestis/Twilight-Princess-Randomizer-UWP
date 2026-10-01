@@ -30,7 +30,9 @@ if (-not $audio.Contains('#include <algorithm>')) {
 #include <memory>
 #include <vector>
 #if defined(_UWP)
+#define DriverCallback XAudio2DriverCallbackToken
 #include <xaudio2.h>
+#undef DriverCallback
 #pragma comment(lib, "xaudio2.lib")
 #endif
 '@)
