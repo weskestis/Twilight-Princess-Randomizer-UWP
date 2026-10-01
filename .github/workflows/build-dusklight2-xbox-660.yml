@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 694
+name: Build Dusklight 2.0.1 Xbox 695
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-694-release-${{ github.ref }}
+  group: xbox-695-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 694 identity
+      - name: Apply reviewed source layers and advance 695 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-694.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-695.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -995,7 +995,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.694");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.695");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -1086,7 +1086,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-694.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-695.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 60') -or
@@ -1196,7 +1196,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.694");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.695");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -2357,6 +2357,65 @@ jobs:
             }
           }
 
+          # .695: Xbox .694 proved seed parsing succeeds, then activation rejects
+          # native message override group 9. Twilight Princess message resources use
+          # common group 0 plus stage groups 1-8, so group >= 9 cannot be registered.
+          # Filter impossible generated override records both at generation time and
+          # again at runtime so an old .694 seed can still be selected safely.
+          $generatorOverrideAnchor = @(
+            '        const u8 group = overrideNode["Group"].as<u8>();',
+            '        const u16 messageId = overrideNode["Message Id"].as<u16>();',
+            '        const u32 key = static_cast<u32>(group) << 16 | messageId;'
+          ) -join "`n"
+          $generatorOverrideSafe = @(
+            '        const u8 group = overrideNode["Group"].as<u8>();',
+            '        const u16 messageId = overrideNode["Message Id"].as<u16>();',
+            '        if (group >= 9) {',
+            '            continue;',
+            '        }',
+            '        const u32 key = static_cast<u32>(group) << 16 | messageId;'
+          ) -join "`n"
+          if ($contextSource.Contains($generatorOverrideAnchor)) {
+            $contextSource = $contextSource.Replace(
+              $generatorOverrideAnchor, $generatorOverrideSafe)
+          }
+          elseif (-not $contextSource.Contains('if (group >= 9) {')) {
+            throw 'Generator native-message group guard anchor changed before .695.'
+          }
+
+          $runtimeOverrideAnchor = @(
+            '            const uint16_t group = key >> 16;',
+            '            const uint16_t messageId = static_cast<uint16_t>(key);',
+            '            mods::flow::MessageOverride message;'
+          ) -join "`n"
+          $runtimeOverrideSafe = @(
+            '            const uint16_t group = key >> 16;',
+            '            const uint16_t messageId = static_cast<uint16_t>(key);',
+            '            if (group >= kMessageGroupCount) {',
+            '                mods::log::warn(',
+            '                    "Skipping invalid native message override: group {}, id {}, language {}",',
+            '                    group, messageId, language);',
+            '                continue;',
+            '            }',
+            '            mods::flow::MessageOverride message;'
+          ) -join "`n"
+          if (-not $messagesSource.Contains($runtimeOverrideAnchor)) {
+            throw 'Runtime native-message group guard anchor changed before .695.'
+          }
+          $messagesSource = $messagesSource.Replace(
+            $runtimeOverrideAnchor, $runtimeOverrideSafe)
+
+          foreach ($required695 in @(
+              'if (group >= kMessageGroupCount)',
+              'Skipping invalid native message override: group {}, id {}, language {}')) {
+            if (-not $messagesSource.Contains($required695)) {
+              throw "Randomizer .695 runtime message-group guard missing: $required695"
+            }
+          }
+          if (-not $contextSource.Contains('if (group >= 9) {')) {
+            throw 'Randomizer .695 generator message-group guard is missing.'
+          }
+
           [IO.File]::WriteAllText(
             $messagesHeaderPath, $messagesHeader, [Text.UTF8Encoding]::new($false))
           [IO.File]::WriteAllText(
@@ -2784,7 +2843,7 @@ jobs:
             if (-not ($contextHeader.Contains($runtimeMarker) -or
                       $contextSource.Contains($runtimeMarker) -or
                       $seedGenerationSource.Contains($runtimeMarker))) {
-              throw "Xbox .694 runtime seed marker is missing: $runtimeMarker"
+              throw "Xbox .695 runtime seed marker is missing: $runtimeMarker"
             }
           }
 
@@ -2801,7 +2860,7 @@ jobs:
               -not $audioSafeMain.Contains('main01.audio-disabled') -or
               -not $audioSafeLogo.Contains('logo.audio-bypassed') -or
               -not $audioSafeLogo.Contains('logo.static-waves-bypassed')) {
-            throw 'Xbox .694 safe-audio isolation path is incomplete.'
+            throw 'Xbox .695 safe-audio isolation path is incomplete.'
           }
 
 
@@ -2986,7 +3045,7 @@ jobs:
                       $audioApi689Verify.Contains($safeAudioMarker) -or
                       $main689Verify.Contains($safeAudioMarker) -or
                       $logo689Verify.Contains($safeAudioMarker))) {
-              throw "Xbox .694 safe-audio marker is missing: $safeAudioMarker"
+              throw "Xbox .695 safe-audio marker is missing: $safeAudioMarker"
             }
           }
           foreach ($unsafeAudioMarker in @(
@@ -2995,7 +3054,7 @@ jobs:
             'logo.static-waves-loaded')) {
             if ($main689Verify.Contains($unsafeAudioMarker) -or
                 $logo689Verify.Contains($unsafeAudioMarker)) {
-              throw "Xbox .694 unexpectedly re-enabled staged audio: $unsafeAudioMarker"
+              throw "Xbox .695 unexpectedly re-enabled staged audio: $unsafeAudioMarker"
             }
           }
 
@@ -3070,7 +3129,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.694"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.695"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -3235,7 +3294,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.694 forces full generator certification and adds exact Randomizer message/flow activation diagnostics.'
+          Write-Host '.695 forces full generator certification and rejects impossible native message groups before activation.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -3350,7 +3409,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 694 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 695 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -3377,17 +3436,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 694 package
+      - name: Verify and collect full 695 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-694"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-695"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.694_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.695_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -3399,7 +3458,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.694"',
+            'Version="1.4.1.695"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -3427,7 +3486,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-694-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-695-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -3530,7 +3589,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-694.txt',
+            'xbox-startup-stage-695.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -3602,7 +3661,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-694-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-695-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -3622,8 +3681,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-694-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-694-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-695-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-695-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -3666,11 +3725,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-694.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-694.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-695.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-695.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.694'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.695'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -3688,7 +3747,7 @@ jobs:
             pendingModeHandoffPatchSha256 = '31f084d8a87015c8c80121f8a913a1d88148e8f5e98339bc30950f0256c4b287'
             earlyFrameTracePatchSha256 = 'b8de40d4e3cc081fa26af294edfbc98f70e9d3c2e65034c1d4b48e2d5acfeaa9'
             audioSafeBootPatchSha256 = '0b8405d7fff93bb290952ee55f8e90b8d641ce5afff3a157ad20ed8d1c19d7c8'
-            xboxAudioIsolation = '.694 retains the .689 safe UWP audio-disabled path after .688 journal stopped at main01.audio-execute'
+            xboxAudioIsolation = '.695 retains the .689 safe UWP audio-disabled path after .688 journal stopped at main01.audio-execute'
             runtimeSeedRoundTrip = $true
             yamlFailureLineContext = $true
             entranceScalarFormat = 'portable decimal strings, format 4'
@@ -3719,13 +3778,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-694.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-695.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.694-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.695-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -3734,7 +3793,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.694-Xbox
-          path: TPR-Xbox-Package-694/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.695-Xbox
+          path: TPR-Xbox-Package-695/*
           if-no-files-found: error
           retention-days: 30

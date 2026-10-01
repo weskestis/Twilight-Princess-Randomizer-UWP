@@ -1,0 +1,16 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.695",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.694 commit 66286e6cc1014694f203c46474d8d122833aaaa7",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "runtimeSeedFix": "inherits .693 destination-map key width fix for shop check metadata",
+  "messageFlowActivation": "filters impossible native text override groups >= 9; observed .694 failure was group 9 / id 25544 / language 1",
+  "compatibility": "runtime guard permits selection of already-generated .694 seeds",
+  "startupJournal": "xbox-startup-stage-695.txt",
+  "launcherVersion": "1.4.1.695",
+  "generatorCertification": "full generator suite plus runtime seed round-trip validation",
+  "audioRestore": "safe-disabled Xbox audio path retained"
+}
