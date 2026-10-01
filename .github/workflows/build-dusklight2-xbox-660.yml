@@ -1987,16 +1987,28 @@ jobs:
             '            using CheckKey = typename CheckMap::key_type;',
             '            const CheckKey key = entry.first.as<CheckKey>();'
           ) -join "`n"
-          $checkMetadataKeyMatches = ([regex]::Matches(
-            $contextSource, [regex]::Escape($checkMetadataKeyOld))).Count
-          if ($checkMetadataKeyMatches -ne 1) {
-            throw "Runtime check-metadata key anchor count before .693: $checkMetadataKeyMatches"
+          $readCheckDataStart = $contextSource.IndexOf(
+            '    const auto readCheckData = [](const YAML::Node& values, auto& destination,')
+          if ($readCheckDataStart -lt 0) {
+            throw 'Runtime readCheckData helper is missing before .693.'
           }
-          $contextSource = $contextSource.Replace(
-            $checkMetadataKeyOld, $checkMetadataKeyNew)
-          if ($contextSource.Contains($checkMetadataKeyOld) -or
-              -not $contextSource.Contains('using CheckKey = typename CheckMap::key_type;')) {
-            throw 'Runtime check-metadata loader is not width-safe for .693.'
+          $checkMetadataKeyIndex = $contextSource.IndexOf(
+            $checkMetadataKeyOld, $readCheckDataStart)
+          if ($checkMetadataKeyIndex -lt 0 -or
+              $checkMetadataKeyIndex -gt ($readCheckDataStart + 1800)) {
+            throw 'Runtime readCheckData key conversion anchor is missing before .693.'
+          }
+          $contextSource = $contextSource.Remove(
+            $checkMetadataKeyIndex, $checkMetadataKeyOld.Length).Insert(
+              $checkMetadataKeyIndex, $checkMetadataKeyNew)
+          $readCheckDataVerifyStart = $contextSource.IndexOf(
+            '    const auto readCheckData = [](const YAML::Node& values, auto& destination,')
+          $readCheckDataVerify = $contextSource.Substring(
+            $readCheckDataVerifyStart,
+            [Math]::Min(2200, $contextSource.Length - $readCheckDataVerifyStart))
+          if ($readCheckDataVerify.Contains($checkMetadataKeyOld) -or
+              -not $readCheckDataVerify.Contains('using CheckKey = typename CheckMap::key_type;')) {
+            throw 'Runtime readCheckData loader is not width-safe for .693.'
           }
 
           # .691: generated seeds must survive the exact runtime parser before
