@@ -1,0 +1,16 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.696",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "green/playable 1.4.1.695 commit b3502eec7b59fa974c482a7c888a3da2cb4e74ae",
+  "rootBaseline": "green 1.4.1.679 commit 66d3eb08351c8002262eff32803aa0b6f34c4713",
+  "audioRestore": "core Xbox audio enabled with callback-free game-thread JAS rendering and SDL stream queue pumping",
+  "audioBuffer": "approximately 80 ms target queue",
+  "modAudioReplacement": "still isolated until core playback is proven stable",
+  "randomizerLaunch": "inherits .695 generated-game launch fix",
+  "startupJournal": "xbox-startup-stage-696.txt",
+  "launcherVersion": "1.4.1.696",
+  "generatorCertification": "full generator suite plus runtime seed round-trip validation"
+}
