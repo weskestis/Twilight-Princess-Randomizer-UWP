@@ -15,3 +15,5 @@ Certification:
 
 Audio:
 - Xbox/UWP audio remains on the proven-safe disabled path while the main01.audio-execute deadlock is investigated separately.
+
+Diagnostic capture: post-patch shop type/serializer/loader source recorded before .693.
