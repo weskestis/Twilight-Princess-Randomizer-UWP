@@ -157,7 +157,7 @@ void dusk::audio::Reinitialize() {
 $audio = $audio.Replace($old, $new)
 
 $start = $audio.IndexOf('void dusk::audio::Shutdown() {', [StringComparison]::Ordinal)
-$end = $audio.IndexOf($nl + '}' + $nl + $nl + 'void dusk::audio::SetMasterVolume', $start, [StringComparison]::Ordinal)
+$end = $audio.IndexOf($nl + '}' + $nl + $nl + 'void dusk::audio::Pump', $start, [StringComparison]::Ordinal)
 if ($start -lt 0 -or $end -lt 0) {
     throw 'Missing .698 transform anchor: Shutdown function'
 }
