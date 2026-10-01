@@ -17,9 +17,7 @@ function Replace-Once([string]$Text, [string]$Old, [string]$New, [string]$Label)
 }
 
 $audioPath = "$env:TPR_SRC\src\dusk\audio\DuskAudioSystem.cpp"
-$cmakePath = "$env:TPR_SRC\platforms\uwp\CMakeLists.txt"
 $audio = Read-Lf $audioPath
-$cmake = Read-Lf $cmakePath
 
 if (-not $audio.Contains('#include <array>')) {
     throw 'Missing .698 transform anchor: <array> include'
@@ -33,6 +31,7 @@ if (-not $audio.Contains('#include <algorithm>')) {
 #include <vector>
 #if defined(_UWP)
 #include <xaudio2.h>
+#pragma comment(lib, "xaudio2.lib")
 #endif
 '@)
 }
@@ -292,17 +291,6 @@ $new = @'
 '@
 $audio = Replace-Once $audio $old $new 'audio subframe SDL write'
 
-$old = @'
-    Winhttp.lib
-    Ws2_32.lib)
-'@
-$new = @'
-    Winhttp.lib
-    Ws2_32.lib
-    xaudio2.lib)
-'@
-$cmake = Replace-Once $cmake $old $new 'UWP XAudio2 link library'
-
 foreach ($marker in @(
     'InitXboxAudio()',
     'XAudio2Create(&XboxAudioEngine',
@@ -310,12 +298,11 @@ foreach ($marker in @(
     'CreateSourceVoice(&XboxSourceVoice',
     'SubmitSourceBuffer(&buffer)',
     'audio.xaudio-ready',
-    'xaudio2.lib'))
+    '#pragma comment(lib, "xaudio2.lib")'))
 {
-    if (-not ($audio.Contains($marker) -or $cmake.Contains($marker))) {
+    if (-not $audio.Contains($marker)) {
         throw "Missing .698 XAudio2 marker: $marker"
     }
 }
 
 [IO.File]::WriteAllText($audioPath, $audio, [Text.UTF8Encoding]::new($false))
-[IO.File]::WriteAllText($cmakePath, $cmake, [Text.UTF8Encoding]::new($false))
