@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 693
+name: Build Dusklight 2.0.1 Xbox 694
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-693-release-${{ github.ref }}
+  group: xbox-694-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 693 identity
+      - name: Apply reviewed source layers and advance 694 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-693.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-694.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -995,7 +995,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.693");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.694");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -1086,7 +1086,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-693.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-694.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 60') -or
@@ -1196,7 +1196,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.693");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.694");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -2011,6 +2011,359 @@ jobs:
             throw 'Runtime readCheckData loader is not width-safe for .693.'
           }
 
+          # .694: preserve the exact Randomizer message/flow activation failure.
+          # Result 5 is MOD_INVALID_ARGUMENT. Instrument every major registration
+          # stage so the Xbox toast identifies the first invalid seed record instead
+          # of collapsing the failure to a numeric result.
+          $messagesHeaderPath = "$env:TPR_SRC\mods\randomizer\src\messages.hpp"
+          $messagesSourcePath = "$env:TPR_SRC\mods\randomizer\src\messages.cpp"
+          $messagesHeader = [IO.File]::ReadAllText($messagesHeaderPath).Replace("`r`n", "`n")
+          $messagesSource = [IO.File]::ReadAllText($messagesSourcePath).Replace("`r`n", "`n")
+
+          if (-not $messagesHeader.Contains('#include <string>')) {
+            $messagesHeaderInclude = '#include <mods/api.h>'
+            if (-not $messagesHeader.Contains($messagesHeaderInclude)) {
+              throw 'Randomizer messages header include anchor changed before .694.'
+            }
+            $messagesHeader = $messagesHeader.Replace(
+              $messagesHeaderInclude,
+              $messagesHeaderInclude + "`n`n" + '#include <string>')
+          }
+          $messagesHeaderDecl = 'ModResult activate(RandomizerContext& context);'
+          $messagesHeaderDeclNew = @(
+            'ModResult activate(RandomizerContext& context);',
+            'const std::string& lastActivationError();'
+          ) -join "`n"
+          if ($messagesHeader.Contains($messagesHeaderDecl) -and
+              -not $messagesHeader.Contains('lastActivationError();')) {
+            $messagesHeader = $messagesHeader.Replace(
+              $messagesHeaderDecl, $messagesHeaderDeclNew)
+          }
+          if (-not $messagesHeader.Contains('const std::string& lastActivationError();')) {
+            throw 'Randomizer message activation diagnostic declaration is missing for .694.'
+          }
+
+          $messagesStateAnchor =
+            'std::vector<mods::flow::MessageOverride> s_overrides;'
+          if (-not $messagesSource.Contains('std::string s_lastActivationError{};')) {
+            if (-not $messagesSource.Contains($messagesStateAnchor)) {
+              throw 'Randomizer message state anchor changed before .694.'
+            }
+            $messagesSource = $messagesSource.Replace(
+              $messagesStateAnchor,
+              $messagesStateAnchor + "`n" + 'std::string s_lastActivationError{};')
+          }
+
+          $customInvalidOld = @(
+            '        if (definition.group >= kMessageGroupCount || definition.name.empty() ||',
+            '            messageIds[definition.group].contains(definition.name))',
+            '        {',
+            '            return MOD_INVALID_ARGUMENT;',
+            '        }'
+          ) -join "`n"
+          $customInvalidNew = @(
+            '        if (definition.group >= kMessageGroupCount || definition.name.empty() ||',
+            '            messageIds[definition.group].contains(definition.name))',
+            '        {',
+            '            s_lastActivationError = fmt::format(',
+            '                "Custom message definition invalid: group {}, name {}",',
+            '                definition.group, definition.name);',
+            '            return MOD_INVALID_ARGUMENT;',
+            '        }'
+          ) -join "`n"
+          if ($messagesSource.Contains($customInvalidOld)) {
+            $messagesSource = $messagesSource.Replace($customInvalidOld, $customInvalidNew)
+          }
+
+          $customVariantsOld = @(
+            '        if (variants.empty()) {',
+            '            return MOD_INVALID_ARGUMENT;',
+            '        }',
+            '        auto message = mods::flow::register_message(definition.group, variants);',
+            '        if (!message) {',
+            '            return message.result();',
+            '        }'
+          ) -join "`n"
+          $customVariantsNew = @(
+            '        if (variants.empty()) {',
+            '            s_lastActivationError = fmt::format(',
+            '                "Custom message has no valid language variants: group {}, name {}",',
+            '                definition.group, definition.name);',
+            '            return MOD_INVALID_ARGUMENT;',
+            '        }',
+            '        auto message = mods::flow::register_message(definition.group, variants);',
+            '        if (!message) {',
+            '            s_lastActivationError = fmt::format(',
+            '                "Custom message service rejected group {}, name {} (result {})",',
+            '                definition.group, definition.name, static_cast<int>(message.result()));',
+            '            return message.result();',
+            '        }'
+          ) -join "`n"
+          if ($messagesSource.Contains($customVariantsOld)) {
+            $messagesSource = $messagesSource.Replace($customVariantsOld, $customVariantsNew)
+          }
+
+          $nativeOverrideOld = @(
+            '            if (!message) {',
+            '                return message.result();',
+            '            }',
+            '            s_overrides.push_back(std::move(message));'
+          ) -join "`n"
+          $nativeOverrideNew = @(
+            '            if (!message) {',
+            '                s_lastActivationError = fmt::format(',
+            '                    "Native message override rejected: group {}, id {}, language {} (result {})",',
+            '                    group, messageId, language, static_cast<int>(message.result()));',
+            '                return message.result();',
+            '            }',
+            '            s_overrides.push_back(std::move(message));'
+          ) -join "`n"
+          if ($messagesSource.Contains($nativeOverrideOld)) {
+            $messagesSource = $messagesSource.Replace(
+              $nativeOverrideOld, $nativeOverrideNew)
+          }
+
+          $graphInvalidGroupOld = @(
+            '    for (const auto& flow : context.mFlowNodes) {',
+            '        if (flow.group >= kMessageGroupCount) {',
+            '            return MOD_INVALID_ARGUMENT;',
+            '        }',
+            '    }'
+          ) -join "`n"
+          $graphInvalidGroupNew = @(
+            '    for (const auto& flow : context.mFlowNodes) {',
+            '        if (flow.group >= kMessageGroupCount) {',
+            '            s_lastActivationError = fmt::format(',
+            '                "Flow node has invalid group {} (name {}, patch {})",',
+            '                flow.group, flow.name, flow.patchIndex.value_or(0));',
+            '            return MOD_INVALID_ARGUMENT;',
+            '        }',
+            '    }'
+          ) -join "`n"
+          if ($messagesSource.Contains($graphInvalidGroupOld)) {
+            $messagesSource = $messagesSource.Replace(
+              $graphInvalidGroupOld, $graphInvalidGroupNew)
+          }
+
+          $graphNameOld = @(
+            '            if (flow.name.empty() || refs.contains(flow.name)) {',
+            '                return MOD_INVALID_ARGUMENT;',
+            '            }'
+          ) -join "`n"
+          $graphNameNew = @(
+            '            if (flow.name.empty() || refs.contains(flow.name)) {',
+            '                s_lastActivationError = fmt::format(',
+            '                    "Custom flow name empty/duplicate: group {}, name {}",',
+            '                    group, flow.name);',
+            '                return MOD_INVALID_ARGUMENT;',
+            '            }'
+          ) -join "`n"
+          if ($messagesSource.Contains($graphNameOld)) {
+            $messagesSource = $messagesSource.Replace($graphNameOld, $graphNameNew)
+          }
+
+          $graphAddOld = @(
+            '            const ModResult result = add_custom_node(flow, messageIds, builder, ref);',
+            '            if (result != MOD_OK) {',
+            '                return result;',
+            '            }'
+          ) -join "`n"
+          $graphAddNew = @(
+            '            const ModResult result = add_custom_node(flow, messageIds, builder, ref);',
+            '            if (result != MOD_OK) {',
+            '                s_lastActivationError = fmt::format(',
+            '                    "Custom flow node rejected: group {}, name {}, operation {} (result {})",',
+            '                    group, flow.name, flow.operation, static_cast<int>(result));',
+            '                return result;',
+            '            }'
+          ) -join "`n"
+          if ($messagesSource.Contains($graphAddOld)) {
+            $messagesSource = $messagesSource.Replace($graphAddOld, $graphAddNew)
+          }
+
+          $graphWireOld = @(
+            '            const ModResult result = wire_custom_node(flow, group, nodeIds, refs.at(flow.name));',
+            '            if (result != MOD_OK) {',
+            '                return result;',
+            '            }'
+          ) -join "`n"
+          $graphWireNew = @(
+            '            const ModResult result = wire_custom_node(flow, group, nodeIds, refs.at(flow.name));',
+            '            if (result != MOD_OK) {',
+            '                s_lastActivationError = fmt::format(',
+            '                    "Custom flow wiring rejected: group {}, name {} (result {})",',
+            '                    group, flow.name, static_cast<int>(result));',
+            '                return result;',
+            '            }'
+          ) -join "`n"
+          if ($messagesSource.Contains($graphWireOld)) {
+            $messagesSource = $messagesSource.Replace($graphWireOld, $graphWireNew)
+          }
+
+          $graphPatchOld = @(
+            '            const ModResult result =',
+            '                apply_flow_patch(flow, group, messageIds, nodeIds, builder);',
+            '            if (result != MOD_OK) {',
+            '                return result;',
+            '            }'
+          ) -join "`n"
+          $graphPatchNew = @(
+            '            const ModResult result =',
+            '                apply_flow_patch(flow, group, messageIds, nodeIds, builder);',
+            '            if (result != MOD_OK) {',
+            '                s_lastActivationError = fmt::format(',
+            '                    "Flow patch rejected: group {}, index {}, operation {} (result {})",',
+            '                    group, flow.patchIndex.value_or(0), flow.operation,',
+            '                    static_cast<int>(result));',
+            '                return result;',
+            '            }'
+          ) -join "`n"
+          if ($messagesSource.Contains($graphPatchOld)) {
+            $messagesSource = $messagesSource.Replace($graphPatchOld, $graphPatchNew)
+          }
+
+          $graphCommitOld = @(
+            '        auto graph = builder.commit();',
+            '        if (!graph) {',
+            '            return graph.result();',
+            '        }'
+          ) -join "`n"
+          $graphCommitNew = @(
+            '        auto graph = builder.commit();',
+            '        if (!graph) {',
+            '            s_lastActivationError = fmt::format(',
+            '                "Flow graph commit rejected for group {} (result {})",',
+            '                group, static_cast<int>(graph.result()));',
+            '            return graph.result();',
+            '        }'
+          ) -join "`n"
+          if ($messagesSource.Contains($graphCommitOld)) {
+            $messagesSource = $messagesSource.Replace($graphCommitOld, $graphCommitNew)
+          }
+
+          $actorResolveOld = '    return resolve_actor_flows(context, nodeIds);'
+          $actorResolveNew = @(
+            '    const ModResult actorResult = resolve_actor_flows(context, nodeIds);',
+            '    if (actorResult != MOD_OK) {',
+            '        s_lastActivationError = fmt::format(',
+            '            "Actor flow resolution rejected seed data (result {})",',
+            '            static_cast<int>(actorResult));',
+            '    }',
+            '    return actorResult;'
+          ) -join "`n"
+          if ($messagesSource.Contains($actorResolveOld)) {
+            $messagesSource = $messagesSource.Replace($actorResolveOld, $actorResolveNew)
+          }
+
+          $activateOld694 = @(
+            'ModResult activate(RandomizerContext& context) {',
+            '    deactivate();',
+            '',
+            '    MessageIdMaps messageIds;',
+            '    ModResult result = register_custom_messages(context, messageIds);',
+            '    if (result == MOD_OK) {',
+            '        result = register_native_overrides(context);',
+            '    }',
+            '    if (result == MOD_OK) {',
+            '        result = register_graphs(context, messageIds);',
+            '    }',
+            '    if (result != MOD_OK) {',
+            '        mods::log::error("failed to register randomizer flow data: {}", static_cast<int>(result));',
+            '        deactivate();',
+            '    }',
+            '    return result;',
+            '}'
+          ) -join "`n"
+          $activateNew694 = @(
+            'ModResult activate(RandomizerContext& context) {',
+            '    deactivate();',
+            '    s_lastActivationError.clear();',
+            '',
+            '    MessageIdMaps messageIds;',
+            '    ModResult result = register_custom_messages(context, messageIds);',
+            '    if (result != MOD_OK && s_lastActivationError.empty()) {',
+            '        s_lastActivationError = fmt::format(',
+            '            "Custom message registration failed (result {})", static_cast<int>(result));',
+            '    }',
+            '    if (result == MOD_OK) {',
+            '        result = register_native_overrides(context);',
+            '        if (result != MOD_OK && s_lastActivationError.empty()) {',
+            '            s_lastActivationError = fmt::format(',
+            '                "Native message override registration failed (result {})",',
+            '                static_cast<int>(result));',
+            '        }',
+            '    }',
+            '    if (result == MOD_OK) {',
+            '        result = register_graphs(context, messageIds);',
+            '        if (result != MOD_OK && s_lastActivationError.empty()) {',
+            '            s_lastActivationError = fmt::format(',
+            '                "Flow graph registration failed (result {})", static_cast<int>(result));',
+            '        }',
+            '    }',
+            '    if (result != MOD_OK) {',
+            '        mods::log::error("failed to register randomizer flow data: {}: {}",',
+            '            static_cast<int>(result), s_lastActivationError);',
+            '        deactivate();',
+            '    }',
+            '    return result;',
+            '}',
+            '',
+            'const std::string& lastActivationError() {',
+            '    return s_lastActivationError;',
+            '}'
+          ) -join "`n"
+          if (-not $messagesSource.Contains($activateOld694)) {
+            throw 'Randomizer messages::activate anchor changed before .694.'
+          }
+          $messagesSource = $messagesSource.Replace($activateOld694, $activateNew694)
+
+          $sessionMessageErrorOld = @(
+            '    const ModResult messageResult = messages::activate(ctx);',
+            '    if (messageResult != MOD_OK) {',
+            '        g_last_seed_activation_error =',
+            '            "Randomizer message/flow activation failed (result " +',
+            '            std::to_string(static_cast<int>(messageResult)) + ")";',
+            '        mods::log::error("{}", g_last_seed_activation_error);',
+            '        ctx = RandomizerContext{};',
+            '        return false;',
+            '    }'
+          ) -join "`n"
+          $sessionMessageErrorNew = @(
+            '    const ModResult messageResult = messages::activate(ctx);',
+            '    if (messageResult != MOD_OK) {',
+            '        const std::string& messageDetail = messages::lastActivationError();',
+            '        g_last_seed_activation_error = messageDetail.empty() ?',
+            '            "Randomizer message/flow activation failed (result " +',
+            '                std::to_string(static_cast<int>(messageResult)) + ")" :',
+            '            messageDetail;',
+            '        mods::log::error("{}", g_last_seed_activation_error);',
+            '        ctx = RandomizerContext{};',
+            '        return false;',
+            '    }'
+          ) -join "`n"
+          if (-not $sessionSource.Contains($sessionMessageErrorOld)) {
+            throw 'Randomizer session message-error anchor changed before .694.'
+          }
+          $sessionSource = $sessionSource.Replace(
+            $sessionMessageErrorOld, $sessionMessageErrorNew)
+
+          foreach ($requiredDiagnostic in @(
+              'lastActivationError()',
+              'Flow graph commit rejected for group',
+              'Native message override rejected:',
+              'Custom message service rejected group')) {
+            if (-not $messagesSource.Contains($requiredDiagnostic)) {
+              throw "Randomizer .694 activation diagnostic marker missing: $requiredDiagnostic"
+            }
+          }
+
+          [IO.File]::WriteAllText(
+            $messagesHeaderPath, $messagesHeader, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText(
+            $messagesSourcePath, $messagesSource, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText(
+            $sessionSourcePath, $sessionSource, [Text.UTF8Encoding]::new($false))
+
           # .691: generated seeds must survive the exact runtime parser before
           # they can be advertised as verified or selected. 64-bit entrance
           # identities are also stored as portable decimal scalars.
@@ -2431,7 +2784,7 @@ jobs:
             if (-not ($contextHeader.Contains($runtimeMarker) -or
                       $contextSource.Contains($runtimeMarker) -or
                       $seedGenerationSource.Contains($runtimeMarker))) {
-              throw "Xbox .693 runtime seed marker is missing: $runtimeMarker"
+              throw "Xbox .694 runtime seed marker is missing: $runtimeMarker"
             }
           }
 
@@ -2448,7 +2801,7 @@ jobs:
               -not $audioSafeMain.Contains('main01.audio-disabled') -or
               -not $audioSafeLogo.Contains('logo.audio-bypassed') -or
               -not $audioSafeLogo.Contains('logo.static-waves-bypassed')) {
-            throw 'Xbox .693 safe-audio isolation path is incomplete.'
+            throw 'Xbox .694 safe-audio isolation path is incomplete.'
           }
 
 
@@ -2633,7 +2986,7 @@ jobs:
                       $audioApi689Verify.Contains($safeAudioMarker) -or
                       $main689Verify.Contains($safeAudioMarker) -or
                       $logo689Verify.Contains($safeAudioMarker))) {
-              throw "Xbox .693 safe-audio marker is missing: $safeAudioMarker"
+              throw "Xbox .694 safe-audio marker is missing: $safeAudioMarker"
             }
           }
           foreach ($unsafeAudioMarker in @(
@@ -2642,7 +2995,7 @@ jobs:
             'logo.static-waves-loaded')) {
             if ($main689Verify.Contains($unsafeAudioMarker) -or
                 $logo689Verify.Contains($unsafeAudioMarker)) {
-              throw "Xbox .693 unexpectedly re-enabled staged audio: $unsafeAudioMarker"
+              throw "Xbox .694 unexpectedly re-enabled staged audio: $unsafeAudioMarker"
             }
           }
 
@@ -2717,7 +3070,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.693"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.694"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -2882,7 +3235,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.693 forces full generator certification after the runtime check-metadata key-width fix.'
+          Write-Host '.694 forces full generator certification and adds exact Randomizer message/flow activation diagnostics.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -2997,7 +3350,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 693 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 694 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -3024,17 +3377,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 693 package
+      - name: Verify and collect full 694 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-693"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-694"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.693_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.694_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -3046,7 +3399,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.693"',
+            'Version="1.4.1.694"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -3074,7 +3427,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-693-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-694-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -3177,7 +3530,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-693.txt',
+            'xbox-startup-stage-694.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -3249,7 +3602,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-693-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-694-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -3269,8 +3622,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-693-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-693-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-694-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-694-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -3313,11 +3666,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-693.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-693.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-694.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-694.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.693'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.694'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -3335,7 +3688,7 @@ jobs:
             pendingModeHandoffPatchSha256 = '31f084d8a87015c8c80121f8a913a1d88148e8f5e98339bc30950f0256c4b287'
             earlyFrameTracePatchSha256 = 'b8de40d4e3cc081fa26af294edfbc98f70e9d3c2e65034c1d4b48e2d5acfeaa9'
             audioSafeBootPatchSha256 = '0b8405d7fff93bb290952ee55f8e90b8d641ce5afff3a157ad20ed8d1c19d7c8'
-            xboxAudioIsolation = '.693 retains the .689 safe UWP audio-disabled path after .688 journal stopped at main01.audio-execute'
+            xboxAudioIsolation = '.694 retains the .689 safe UWP audio-disabled path after .688 journal stopped at main01.audio-execute'
             runtimeSeedRoundTrip = $true
             yamlFailureLineContext = $true
             entranceScalarFormat = 'portable decimal strings, format 4'
@@ -3366,13 +3719,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-693.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-694.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.693-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.694-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -3381,7 +3734,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.693-Xbox
-          path: TPR-Xbox-Package-693/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.694-Xbox
+          path: TPR-Xbox-Package-694/*
           if-no-files-found: error
           retention-days: 30
