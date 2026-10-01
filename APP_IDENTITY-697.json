@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.697",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.696 commit 827d7ca6c69b9d5e33ead4a1594fdc70a401382a",
+  "randomizerStatus": "generated game launch working",
+  "audioStatus": "runtime stalled inside main01.audio-execute before .696 queue pump",
+  "audioDiagnostics": "resource load / Z2 init / SDL init-open / DSP init / stream resume / gframe",
+  "startupJournal": "xbox-startup-stage-697.txt",
+  "launcherVersion": "1.4.1.697"
+}
