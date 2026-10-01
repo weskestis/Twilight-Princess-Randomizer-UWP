@@ -1,0 +1,14 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.698",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.697 commit 716e8e0c6795f8ac3db650f97e0fb1ac23c2215e",
+  "randomizerStatus": "generated game launch working",
+  "audioRootCause": "SDL_OpenAudioDeviceStream hangs on Xbox/UWP",
+  "audioRestore": "native XAudio2 playback; JAS/DSP rendering stays on the game thread",
+  "modAudioReplacement": "still isolated until core music/SFX is proven",
+  "startupJournal": "xbox-startup-stage-698.txt",
+  "launcherVersion": "1.4.1.698"
+}
