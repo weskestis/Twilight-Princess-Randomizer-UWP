@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.704",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.703 commit 8b01adc5683e6795f305d17de1bdc69de735643f",
+  "audioStatus": "native XAudio2 retained",
+  "memoryCardFix": "Aurora GCI-folder loader removes only malformed Randomizer-namespace GCI files before they can set card-wide IOERROR; all-zero stub repair retained",
+  "randomizerSaveName": "randomizer-xbox",
+  "vanillaSaveName": "gczelda2",
+  "cardModeSwap": "serialized COMM_RESCAN_FILE retained",
+  "startupJournal": "xbox-startup-stage-704.txt",
+  "launcherVersion": "1.4.1.704"
+}

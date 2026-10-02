@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 703
+name: Build Dusklight 2.0.1 Xbox 704
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-703-release-${{ github.ref }}
+  group: xbox-704-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 703 identity
+      - name: Apply reviewed source layers and advance 704 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-703.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-704.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -1535,7 +1535,7 @@ jobs:
           # .698: .697 isolated the hang to SDL_OpenAudioDeviceStream on Xbox/UWP.
           # Replace only the Xbox audio output backend with native XAudio2.
           & "$env:TPR_CONTROL\scripts\apply_xbox_audio_698.ps1"
-          if ($LASTEXITCODE -ne 0) { throw 'Xbox .703 XAudio2 transform failed.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Xbox .704 XAudio2 transform failed.' }
           # .700: Xbox runtime hardening after .699 still reproduced two failures.
           # - Use a fresh dedicated LocalState-backed GCI root so malformed legacy card files
           #   cannot keep the entire virtual Slot A in CARD_STATE_FATAL_ERROR.
@@ -1565,7 +1565,7 @@ jobs:
             '        if (is_trig_skipbtn || autoSkipMajor) {'
           ) -join "`n"
           if (-not $hooks700.Contains($autoSkipOld700)) {
-            throw 'Automatic cutscene-skip anchor changed before .703.'
+            throw 'Automatic cutscene-skip anchor changed before .704.'
           }
           $hooks700 = $hooks700.Replace($autoSkipOld700, $autoSkipNew700)
 
@@ -1587,7 +1587,7 @@ jobs:
             '            evtControl->onFlag2(8);'
           ) -join "`n"
           if (-not $hooks700.Contains($skipCallOld700)) {
-            throw 'Post-skip fade restore anchor changed before .703.'
+            throw 'Post-skip fade restore anchor changed before .704.'
           }
           $hooks700 = $hooks700.Replace($skipCallOld700, $skipCallNew700)
           [IO.File]::WriteAllText($hooks700Path, $hooks700, [Text.UTF8Encoding]::new($false))
@@ -1607,7 +1607,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCard700.Contains($cardTypeOld700)) {
-            throw 'Xbox memory-card backend anchor changed before .703.'
+            throw 'Xbox memory-card backend anchor changed before .704.'
           }
           $memCard700 = $memCard700.Replace($cardTypeOld700, $cardTypeNew700)
           [IO.File]::WriteAllText($memCard700Path, $memCard700, [Text.UTF8Encoding]::new($false))
@@ -1630,7 +1630,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCardHeader702.Contains($enumOld702)) {
-            throw 'MemCard command enum anchor changed before .703.'
+            throw 'MemCard command enum anchor changed before .704.'
           }
           $memCardHeader702 = $memCardHeader702.Replace($enumOld702, $enumNew702)
           [IO.File]::WriteAllText($memCardHeader702Path, $memCardHeader702, [Text.UTF8Encoding]::new($false))
@@ -1655,7 +1655,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCard702.Contains($switchOld702)) {
-            throw 'MemCard worker switch anchor changed before .703.'
+            throw 'MemCard worker switch anchor changed before .704.'
           }
           $memCard702 = $memCard702.Replace($switchOld702, $switchNew702)
 
@@ -1674,7 +1674,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCard702.Contains($workerDoneOld702)) {
-            throw 'MemCard worker completion anchor changed before .703.'
+            throw 'MemCard worker completion anchor changed before .704.'
           }
           $memCard702 = $memCard702.Replace($workerDoneOld702, $workerDoneNew702)
 
@@ -1715,7 +1715,7 @@ jobs:
             '}'
           ) -join "`n"
           if (-not $memCard702.Contains($setFileNameOld702)) {
-            throw 'Xbox game-mode CARD filename anchor changed before .703.'
+            throw 'Xbox game-mode CARD filename anchor changed before .704.'
           }
           $memCard702 = $memCard702.Replace($setFileNameOld702, $setFileNameNew702)
           [IO.File]::WriteAllText($memCard700Path, $memCard702, [Text.UTF8Encoding]::new($false))
@@ -1749,7 +1749,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCardRwm703.Contains($stubAnchor703)) {
-            throw 'Randomizer empty-stub detection anchor changed before .703.'
+            throw 'Randomizer empty-stub detection anchor changed before .704.'
           }
           $memCardRwm703 = $memCardRwm703.Replace($stubAnchor703, $stubInsert703)
           [IO.File]::WriteAllText($memCardRwm703Path, $memCardRwm703, [Text.UTF8Encoding]::new($false))
@@ -1796,10 +1796,226 @@ jobs:
             '        CARDClose(&file);'
           ) -join "`n"
           if (-not $memCard703.Contains($restoreOld703)) {
-            throw 'Randomizer empty-stub cleanup anchor changed before .703.'
+            throw 'Randomizer empty-stub cleanup anchor changed before .704.'
           }
           $memCard703 = $memCard703.Replace($restoreOld703, $restoreNew703)
           [IO.File]::WriteAllText($memCard700Path, $memCard703, [Text.UTF8Encoding]::new($false))
+
+          # .704: repair malformed Randomizer GCI containers at Aurora's folder boundary.
+          # A truncated/invalid .gci can poison CardGciFolder::m_error before Dusklight even
+          # asks for the logical Randomizer file, causing status 8 for every later CARD call.
+          # Only malformed files whose on-disk name belongs to our Randomizer namespace are
+          # removed; recognized/valid GCI files and vanilla gczelda2 are untouched.
+          $gci704Path = "$env:TPR_SRC\extern\aurora\lib\card\CardGciFolder.cpp"
+          $gci704 = [IO.File]::ReadAllText($gci704Path).Replace("`r`n", "`n")
+
+          $helperAnchor704 = @(
+            'ECardResult check_new_path(const std::filesystem::path& path) {',
+            '  std::error_code ec;',
+            '  const auto status = std::filesystem::symlink_status(path, ec);',
+            '  if (ec && ec != std::errc::no_such_file_or_directory) {',
+            '    return ECardResult::IOERROR;',
+            '  }',
+            '  return std::filesystem::exists(status) ? ECardResult::EXIST : ECardResult::READY;',
+            '}'
+          ) -join "`n"
+          $helperNew704 = @(
+            'ECardResult check_new_path(const std::filesystem::path& path) {',
+            '  std::error_code ec;',
+            '  const auto status = std::filesystem::symlink_status(path, ec);',
+            '  if (ec && ec != std::errc::no_such_file_or_directory) {',
+            '    return ECardResult::IOERROR;',
+            '  }',
+            '  return std::filesystem::exists(status) ? ECardResult::EXIST : ECardResult::READY;',
+            '}',
+            '',
+            '#if defined(_UWP)',
+            'bool is_xbox_randomizer_gci_name(std::string_view diskName) {',
+            '  return diskName.ends_with(".gci") && diskName.find("-randomizer") != std::string_view::npos;',
+            '}',
+            '',
+            'bool remove_invalid_xbox_randomizer_gci(const std::filesystem::path& path, std::string_view diskName) {',
+            '  if (!is_xbox_randomizer_gci_name(diskName)) {',
+            '    return false;',
+            '  }',
+            '  const auto pathText = io::fs_path_to_string(path);',
+            '  if (!SDL_RemovePath(pathText.c_str())) {',
+            '    Log.warn("Failed to remove malformed Xbox Randomizer GCI: {}", pathText);',
+            '    return false;',
+            '  }',
+            '  Log.warn("Removed malformed Xbox Randomizer GCI: {}", pathText);',
+            '  return true;',
+            '}',
+            '#endif'
+          ) -join "`n"
+          if (-not $gci704.Contains($helperAnchor704)) {
+            throw 'Aurora GCI helper anchor changed before .704.'
+          }
+          $gci704 = $gci704.Replace($helperAnchor704, $helperNew704)
+
+          $openFailOld704 = @(
+            '    auto file = io::open_file(path, "rb");',
+            '    if (!file) {',
+            '      Log.warn("Failed to open GCI file ''{}''", io::fs_path_to_string(path));',
+            '      return false;',
+            '    }'
+          ) -join "`n"
+          $openFailNew704 = @(
+            '    auto file = io::open_file(path, "rb");',
+            '    if (!file) {',
+            '#if defined(_UWP)',
+            '      if (remove_invalid_xbox_randomizer_gci(path, diskName)) {',
+            '        continue;',
+            '      }',
+            '#endif',
+            '      Log.warn("Failed to open GCI file ''{}''", io::fs_path_to_string(path));',
+            '      return false;',
+            '    }'
+          ) -join "`n"
+          if (-not $gci704.Contains($openFailOld704)) {
+            throw 'Aurora GCI open-failure anchor changed before .704.'
+          }
+          $gci704 = $gci704.Replace($openFailOld704, $openFailNew704)
+
+          $readFailOld704 = @(
+            '    File fileData;',
+            '    if (!io::read_exact(file.get(), &fileData, sizeof(File))) {',
+            '      Log.warn("Failed to read GCI file ''{}''", io::fs_path_to_string(path));',
+            '      return false;',
+            '    }'
+          ) -join "`n"
+          $readFailNew704 = @(
+            '    File fileData;',
+            '    if (!io::read_exact(file.get(), &fileData, sizeof(File))) {',
+            '#if defined(_UWP)',
+            '      file.reset();',
+            '      if (remove_invalid_xbox_randomizer_gci(path, diskName)) {',
+            '        continue;',
+            '      }',
+            '#endif',
+            '      Log.warn("Failed to read GCI file ''{}''", io::fs_path_to_string(path));',
+            '      return false;',
+            '    }'
+          ) -join "`n"
+          if (-not $gci704.Contains($readFailOld704)) {
+            throw 'Aurora GCI read-failure anchor changed before .704.'
+          }
+          $gci704 = $gci704.Replace($readFailOld704, $readFailNew704)
+
+          $identityOld704 = @(
+            '    if (canonicalName != diskName) {',
+            '      Log.debug("Ignoring GCI file whose filename does not match its CARD identity: ''{}''", io::fs_path_to_string(path));',
+            '      continue;',
+            '    }'
+          ) -join "`n"
+          $identityNew704 = @(
+            '    if (canonicalName != diskName) {',
+            '#if defined(_UWP)',
+            '      file.reset();',
+            '      if (remove_invalid_xbox_randomizer_gci(path, diskName)) {',
+            '        continue;',
+            '      }',
+            '#endif',
+            '      Log.debug("Ignoring GCI file whose filename does not match its CARD identity: ''{}''", io::fs_path_to_string(path));',
+            '      continue;',
+            '    }'
+          ) -join "`n"
+          if (-not $gci704.Contains($identityOld704)) {
+            throw 'Aurora GCI identity-mismatch anchor changed before .704.'
+          }
+          $gci704 = $gci704.Replace($identityOld704, $identityNew704)
+
+          $sizeOld704 = @(
+            '    if (fileSize < static_cast<Sint64>(sizeof(File)) || fileData.m_blockCount == 0 ||',
+            '        fileSize != sizeof(File) + static_cast<size_t>(fileData.m_blockCount) * BlockSize) {',
+            '      Log.warn("Invalid GCI file size: ''{}''", io::fs_path_to_string(path));',
+            '      return false;',
+            '    }'
+          ) -join "`n"
+          $sizeNew704 = @(
+            '    if (fileSize < static_cast<Sint64>(sizeof(File)) || fileData.m_blockCount == 0 ||',
+            '        fileSize != sizeof(File) + static_cast<size_t>(fileData.m_blockCount) * BlockSize) {',
+            '#if defined(_UWP)',
+            '      file.reset();',
+            '      if (remove_invalid_xbox_randomizer_gci(path, diskName)) {',
+            '        continue;',
+            '      }',
+            '#endif',
+            '      Log.warn("Invalid GCI file size: ''{}''", io::fs_path_to_string(path));',
+            '      return false;',
+            '    }'
+          ) -join "`n"
+          if (-not $gci704.Contains($sizeOld704)) {
+            throw 'Aurora GCI size-failure anchor changed before .704.'
+          }
+          $gci704 = $gci704.Replace($sizeOld704, $sizeNew704)
+
+          $occupiedOld704 = @(
+            '    if (check_new_path(m_folderPath / io::fs_path_from_string(diskName)) != ECardResult::READY) {',
+            '      Log.error("GCI path ''{}'' is occupied by a file that does not match its CARD identity", diskName);',
+            '      return m_error = ECardResult::IOERROR;',
+            '    }'
+          ) -join "`n"
+          $occupiedNew704 = @(
+            '    const auto candidatePath = m_folderPath / io::fs_path_from_string(diskName);',
+            '    if (check_new_path(candidatePath) != ECardResult::READY) {',
+            '#if defined(_UWP)',
+            '      if (remove_invalid_xbox_randomizer_gci(candidatePath, diskName)) {',
+            '        return ECardResult::NOFILE;',
+            '      }',
+            '#endif',
+            '      Log.error("GCI path ''{}'' is occupied by a file that does not match its CARD identity", diskName);',
+            '      return m_error = ECardResult::IOERROR;',
+            '    }'
+          ) -join "`n"
+          if (-not $gci704.Contains($occupiedOld704)) {
+            throw 'Aurora GCI occupied-path anchor changed before .704.'
+          }
+          $gci704 = $gci704.Replace($occupiedOld704, $occupiedNew704)
+
+          $deleteOld704 = @(
+            'ECardResult CardGciFolder::deleteFile(const char* filename) {',
+            '  if (m_error != ECardResult::READY) {',
+            '    return m_error;',
+            '  }',
+            '  const auto idx = find_file(filename);',
+            '  return idx < 0 ? ECardResult::NOFILE : deleteFile(static_cast<uint32_t>(idx));',
+            '}'
+          ) -join "`n"
+          $deleteNew704 = @(
+            'ECardResult CardGciFolder::deleteFile(const char* filename) {',
+            '  if (m_error != ECardResult::READY) {',
+            '    return m_error;',
+            '  }',
+            '  const auto idx = find_file(filename);',
+            '  if (idx < 0) {',
+            '    return ECardResult::NOFILE;',
+            '  }',
+            '#if defined(_UWP)',
+            '  if (std::strcmp(filename, "randomizer-xbox") == 0) {',
+            '    auto* file = get_file(static_cast<uint32_t>(idx));',
+            '    if (file == nullptr) {',
+            '      return ECardResult::NOFILE;',
+            '    }',
+            '    const auto pathText = io::fs_path_to_string(m_folderPath / file->filename);',
+            '    if (!SDL_RemovePath(pathText.c_str())) {',
+            '      return ECardResult::IOERROR;',
+            '    }',
+            '    file->opened = false;',
+            '    file->deleted = true;',
+            '    file->dirty = false;',
+            '    return ECardResult::READY;',
+            '  }',
+            '#endif',
+            '  return deleteFile(static_cast<uint32_t>(idx));',
+            '}'
+          ) -join "`n"
+          if (-not $gci704.Contains($deleteOld704)) {
+            throw 'Aurora GCI delete anchor changed before .704.'
+          }
+          $gci704 = $gci704.Replace($deleteOld704, $deleteNew704)
+
+          [IO.File]::WriteAllText($gci704Path, $gci704, [Text.UTF8Encoding]::new($false))
 
           $session700Path = "$env:TPR_SRC\mods\randomizer\src\session.cpp"
           $session700 = [IO.File]::ReadAllText($session700Path).Replace("`r`n", "`n")
@@ -1814,7 +2030,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $session700.Contains($randomizerSaveOld700)) {
-            throw 'Randomizer save-name anchor changed before .703.'
+            throw 'Randomizer save-name anchor changed before .704.'
           }
           $session700 = $session700.Replace($randomizerSaveOld700, $randomizerSaveNew700)
           [IO.File]::WriteAllText($session700Path, $session700, [Text.UTF8Encoding]::new($false))
@@ -1830,15 +2046,18 @@ jobs:
             'mCardCommand = COMM_RESCAN_FILE_e;',
             'static const u8 emptySector[SECTOR_SIZE] = {};',
             'CARDDelete(mChannel, fileName);',
+            'remove_invalid_xbox_randomizer_gci',
+            'std::strcmp(filename, "randomizer-xbox") == 0',
             'randomizer-xbox')) {
             if (-not ($hooks700.Contains($safetyMarker700) -or
                       $memCard700.Contains($safetyMarker700) -or
                       $memCard702.Contains($safetyMarker700) -or
                       $memCard703.Contains($safetyMarker700) -or
                       $memCardRwm703.Contains($safetyMarker700) -or
+                      $gci704.Contains($safetyMarker700) -or
                       $memCardHeader702.Contains($safetyMarker700) -or
                       $session700.Contains($safetyMarker700))) {
-              throw "Xbox .703 runtime safety marker missing: $safetyMarker700"
+              throw "Xbox .704 runtime safety marker missing: $safetyMarker700"
             }
           }
           # Detached CI source reports UNKNOWN-VERSION; make the Xbox launcher match the MSIX.
@@ -1849,7 +2068,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.703");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.704");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -1943,7 +2162,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-703.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-704.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 60') -or
@@ -1957,7 +2176,7 @@ jobs:
           if (-not $audioHeader.Contains('#define DUSK_AUDIO_DISABLED 0') -or
               $audioHeader.Contains('#define DUSK_AUDIO_DISABLED 1') -or
               $audioHeader.Contains('#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;')) {
-            throw 'Xbox .703 core audio is not enabled cleanly.'
+            throw 'Xbox .704 core audio is not enabled cleanly.'
           }
           $audioApiHeader = [IO.File]::ReadAllText(
             "$env:TPR_SRC\include\m_Do\m_Do_audio.h")
@@ -1972,7 +2191,7 @@ jobs:
               'SDL_GetAudioStreamQueued(PlaybackStream)',
               'SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr)')) {
             if (-not $audioSystemSource.Contains($audioCoreMarker696)) {
-              throw "Xbox .703 audio core marker missing: $audioCoreMarker696"
+              throw "Xbox .704 audio core marker missing: $audioCoreMarker696"
             }
           }
           $logoSource = [IO.File]::ReadAllText(
@@ -1997,7 +2216,7 @@ jobs:
                 'Z2AudioMgr::getInterface()->checkFirstWaves()') -or
               -not $logoSource.Contains(
                 'Z2AudioMgr::getInterface()->loadStaticWaves()')) {
-            throw 'Xbox .703 logo audio initialization/static-wave behavior is incomplete.'
+            throw 'Xbox .704 logo audio initialization/static-wave behavior is incomplete.'
           }
           $standardCreateSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\f_pc\f_pc_stdcreate_req.cpp")
@@ -2057,7 +2276,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.703");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.704");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -3704,7 +3923,7 @@ jobs:
             if (-not ($contextHeader.Contains($runtimeMarker) -or
                       $contextSource.Contains($runtimeMarker) -or
                       $seedGenerationSource.Contains($runtimeMarker))) {
-              throw "Xbox .703 runtime seed marker is missing: $runtimeMarker"
+              throw "Xbox .704 runtime seed marker is missing: $runtimeMarker"
             }
           }
 
@@ -3722,7 +3941,7 @@ jobs:
               -not $audioSafeLogo.Contains('logo.audio-init-wait') -or
               -not $audioSafeLogo.Contains('logo.static-waves-loaded') -or
               -not $audioSafeSystem.Contains('SDL_GetAudioStreamQueued(PlaybackStream)')) {
-            throw 'Xbox .703 callback-free audio restore is incomplete.'
+            throw 'Xbox .704 callback-free audio restore is incomplete.'
           }
 
 
@@ -3911,7 +4130,7 @@ jobs:
                       $audioSystem696Verify.Contains($audioRestoreMarker696) -or
                       $main696Verify.Contains($audioRestoreMarker696) -or
                       $logo696Verify.Contains($audioRestoreMarker696))) {
-              throw "Xbox .703 callback-free audio marker is missing: $audioRestoreMarker696"
+              throw "Xbox .704 callback-free audio marker is missing: $audioRestoreMarker696"
             }
           }
           foreach ($forbiddenAudioMarker696 in @(
@@ -3924,7 +4143,7 @@ jobs:
                 $audioApi696Verify.Contains($forbiddenAudioMarker696) -or
                 $main696Verify.Contains($forbiddenAudioMarker696) -or
                 $logo696Verify.Contains($forbiddenAudioMarker696)) {
-              throw "Xbox .703 still contains obsolete callback/disabled-audio marker: $forbiddenAudioMarker696"
+              throw "Xbox .704 still contains obsolete callback/disabled-audio marker: $forbiddenAudioMarker696"
             }
           }
 
@@ -3999,7 +4218,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.703"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.704"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -4164,7 +4383,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.703 keeps native XAudio2, preserves vanilla saves, repairs abandoned all-zero first-time Randomizer GCI stubs, serializes logical CARD rescans, and force-restores the post-auto-skip fade state.'
+          Write-Host '.704 keeps native XAudio2, preserves vanilla saves, quarantines malformed Randomizer GCI files at Aurora load time, repairs all-zero first-time stubs, and retains serialized CARD rescans plus auto-skip fade recovery.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -4279,7 +4498,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 703 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 704 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -4306,17 +4525,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 703 package
+      - name: Verify and collect full 704 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-703"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-704"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.703_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.704_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -4328,7 +4547,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.703"',
+            'Version="1.4.1.704"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -4356,7 +4575,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-703-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-704-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -4459,7 +4678,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-703.txt',
+            'xbox-startup-stage-704.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -4535,7 +4754,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-703-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-704-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -4555,8 +4774,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-703-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-703-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-704-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-704-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -4599,11 +4818,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-703.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-703.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-704.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-704.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.703'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.704'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -4648,21 +4867,21 @@ jobs:
             menuColorRandomization = $true
             restoredRandomizerRows = 7
             enemySouls = $true
-            xboxAutoCutsceneSkip = '.703 automatic major-cutscene skips bypass the timer and force mDoGph fade restoration immediately after the skip callback'
-            xboxMemoryCard = '.703 preserves vanilla GCI storage, serializes logical Randomizer rescans, and repairs only an all-zero first-time randomizer-xbox GCI stub left by a failed pre-save creation'
+            xboxAutoCutsceneSkip = '.704 automatic major-cutscene skips bypass the timer and force mDoGph fade restoration immediately after the skip callback'
+            xboxMemoryCard = '.704 preserves vanilla storage and repairs malformed/truncated Randomizer GCI files inside Aurora before they can poison the whole Card A backend; all-zero first-time stubs are also repaired'
             generatorScenarios = 58
             generatorScenarioAttempts = 3
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-703.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-704.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.703-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.704-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -4671,7 +4890,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.703-Xbox
-          path: TPR-Xbox-Package-703/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.704-Xbox
+          path: TPR-Xbox-Package-704/*
           if-no-files-found: error
           retention-days: 30
