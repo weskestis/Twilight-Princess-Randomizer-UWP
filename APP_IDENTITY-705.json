@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.705",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.704 commit e2a8c3742f9642b58d0ee609985936d5a2dd7993",
+  "audioStatus": "native XAudio2 retained",
+  "vanillaSave": "gczelda2 via existing Aurora/GCI path",
+  "randomizerSave": "LocalState/randomizer-xbox.sav direct checksummed storage; CARD API bypassed",
+  "randomizerSaveName": "randomizer-xbox",
+  "autoSkipFix": "post-auto-skip fade recovery retained",
+  "startupJournal": "xbox-startup-stage-705.txt",
+  "launcherVersion": "1.4.1.705"
+}
