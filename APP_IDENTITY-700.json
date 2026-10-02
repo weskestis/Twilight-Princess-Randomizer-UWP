@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.700",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.699 commit ac3f6f29258653920da31a5bebf37d03f2eae733",
+  "audioStatus": "native XAudio2 retained",
+  "memoryCardFix": "fresh persistent GCI-folder root under ConfigPath/xbox_memory_card_700; legacy card data untouched",
+  "autoSkipFix": "automatic major-cutscene skip clears skip-fade state and forces mDoGph fade restoration after callback",
+  "startupJournal": "xbox-startup-stage-700.txt",
+  "launcherVersion": "1.4.1.700"
+}
