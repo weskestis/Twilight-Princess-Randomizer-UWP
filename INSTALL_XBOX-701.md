@@ -11,6 +11,6 @@ Root cause:
 Fix:
 - Switching save filenames now atomically changes the card state to CHECKING/BUSY.
 - The worker queues a fresh ATTACH/probe for the new filename before file-select can treat it as ready.
-- Randomizer remains isolated as `randomizer-xbox-701`.
+- Randomizer uses the stable Xbox save name `randomizer-xbox` for first-time creation.
 - Vanilla saves remain on their existing working card.
 - The .700 automatic-cutscene post-skip fade recovery and the working XAudio2 backend are retained.

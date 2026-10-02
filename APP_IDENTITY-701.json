@@ -6,7 +6,7 @@
   "target": "Windows.Universal / Xbox UWP",
   "base": "1.4.1.700 commit c97bc19540cabdaef4ea10f211975c16192d2f13",
   "audioStatus": "native XAudio2 retained",
-  "memoryCardFix": "Randomizer uses randomizer-xbox-701; changing game-mode save name forces CARD_STATE_13 and queues COMM_ATTACH before file access",
+  "memoryCardFix": "first-time Randomizer save uses stable save_name randomizer-xbox; game-mode save-name changes force CARD_STATE_13 and queue COMM_ATTACH before file access",
   "vanillaSaveStatus": "existing vanilla gczelda2 card root preserved",
   "autoSkipFix": "post-auto-skip fade restoration retained from .700",
   "startupJournal": "xbox-startup-stage-701.txt",

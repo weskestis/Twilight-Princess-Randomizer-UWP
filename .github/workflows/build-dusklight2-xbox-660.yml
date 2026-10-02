@@ -1667,7 +1667,7 @@ jobs:
             '#if defined(_UWP)',
             '        // Xbox keeps Randomizer saves separate from both vanilla and any malformed',
             '        // randomizer save created by older builds.',
-            '        .save_name = "randomizer-xbox-701",',
+            '        .save_name = "randomizer-xbox",',
             '#else',
             '        .save_name = "randomizer",',
             '#endif'
@@ -1685,7 +1685,7 @@ jobs:
             'CARDSetLoadType(CARD_GCIFOLDER);',
             'mCardState = CARD_STATE_13_e;',
             'mCardCommand = COMM_ATTACH_e;',
-            'randomizer-xbox-701')) {
+            'randomizer-xbox')) {
             if (-not ($hooks700.Contains($safetyMarker700) -or
                       $memCard700.Contains($safetyMarker700) -or
                       $memCard701.Contains($safetyMarker700) -or
@@ -4501,7 +4501,7 @@ jobs:
             restoredRandomizerRows = 7
             enemySouls = $true
             xboxAutoCutsceneSkip = '.701 automatic major-cutscene skips bypass the timer and force mDoGph fade restoration immediately after the skip callback'
-            xboxMemoryCard = '.701 preserves vanilla GCI storage, isolates Randomizer to randomizer-xbox-701, and forces an async CARD reattach whenever the game-mode save name changes'
+            xboxMemoryCard = '.701 preserves vanilla GCI storage, isolates Randomizer to randomizer-xbox, and forces an async CARD reattach whenever the game-mode save name changes'
             generatorScenarios = 58
             generatorScenarioAttempts = 3
             workflowRun = $env:GITHUB_RUN_ID
