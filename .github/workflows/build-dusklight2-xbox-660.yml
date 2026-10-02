@@ -1536,30 +1536,27 @@ jobs:
           # Replace only the Xbox audio output backend with native XAudio2.
           & "$env:TPR_CONTROL\scripts\apply_xbox_audio_698.ps1"
           if ($LASTEXITCODE -ne 0) { throw 'Xbox .699 XAudio2 transform failed.' }
-          # .699: a thrown wooden box (daObjCarry TYPE_KIBAKO) can traverse the Randomizer
-          # carry-break hook even though only pot variants are randomized. Avoid decoding/mutating
-          # the bool hook argument for non-pot carry actors; leave those actors entirely vanilla.
+          # .699: keep non-pot carryables out of the Randomizer pot-break path, and
+          # make Xbox automatic major-cutscene skipping immediate/no-fade so a startup
+          # cutscene cannot leave the renderer stuck behind the skip fade.
           $hooks699Path = "$env:TPR_SRC\mods\randomizer\src\hooks.cpp"
           $hooks699 = [IO.File]::ReadAllText($hooks699Path).Replace("`r`n", "`n")
-          $carryBreakOld699 = @(
-            'HookAction hookPreCarryBreak(ModContext*, void* args, void*, void*) {',
-            '    auto* actor = mods::arg<daObjCarry_c*>(args, 0);',
-            '    auto& createItem = mods::arg_ref<bool>(args, 1);',
-            '    if (createItem && breakables::spawn_shuffled_item(actor)) {',
-            '        createItem = false;',
-            '    }',
-            '    return HOOK_CONTINUE;',
-            '}'
-          ) -join "`n"
-          $carryBreakNew699 = @(
+
+          $nl699 = [string][char]10
+          $carryStart699 = $hooks699.IndexOf('HookAction hookPreCarryBreak(ModContext*, void* args, void*, void*) {', [StringComparison]::Ordinal)
+          if ($carryStart699 -lt 0) { throw 'Could not locate carry-break hook for .699.' }
+          $carryEnd699 = $hooks699.IndexOf($nl699 + '}' + $nl699 + $nl699 + 'HookAction hookPrePumpkinCreate', $carryStart699, [StringComparison]::Ordinal)
+          if ($carryEnd699 -lt 0) { throw 'Could not locate carry-break hook end for .699.' }
+          $carryOld699 = $hooks699.Substring($carryStart699, $carryEnd699 - $carryStart699 + 2)
+          $carryNew699 = @(
             'HookAction hookPreCarryBreak(ModContext*, void* args, void*, void*) {',
             '    auto* actor = mods::arg<daObjCarry_c*>(args, 0);',
             '    if (actor == nullptr) {',
             '        return HOOK_CONTINUE;',
             '    }',
             '',
-            '    const uint16_t type =',
-            '        (static_cast<uint16_t>(actor->home.angle.z) >> 1) & 0x1F;',
+            '    const u16 type =',
+            '        (static_cast<u16>(actor->home.angle.z) >> 1) & 0x1F;',
             '    switch (type) {',
             '    case daObjCarry_c::TYPE_TSUBO:',
             '    case daObjCarry_c::TYPE_OOTSUBO:',
@@ -1579,17 +1576,37 @@ jobs:
             '    return HOOK_CONTINUE;',
             '}'
           ) -join "`n"
-          if (-not $hooks699.Contains($carryBreakOld699)) {
-            throw 'Carry-break hook anchor changed before .699.'
-          }
-          $hooks699 = $hooks699.Replace($carryBreakOld699, $carryBreakNew699)
-          foreach ($carrySafetyMarker699 in @(
-            'case daObjCarry_c::TYPE_TSUBO:',
+          $hooks699 = $hooks699.Replace($carryOld699, $carryNew699)
+
+          $autoSkipOld699 = @(
+            '        bool is_trig_skipbtn = mDoCPd_c::getTrigStart(PAD_1);',
+            '        // Automatically skip cutscenes in rando if Skip Major Cutscenes is on',
+            '        if (is_trig_skipbtn || (canSkip &&',
+            '             randomizer_GetContext().mSettings[RandomizerContext::SKIP_MAJOR_CUTSCENES] == RandomizerContext::ON)) {'
+          ) -join "`n"
+          $autoSkipNew699 = @(
+            '        bool is_trig_skipbtn = mDoCPd_c::getTrigStart(PAD_1);',
+            '        const bool autoSkipMajor = canSkip &&',
+            '            randomizer_GetContext().mSettings[RandomizerContext::SKIP_MAJOR_CUTSCENES] ==',
+            '                RandomizerContext::ON;',
+            '#if defined(_UWP)',
+            '        // Xbox automatic skips bypass the pre-skip fade/timer path.',
+            '        if (autoSkipMajor && !is_trig_skipbtn) {',
+            '            doSkip = true;',
+            '            evtControl->mSkipTimer = 0;',
+            '        } else',
+            '#endif',
+            '        if (is_trig_skipbtn || autoSkipMajor) {'
+          ) -join "`n"
+          if (-not $hooks699.Contains($autoSkipOld699)) { throw 'Automatic cutscene-skip anchor changed before .699.' }
+          $hooks699 = $hooks699.Replace($autoSkipOld699, $autoSkipNew699)
+
+          foreach ($safetyMarker699 in @(
             'case daObjCarry_c::TYPE_TSUBO_B:',
-            'default:',
-            'return HOOK_CONTINUE;')) {
-            if (-not $hooks699.Contains($carrySafetyMarker699)) {
-              throw "Xbox .699 carry-break safety marker missing: $carrySafetyMarker699"
+            'autoSkipMajor && !is_trig_skipbtn',
+            'evtControl->mSkipTimer = 0;')) {
+            if (-not $hooks699.Contains($safetyMarker699)) {
+              throw "Xbox .699 runtime safety marker missing: $safetyMarker699"
             }
           }
           [IO.File]::WriteAllText($hooks699Path, $hooks699, [Text.UTF8Encoding]::new($false))
@@ -3916,7 +3933,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.699 forces full generator certification, keeps native XAudio2, and isolates non-pot carryables from the Randomizer break hook.'
+          Write-Host '.699 forces full generator certification, keeps native XAudio2, isolates non-pot carryables, and hardens automatic cutscene skipping on Xbox.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -4401,6 +4418,7 @@ jobs:
             restoredRandomizerRows = 7
             enemySouls = $true
             carryBreakSafety = '.699 restricts Randomizer obj_break argument access to the six pot carry types; wooden boxes and other carryables remain vanilla'
+            xboxAutoCutsceneSkip = '.699 automatic major-cutscene skips bypass the pre-skip fade/timer on UWP to prevent startup black-screen stalls'
             generatorScenarios = 58
             generatorScenarioAttempts = 3
             workflowRun = $env:GITHUB_RUN_ID
