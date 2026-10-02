@@ -1536,49 +1536,11 @@ jobs:
           # Replace only the Xbox audio output backend with native XAudio2.
           & "$env:TPR_CONTROL\scripts\apply_xbox_audio_698.ps1"
           if ($LASTEXITCODE -ne 0) { throw 'Xbox .699 XAudio2 transform failed.' }
-          # .699: runtime hardening from Xbox testing.
-          # 1) Non-pot carryables must return before the Randomizer touches obj_break's
-          #    create-item argument.
-          # 2) Automatic major-cutscene skips avoid the Xbox fade/timer black-screen path.
-          # 3) Xbox save storage is pinned to the writable GCI-folder backend and ConfigPath.
+          # .699: Xbox runtime hardening proven from current user reports.
+          # Keep this pass focused on storage and the automatic cutscene fade path;
+          # the wooden-box crash will be isolated separately instead of blocking saves.
           $hooks699Path = "$env:TPR_SRC\mods\randomizer\src\hooks.cpp"
           $hooks699 = [IO.File]::ReadAllText($hooks699Path).Replace("`r`n", "`n")
-
-          $spawnNeedle699 = 'breakables::spawn_shuffled_item(actor)'
-          $spawnPos699 = $hooks699.IndexOf($spawnNeedle699, [StringComparison]::Ordinal)
-          if ($spawnPos699 -lt 0) { throw 'Could not locate Randomizer carry-break call for .699.' }
-          $carryStart699 = $hooks699.LastIndexOf('HookAction ', $spawnPos699, [StringComparison]::Ordinal)
-          $carryEnd699 = $hooks699.IndexOf("`n}`n`n", $spawnPos699, [StringComparison]::Ordinal)
-          if ($carryStart699 -lt 0 -or $carryEnd699 -lt 0) {
-            throw 'Could not bound Randomizer carry-break hook for .699.'
-          }
-          $carryOld699 = $hooks699.Substring($carryStart699, $carryEnd699 - $carryStart699 + 2)
-          $carryActorLine699 = '    auto* actor = mods::arg<daObjCarry_c*>(args, 0);'
-          if (-not $carryOld699.Contains($carryActorLine699)) {
-            throw 'Carry-break actor anchor changed before .699.'
-          }
-          $carryGuard699 = @(
-            '    auto* actor = mods::arg<daObjCarry_c*>(args, 0);',
-            '    if (actor == nullptr) {',
-            '        return HOOK_CONTINUE;',
-            '    }',
-            '',
-            '    const u16 type =',
-            '        (static_cast<u16>(actor->home.angle.z) >> 1) & 0x1F;',
-            '    switch (type) {',
-            '    case daObjCarry_c::TYPE_TSUBO:',
-            '    case daObjCarry_c::TYPE_OOTSUBO:',
-            '    case daObjCarry_c::TYPE_TSUBO_2:',
-            '    case daObjCarry_c::TYPE_AOTSUBO:',
-            '    case daObjCarry_c::TYPE_TSUBO_S:',
-            '    case daObjCarry_c::TYPE_TSUBO_B:',
-            '        break;',
-            '    default:',
-            '        return HOOK_CONTINUE;',
-            '    }'
-          ) -join "`n"
-          $carryNew699 = $carryOld699.Replace($carryActorLine699, $carryGuard699)
-          $hooks699 = $hooks699.Remove($carryStart699, $carryOld699.Length).Insert($carryStart699, $carryNew699)
 
           $autoSkipOld699 = @(
             '        bool is_trig_skipbtn = mDoCPd_c::getTrigStart(PAD_1);',
@@ -1611,8 +1573,8 @@ jobs:
           $cardTypeOld699 = '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());'
           $cardTypeNew699 = @(
             '#if defined(_UWP)',
-            '    // Xbox uses a persistent GCI folder in the same writable LocalState-backed',
-            '    // data root as ConfigPath. Avoid stale/raw card images reporting fatal I/O.',
+            '    // Xbox: force writable GCI-folder storage under the LocalState-backed ConfigPath.',
+            '    // This avoids a stale/raw-card backend surfacing as CARD_STATE_FATAL_ERROR.',
             '    CARDSetLoadType(CARD_GCIFOLDER);',
             '    const auto xboxCardBasePath = dusk::ConfigPath.string();',
             '    CARDSetBasePath(xboxCardBasePath.c_str(), -1);',
@@ -1627,7 +1589,6 @@ jobs:
           [IO.File]::WriteAllText($memCard699Path, $memCard699, [Text.UTF8Encoding]::new($false))
 
           foreach ($safetyMarker699 in @(
-            'case daObjCarry_c::TYPE_TSUBO_B:',
             'autoSkipMajor && !is_trig_skipbtn',
             'CARDSetLoadType(CARD_GCIFOLDER);',
             'CARDSetBasePath(xboxCardBasePath.c_str(), -1);')) {
@@ -3958,7 +3919,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.699 forces full generator certification, keeps native XAudio2, hardens carryables/cutscene skipping, and pins Xbox save storage to writable GCI-folder backing.'
+          Write-Host '.699 forces full generator certification, keeps native XAudio2, hardens automatic cutscene skipping, and pins Xbox save storage to writable GCI-folder backing.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -4442,7 +4403,6 @@ jobs:
             menuColorRandomization = $true
             restoredRandomizerRows = 7
             enemySouls = $true
-            carryBreakSafety = '.699 restricts Randomizer obj_break argument access to the six pot carry types; wooden boxes and other carryables remain vanilla'
             xboxAutoCutsceneSkip = '.699 automatic major-cutscene skips bypass the pre-skip fade/timer on UWP to prevent startup black-screen stalls'
             xboxMemoryCard = '.699 pins Xbox to persistent GCI-folder storage rooted at ConfigPath/LocalState instead of a potentially stale raw-card backend'
             generatorScenarios = 58
