@@ -1,0 +1,17 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.699",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.698 commit 126c9fb8e6b5613f4aa7ad01e29c170a1386247d",
+  "randomizerStatus": "generated game launch working",
+  "audioStatus": "native XAudio2 green build",
+  "crashFix": "Randomizer carry-break hook restricted to pot actor types; wooden boxes bypass it",
+  "knownFollowups": [
+    "Slot A damaged / save failure",
+    "restore quarantined mod overlay and texture services safely"
+  ],
+  "startupJournal": "xbox-startup-stage-699.txt",
+  "launcherVersion": "1.4.1.699"
+}
