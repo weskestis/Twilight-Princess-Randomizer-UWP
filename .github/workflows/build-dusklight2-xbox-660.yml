@@ -1597,13 +1597,11 @@ jobs:
           $cardTypeOld700 = '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());'
           $cardTypeNew700 = @(
             '#if defined(_UWP)',
-            '    // Keep Xbox Slot A isolated from any malformed card files left by older builds.',
-            '    // The old data is left untouched; .700 writes to a clean persistent LocalState root.',
+            '    // Preserve the working vanilla Xbox card root. Randomizer isolation is handled',
+            '    // with its own save_name below, not by moving the whole virtual memory card.',
             '    CARDSetLoadType(CARD_GCIFOLDER);',
-            '    const auto xboxCardBasePath = dusk::ConfigPath / "xbox_memory_card_700";',
-            '    std::error_code xboxCardPathError;',
-            '    std::filesystem::create_directories(xboxCardBasePath, xboxCardPathError);',
-            '    CARDSetBasePath(xboxCardBasePath.string().c_str(), -1);',
+            '    const auto xboxCardBasePath = dusk::ConfigPath.string();',
+            '    CARDSetBasePath(xboxCardBasePath.c_str(), -1);',
             '#else',
             '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());',
             '#endif'
@@ -1614,13 +1612,33 @@ jobs:
           $memCard700 = $memCard700.Replace($cardTypeOld700, $cardTypeNew700)
           [IO.File]::WriteAllText($memCard700Path, $memCard700, [Text.UTF8Encoding]::new($false))
 
+          $session700Path = "$env:TPR_SRC\mods\randomizer\src\session.cpp"
+          $session700 = [IO.File]::ReadAllText($session700Path).Replace("`r`n", "`n")
+          $randomizerSaveOld700 = '        .save_name = "randomizer",'
+          $randomizerSaveNew700 = @(
+            '#if defined(_UWP)',
+            '        // Xbox keeps Randomizer saves separate from both vanilla and any malformed',
+            '        // randomizer save created by older builds.',
+            '        .save_name = "randomizer-xbox-700",',
+            '#else',
+            '        .save_name = "randomizer",',
+            '#endif'
+          ) -join "`n"
+          if (-not $session700.Contains($randomizerSaveOld700)) {
+            throw 'Randomizer save-name anchor changed before .700.'
+          }
+          $session700 = $session700.Replace($randomizerSaveOld700, $randomizerSaveNew700)
+          [IO.File]::WriteAllText($session700Path, $session700, [Text.UTF8Encoding]::new($false))
+
           foreach ($safetyMarker700 in @(
             'autoSkipMajor && !is_trig_skipbtn',
             'evtControl->offSkipFade();',
             'mDoGph_gInf_c::fadeOut(-1.0f);',
             'CARDSetLoadType(CARD_GCIFOLDER);',
-            'xbox_memory_card_700')) {
-            if (-not ($hooks700.Contains($safetyMarker700) -or $memCard700.Contains($safetyMarker700))) {
+            'randomizer-xbox-700')) {
+            if (-not ($hooks700.Contains($safetyMarker700) -or
+                      $memCard700.Contains($safetyMarker700) -or
+                      $session700.Contains($safetyMarker700))) {
               throw "Xbox .700 runtime safety marker missing: $safetyMarker700"
             }
           }
@@ -3947,7 +3965,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.700 keeps native XAudio2, isolates Xbox saves to a clean persistent GCI root, and force-restores the post-auto-skip fade state.'
+          Write-Host '.700 keeps native XAudio2, preserves vanilla saves, isolates the Randomizer save file, and force-restores the post-auto-skip fade state.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -4432,7 +4450,7 @@ jobs:
             restoredRandomizerRows = 7
             enemySouls = $true
             xboxAutoCutsceneSkip = '.700 automatic major-cutscene skips bypass the timer and force mDoGph fade restoration immediately after the skip callback'
-            xboxMemoryCard = '.700 uses a clean dedicated persistent GCI-folder root under ConfigPath/LocalState so malformed legacy card contents cannot poison Slot A'
+            xboxMemoryCard = '.700 preserves the working vanilla GCI card root and isolates Randomizer to a fresh randomizer-xbox-700 save file'
             generatorScenarios = 58
             generatorScenarioAttempts = 3
             workflowRun = $env:GITHUB_RUN_ID

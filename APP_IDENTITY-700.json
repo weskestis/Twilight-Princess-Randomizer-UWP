@@ -6,7 +6,7 @@
   "target": "Windows.Universal / Xbox UWP",
   "base": "1.4.1.699 commit ac3f6f29258653920da31a5bebf37d03f2eae733",
   "audioStatus": "native XAudio2 retained",
-  "memoryCardFix": "fresh persistent GCI-folder root under ConfigPath/xbox_memory_card_700; legacy card data untouched",
+  "memoryCardFix": "preserve existing vanilla GCI root; Randomizer uses fresh save_name randomizer-xbox-700 to bypass malformed older Randomizer save",
   "autoSkipFix": "automatic major-cutscene skip clears skip-fade state and forces mDoGph fade restoration after callback",
   "startupJournal": "xbox-startup-stage-700.txt",
   "launcherVersion": "1.4.1.700"
