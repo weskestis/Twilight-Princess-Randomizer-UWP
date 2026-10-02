@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.702",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.701 commit 4b6e9e48a21d5d475bf9f6e7d49ce181a2cf26fd",
+  "audioStatus": "native XAudio2 retained",
+  "memoryCardFix": "serialize game-mode save-name changes; queue COMM_RESCAN_FILE against existing GCI card instead of full CARD reattach/remount",
+  "randomizerSaveName": "randomizer-xbox",
+  "vanillaSaveName": "gczelda2",
+  "autoSkipFix": "post-auto-skip fade restoration retained",
+  "startupJournal": "xbox-startup-stage-702.txt",
+  "launcherVersion": "1.4.1.702"
+}
