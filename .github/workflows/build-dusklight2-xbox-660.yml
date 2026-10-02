@@ -1536,20 +1536,28 @@ jobs:
           # Replace only the Xbox audio output backend with native XAudio2.
           & "$env:TPR_CONTROL\scripts\apply_xbox_audio_698.ps1"
           if ($LASTEXITCODE -ne 0) { throw 'Xbox .699 XAudio2 transform failed.' }
-          # .699: keep non-pot carryables out of the Randomizer pot-break path, and
-          # make Xbox automatic major-cutscene skipping immediate/no-fade so a startup
-          # cutscene cannot leave the renderer stuck behind the skip fade.
+          # .699: runtime hardening from Xbox testing.
+          # 1) Non-pot carryables must return before the Randomizer touches obj_break's
+          #    create-item argument.
+          # 2) Automatic major-cutscene skips avoid the Xbox fade/timer black-screen path.
+          # 3) Xbox save storage is pinned to the writable GCI-folder backend and ConfigPath.
           $hooks699Path = "$env:TPR_SRC\mods\randomizer\src\hooks.cpp"
           $hooks699 = [IO.File]::ReadAllText($hooks699Path).Replace("`r`n", "`n")
 
-          $nl699 = [string][char]10
-          $carryStart699 = $hooks699.IndexOf('HookAction hookPreCarryBreak(ModContext*, void* args, void*, void*) {', [StringComparison]::Ordinal)
-          if ($carryStart699 -lt 0) { throw 'Could not locate carry-break hook for .699.' }
-          $carryEnd699 = $hooks699.IndexOf($nl699 + '}' + $nl699 + $nl699 + 'HookAction hookPrePumpkinCreate', $carryStart699, [StringComparison]::Ordinal)
-          if ($carryEnd699 -lt 0) { throw 'Could not locate carry-break hook end for .699.' }
+          $spawnNeedle699 = 'breakables::spawn_shuffled_item(actor)'
+          $spawnPos699 = $hooks699.IndexOf($spawnNeedle699, [StringComparison]::Ordinal)
+          if ($spawnPos699 -lt 0) { throw 'Could not locate Randomizer carry-break call for .699.' }
+          $carryStart699 = $hooks699.LastIndexOf('HookAction ', $spawnPos699, [StringComparison]::Ordinal)
+          $carryEnd699 = $hooks699.IndexOf("`n}`n`n", $spawnPos699, [StringComparison]::Ordinal)
+          if ($carryStart699 -lt 0 -or $carryEnd699 -lt 0) {
+            throw 'Could not bound Randomizer carry-break hook for .699.'
+          }
           $carryOld699 = $hooks699.Substring($carryStart699, $carryEnd699 - $carryStart699 + 2)
-          $carryNew699 = @(
-            'HookAction hookPreCarryBreak(ModContext*, void* args, void*, void*) {',
+          $carryActorLine699 = '    auto* actor = mods::arg<daObjCarry_c*>(args, 0);'
+          if (-not $carryOld699.Contains($carryActorLine699)) {
+            throw 'Carry-break actor anchor changed before .699.'
+          }
+          $carryGuard699 = @(
             '    auto* actor = mods::arg<daObjCarry_c*>(args, 0);',
             '    if (actor == nullptr) {',
             '        return HOOK_CONTINUE;',
@@ -1567,16 +1575,10 @@ jobs:
             '        break;',
             '    default:',
             '        return HOOK_CONTINUE;',
-            '    }',
-            '',
-            '    auto& createItem = mods::arg_ref<bool>(args, 1);',
-            '    if (createItem && breakables::spawn_shuffled_item(actor)) {',
-            '        createItem = false;',
-            '    }',
-            '    return HOOK_CONTINUE;',
-            '}'
+            '    }'
           ) -join "`n"
-          $hooks699 = $hooks699.Replace($carryOld699, $carryNew699)
+          $carryNew699 = $carryOld699.Replace($carryActorLine699, $carryGuard699)
+          $hooks699 = $hooks699.Remove($carryStart699, $carryOld699.Length).Insert($carryStart699, $carryNew699)
 
           $autoSkipOld699 = @(
             '        bool is_trig_skipbtn = mDoCPd_c::getTrigStart(PAD_1);',
@@ -1598,18 +1600,41 @@ jobs:
             '#endif',
             '        if (is_trig_skipbtn || autoSkipMajor) {'
           ) -join "`n"
-          if (-not $hooks699.Contains($autoSkipOld699)) { throw 'Automatic cutscene-skip anchor changed before .699.' }
+          if (-not $hooks699.Contains($autoSkipOld699)) {
+            throw 'Automatic cutscene-skip anchor changed before .699.'
+          }
           $hooks699 = $hooks699.Replace($autoSkipOld699, $autoSkipNew699)
+          [IO.File]::WriteAllText($hooks699Path, $hooks699, [Text.UTF8Encoding]::new($false))
+
+          $memCard699Path = "$env:TPR_SRC\src\m_Do\m_Do_MemCard.cpp"
+          $memCard699 = [IO.File]::ReadAllText($memCard699Path).Replace("`r`n", "`n")
+          $cardTypeOld699 = '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());'
+          $cardTypeNew699 = @(
+            '#if defined(_UWP)',
+            '    // Xbox uses a persistent GCI folder in the same writable LocalState-backed',
+            '    // data root as ConfigPath. Avoid stale/raw card images reporting fatal I/O.',
+            '    CARDSetLoadType(CARD_GCIFOLDER);',
+            '    const auto xboxCardBasePath = dusk::ConfigPath.string();',
+            '    CARDSetBasePath(xboxCardBasePath.c_str(), -1);',
+            '#else',
+            '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());',
+            '#endif'
+          ) -join "`n"
+          if (-not $memCard699.Contains($cardTypeOld699)) {
+            throw 'Xbox memory-card backend anchor changed before .699.'
+          }
+          $memCard699 = $memCard699.Replace($cardTypeOld699, $cardTypeNew699)
+          [IO.File]::WriteAllText($memCard699Path, $memCard699, [Text.UTF8Encoding]::new($false))
 
           foreach ($safetyMarker699 in @(
             'case daObjCarry_c::TYPE_TSUBO_B:',
             'autoSkipMajor && !is_trig_skipbtn',
-            'evtControl->mSkipTimer = 0;')) {
-            if (-not $hooks699.Contains($safetyMarker699)) {
+            'CARDSetLoadType(CARD_GCIFOLDER);',
+            'CARDSetBasePath(xboxCardBasePath.c_str(), -1);')) {
+            if (-not ($hooks699.Contains($safetyMarker699) -or $memCard699.Contains($safetyMarker699))) {
               throw "Xbox .699 runtime safety marker missing: $safetyMarker699"
             }
           }
-          [IO.File]::WriteAllText($hooks699Path, $hooks699, [Text.UTF8Encoding]::new($false))
           # Detached CI source reports UNKNOWN-VERSION; make the Xbox launcher match the MSIX.
           $prelaunchPath = "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp"
           $prelaunch684 = [IO.File]::ReadAllText($prelaunchPath).Replace("`r`n", "`n")
@@ -3933,7 +3958,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.699 forces full generator certification, keeps native XAudio2, isolates non-pot carryables, and hardens automatic cutscene skipping on Xbox.'
+          Write-Host '.699 forces full generator certification, keeps native XAudio2, hardens carryables/cutscene skipping, and pins Xbox save storage to writable GCI-folder backing.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -4419,6 +4444,7 @@ jobs:
             enemySouls = $true
             carryBreakSafety = '.699 restricts Randomizer obj_break argument access to the six pot carry types; wooden boxes and other carryables remain vanilla'
             xboxAutoCutsceneSkip = '.699 automatic major-cutscene skips bypass the pre-skip fade/timer on UWP to prevent startup black-screen stalls'
+            xboxMemoryCard = '.699 pins Xbox to persistent GCI-folder storage rooted at ConfigPath/LocalState instead of a potentially stale raw-card backend'
             generatorScenarios = 58
             generatorScenarioAttempts = 3
             workflowRun = $env:GITHUB_RUN_ID
