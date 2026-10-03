@@ -2631,26 +2631,6 @@ jobs:
           }
           $texture706 = $texture706.Replace($textureStaticOld710, $textureStaticNew710)
 
-          $textureFunctionEndOld710 = @(
-            '        }',
-            '    }',
-            '}',
-            '',
-            'uint64_t texture_register_raw('
-          ) -join "`n"
-          $textureFunctionEndNew710 = @(
-            '        }',
-            '    }',
-            '    startup_guard::stage("texture.sync.ready");',
-            '}',
-            '',
-            'uint64_t texture_register_raw('
-          ) -join "`n"
-          if (-not $texture706.Contains($textureFunctionEndOld710)) {
-            throw 'Texture sync tail changed before .710 diagnostics.'
-          }
-          $texture706 = $texture706.Replace($textureFunctionEndOld710, $textureFunctionEndNew710)
-
           [IO.File]::WriteAllText($texture706Path, $texture706, [Text.UTF8Encoding]::new($false))
 
           # .706: statically integrate the official Cosmetics module into the signed Xbox image.
@@ -3144,7 +3124,6 @@ jobs:
             'texture.sync.cleanup',
             'texture.sync.scan',
             'texture.sync.register-static',
-            'texture.sync.ready',
             '.lifecycleApplied = textures_lifecycle_applied',
             '.frameEnd = textures_frame_end')) {
             if (-not $textureServiceSource.Contains($textureMarker)) {
