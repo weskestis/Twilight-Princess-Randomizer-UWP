@@ -1743,41 +1743,55 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
-          $manifest = [IO.File]::ReadAllText($manifestPath)
+          [xml]$manifestXml = Get-Content -LiteralPath $manifestPath -Raw
 
-          $expectedIdentity = 'Name="TwilightPrincessRandomizer" Publisher="CN=TwilightPrincessRandomizer" Version="1.4.1.658"'
-          if (-not $manifest.Contains($expectedIdentity)) {
-            throw 'Expected original .658 UWP identity was not present before Legacy conversion.'
+          $ns = New-Object System.Xml.XmlNamespaceManager($manifestXml.NameTable)
+          $ns.AddNamespace('d', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+          $ns.AddNamespace('mp', 'http://schemas.microsoft.com/appx/2014/phone/manifest')
+          $ns.AddNamespace('uap', 'http://schemas.microsoft.com/appx/manifest/uap/windows10')
+
+          $identity = $manifestXml.SelectSingleNode('/d:Package/d:Identity', $ns)
+          $displayName = $manifestXml.SelectSingleNode('/d:Package/d:Properties/d:DisplayName', $ns)
+          $phoneIdentity = $manifestXml.SelectSingleNode('/d:Package/mp:PhoneIdentity', $ns)
+          $visual = $manifestXml.SelectSingleNode('/d:Package/d:Applications/d:Application/uap:VisualElements', $ns)
+
+          if (-not $identity -or -not $displayName -or -not $phoneIdentity -or -not $visual) {
+            throw 'Legacy 658 conversion could not locate required manifest nodes.'
+          }
+          if ($identity.GetAttribute('Name') -ne 'TwilightPrincessRandomizer' -or
+              $identity.GetAttribute('Version') -ne '1.4.1.658' -or
+              $identity.GetAttribute('Publisher') -ne 'CN=TwilightPrincessRandomizer') {
+            throw "Unexpected pre-Legacy identity: Name=$($identity.GetAttribute('Name')) Publisher=$($identity.GetAttribute('Publisher')) Version=$($identity.GetAttribute('Version'))"
           }
 
-          $manifest = $manifest.Replace(
-            $expectedIdentity,
-            'Name="TwilightPrincessRandomizerLegacy658" Publisher="CN=TwilightPrincessRandomizer" Version="1.4.1.658"')
-          $manifest = $manifest.Replace(
-            '<DisplayName>Twilight Princess Randomizer</DisplayName>',
-            '<DisplayName>Twilight Princess Randomizer Legacy 658</DisplayName>')
-          $manifest = $manifest.Replace(
-            'DisplayName="Twilight Princess Randomizer" Square150x150Logo=',
-            'DisplayName="Twilight Princess Randomizer Legacy 658" Square150x150Logo=')
-          $manifest = $manifest.Replace(
-            'Description="Twilight Princess Randomizer for Xbox/UWP"',
-            'Description="Twilight Princess Randomizer Legacy 658 for Xbox/UWP"')
-          $manifest = $manifest.Replace(
-            'PhoneProductId="e3b5e8e8-c7e7-5c3d-affa-0500675ffa0d"',
-            'PhoneProductId="65865865-8658-4658-8658-658658658658"')
+          $identity.SetAttribute('Name', 'TwilightPrincessRandomizerLegacy658')
+          $displayName.InnerText = 'Twilight Princess Randomizer Legacy 658'
+          $phoneIdentity.SetAttribute('PhoneProductId', '65865865-8658-4658-8658-658658658658')
+          $visual.SetAttribute('DisplayName', 'Twilight Princess Randomizer Legacy 658')
+          $visual.SetAttribute('Description', 'Twilight Princess Randomizer Legacy 658 for Xbox/UWP')
 
-          foreach ($required in @(
-            'Name="TwilightPrincessRandomizerLegacy658"',
-            '<DisplayName>Twilight Princess Randomizer Legacy 658</DisplayName>',
-            'DisplayName="Twilight Princess Randomizer Legacy 658"',
-            'PhoneProductId="65865865-8658-4658-8658-658658658658"')) {
-            if (-not $manifest.Contains($required)) {
-              throw "Legacy 658 manifest conversion is missing: $required"
-            }
+          $settings = New-Object System.Xml.XmlWriterSettings
+          $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
+          $settings.Indent = $true
+          $writer = [System.Xml.XmlWriter]::Create($manifestPath, $settings)
+          try { $manifestXml.Save($writer) }
+          finally { $writer.Dispose() }
+
+          [xml]$verified = Get-Content -LiteralPath $manifestPath -Raw
+          $verifyNs = New-Object System.Xml.XmlNamespaceManager($verified.NameTable)
+          $verifyNs.AddNamespace('d', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+          $verifyNs.AddNamespace('mp', 'http://schemas.microsoft.com/appx/2014/phone/manifest')
+          $verifyNs.AddNamespace('uap', 'http://schemas.microsoft.com/appx/manifest/uap/windows10')
+          $verifyIdentity = $verified.SelectSingleNode('/d:Package/d:Identity', $verifyNs)
+          $verifyDisplay = $verified.SelectSingleNode('/d:Package/d:Properties/d:DisplayName', $verifyNs)
+          $verifyPhone = $verified.SelectSingleNode('/d:Package/mp:PhoneIdentity', $verifyNs)
+          $verifyVisual = $verified.SelectSingleNode('/d:Package/d:Applications/d:Application/uap:VisualElements', $verifyNs)
+          if ($verifyIdentity.GetAttribute('Name') -ne 'TwilightPrincessRandomizerLegacy658' -or
+              $verifyDisplay.InnerText -ne 'Twilight Princess Randomizer Legacy 658' -or
+              $verifyPhone.GetAttribute('PhoneProductId') -ne '65865865-8658-4658-8658-658658658658' -or
+              $verifyVisual.GetAttribute('DisplayName') -ne 'Twilight Princess Randomizer Legacy 658') {
+            throw 'Legacy 658 manifest verification failed after XML rewrite.'
           }
-
-          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-          [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
 
       - name: Emit patch mismatch diagnostics
         if: failure()
