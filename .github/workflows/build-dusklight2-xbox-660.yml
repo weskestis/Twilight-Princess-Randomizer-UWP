@@ -5210,7 +5210,7 @@ jobs:
           # Run 37083344092 reached and passed all 58 generator scenarios at this exact
           # .706 source state before failing later in the final Cosmetics link. Reuse
           # that certification unless generator-sensitive controls changed afterward.
-          $baseline = 'fd9646860ca16b30a05463682b9d0b808ec42fc4'
+          $baseline = '97c16fee487d114164138aa000d87cd60c233b5a'
           git -C "$env:TPR_CONTROL" fetch --depth 1 origin $baseline
           if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .706 generator baseline.' }
 
@@ -5245,8 +5245,8 @@ jobs:
           }
           else {
             "RUN_GENERATOR_SUITE=false" >> $env:GITHUB_ENV
-            Write-Host 'Reusing all-58-scenario generator certification from .706 run 37083344092.'
-            Write-Host 'No generator-sensitive inputs changed after fd964686.'
+            Write-Host 'Reusing all-58-scenario generator certification from .706 run 37088584604.'
+            Write-Host 'No generator-sensitive inputs changed after 97c16fee.'
           }
 
       - name: Compile core, built-in Randomizer, and package
@@ -5579,8 +5579,8 @@ jobs:
             'Xbox safe launch: choose a mode with Left/Right; hooks start only after Play.',
             'prelaunch.play-activation-ready',
             'prelaunch.play-ready',
-            'Xbox UWP: mod DVD overlay synchronization is quarantined.',
-            'Xbox UWP: mod texture-service synchronization is quarantined.',
+            'Xbox runtime ready; applying deferred DVD overlays.',
+            'Xbox runtime stable; applying texture replacements.',
             'Texture ZIP loading complete:',
             'CURSOR MODE ON',
             'Randomize Menu Colors Per Seed',
