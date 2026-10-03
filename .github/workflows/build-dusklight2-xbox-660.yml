@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 708
+name: Build Dusklight 2.0.1 Xbox 709
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-708-release-${{ github.ref }}
+  group: xbox-709-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 708 identity
+      - name: Apply reviewed source layers and advance 709 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-708.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-709.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -2444,7 +2444,9 @@ jobs:
           if (-not $overlay706.Contains($overlayQuarantine706)) {
             throw 'Xbox overlay quarantine block changed before .706.'
           }
-          $overlay706 = $overlay706.Replace($overlayQuarantine706, $overlayDeferred706)
+          # .709: hardware journal from .708 stopped at overlay-restored. Keep the Xbox
+          # DVD overlay synchronization path quarantined; texture replacement remains restored.
+          # Do not replace the proven quarantine block with the delayed overlay path.
           [IO.File]::WriteAllText($overlay706Path, $overlay706, [Text.UTF8Encoding]::new($false))
 
           $texture706Path = "$env:TPR_SRC\src\dusk\mods\svc\texture.cpp"
@@ -2855,30 +2857,30 @@ jobs:
             throw 'Official Cosmetics MenuRing hook anchor changed before .706 Xbox hardening.'
           }
           $cosmeticsHooks706 = $cosmeticsHooks706.Replace($menuRingHookOld706, $menuRingHookNew706)
-          $menuRingRegisterOld708 =
+          $menuRingRegisterOld709 =
             '    ADD_POST_HOOK(MenuRingCreate, menu_ring_create_post, dMenu_Ring_c::_create)'
-          $menuRingRegisterNew708 = @(
+          $menuRingRegisterNew709 = @(
             '#if !defined(_UWP)',
             '    ADD_POST_HOOK(MenuRingCreate, menu_ring_create_post, dMenu_Ring_c::_create)',
             '#endif'
           ) -join "`n"
-          if (-not $cosmeticsHooks706.Contains($menuRingRegisterOld708)) {
-            throw 'Official Cosmetics MenuRing registration anchor changed before .708.'
+          if (-not $cosmeticsHooks706.Contains($menuRingRegisterOld709)) {
+            throw 'Official Cosmetics MenuRing registration anchor changed before .709.'
           }
           $cosmeticsHooks706 = $cosmeticsHooks706.Replace(
-            $menuRingRegisterOld708, $menuRingRegisterNew708)
+            $menuRingRegisterOld709, $menuRingRegisterNew709)
 
-          $menuRingUninstallOld708 = '    UNINSTALL_HOOK(MenuRingCreate)'
-          $menuRingUninstallNew708 = @(
+          $menuRingUninstallOld709 = '    UNINSTALL_HOOK(MenuRingCreate)'
+          $menuRingUninstallNew709 = @(
             '#if !defined(_UWP)',
             '    UNINSTALL_HOOK(MenuRingCreate)',
             '#endif'
           ) -join "`n"
-          if (-not $cosmeticsHooks706.Contains($menuRingUninstallOld708)) {
-            throw 'Official Cosmetics MenuRing uninstall anchor changed before .708.'
+          if (-not $cosmeticsHooks706.Contains($menuRingUninstallOld709)) {
+            throw 'Official Cosmetics MenuRing uninstall anchor changed before .709.'
           }
           $cosmeticsHooks706 = $cosmeticsHooks706.Replace(
-            $menuRingUninstallOld708, $menuRingUninstallNew708)
+            $menuRingUninstallOld709, $menuRingUninstallNew709)
           [IO.File]::WriteAllText(
             $cosmeticsHooks706Path, $cosmeticsHooks706, [Text.UTF8Encoding]::new($false))
           if (-not $cosmeticsHooks706.Contains(
@@ -2933,7 +2935,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.708");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.709");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -2981,16 +2983,12 @@ jobs:
           }
           $overlaySource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp")
-          foreach ($overlayMarker in @(
-            'xboxOverlayStableFrames',
-            'dusk::IsGameLaunched',
-            'startup_guard::activity_pending()')) {
-            if (-not $overlaySource.Contains($overlayMarker)) {
-              throw "Xbox restored overlay marker is missing: $overlayMarker"
-            }
+          if (-not $overlaySource.Contains(
+                'Xbox UWP: mod DVD overlay synchronization is quarantined.')) {
+            throw 'Xbox DVD overlay quarantine is missing after the .708 hardware crash.'
           }
-          if ($overlaySource.Contains('mod DVD overlay synchronization is quarantined')) {
-            throw 'Xbox overlay service is still quarantined.'
+          if ($overlaySource.Contains('Xbox runtime stable; applying deferred DVD overlays.')) {
+            throw 'Xbox DVD overlay restore path is still enabled after the .708 hardware crash.'
           }
           $textureServiceSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\texture.cpp")
@@ -3031,7 +3029,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-708.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-709.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
@@ -3145,7 +3143,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.708");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.709");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -5087,7 +5085,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.708"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.709"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -5260,12 +5258,12 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          # Run 37083344092 reached and passed all 58 generator scenarios at this exact
+          # Run 37093344092 reached and passed all 58 generator scenarios at this exact
           # .706 source state before failing later in the final Cosmetics link. Reuse
           # that certification unless generator-sensitive controls changed afterward.
-          $baseline = 'e8d3d3b8dbb7cc94ade06c33d271e523297182c1'
+          $baseline = '0721d1cd2d719719e3f58237c76479113677715f'
           git -C "$env:TPR_CONTROL" fetch --depth 1 origin $baseline
-          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .706 generator baseline.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .708 generator baseline.' }
 
           $changed = @(git -C "$env:TPR_CONTROL" diff --name-only $baseline HEAD)
           $generatorFilePattern = '(?i)(randomizer|enemy|boss|pot|pumpkin|shop|entrance|seed|logic|soul|breakable|item)'
@@ -5301,8 +5299,8 @@ jobs:
           }
           else {
             "RUN_GENERATOR_SUITE=false" >> $env:GITHUB_ENV
-            Write-Host 'Reusing all-58-scenario generator certification from green .707 run 37097034211.'
-            Write-Host 'No generator-sensitive inputs changed after e8d3d3b8.'
+            Write-Host 'Reusing all-58-scenario generator certification from green .708 run 37131288115.'
+            Write-Host 'No generator-sensitive inputs changed after 0721d1cd.'
           }
 
       - name: Compile core, built-in Randomizer, and package
@@ -5409,7 +5407,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 708 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 709 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -5436,17 +5434,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 708 package
+      - name: Verify and collect full 709 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-708"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-709"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.708_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.709_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -5458,7 +5456,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.708"',
+            'Version="1.4.1.709"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -5493,7 +5491,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Cosmetics native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-708-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-709-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -5596,7 +5594,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-708.txt',
+            'xbox-startup-stage-709.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -5635,7 +5633,7 @@ jobs:
             'Xbox safe launch: choose a mode with Left/Right; hooks start only after Play.',
             'prelaunch.play-activation-ready',
             'prelaunch.play-ready',
-            'Xbox runtime stable; applying deferred DVD overlays.',
+            'Xbox UWP: mod DVD overlay synchronization is quarantined.',
             'Xbox runtime stable; applying texture replacements.',
             'Texture ZIP loading complete:',
             'CURSOR MODE ON',
@@ -5672,7 +5670,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-708-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-709-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -5692,8 +5690,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-708-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-708-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-709-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-709-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -5736,11 +5734,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-708.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-708.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-709.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-709.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.708'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.709'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -5784,7 +5782,7 @@ jobs:
             textureZipAutoload = $true
             menuColorRandomization = $true
             cosmeticsEditor = $true
-            xboxAssetMods = 'overlay and texture services restored after 60 stable gameplay frames'
+            xboxAssetMods = 'DVD overlay synchronization quarantined after .708 hardware crash; texture service still restored after 60 stable gameplay frames'
             restoredRandomizerRows = 7
             enemySouls = $true
             xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
@@ -5795,13 +5793,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-708.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-709.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.708-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.709-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -5810,7 +5808,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.708-Xbox
-          path: TPR-Xbox-Package-708/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.709-Xbox
+          path: TPR-Xbox-Package-709/*
           if-no-files-found: error
           retention-days: 30
