@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.708",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.707 commit e8d3d3b8dbb7cc94ade06c33d271e523297182c1",
+  "saveStatus": "working direct Randomizer LocalState save architecture preserved",
+  "transitionFix": "normal auto-skip timer handshake retained; forced post-skip fade reset remains removed",
+  "modRestore": "overlay and texture services retain the 60 stable-frame gate; the activation crash journal now remains active across their restore window",
+  "audioStatus": "native XAudio2 retained",
+  "startupJournal": "xbox-startup-stage-708.txt",
+  "launcherVersion": "1.4.1.708",
+  "cosmetics": "official Cosmetics editor remains built in; only the Xbox MenuRing hook shared with the Randomizer is isolated"
+}
