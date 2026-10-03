@@ -1968,6 +1968,20 @@ jobs:
             C:\vcpkg\vcpkg.exe install freetype:x64-windows-static zstd:x64-windows-static
           }
 
+      - name: Repair relocated pinned UWP dependency fetch
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $depFile = Join-Path $env:TPR_SRC 'extern\aurora\cmake\AuroraUwpDep.cmake'
+          $text = [IO.File]::ReadAllText($depFile)
+          if ($text -notmatch '6ba4aad18b0f149151784f31fd339225544e24f2') {
+            throw 'Expected exact .658 uwp-dep pin is missing.'
+          }
+          $text = $text.Replace('https://github.com/SternXD/uwp-dep.git', 'https://github.com/XboxEmulationHub/uwp-dep.git')
+          $text = $text.Replace('GIT_SHALLOW TRUE', 'GIT_SHALLOW FALSE')
+          [IO.File]::WriteAllText($depFile, $text, [Text.UTF8Encoding]::new($false))
+          Write-Host 'Restored access to exact pinned uwp-dep commit 6ba4aad18b0f149151784f31fd339225544e24f2.'
+
       - name: Configure working .627 game core
         shell: powershell
         run: |
