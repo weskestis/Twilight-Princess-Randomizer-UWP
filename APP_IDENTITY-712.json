@@ -1,0 +1,17 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.712",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.711 commit 9722f9e678c105d6a00743f5117616c0bfbe60e2",
+  "saveStatus": "direct Randomizer LocalState save architecture preserved",
+  "freshSeeds": "Start Randomizer generates and selects a fresh seed from the current settings for every new save",
+  "transitions": "upstream major-cutscene skip fade/timer handshake restored; forced post-skip fade reset remains removed",
+  "reset": "Xbox reset callback deactivates the active game mode before engine reset",
+  "assetServices": "DVD overlay and texture services remain enabled",
+  "audioStatus": "native XAudio2 retained",
+  "startupJournal": "xbox-startup-stage-712.txt",
+  "launcherVersion": "1.4.1.712",
+  "cosmetics": "official Cosmetics editor exposed as a top-level in-game Cosmetics menu tab"
+}

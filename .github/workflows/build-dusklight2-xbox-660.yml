@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 711
+name: Build Dusklight 2.0.1 Xbox 712
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-711-release-${{ github.ref }}
+  group: xbox-712-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 711 identity
+      - name: Apply reviewed source layers and advance 712 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-711.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-712.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -2373,13 +2373,9 @@ jobs:
             '        const bool autoSkipMajor = canSkip &&',
             '            randomizer_GetContext().mSettings[RandomizerContext::SKIP_MAJOR_CUTSCENES] ==',
             '                RandomizerContext::ON;',
-            '#if defined(_UWP)',
-            '        // Preserve the normal skip handshake, but automatic Xbox skips must not',
-            '        // drive the global black fade used by stage/loading-zone transitions.',
-            '        if (autoSkipMajor && !is_trig_skipbtn) {',
-            '            evtControl->offSkipFade();',
-            '        }',
-            '#endif',
+            '        // .712 Xbox: preserve the upstream skip-fade flag and timer handshake.',
+            '        // The prior offSkipFade() workaround changed the timing branch and could leave',
+            '        // major scene transitions alive behind a permanent black frame.',
             '        if (is_trig_skipbtn || autoSkipMajor) {'
           ) -join "`n"
           if (-not $hooks706.Contains($autoSkipUnsafe706)) {
@@ -2958,7 +2954,8 @@ jobs:
           [IO.File]::WriteAllText($uwpCos706Path, $uwpCos706, [Text.UTF8Encoding]::new($false))
 
           # Verify the editor surface we expect the user to see.
-          $cosmeticsUi706 = [IO.File]::ReadAllText("$env:TPR_SRC\mods\cosmetics\src\mod.cpp")
+          $cosmeticsUi706Path = "$env:TPR_SRC\mods\cosmetics\src\mod.cpp"
+          $cosmeticsUi706 = [IO.File]::ReadAllText($cosmeticsUi706Path).Replace("`r`n", "`n")
           foreach ($uiMarker706 in @(
             'Open Cosmetics Menu',
             'Hero''s Tunic',
@@ -2969,6 +2966,36 @@ jobs:
               throw "Cosmetics editor marker is missing: $uiMarker706"
             }
           }
+
+          # .712: expose the official editor as a top-level in-game menu tab on Xbox.
+          $cosmeticsPanelOld712 = @(
+            '    UiModsPanelDesc panelDesc = UI_MODS_PANEL_DESC_INIT;',
+            '    panelDesc.build = build_panel;',
+            '    svc_ui->register_mods_panel(mod_ctx, &panelDesc);'
+          ) -join "`n"
+          $cosmeticsPanelNew712 = @(
+            '    UiModsPanelDesc panelDesc = UI_MODS_PANEL_DESC_INIT;',
+            '    panelDesc.build = build_panel;',
+            '    result = svc_ui->register_mods_panel(mod_ctx, &panelDesc);',
+            '    if (result != MOD_OK) {',
+            '        return mods::set_error(error, result, "failed to register cosmetics panel");',
+            '    }',
+            '#if defined(_UWP)',
+            '    UiMenuTabDesc menuTabDesc = UI_MENU_TAB_DESC_INIT;',
+            '    menuTabDesc.label = "Cosmetics";',
+            '    menuTabDesc.on_selected = on_open_cosmetics_menu;',
+            '    result = svc_ui->register_menu_tab(mod_ctx, &menuTabDesc, nullptr);',
+            '    if (result != MOD_OK) {',
+            '        return mods::set_error(error, result, "failed to register cosmetics menu tab");',
+            '    }',
+            '#endif'
+          ) -join "`n"
+          if (-not $cosmeticsUi706.Contains($cosmeticsPanelOld712)) {
+            throw 'Official Cosmetics panel registration changed before .712 menu exposure.'
+          }
+          $cosmeticsUi706 = $cosmeticsUi706.Replace($cosmeticsPanelOld712, $cosmeticsPanelNew712)
+          [IO.File]::WriteAllText(
+            $cosmeticsUi706Path, $cosmeticsUi706, [Text.UTF8Encoding]::new($false))
           # .706 Xbox first-launch crash hardening: the persisted startup stage from
           # hardware stopped immediately after dBrightCheck_c::screenSet. The next
           # official Cosmetics hook is dMenu_Ring_c::_create. Resolve that member by
@@ -3014,6 +3041,58 @@ jobs:
             $menuRingUninstallOld711, $menuRingUninstallNew711)
           [IO.File]::WriteAllText(
             $cosmeticsHooks706Path, $cosmeticsHooks706, [Text.UTF8Encoding]::new($false))
+
+          # .712: make Reset Game safe on Xbox by deactivating the current game mode first.
+          $reset712Path = "$env:TPR_SRC\src\m_Do\m_Do_Reset.cpp"
+          $reset712 = [IO.File]::ReadAllText($reset712Path).Replace("`r`n", "`n")
+          $resetIncludeOld712 = @(
+            '#include "dusk/game_mode.hpp"',
+            '#include "dusk/ui/prelaunch.hpp"'
+          ) -join "`n"
+          $resetIncludeNew712 = @(
+            '#include "dusk/game_mode.hpp"',
+            '#include "dusk/startup_guard.hpp"',
+            '#include "dusk/ui/prelaunch.hpp"'
+          ) -join "`n"
+          if (-not $reset712.Contains($resetIncludeOld712)) {
+            throw 'Xbox reset include anchor changed before .712.'
+          }
+          $reset712 = $reset712.Replace($resetIncludeOld712, $resetIncludeNew712)
+
+          $resetCallbackOld712 = @(
+            '#ifdef TARGET_PC',
+            '    const dusk::gamemode::GameMode* gameMode =',
+            '        dusk::gamemode::getGameModeManager().getCurrentGameMode();',
+            '    if (gameMode) {',
+            '        gameMode->invokeOnGameResetFunction();',
+            '    }',
+            '#endif'
+          ) -join "`n"
+          $resetCallbackNew712 = @(
+            '#ifdef TARGET_PC',
+            '    const dusk::gamemode::GameMode* gameMode =',
+            '        dusk::gamemode::getGameModeManager().getCurrentGameMode();',
+            '    if (gameMode) {',
+            '        gameMode->invokeOnGameResetFunction();',
+            '    }',
+            '#if defined(_UWP)',
+            '    dusk::startup_guard::begin_activity("reset.deactivate-game-mode");',
+            '    if (gameMode != nullptr &&',
+            '        gameMode->getId() != dusk::gamemode::kVanillaGameModeId)',
+            '    {',
+            '        dusk::gamemode::getGameModeManager().setCurrentGameMode(',
+            '            dusk::gamemode::kVanillaGameModeId);',
+            '    }',
+            '    dusk::startup_guard::end_activity("reset.game-mode-deactivated");',
+            '#endif',
+            '#endif'
+          ) -join "`n"
+          if (-not $reset712.Contains($resetCallbackOld712)) {
+            throw 'Xbox reset callback anchor changed before .712.'
+          }
+          $reset712 = $reset712.Replace($resetCallbackOld712, $resetCallbackNew712)
+          [IO.File]::WriteAllText($reset712Path, $reset712, [Text.UTF8Encoding]::new($false))
+
           if (-not $cosmeticsHooks706.Contains(
                 'DEFINE_HOOK_SYMBOL("dMenu_Ring_c::_create", void(dMenu_Ring_c*), MenuRingCreate);') -or
               -not $cosmeticsHooks706.Contains('#if !defined(_UWP)')) {
@@ -3066,7 +3145,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.711");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.712");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -3161,6 +3240,40 @@ jobs:
           if ($textureServiceSource.Contains('mod texture-service synchronization is quarantined')) {
             throw 'Xbox texture service is still quarantined.'
           }
+          $reset712Verify = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_Reset.cpp")
+          foreach ($resetMarker712 in @(
+            'reset.deactivate-game-mode',
+            'reset.game-mode-deactivated',
+            'setCurrentGameMode(',
+            'kVanillaGameModeId')) {
+            if (-not $reset712Verify.Contains($resetMarker712)) {
+              throw "Xbox .712 reset-safety marker missing: $resetMarker712"
+            }
+          }
+          $cosmeticsUi712Verify = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\mods\cosmetics\src\mod.cpp")
+          foreach ($cosmeticsMarker712 in @(
+            'menuTabDesc.label = "Cosmetics"',
+            'menuTabDesc.on_selected = on_open_cosmetics_menu',
+            'register_menu_tab')) {
+            if (-not $cosmeticsUi712Verify.Contains($cosmeticsMarker712)) {
+              throw "Xbox .712 Cosmetics menu marker missing: $cosmeticsMarker712"
+            }
+          }
+          $randoConfig712Verify = [IO.File]::ReadAllText(
+            "$env:TPR_SRC\mods\randomizer\src\ui\rando_config.cpp")
+          foreach ($freshSeedMarker712 in @(
+            'NewRandomSeed();',
+            'GenerateAndWriteSeed()',
+            'refresh_play_seed_options(true)',
+            'Seed is fully generated, selected, parsed and activated before name entry.')) {
+            if (-not $randoConfig712Verify.Contains($freshSeedMarker712)) {
+              throw "Xbox .712 fresh-seed marker missing: $freshSeedMarker712"
+            }
+          }
+          if ($hooks706.Contains('evtControl->offSkipFade();')) {
+            throw 'Xbox .712 still disables the upstream skip-fade handshake.'
+          }
           $mainSource = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
           if ($mainSource.Contains('show_xbox_startup_recovery') -or
               $mainSource.Contains('Xbox Startup Recovery') -or
@@ -3186,7 +3299,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-711.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-712.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
@@ -3300,7 +3413,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.711");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.712");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -4018,6 +4131,21 @@ jobs:
           ) -join "`n"
           $startNew = @(
             '        desc.on_pressed = [](ModContext*, void* userdata) {',
+            '            // .712 Xbox: every new file gets a freshly generated seed from the current',
+            '            // Randomizer settings instead of silently reusing g_pending_seed_hash.',
+            '            NewRandomSeed();',
+            '            if (!GenerateAndWriteSeed()) {',
+            '                const std::string detail = ReadGenerationStatusMsg();',
+            '                UiToastDesc errorToast = UI_TOAST_DESC_INIT;',
+            '                errorToast.title_rml = "Randomizer Seed Error";',
+            '                errorToast.body_rml = detail.empty() ?',
+            '                    "A fresh seed could not be generated for this save." : detail.c_str();',
+            '                errorToast.duration_ms = 9000;',
+            '                errorToast.type = "error";',
+            '                session::svc_mng.ui->push_toast(session::svc_mng.mod_ctx, &errorToast);',
+            '                return;',
+            '            }',
+            '            refresh_play_seed_options(true);',
             '            const std::string hash = session::g_pending_seed_hash;',
             '            if (hash.empty() || hash == "None") {',
             '                return;',
@@ -4029,14 +4157,14 @@ jobs:
             '                    UiToastDesc errorToast = UI_TOAST_DESC_INIT;',
             '                    errorToast.title_rml = "Randomizer Seed Error";',
             '                    errorToast.body_rml = detail.empty() ?',
-            '                        "The selected Randomizer seed could not be activated." : detail.c_str();',
+            '                        "The freshly generated Randomizer seed could not be activated." : detail.c_str();',
             '                    errorToast.duration_ms = 9000;',
             '                    errorToast.type = "error";',
             '                    session::svc_mng.ui->push_toast(session::svc_mng.mod_ctx, &errorToast);',
             '                    return;',
             '                }',
             '            }',
-            '            // Seed is fully parsed and activated before name/save creation begins.',
+            '            // Seed is fully generated, selected, parsed and activated before name entry.',
             '            g_file_select_window_ctx.is_proceed = true;',
             '            session::svc_mng.ui->window_close(',
             '                session::svc_mng.mod_ctx, *static_cast<UiWindowHandle*>(userdata));',
@@ -5242,7 +5370,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.711"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.712"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -5564,7 +5692,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 711 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 712 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -5591,17 +5719,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 711 package
+      - name: Verify and collect full 712 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-711"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-712"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.711_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.712_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -5613,7 +5741,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.711"',
+            'Version="1.4.1.712"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -5648,7 +5776,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Cosmetics native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-711-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-712-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -5751,7 +5879,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-711.txt',
+            'xbox-startup-stage-712.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -5827,7 +5955,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-711-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-712-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -5847,8 +5975,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-711-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-711-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-712-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-712-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -5891,11 +6019,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-711.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-711.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-712.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-712.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.711'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.712'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -5939,7 +6067,7 @@ jobs:
             textureZipAutoload = $true
             menuColorRandomization = $true
             cosmeticsEditor = $true
-            xboxAssetMods = 'DVD overlay and texture services remain enabled; .711 adds granular Xbox sync diagnostics and null-bundle guards'
+            xboxAssetMods = 'DVD overlay and texture services remain enabled; assetless built-ins are skipped during enumeration and granular Xbox sync diagnostics remain active'
             restoredRandomizerRows = 7
             enemySouls = $true
             xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
@@ -5950,13 +6078,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-711.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-712.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.711-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.712-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -5965,7 +6093,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.711-Xbox
-          path: TPR-Xbox-Package-711/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.712-Xbox
+          path: TPR-Xbox-Package-712/*
           if-no-files-found: error
           retention-days: 30
