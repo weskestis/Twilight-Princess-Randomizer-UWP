@@ -2544,6 +2544,7 @@ jobs:
             '                        svc_hook=cosmetics_svc_hook',
             '                        svc_texture=cosmetics_svc_texture',
             '                        svc_ui=cosmetics_svc_ui',
+            '                        svc_game=cosmetics_svc_game',
             '                        XXH_INLINE_ALL=1)',
             '            endif ()'
           ) -join "`n"
@@ -5194,7 +5195,8 @@ jobs:
             foreach ($requiredDefinition in @(
               'DUSK_STATIC_BUILTIN_MOD=1',
               'DUSK_STATIC_COSMETICS=1',
-              'mod_ctx=cosmetics_mod_ctx')) {
+              'mod_ctx=cosmetics_mod_ctx',
+              'svc_game=cosmetics_svc_game')) {
               if (-not $definitions.Contains($requiredDefinition)) {
                 throw "Built-in Cosmetics objects are missing $requiredDefinition."
               }
