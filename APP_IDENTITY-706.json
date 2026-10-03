@@ -1,0 +1,14 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.706",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.705 commit 63301ee982567961586cff1997164b791da1b3b1",
+  "saveStatus": "working .705 direct Randomizer LocalState save preserved",
+  "transitionFix": "normal auto-skip timer handshake; automatic skip fade disabled; forced fadeOut(-1.0f) removed",
+  "modRestore": "overlay and texture services delayed until 60 stable gameplay frames",
+  "audioStatus": "native XAudio2 retained",
+  "startupJournal": "xbox-startup-stage-706.txt",
+  "launcherVersion": "1.4.1.706"
+}

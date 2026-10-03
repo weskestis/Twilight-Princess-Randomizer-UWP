@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 705
+name: Build Dusklight 2.0.1 Xbox 706
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-705-release-${{ github.ref }}
+  group: xbox-706-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 705 identity
+      - name: Apply reviewed source layers and advance 706 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-705.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-706.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -1535,7 +1535,7 @@ jobs:
           # .698: .697 isolated the hang to SDL_OpenAudioDeviceStream on Xbox/UWP.
           # Replace only the Xbox audio output backend with native XAudio2.
           & "$env:TPR_CONTROL\scripts\apply_xbox_audio_698.ps1"
-          if ($LASTEXITCODE -ne 0) { throw 'Xbox .705 XAudio2 transform failed.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Xbox .706 XAudio2 transform failed.' }
           # .700: Xbox runtime hardening after .699 still reproduced two failures.
           # - Use a fresh dedicated LocalState-backed GCI root so malformed legacy card files
           #   cannot keep the entire virtual Slot A in CARD_STATE_FATAL_ERROR.
@@ -1565,7 +1565,7 @@ jobs:
             '        if (is_trig_skipbtn || autoSkipMajor) {'
           ) -join "`n"
           if (-not $hooks700.Contains($autoSkipOld700)) {
-            throw 'Automatic cutscene-skip anchor changed before .705.'
+            throw 'Automatic cutscene-skip anchor changed before .706.'
           }
           $hooks700 = $hooks700.Replace($autoSkipOld700, $autoSkipNew700)
 
@@ -1587,7 +1587,7 @@ jobs:
             '            evtControl->onFlag2(8);'
           ) -join "`n"
           if (-not $hooks700.Contains($skipCallOld700)) {
-            throw 'Post-skip fade restore anchor changed before .705.'
+            throw 'Post-skip fade restore anchor changed before .706.'
           }
           $hooks700 = $hooks700.Replace($skipCallOld700, $skipCallNew700)
           [IO.File]::WriteAllText($hooks700Path, $hooks700, [Text.UTF8Encoding]::new($false))
@@ -1607,7 +1607,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCard700.Contains($cardTypeOld700)) {
-            throw 'Xbox memory-card backend anchor changed before .705.'
+            throw 'Xbox memory-card backend anchor changed before .706.'
           }
           $memCard700 = $memCard700.Replace($cardTypeOld700, $cardTypeNew700)
           [IO.File]::WriteAllText($memCard700Path, $memCard700, [Text.UTF8Encoding]::new($false))
@@ -1630,7 +1630,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCardHeader702.Contains($enumOld702)) {
-            throw 'MemCard command enum anchor changed before .705.'
+            throw 'MemCard command enum anchor changed before .706.'
           }
           $memCardHeader702 = $memCardHeader702.Replace($enumOld702, $enumNew702)
           [IO.File]::WriteAllText($memCardHeader702Path, $memCardHeader702, [Text.UTF8Encoding]::new($false))
@@ -1655,7 +1655,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCard702.Contains($switchOld702)) {
-            throw 'MemCard worker switch anchor changed before .705.'
+            throw 'MemCard worker switch anchor changed before .706.'
           }
           $memCard702 = $memCard702.Replace($switchOld702, $switchNew702)
 
@@ -1674,7 +1674,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCard702.Contains($workerDoneOld702)) {
-            throw 'MemCard worker completion anchor changed before .705.'
+            throw 'MemCard worker completion anchor changed before .706.'
           }
           $memCard702 = $memCard702.Replace($workerDoneOld702, $workerDoneNew702)
 
@@ -1715,7 +1715,7 @@ jobs:
             '}'
           ) -join "`n"
           if (-not $memCard702.Contains($setFileNameOld702)) {
-            throw 'Xbox game-mode CARD filename anchor changed before .705.'
+            throw 'Xbox game-mode CARD filename anchor changed before .706.'
           }
           $memCard702 = $memCard702.Replace($setFileNameOld702, $setFileNameNew702)
           [IO.File]::WriteAllText($memCard700Path, $memCard702, [Text.UTF8Encoding]::new($false))
@@ -1749,7 +1749,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCardRwm703.Contains($stubAnchor703)) {
-            throw 'Randomizer empty-stub detection anchor changed before .705.'
+            throw 'Randomizer empty-stub detection anchor changed before .706.'
           }
           $memCardRwm703 = $memCardRwm703.Replace($stubAnchor703, $stubInsert703)
           [IO.File]::WriteAllText($memCardRwm703Path, $memCardRwm703, [Text.UTF8Encoding]::new($false))
@@ -1796,7 +1796,7 @@ jobs:
             '        CARDClose(&file);'
           ) -join "`n"
           if (-not $memCard703.Contains($restoreOld703)) {
-            throw 'Randomizer empty-stub cleanup anchor changed before .705.'
+            throw 'Randomizer empty-stub cleanup anchor changed before .706.'
           }
           $memCard703 = $memCard703.Replace($restoreOld703, $restoreNew703)
           [IO.File]::WriteAllText($memCard700Path, $memCard703, [Text.UTF8Encoding]::new($false))
@@ -1849,7 +1849,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $gci704.Contains($helperAnchor704)) {
-            throw 'Aurora GCI helper anchor changed before .705.'
+            throw 'Aurora GCI helper anchor changed before .706.'
           }
           $gci704 = $gci704.Replace($helperAnchor704, $helperNew704)
 
@@ -1873,7 +1873,7 @@ jobs:
             '    }'
           ) -join "`n"
           if (-not $gci704.Contains($openFailOld704)) {
-            throw 'Aurora GCI open-failure anchor changed before .705.'
+            throw 'Aurora GCI open-failure anchor changed before .706.'
           }
           $gci704 = $gci704.Replace($openFailOld704, $openFailNew704)
 
@@ -1898,7 +1898,7 @@ jobs:
             '    }'
           ) -join "`n"
           if (-not $gci704.Contains($readFailOld704)) {
-            throw 'Aurora GCI read-failure anchor changed before .705.'
+            throw 'Aurora GCI read-failure anchor changed before .706.'
           }
           $gci704 = $gci704.Replace($readFailOld704, $readFailNew704)
 
@@ -1921,7 +1921,7 @@ jobs:
             '    }'
           ) -join "`n"
           if (-not $gci704.Contains($identityOld704)) {
-            throw 'Aurora GCI identity-mismatch anchor changed before .705.'
+            throw 'Aurora GCI identity-mismatch anchor changed before .706.'
           }
           $gci704 = $gci704.Replace($identityOld704, $identityNew704)
 
@@ -1946,7 +1946,7 @@ jobs:
             '    }'
           ) -join "`n"
           if (-not $gci704.Contains($sizeOld704)) {
-            throw 'Aurora GCI size-failure anchor changed before .705.'
+            throw 'Aurora GCI size-failure anchor changed before .706.'
           }
           $gci704 = $gci704.Replace($sizeOld704, $sizeNew704)
 
@@ -1969,7 +1969,7 @@ jobs:
             '    }'
           ) -join "`n"
           if (-not $gci704.Contains($occupiedOld704)) {
-            throw 'Aurora GCI occupied-path anchor changed before .705.'
+            throw 'Aurora GCI occupied-path anchor changed before .706.'
           }
           $gci704 = $gci704.Replace($occupiedOld704, $occupiedNew704)
 
@@ -2011,7 +2011,7 @@ jobs:
             '}'
           ) -join "`n"
           if (-not $gci704.Contains($deleteOld704)) {
-            throw 'Aurora GCI delete anchor changed before .705.'
+            throw 'Aurora GCI delete anchor changed before .706.'
           }
           $gci704 = $gci704.Replace($deleteOld704, $deleteNew704)
 
@@ -2035,7 +2035,7 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $memCard705.Contains($includeAnchor705)) {
-            throw 'Randomizer direct-save include anchor changed before .705.'
+            throw 'Randomizer direct-save include anchor changed before .706.'
           }
           $memCard705 = $memCard705.Replace($includeAnchor705, $includeNew705)
 
@@ -2177,7 +2177,7 @@ jobs:
             '#if PLATFORM_WII'
           ) -join "`n"
           if (-not $memCard705.Contains($helperAnchor705)) {
-            throw 'Randomizer direct-save helper anchor changed before .705.'
+            throw 'Randomizer direct-save helper anchor changed before .706.'
           }
           $memCard705 = $memCard705.Replace($helperAnchor705, $helperNew705)
 
@@ -2243,7 +2243,7 @@ jobs:
             '}'
           ) -join "`n"
           if (-not $memCard705.Contains($setFileNameOld705)) {
-            throw 'Randomizer direct-save setFileName anchor changed before .705.'
+            throw 'Randomizer direct-save setFileName anchor changed before .706.'
           }
           $memCard705 = $memCard705.Replace($setFileNameOld705, $setFileNameNew705)
 
@@ -2287,7 +2287,7 @@ jobs:
             '}'
           ) -join "`n"
           if (-not $memCard705.Contains($loadOld705)) {
-            throw 'Randomizer direct-save load anchor changed before .705.'
+            throw 'Randomizer direct-save load anchor changed before .706.'
           }
           $memCard705 = $memCard705.Replace($loadOld705, $loadNew705)
 
@@ -2327,7 +2327,7 @@ jobs:
             '}'
           ) -join "`n"
           if (-not $memCard705.Contains($saveOld705)) {
-            throw 'Randomizer direct-save write anchor changed before .705.'
+            throw 'Randomizer direct-save write anchor changed before .706.'
           }
           $memCard705 = $memCard705.Replace($saveOld705, $saveNew705)
 
@@ -2346,15 +2346,173 @@ jobs:
             '#endif'
           ) -join "`n"
           if (-not $session700.Contains($randomizerSaveOld700)) {
-            throw 'Randomizer save-name anchor changed before .705.'
+            throw 'Randomizer save-name anchor changed before .706.'
           }
           $session700 = $session700.Replace($randomizerSaveOld700, $randomizerSaveNew700)
           [IO.File]::WriteAllText($session700Path, $session700, [Text.UTF8Encoding]::new($false))
 
+          # .706: preserve the working .705 save path and repair transition/mod regressions.
+          $hooks706Path = "$env:TPR_SRC\mods\randomizer\src\hooks.cpp"
+          $hooks706 = [IO.File]::ReadAllText($hooks706Path).Replace("`r`n", "`n")
+          $autoSkipUnsafe706 = @(
+            '        bool is_trig_skipbtn = mDoCPd_c::getTrigStart(PAD_1);',
+            '        const bool autoSkipMajor = canSkip &&',
+            '            randomizer_GetContext().mSettings[RandomizerContext::SKIP_MAJOR_CUTSCENES] ==',
+            '                RandomizerContext::ON;',
+            '#if defined(_UWP)',
+            '        // Xbox automatic skips bypass the pre-skip fade/timer path.',
+            '        if (autoSkipMajor && !is_trig_skipbtn) {',
+            '            doSkip = true;',
+            '            evtControl->mSkipTimer = 0;',
+            '        } else',
+            '#endif',
+            '        if (is_trig_skipbtn || autoSkipMajor) {'
+          ) -join "`n"
+          $autoSkipSafe706 = @(
+            '        bool is_trig_skipbtn = mDoCPd_c::getTrigStart(PAD_1);',
+            '        const bool autoSkipMajor = canSkip &&',
+            '            randomizer_GetContext().mSettings[RandomizerContext::SKIP_MAJOR_CUTSCENES] ==',
+            '                RandomizerContext::ON;',
+            '#if defined(_UWP)',
+            '        // Preserve the normal skip handshake, but automatic Xbox skips must not',
+            '        // drive the global black fade used by stage/loading-zone transitions.',
+            '        if (autoSkipMajor && !is_trig_skipbtn) {',
+            '            evtControl->offSkipFade();',
+            '        }',
+            '#endif',
+            '        if (is_trig_skipbtn || autoSkipMajor) {'
+          ) -join "`n"
+          if (-not $hooks706.Contains($autoSkipUnsafe706)) {
+            throw 'Unsafe Xbox automatic-skip block changed before .706.'
+          }
+          $hooks706 = $hooks706.Replace($autoSkipUnsafe706, $autoSkipSafe706)
+
+          $postSkipUnsafe706 = @(
+            '            int skipRet = evtControl->mSkipFunc(skipActor, evtControl->mSkipParameter);',
+            '#if defined(_UWP)',
+            '            if (autoSkipMajor && !is_trig_skipbtn) {',
+            '                // The skipped opening event can leave mDoGph at a full-black filter.',
+            '                // Force the filter back toward visible immediately after the callback.',
+            '                evtControl->offSkipFade();',
+            '                evtControl->mSkipTimer = 0;',
+            '                mDoGph_gInf_c::fadeOut(-1.0f);',
+            '            }',
+            '#endif',
+            '            evtControl->onFlag2(8);'
+          ) -join "`n"
+          $postSkipSafe706 = @(
+            '            int skipRet = evtControl->mSkipFunc(skipActor, evtControl->mSkipParameter);',
+            '            evtControl->onFlag2(8);'
+          ) -join "`n"
+          if (-not $hooks706.Contains($postSkipUnsafe706)) {
+            throw 'Unsafe Xbox post-skip fade block changed before .706.'
+          }
+          $hooks706 = $hooks706.Replace($postSkipUnsafe706, $postSkipSafe706)
+          [IO.File]::WriteAllText($hooks706Path, $hooks706, [Text.UTF8Encoding]::new($false))
+
+          $overlay706Path = "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp"
+          $overlay706 = [IO.File]::ReadAllText($overlay706Path).Replace("`r`n", "`n")
+          if (-not $overlay706.Contains('#include "dusk/main.h"')) {
+            $overlay706 = $overlay706.Replace(
+              '#include "dusk/startup_guard.hpp"',
+              '#include "dusk/startup_guard.hpp"' + "`n" + '#include "dusk/main.h"')
+          }
+          $overlayQuarantine706 = @(
+            '#if defined(_UWP)',
+            '    s_overlaysDirty = false;',
+            '    Log.debug("Xbox UWP: mod DVD overlay synchronization is quarantined.");',
+            '    return;',
+            '#endif'
+          ) -join "`n"
+          $overlayDeferred706 = @(
+            '#if defined(_UWP)',
+            '    static uint32_t xboxOverlayStableFrames = 0;',
+            '    if (!dusk::IsGameLaunched || startup_guard::activity_pending()) {',
+            '        xboxOverlayStableFrames = 0;',
+            '        s_overlaysDirty = true;',
+            '        return;',
+            '    }',
+            '    if (xboxOverlayStableFrames < 60) {',
+            '        ++xboxOverlayStableFrames;',
+            '        s_overlaysDirty = true;',
+            '        return;',
+            '    }',
+            '#endif'
+          ) -join "`n"
+          if (-not $overlay706.Contains($overlayQuarantine706)) {
+            throw 'Xbox overlay quarantine block changed before .706.'
+          }
+          $overlay706 = $overlay706.Replace($overlayQuarantine706, $overlayDeferred706)
+          [IO.File]::WriteAllText($overlay706Path, $overlay706, [Text.UTF8Encoding]::new($false))
+
+          $texture706Path = "$env:TPR_SRC\src\dusk\mods\svc\texture.cpp"
+          $texture706 = [IO.File]::ReadAllText($texture706Path).Replace("`r`n", "`n")
+          if (-not $texture706.Contains('#include "dusk/main.h"')) {
+            $texture706 = $texture706.Replace(
+              '#include "dusk/startup_guard.hpp"',
+              '#include "dusk/startup_guard.hpp"' + "`n" + '#include "dusk/main.h"')
+          }
+          $textureQuarantine706 = @(
+            'void textures_lifecycle_applied() {',
+            '#if defined(_UWP)',
+            '    s_deferInitialXboxTextureSync = false;',
+            '    s_pendingXboxTextureSync = false;',
+            '    Log.debug("Xbox UWP: mod texture-service synchronization is quarantined.");',
+            '    return;',
+            '#else',
+            '    textures_sync_replacements();',
+            '#endif',
+            '}',
+            '',
+            'void textures_frame_end() {',
+            '#if defined(_UWP)',
+            '    return;',
+            '#endif',
+            '}'
+          ) -join "`n"
+          $textureDeferred706 = @(
+            'void textures_lifecycle_applied() {',
+            '#if defined(_UWP)',
+            '    s_deferInitialXboxTextureSync = false;',
+            '    s_pendingXboxTextureSync = true;',
+            '    Log.debug("Deferring Xbox texture-service synchronization until stable gameplay.");',
+            '    return;',
+            '#else',
+            '    textures_sync_replacements();',
+            '#endif',
+            '}',
+            '',
+            'void textures_frame_end() {',
+            '#if defined(_UWP)',
+            '    if (!s_pendingXboxTextureSync) {',
+            '        return;',
+            '    }',
+            '    static uint32_t xboxTextureStableFrames = 0;',
+            '    if (!dusk::IsGameLaunched || startup_guard::activity_pending()) {',
+            '        xboxTextureStableFrames = 0;',
+            '        return;',
+            '    }',
+            '    if (xboxTextureStableFrames < 60) {',
+            '        ++xboxTextureStableFrames;',
+            '        return;',
+            '    }',
+            '    s_pendingXboxTextureSync = false;',
+            '    startup_guard::stage("module.frame-end:dev.twilitrealm.dusklight.texture-restored");',
+            '    Log.info("Xbox runtime stable; applying texture replacements.");',
+            '    textures_sync_replacements();',
+            '    startup_guard::stage("module.frame-end-ready:dev.twilitrealm.dusklight.texture-restored");',
+            '#endif',
+            '}'
+          ) -join "`n"
+          if (-not $texture706.Contains($textureQuarantine706)) {
+            throw 'Xbox texture quarantine block changed before .706.'
+          }
+          $texture706 = $texture706.Replace($textureQuarantine706, $textureDeferred706)
+          [IO.File]::WriteAllText($texture706Path, $texture706, [Text.UTF8Encoding]::new($false))
+
           foreach ($safetyMarker700 in @(
             'autoSkipMajor && !is_trig_skipbtn',
             'evtControl->offSkipFade();',
-            'mDoGph_gInf_c::fadeOut(-1.0f);',
             'CARDSetLoadType(CARD_GCIFOLDER);',
             'COMM_RESCAN_FILE_e',
             'while (mCardCommand != COMM_NONE_e)',
@@ -2367,6 +2525,8 @@ jobs:
             'xboxRandomizerSavePath()',
             'writeXboxRandomizerSave(mData)',
             'readXboxRandomizerSave(mData)',
+            'xboxOverlayStableFrames',
+            'xboxTextureStableFrames',
             'randomizer-xbox')) {
             if (-not ($hooks700.Contains($safetyMarker700) -or
                       $memCard700.Contains($safetyMarker700) -or
@@ -2376,8 +2536,11 @@ jobs:
                       $gci704.Contains($safetyMarker700) -or
                       $memCard705.Contains($safetyMarker700) -or
                       $memCardHeader702.Contains($safetyMarker700) -or
+                      $hooks706.Contains($safetyMarker700) -or
+                      $overlay706.Contains($safetyMarker700) -or
+                      $texture706.Contains($safetyMarker700) -or
                       $session700.Contains($safetyMarker700))) {
-              throw "Xbox .705 runtime safety marker missing: $safetyMarker700"
+              throw "Xbox .706 runtime safety marker missing: $safetyMarker700"
             }
           }
           # Detached CI source reports UNKNOWN-VERSION; make the Xbox launcher match the MSIX.
@@ -2388,7 +2551,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.705");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.706");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -2436,26 +2599,30 @@ jobs:
           }
           $overlaySource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\overlay.cpp")
-          if (-not $overlaySource.Contains(
-              'Xbox UWP: mod DVD overlay synchronization is quarantined.')) {
-            throw 'Xbox mod DVD overlay quarantine is missing.'
+          foreach ($overlayMarker in @(
+            'xboxOverlayStableFrames',
+            'dusk::IsGameLaunched',
+            'startup_guard::activity_pending()')) {
+            if (-not $overlaySource.Contains($overlayMarker)) {
+              throw "Xbox restored overlay marker is missing: $overlayMarker"
+            }
           }
-          $overlayQuarantinePos = $overlaySource.IndexOf(
-            'Xbox UWP: mod DVD overlay synchronization is quarantined.')
-          $overlayEnumeratePos = $overlaySource.IndexOf('std::vector<AuroraOverlayFile> files;')
-          if ($overlayQuarantinePos -lt 0 -or $overlayEnumeratePos -lt 0 -or
-              $overlayQuarantinePos -gt $overlayEnumeratePos) {
-            throw 'Xbox overlay quarantine still occurs after active-mod/bundle enumeration.'
+          if ($overlaySource.Contains('mod DVD overlay synchronization is quarantined')) {
+            throw 'Xbox overlay service is still quarantined.'
           }
           $textureServiceSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\texture.cpp")
           foreach ($textureMarker in @(
-            'Xbox UWP: mod texture-service synchronization is quarantined.',
+            'xboxTextureStableFrames',
+            'Xbox runtime stable; applying texture replacements.',
             '.lifecycleApplied = textures_lifecycle_applied',
             '.frameEnd = textures_frame_end')) {
             if (-not $textureServiceSource.Contains($textureMarker)) {
-              throw "Xbox texture-service quarantine marker is missing: $textureMarker"
+              throw "Xbox restored texture-service marker is missing: $textureMarker"
             }
+          }
+          if ($textureServiceSource.Contains('mod texture-service synchronization is quarantined')) {
+            throw 'Xbox texture service is still quarantined.'
           }
           $mainSource = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_main.cpp")
           if ($mainSource.Contains('show_xbox_startup_recovery') -or
@@ -2482,7 +2649,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-705.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-706.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 60') -or
@@ -2496,7 +2663,7 @@ jobs:
           if (-not $audioHeader.Contains('#define DUSK_AUDIO_DISABLED 0') -or
               $audioHeader.Contains('#define DUSK_AUDIO_DISABLED 1') -or
               $audioHeader.Contains('#define DUSK_AUDIO_SKIP(...) return __VA_ARGS__;')) {
-            throw 'Xbox .705 core audio is not enabled cleanly.'
+            throw 'Xbox .706 core audio is not enabled cleanly.'
           }
           $audioApiHeader = [IO.File]::ReadAllText(
             "$env:TPR_SRC\include\m_Do\m_Do_audio.h")
@@ -2511,7 +2678,7 @@ jobs:
               'SDL_GetAudioStreamQueued(PlaybackStream)',
               'SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr)')) {
             if (-not $audioSystemSource.Contains($audioCoreMarker696)) {
-              throw "Xbox .705 audio core marker missing: $audioCoreMarker696"
+              throw "Xbox .706 audio core marker missing: $audioCoreMarker696"
             }
           }
           $logoSource = [IO.File]::ReadAllText(
@@ -2536,7 +2703,7 @@ jobs:
                 'Z2AudioMgr::getInterface()->checkFirstWaves()') -or
               -not $logoSource.Contains(
                 'Z2AudioMgr::getInterface()->loadStaticWaves()')) {
-            throw 'Xbox .705 logo audio initialization/static-wave behavior is incomplete.'
+            throw 'Xbox .706 logo audio initialization/static-wave behavior is incomplete.'
           }
           $standardCreateSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\f_pc\f_pc_stdcreate_req.cpp")
@@ -2596,7 +2763,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.705");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.706");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -4243,7 +4410,7 @@ jobs:
             if (-not ($contextHeader.Contains($runtimeMarker) -or
                       $contextSource.Contains($runtimeMarker) -or
                       $seedGenerationSource.Contains($runtimeMarker))) {
-              throw "Xbox .705 runtime seed marker is missing: $runtimeMarker"
+              throw "Xbox .706 runtime seed marker is missing: $runtimeMarker"
             }
           }
 
@@ -4261,7 +4428,7 @@ jobs:
               -not $audioSafeLogo.Contains('logo.audio-init-wait') -or
               -not $audioSafeLogo.Contains('logo.static-waves-loaded') -or
               -not $audioSafeSystem.Contains('SDL_GetAudioStreamQueued(PlaybackStream)')) {
-            throw 'Xbox .705 callback-free audio restore is incomplete.'
+            throw 'Xbox .706 callback-free audio restore is incomplete.'
           }
 
 
@@ -4450,7 +4617,7 @@ jobs:
                       $audioSystem696Verify.Contains($audioRestoreMarker696) -or
                       $main696Verify.Contains($audioRestoreMarker696) -or
                       $logo696Verify.Contains($audioRestoreMarker696))) {
-              throw "Xbox .705 callback-free audio marker is missing: $audioRestoreMarker696"
+              throw "Xbox .706 callback-free audio marker is missing: $audioRestoreMarker696"
             }
           }
           foreach ($forbiddenAudioMarker696 in @(
@@ -4463,7 +4630,7 @@ jobs:
                 $audioApi696Verify.Contains($forbiddenAudioMarker696) -or
                 $main696Verify.Contains($forbiddenAudioMarker696) -or
                 $logo696Verify.Contains($forbiddenAudioMarker696)) {
-              throw "Xbox .705 still contains obsolete callback/disabled-audio marker: $forbiddenAudioMarker696"
+              throw "Xbox .706 still contains obsolete callback/disabled-audio marker: $forbiddenAudioMarker696"
             }
           }
 
@@ -4538,7 +4705,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.705"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.706"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -4703,7 +4870,7 @@ jobs:
           }
 
           $runSuite = $true
-          Write-Host '.705 keeps native XAudio2 and vanilla GCI saves, but routes Xbox Randomizer save/load through a direct checksummed LocalState file to eliminate the repeated CARD status-8 crash path.'
+          Write-Host '.706 preserves the working direct Randomizer save, restores delayed asset mods, and removes the unsafe immediate auto-skip fade shortcut from loading transitions.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
@@ -4818,7 +4985,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 705 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 706 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -4845,17 +5012,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 705 package
+      - name: Verify and collect full 706 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-705"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-706"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.705_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.706_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -4867,7 +5034,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.705"',
+            'Version="1.4.1.706"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -4895,7 +5062,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Randomizer native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-705-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-706-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -4998,7 +5165,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-705.txt',
+            'xbox-startup-stage-706.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -5074,7 +5241,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-705-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-706-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -5094,8 +5261,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-705-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-705-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-706-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-706-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -5138,11 +5305,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-705.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-705.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-706.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-706.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.705'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.706'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -5185,23 +5352,24 @@ jobs:
             controllerCursor = $true
             textureZipAutoload = $true
             menuColorRandomization = $true
+            xboxAssetMods = 'overlay and texture services restored after 60 stable gameplay frames'
             restoredRandomizerRows = 7
             enemySouls = $true
-            xboxAutoCutsceneSkip = '.705 automatic major-cutscene skips bypass the timer and force mDoGph fade restoration immediately after the skip callback'
-            xboxMemoryCard = '.705 leaves vanilla gczelda2 on Aurora/GCI but moves Xbox Randomizer save/load to a direct checksummed LocalState randomizer-xbox.sav file, bypassing emulated CARD status entirely'
+            xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
+            xboxMemoryCard = '.706 leaves vanilla gczelda2 on Aurora/GCI but moves Xbox Randomizer save/load to a direct checksummed LocalState randomizer-xbox.sav file, bypassing emulated CARD status entirely'
             generatorScenarios = 58
             generatorScenarioAttempts = 3
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-705.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-706.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.705-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.706-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -5210,7 +5378,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.705-Xbox
-          path: TPR-Xbox-Package-705/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.706-Xbox
+          path: TPR-Xbox-Package-706/*
           if-no-files-found: error
           retention-days: 30
