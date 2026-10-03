@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - codex/enemy-souls-654-build
+      - rebuild/1.4.658
   workflow_dispatch:
 
 permissions:
