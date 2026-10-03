@@ -2904,7 +2904,7 @@ jobs:
             'xboxRandomizerSavePath()',
             'writeXboxRandomizerSave(mData)',
             'readXboxRandomizerSave(mData)',
-            'xboxOverlayStableFrames',
+            'Xbox UWP: mod DVD overlay synchronization is quarantined.',
             'xboxTextureStableFrames',
             'DUSK_STATIC_COSMETICS=1',
             'native.ready:dev.twilitrealm.cosmetics:built-in',
