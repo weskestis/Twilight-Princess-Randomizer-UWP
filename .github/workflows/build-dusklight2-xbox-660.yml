@@ -184,7 +184,7 @@ jobs:
 
           $duskPatch = Expand-ControlPatch `
             'dusklight201-uwp-662' `
-            '82302f5d940161c1458950a3352bc71148f379a2a39b884d2eddbce227c415bc' `
+            '82302f5d940161c1458950a3352bc71048f379a2a39b884d2eddbce227c415bc' `
             '095f123e3469f636f7491f6e6b092e8a0bf097a926a9b34ae736382e159fc123' `
             '7ea1bb82f45f54c333f682639250986930628cab71d2353d58cf9688b243f393'
           $auroraPatch = Expand-ControlPatch `
