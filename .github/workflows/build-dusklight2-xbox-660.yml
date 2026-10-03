@@ -2437,6 +2437,7 @@ jobs:
             '        s_overlaysDirty = true;',
             '        return;',
             '    }',
+            '    Log.info("Xbox runtime stable; applying deferred DVD overlays.");',
             '#endif'
           ) -join "`n"
           if (-not $overlay706.Contains($overlayQuarantine706)) {
@@ -5579,7 +5580,7 @@ jobs:
             'Xbox safe launch: choose a mode with Left/Right; hooks start only after Play.',
             'prelaunch.play-activation-ready',
             'prelaunch.play-ready',
-            'Xbox runtime ready; applying deferred DVD overlays.',
+            'Xbox runtime stable; applying deferred DVD overlays.',
             'Xbox runtime stable; applying texture replacements.',
             'Texture ZIP loading complete:',
             'CURSOR MODE ON',
