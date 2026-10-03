@@ -3120,7 +3120,7 @@ jobs:
             'overlay.sync.begin',
             'overlay.sync.callbacks',
             'overlay.sync.scan',
-            'overlay.sync.skip-built-in:dev.twilitrealm.cosmetics',
+            'overlay.sync.skip-built-in:',
             'overlay.sync.aurora-files',
             'overlay.sync.jkr-notify',
             'overlay.sync.ready')) {
@@ -3128,15 +3128,29 @@ jobs:
               throw "Xbox overlay diagnostic marker is missing: $overlayMarker"
             }
           }
+          foreach ($assetlessBuiltIn in @(
+            'dev.twilitrealm.cosmetics',
+            'dev.twilitrealm.randomizer')) {
+            if (-not $overlaySource.Contains($assetlessBuiltIn)) {
+              throw "Xbox overlay built-in skip ID is missing: $assetlessBuiltIn"
+            }
+          }
           $textureServiceSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\mods\svc\texture.cpp")
+          foreach ($assetlessBuiltIn in @(
+            'dev.twilitrealm.cosmetics',
+            'dev.twilitrealm.randomizer')) {
+            if (-not $textureServiceSource.Contains($assetlessBuiltIn)) {
+              throw "Xbox texture built-in skip ID is missing: $assetlessBuiltIn"
+            }
+          }
           foreach ($textureMarker in @(
             'xboxTextureStableFrames',
             'Xbox runtime stable; applying texture replacements.',
             'texture.sync.begin',
             'texture.sync.cleanup',
             'texture.sync.scan',
-            'texture.sync.skip-built-in:dev.twilitrealm.cosmetics',
+            'texture.sync.skip-built-in:',
             'texture.sync.register-static',
             '.lifecycleApplied = textures_lifecycle_applied',
             '.frameEnd = textures_frame_end')) {
