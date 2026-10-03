@@ -1,0 +1,162 @@
+name: Repack Legacy 658 Side-by-Side
+
+on:
+  push:
+    branches:
+      - legacy/1.4.658-side-by-side
+    paths:
+      - .github/workflows/repack-legacy-658.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  repack:
+    name: Repack exact green .658 as separate Legacy app
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Download exact green .658 artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 37151047494
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.658-Private-Test
+          path: original
+
+      - name: Repack and verify Legacy 658
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $makeCmd = Get-Command MakeAppx.exe -ErrorAction SilentlyContinue
+          if ($makeCmd) { $makeAppx = $makeCmd.Source } else { $makeAppx = (Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -File -Filter MakeAppx.exe | Sort-Object FullName -Descending | Select-Object -First 1).FullName }
+          if (-not $makeAppx) { throw 'MakeAppx.exe was not found.' }
+
+          $signCmd = Get-Command SignTool.exe -ErrorAction SilentlyContinue
+          if ($signCmd) { $signTool = $signCmd.Source } else { $signTool = (Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -File -Filter SignTool.exe | Sort-Object FullName -Descending | Select-Object -First 1).FullName }
+          if (-not $signTool) { throw 'SignTool.exe was not found.' }
+
+          $sourcePackage = Get-ChildItem "$env:GITHUB_WORKSPACE\original" -Recurse -File -Filter 'TwilightPrincessRandomizer_1.4.1.658_x64.msix' | Select-Object -First 1
+          if (-not $sourcePackage) { throw 'Exact green .658 MSIX was not found.' }
+
+          $sourceMsixHash = (Get-FileHash $sourcePackage.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "SOURCE_658_MSIX_SHA256=$sourceMsixHash"
+
+          $unpack = "$env:GITHUB_WORKSPACE\legacy-unpack"
+          Remove-Item $unpack -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $unpack | Out-Null
+          & $makeAppx unpack /p $sourcePackage.FullName /d $unpack /o
+          if ($LASTEXITCODE -ne 0) { throw 'Could not unpack source .658 MSIX.' }
+
+          $skip = @('AppxManifest.xml','AppxBlockMap.xml','AppxSignature.p7x','[Content_Types].xml')
+          $sourceHashes = @{}
+          Get-ChildItem $unpack -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($unpack.Length + 1).Replace('\','/')
+            if ($skip -notcontains $relative) { $sourceHashes[$relative] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+          }
+          if (-not $sourceHashes.ContainsKey('TwilightPrincessRandomizer.exe')) { throw 'Source .658 executable is missing.' }
+          Write-Host "SOURCE_658_EXE_SHA256=$($sourceHashes['TwilightPrincessRandomizer.exe'])"
+
+          $manifestPath = Join-Path $unpack 'AppxManifest.xml'
+          [xml]$xml = Get-Content $manifestPath -Raw
+          $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+          $ns.AddNamespace('d','http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+          $ns.AddNamespace('mp','http://schemas.microsoft.com/appx/2014/phone/manifest')
+          $ns.AddNamespace('uap','http://schemas.microsoft.com/appx/manifest/uap/windows10')
+
+          $identity = $xml.SelectSingleNode('/d:Package/d:Identity',$ns)
+          $display = $xml.SelectSingleNode('/d:Package/d:Properties/d:DisplayName',$ns)
+          $phone = $xml.SelectSingleNode('/d:Package/mp:PhoneIdentity',$ns)
+          $visual = $xml.SelectSingleNode('/d:Package/d:Applications/d:Application/uap:VisualElements',$ns)
+          if (-not $identity -or -not $display -or -not $phone -or -not $visual) { throw 'Required manifest nodes are missing.' }
+          if ($identity.GetAttribute('Name') -ne 'TwilightPrincessRandomizer' -or $identity.GetAttribute('Publisher') -ne 'CN=TwilightPrincessRandomizer' -or $identity.GetAttribute('Version') -ne '1.4.1.658') { throw "Unexpected source identity: $($identity.OuterXml)" }
+
+          $identity.SetAttribute('Name','TwilightPrincessRandomizerLegacy658')
+          $display.InnerText = 'Twilight Princess Randomizer Legacy 658'
+          $phone.SetAttribute('PhoneProductId','65865865-8658-4658-8658-658658658658')
+          $visual.SetAttribute('DisplayName','Twilight Princess Randomizer Legacy 658')
+          $visual.SetAttribute('Description','Twilight Princess Randomizer Legacy 658 for Xbox/UWP')
+
+          $writerSettings = New-Object System.Xml.XmlWriterSettings
+          $writerSettings.Encoding = New-Object System.Text.UTF8Encoding($false)
+          $writerSettings.Indent = $true
+          $writer = [System.Xml.XmlWriter]::Create($manifestPath,$writerSettings)
+          try { $xml.Save($writer) } finally { $writer.Dispose() }
+
+          foreach ($reserved in @('AppxBlockMap.xml','AppxSignature.p7x','[Content_Types].xml')) { Remove-Item (Join-Path $unpack $reserved) -Force -ErrorAction SilentlyContinue }
+
+          $out = "$env:GITHUB_WORKSPACE\Legacy658-Package"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $legacyPackage = Join-Path $out 'TwilightPrincessRandomizerLegacy658_1.4.1.658_x64.msix'
+          & $makeAppx pack /d $unpack /p $legacyPackage /o
+          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx failed to pack Legacy 658.' }
+
+          $password = [Guid]::NewGuid().ToString('N')
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=TwilightPrincessRandomizer' -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 -KeyExportPolicy Exportable -KeyUsage DigitalSignature -FriendlyName 'Twilight Princess Randomizer Legacy 658 Sideload Signing' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+          $pfx = "$env:GITHUB_WORKSPACE\Legacy658-signing.pfx"
+          $cer = Join-Path $out 'TwilightPrincessRandomizerLegacy658.cer'
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $securePassword | Out-Null
+          Export-Certificate -Cert $cert -FilePath $cer | Out-Null
+          & $signTool sign /fd SHA256 /f $pfx /p $password $legacyPackage
+          if ($LASTEXITCODE -ne 0) { throw 'SignTool failed to sign Legacy 658.' }
+          & $signTool verify /pa /v $legacyPackage
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy 658 signature verification failed.' }
+          Remove-Item $pfx -Force
+
+          $verify = "$env:GITHUB_WORKSPACE\legacy-verify"
+          New-Item -ItemType Directory -Force $verify | Out-Null
+          & $makeAppx unpack /p $legacyPackage /d $verify /o
+          if ($LASTEXITCODE -ne 0) { throw 'Could not unpack signed Legacy 658 for verification.' }
+
+          [xml]$verifyXml = Get-Content (Join-Path $verify 'AppxManifest.xml') -Raw
+          $vns = New-Object System.Xml.XmlNamespaceManager($verifyXml.NameTable)
+          $vns.AddNamespace('d','http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+          $vns.AddNamespace('mp','http://schemas.microsoft.com/appx/2014/phone/manifest')
+          $vns.AddNamespace('uap','http://schemas.microsoft.com/appx/manifest/uap/windows10')
+          $videntity = $verifyXml.SelectSingleNode('/d:Package/d:Identity',$vns)
+          $vdisplay = $verifyXml.SelectSingleNode('/d:Package/d:Properties/d:DisplayName',$vns)
+          $vphone = $verifyXml.SelectSingleNode('/d:Package/mp:PhoneIdentity',$vns)
+          $vvisual = $verifyXml.SelectSingleNode('/d:Package/d:Applications/d:Application/uap:VisualElements',$vns)
+          if ($videntity.GetAttribute('Name') -ne 'TwilightPrincessRandomizerLegacy658' -or $videntity.GetAttribute('Publisher') -ne 'CN=TwilightPrincessRandomizer' -or $videntity.GetAttribute('Version') -ne '1.4.1.658' -or $vdisplay.InnerText -ne 'Twilight Princess Randomizer Legacy 658' -or $vphone.GetAttribute('PhoneProductId') -ne '65865865-8658-4658-8658-658658658658' -or $vvisual.GetAttribute('DisplayName') -ne 'Twilight Princess Randomizer Legacy 658') { throw 'Side-by-side Legacy identity verification failed.' }
+
+          $legacyHashes = @{}
+          Get-ChildItem $verify -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($verify.Length + 1).Replace('\','/')
+            if ($skip -notcontains $relative) { $legacyHashes[$relative] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+          }
+          if ($sourceHashes.Count -ne $legacyHashes.Count) { throw "Payload file count changed: source=$($sourceHashes.Count) legacy=$($legacyHashes.Count)" }
+          foreach ($relative in $sourceHashes.Keys) { if (-not $legacyHashes.ContainsKey($relative) -or $legacyHashes[$relative] -ne $sourceHashes[$relative]) { throw "Legacy repack changed source .658 payload file: $relative" } }
+
+          $dependency = Get-ChildItem "$env:GITHUB_WORKSPACE\original" -Recurse -File | Where-Object { $_.Name -match '^Microsoft\.VCLibs.*x64.*\.appx$' } | Select-Object -First 1
+          if ($dependency) { Copy-Item $dependency.FullName $out -Force }
+
+          @'
+          Twilight Princess Randomizer Legacy 658
+
+          This is a separate side-by-side UWP app.
+          Package identity: TwilightPrincessRandomizerLegacy658
+          Display name: Twilight Princess Randomizer Legacy 658
+          Version: 1.4.1.658
+
+          Do not uninstall the current development build. Install this MSIX alongside it.
+          Legacy 658 has its own LocalState, saves, settings, and generated seed storage.
+          The executable and all non-manifest payload files were verified byte-for-byte identical
+          to the green recovered .658 package from Actions run 37151047494.
+          '@ | Set-Content (Join-Path $out 'INSTALL_LEGACY_658_XBOX.txt') -Encoding UTF8
+
+          Write-Host "LEGACY_658_EXE_SHA256=$($legacyHashes['TwilightPrincessRandomizer.exe'])"
+          Write-Host "LEGACY_658_MSIX_SHA256=$((Get-FileHash $legacyPackage -Algorithm SHA256).Hash.ToLowerInvariant())"
+
+      - name: Upload Legacy 658 side-by-side package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-Princess-Randomizer-Legacy-658-Side-by-Side
+          path: Legacy658-Package/
+          if-no-files-found: error
+          retention-days: 30
