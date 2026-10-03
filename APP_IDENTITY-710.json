@@ -1,0 +1,14 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.710",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.709 commit 554dc7cb60ac9d23ea502af7edd55981d2f2a97a",
+  "saveStatus": "direct Randomizer LocalState save architecture preserved",
+  "assetServices": "DVD overlay and texture services remain enabled; granular Xbox sync diagnostics added",
+  "audioStatus": "native XAudio2 retained",
+  "startupJournal": "xbox-startup-stage-710.txt",
+  "launcherVersion": "1.4.1.710",
+  "cosmetics": "official Cosmetics editor remains built in; shared Xbox MenuRing hook remains isolated"
+}
