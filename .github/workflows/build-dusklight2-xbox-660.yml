@@ -3034,7 +3034,7 @@ jobs:
               -not $startupGuardSource.Contains('xbox-startup-stage-708.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
-              -not $startupGuardSource.Contains('kActivityTraceFrames = 60') -or
+              -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
               -not $startupGuardSource.Contains('inline bool activity_pending() noexcept') -or
               -not $startupGuardSource.Contains('std::atomic_bool traceEnabled') -or
               -not $startupGuardSource.Contains(
