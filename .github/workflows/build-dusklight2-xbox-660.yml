@@ -2835,6 +2835,32 @@ jobs:
               throw "Cosmetics editor marker is missing: $uiMarker706"
             }
           }
+          # .706 Xbox first-launch crash hardening: the persisted startup stage from
+          # hardware stopped immediately after dBrightCheck_c::screenSet. The next
+          # official Cosmetics hook is dMenu_Ring_c::_create. Resolve that member by
+          # manifest name on UWP to avoid the member-pointer path while preserving the
+          # official item-wheel recolor callback and all desktop behavior.
+          $cosmeticsHooks706Path = "$env:TPR_SRC\mods\cosmetics\src\hooks.cpp"
+          $cosmeticsHooks706 = [IO.File]::ReadAllText($cosmeticsHooks706Path).Replace("`r`n", "`n")
+          $menuRingHookOld706 = 'DEFINE_HOOK(&dMenu_Ring_c::_create, MenuRingCreate);'
+          $menuRingHookNew706 = @(
+            '#if defined(_UWP)',
+            'DEFINE_HOOK_SYMBOL("dMenu_Ring_c::_create", void(dMenu_Ring_c*), MenuRingCreate);',
+            '#else',
+            'DEFINE_HOOK(&dMenu_Ring_c::_create, MenuRingCreate);',
+            '#endif'
+          ) -join "`n"
+          if (-not $cosmeticsHooks706.Contains($menuRingHookOld706)) {
+            throw 'Official Cosmetics MenuRing hook anchor changed before .706 Xbox hardening.'
+          }
+          $cosmeticsHooks706 = $cosmeticsHooks706.Replace($menuRingHookOld706, $menuRingHookNew706)
+          [IO.File]::WriteAllText(
+            $cosmeticsHooks706Path, $cosmeticsHooks706, [Text.UTF8Encoding]::new($false))
+          if (-not $cosmeticsHooks706.Contains(
+                'DEFINE_HOOK_SYMBOL("dMenu_Ring_c::_create", void(dMenu_Ring_c*), MenuRingCreate);')) {
+            throw 'Xbox Cosmetics MenuRing by-name hook hardening is missing.'
+          }
+
           foreach ($safetyMarker700 in @(
             'autoSkipMajor && !is_trig_skipbtn',
             'evtControl->offSkipFade();',
