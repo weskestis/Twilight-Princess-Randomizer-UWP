@@ -7,3 +7,5 @@
 - The .700 forced post-skip global fade reset is removed because it could interfere with loading-zone transitions.
 - DVD overlay mods and texture-service mods are restored after 60 stable gameplay frames instead of being permanently quarantined.
 - Native XAudio2 remains unchanged.
+
+- The official Dusklight Cosmetics editor is now built into the signed Xbox executable: Hero's Tunic, hearts, Link/Midna, Wolf Link, Epona, equipment and UI colors.

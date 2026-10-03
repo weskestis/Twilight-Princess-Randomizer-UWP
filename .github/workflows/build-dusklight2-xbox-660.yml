@@ -2510,6 +2510,329 @@ jobs:
           $texture706 = $texture706.Replace($textureQuarantine706, $textureDeferred706)
           [IO.File]::WriteAllText($texture706Path, $texture706, [Text.UTF8Encoding]::new($false))
 
+          # .706: statically integrate the official Cosmetics module into the signed Xbox image.
+          # The Randomizer already uses this single-native-image model. Cosmetics needs a
+          # separate metadata section and prefixed exported symbols so both built-ins can coexist.
+          $modSdkCos706Path = "$env:TPR_SRC\cmake\ModSDK.cmake"
+          $modSdkCos706 = [IO.File]::ReadAllText($modSdkCos706Path).Replace("`r`n", "`n")
+          $staticCondOld706 = '        if (DUSK_UWP AND target_name STREQUAL "randomizer")'
+          $staticCondNew706 = '        if (DUSK_UWP AND (target_name STREQUAL "randomizer" OR target_name STREQUAL "cosmetics"))'
+          if (-not $modSdkCos706.Contains($staticCondOld706)) {
+            throw 'Static built-in condition changed before .706 Cosmetics integration.'
+          }
+          $modSdkCos706 = $modSdkCos706.Replace($staticCondOld706, $staticCondNew706)
+
+          $staticDefsOld706 = @(
+            '            target_compile_definitions(${target_name} PRIVATE',
+            '                    DUSK_STATIC_BUILTIN_MOD=1)'
+          ) -join "`n"
+          $staticDefsNew706 = @(
+            '            target_compile_definitions(${target_name} PRIVATE',
+            '                    DUSK_STATIC_BUILTIN_MOD=1)',
+            '            if (target_name STREQUAL "cosmetics")',
+            '                target_compile_definitions(${target_name} PRIVATE',
+            '                        DUSK_STATIC_COSMETICS=1',
+            '                        mod_ctx=cosmetics_mod_ctx',
+            '                        mod_meta=cosmetics_mod_meta',
+            '                        mod_meta_bounds_begin=cosmetics_mod_meta_bounds_begin',
+            '                        mod_meta_bounds_end=cosmetics_mod_meta_bounds_end',
+            '                        mod_initialize=cosmetics_mod_initialize',
+            '                        mod_update=cosmetics_mod_update',
+            '                        mod_shutdown=cosmetics_mod_shutdown',
+            '                        svc_log=cosmetics_svc_log',
+            '                        svc_config=cosmetics_svc_config',
+            '                        svc_hook=cosmetics_svc_hook',
+            '                        svc_texture=cosmetics_svc_texture',
+            '                        svc_ui=cosmetics_svc_ui',
+            '                        XXH_INLINE_ALL=1)',
+            '            endif ()'
+          ) -join "`n"
+          if (-not $modSdkCos706.Contains($staticDefsOld706)) {
+            throw 'Static built-in definitions anchor changed before .706 Cosmetics integration.'
+          }
+          $modSdkCos706 = $modSdkCos706.Replace($staticDefsOld706, $staticDefsNew706)
+          [IO.File]::WriteAllText($modSdkCos706Path, $modSdkCos706, [Text.UTF8Encoding]::new($false))
+
+          $metaCos706Path = "$env:TPR_SRC\sdk\include\mods\meta.hpp"
+          $metaCos706 = [IO.File]::ReadAllText($metaCos706Path).Replace("`r`n", "`n")
+          $metaSectionOld706 = @(
+            '#if defined(_WIN32)',
+            '#pragma section("modmeta$a", read, write)',
+            '#pragma section("modmeta$d", read, write)',
+            '#pragma section("modmeta$z", read, write)',
+            '#if defined(__clang__)',
+            '#define MOD_META_RECORD __declspec(allocate("modmeta$d")) __attribute__((used)) MOD_META_NO_ASAN',
+            '#else',
+            '#define MOD_META_RECORD __declspec(allocate("modmeta$d"))',
+            '#endif'
+          ) -join "`n"
+          $metaSectionNew706 = @(
+            '#if defined(_WIN32)',
+            '#if defined(DUSK_STATIC_COSMETICS)',
+            '#pragma section("cosmeta$a", read, write)',
+            '#pragma section("cosmeta$d", read, write)',
+            '#pragma section("cosmeta$z", read, write)',
+            '#define DUSK_MOD_META_RECORD_SECTION "cosmeta$d"',
+            '#else',
+            '#pragma section("modmeta$a", read, write)',
+            '#pragma section("modmeta$d", read, write)',
+            '#pragma section("modmeta$z", read, write)',
+            '#define DUSK_MOD_META_RECORD_SECTION "modmeta$d"',
+            '#endif',
+            '#if defined(__clang__)',
+            '#define MOD_META_RECORD __declspec(allocate(DUSK_MOD_META_RECORD_SECTION)) __attribute__((used)) MOD_META_NO_ASAN',
+            '#else',
+            '#define MOD_META_RECORD __declspec(allocate(DUSK_MOD_META_RECORD_SECTION))',
+            '#endif'
+          ) -join "`n"
+          if (-not $metaCos706.Contains($metaSectionOld706)) {
+            throw 'Windows mod metadata section anchor changed before .706.'
+          }
+          $metaCos706 = $metaCos706.Replace($metaSectionOld706, $metaSectionNew706)
+
+          $metaBoundsOld706 = @(
+            '#if defined(_WIN32)',
+            '#define MOD_META_BOUNDS_DEFN                                                                       \',
+            '    extern "C" {                                                                                   \',
+            '    __declspec(allocate("modmeta$a")) constinit unsigned long long mod_meta_bounds_begin = 0;      \',
+            '    __declspec(allocate("modmeta$z")) constinit unsigned long long mod_meta_bounds_end = 0;        \',
+            '    }',
+            '#define MOD_META_BOUNDS_BEGIN (&mod_meta_bounds_begin)',
+            '#define MOD_META_BOUNDS_END (&mod_meta_bounds_end)'
+          ) -join "`n"
+          $metaBoundsNew706 = @(
+            '#if defined(_WIN32)',
+            '#if defined(DUSK_STATIC_COSMETICS)',
+            '#define DUSK_MOD_META_BOUNDS_A "cosmeta$a"',
+            '#define DUSK_MOD_META_BOUNDS_Z "cosmeta$z"',
+            '#else',
+            '#define DUSK_MOD_META_BOUNDS_A "modmeta$a"',
+            '#define DUSK_MOD_META_BOUNDS_Z "modmeta$z"',
+            '#endif',
+            '#define MOD_META_BOUNDS_DEFN                                                                       \',
+            '    extern "C" {                                                                                   \',
+            '    __declspec(allocate(DUSK_MOD_META_BOUNDS_A)) constinit unsigned long long mod_meta_bounds_begin = 0; \',
+            '    __declspec(allocate(DUSK_MOD_META_BOUNDS_Z)) constinit unsigned long long mod_meta_bounds_end = 0;   \',
+            '    }',
+            '#define MOD_META_BOUNDS_BEGIN (&mod_meta_bounds_begin)',
+            '#define MOD_META_BOUNDS_END (&mod_meta_bounds_end)'
+          ) -join "`n"
+          if (-not $metaCos706.Contains($metaBoundsOld706)) {
+            throw 'Windows mod metadata bounds anchor changed before .706.'
+          }
+          $metaCos706 = $metaCos706.Replace($metaBoundsOld706, $metaBoundsNew706)
+          [IO.File]::WriteAllText($metaCos706Path, $metaCos706, [Text.UTF8Encoding]::new($false))
+
+          $nativesCos706Path = "$env:TPR_SRC\src\dusk\mods\loader\natives.cpp"
+          $nativesCos706 = [IO.File]::ReadAllText($nativesCos706Path).Replace("`r`n", "`n")
+          $builtinIdOld706 = 'constexpr std::string_view k_builtinRandomizerId = "dev.twilitrealm.randomizer"sv;'
+          $builtinIdNew706 = @(
+            'constexpr std::string_view k_builtinRandomizerId = "dev.twilitrealm.randomizer"sv;',
+            'constexpr std::string_view k_builtinCosmeticsId = "dev.twilitrealm.cosmetics"sv;',
+            '',
+            'extern "C" {',
+            'extern ModContext* cosmetics_mod_ctx;',
+            'extern const ModMeta cosmetics_mod_meta;',
+            'ModResult cosmetics_mod_initialize(ModError*);',
+            'ModResult cosmetics_mod_update(ModError*);',
+            'ModResult cosmetics_mod_shutdown(ModError*);',
+            '}'
+          ) -join "`n"
+          if (-not $nativesCos706.Contains($builtinIdOld706)) {
+            throw 'Built-in Randomizer ID anchor changed before .706 Cosmetics integration.'
+          }
+          $nativesCos706 = $nativesCos706.Replace($builtinIdOld706, $builtinIdNew706)
+
+          $loaderTailOld706 = @(
+            '    startup_guard::stage("native.ready:dev.twilitrealm.randomizer:built-in");',
+            '    return true;',
+            '}',
+            '#endif'
+          ) -join "`n"
+          $loaderTailNew706 = @(
+            '    startup_guard::stage("native.ready:dev.twilitrealm.randomizer:built-in");',
+            '    return true;',
+            '}',
+            '',
+            'bool load_builtin_cosmetics(LoadedMod& mod, const fs::path& cacheDir) {',
+            '    const fs::path scratchDir = cacheDir / mod.metadata.id / "data";',
+            '    std::error_code ec;',
+            '    fs::create_directories(scratchDir, ec);',
+            '    if (ec) {',
+            '        log::write(mod.metadata.id, LOG_LEVEL_ERROR,',
+            '            "failed to create built-in mod directory {}: {}",',
+            '            data::abbreviated_path_string(scratchDir), ec.message());',
+            '        mod.nativeStatus = NativeModStatus::Unknown;',
+            '        return false;',
+            '    }',
+            '    auto native = std::make_unique<NativeMod>();',
+            '    native->meta = &cosmetics_mod_meta;',
+            '    native->contextSymbol = &cosmetics_mod_ctx;',
+            '    native->fn_initialize = &cosmetics_mod_initialize;',
+            '    native->fn_update = &cosmetics_mod_update;',
+            '    native->fn_shutdown = &cosmetics_mod_shutdown;',
+            '    if (!parse_meta(*native, mod)) {',
+            '        return false;',
+            '    }',
+            '    *native->contextSymbol = mod.context.get();',
+            '    mod.dir = fs::absolute(scratchDir);',
+            '    mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);',
+            '    mod.nativeDir = fs::absolute(mod.modPath);',
+            '    mod.nativeDirUtf8 = borealis::io::fs_path_to_string(mod.nativeDir);',
+            '    mod.native = std::move(native);',
+            '    mod.nativeStatus = NativeModStatus::Loaded;',
+            '    startup_guard::stage("native.ready:dev.twilitrealm.cosmetics:built-in");',
+            '    return true;',
+            '}',
+            '#endif'
+          ) -join "`n"
+          if (-not $nativesCos706.Contains($loaderTailOld706)) {
+            throw 'Built-in Randomizer loader tail changed before .706 Cosmetics integration.'
+          }
+          $nativesCos706 = $nativesCos706.Replace($loaderTailOld706, $loaderTailNew706)
+
+          $selectOld706 = @(
+            '        return true;',
+            '    }',
+            '#endif',
+            '    const auto result = locate_native_runtime(*mod.bundle);'
+          ) -join "`n"
+          $selectNew706 = @(
+            '        return true;',
+            '    }',
+            '    if (mod.metadata.id == k_builtinCosmeticsId) {',
+            '        mod.nativeStatus = NativeModStatus::Unknown;',
+            '        if (!load_builtin_cosmetics(mod, m_cacheDir)) {',
+            '            fail_mod(mod, MOD_ERROR, native_status_message(mod.nativeStatus));',
+            '            return false;',
+            '        }',
+            '        return true;',
+            '    }',
+            '#endif',
+            '    const auto result = locate_native_runtime(*mod.bundle);'
+          ) -join "`n"
+          if (-not $nativesCos706.Contains($selectOld706)) {
+            throw 'Built-in native selection anchor changed before .706 Cosmetics integration.'
+          }
+          $nativesCos706 = $nativesCos706.Replace($selectOld706, $selectNew706)
+
+          $unloadOld706 = '    if (mod.metadata.id == k_builtinRandomizerId && !mod.native->handle) {'
+          $unloadNew706 = '    if ((mod.metadata.id == k_builtinRandomizerId || mod.metadata.id == k_builtinCosmeticsId) && !mod.native->handle) {'
+          if (-not $nativesCos706.Contains($unloadOld706)) {
+            throw 'Built-in native unload anchor changed before .706 Cosmetics integration.'
+          }
+          $nativesCos706 = $nativesCos706.Replace($unloadOld706, $unloadNew706)
+          [IO.File]::WriteAllText($nativesCos706Path, $nativesCos706, [Text.UTF8Encoding]::new($false))
+
+          $uwpCos706Path = "$env:TPR_SRC\platforms\uwp\CMakeLists.txt"
+          $uwpCos706 = [IO.File]::ReadAllText($uwpCos706Path).Replace("`r`n", "`n")
+          $bundleOld706 = @(
+            'set(_randomizer_bundle "${DUSK_DIR}/bundled_mods/randomizer.dusk")',
+            'foreach (_required_file "${_feed_archive}" "${_randomizer_bundle}")'
+          ) -join "`n"
+          $bundleNew706 = @(
+            'set(_randomizer_bundle "${DUSK_DIR}/bundled_mods/randomizer.dusk")',
+            'set(_cosmetics_bundle "${DUSK_DIR}/bundled_mods/cosmetics.dusk")',
+            'foreach (_required_file "${_feed_archive}" "${_randomizer_bundle}" "${_cosmetics_bundle}")'
+          ) -join "`n"
+          if (-not $uwpCos706.Contains($bundleOld706)) {
+            throw 'UWP bundled-mod required-file anchor changed before .706 Cosmetics integration.'
+          }
+          $uwpCos706 = $uwpCos706.Replace($bundleOld706, $bundleNew706)
+
+          $archiveAnchor706 = 'list(GET _randomizer_archives 0 _randomizer_archive)'
+          $archiveNew706 = @(
+            'list(GET _randomizer_archives 0 _randomizer_archive)',
+            '',
+            'file(GLOB_RECURSE _cosmetics_archives LIST_DIRECTORIES FALSE',
+            '        "${DUSK_DIR}/mods/cosmetics/cosmetics.lib")',
+            'list(LENGTH _cosmetics_archives _cosmetics_archive_count)',
+            'if (NOT _cosmetics_archive_count EQUAL 1)',
+            '    message(FATAL_ERROR',
+            '            "Expected exactly one built-in Cosmetics archive; found ${_cosmetics_archive_count}")',
+            'endif ()',
+            'list(GET _cosmetics_archives 0 _cosmetics_archive)'
+          ) -join "`n"
+          if (-not $uwpCos706.Contains($archiveAnchor706)) {
+            throw 'UWP Randomizer archive anchor changed before .706 Cosmetics integration.'
+          }
+          $uwpCos706 = $uwpCos706.Replace($archiveAnchor706, $archiveNew706)
+
+          $pkgAnchor706 = 'uwp_pkg(${PROJECT_NAME} "${DUSK_SOURCE_DIR}/res" "res")'
+          $pkgNew706 = @(
+            'set(_cosmetics_package_dir "${CMAKE_CURRENT_BINARY_DIR}/packaged-cosmetics")',
+            'file(REMOVE_RECURSE "${_cosmetics_package_dir}")',
+            'file(MAKE_DIRECTORY "${_cosmetics_package_dir}")',
+            'file(ARCHIVE_EXTRACT INPUT "${_cosmetics_bundle}" DESTINATION "${_cosmetics_package_dir}")',
+            'if (NOT EXISTS "${_cosmetics_package_dir}/mod.json")',
+            '    message(FATAL_ERROR "Expanded Cosmetics payload is missing mod.json")',
+            'endif ()',
+            'if (EXISTS "${_cosmetics_package_dir}/lib")',
+            '    message(FATAL_ERROR "Built-in Cosmetics bundle unexpectedly contains a native DLL")',
+            'endif ()',
+            'file(GLOB_RECURSE _cosmetics_package_files LIST_DIRECTORIES FALSE',
+            '        RELATIVE "${_cosmetics_package_dir}" "${_cosmetics_package_dir}/*")',
+            'foreach (_relative_file IN LISTS _cosmetics_package_files)',
+            '    set(_source_file "${_cosmetics_package_dir}/${_relative_file}")',
+            '    get_filename_component(_relative_dir "${_relative_file}" DIRECTORY)',
+            '    if (_relative_dir STREQUAL "")',
+            '        set(_deployment_dir "mods/cosmetics")',
+            '    else ()',
+            '        set(_deployment_dir "mods/cosmetics/${_relative_dir}")',
+            '    endif ()',
+            '    set_source_files_properties("${_source_file}" PROPERTIES',
+            '            VS_COPY_TO_OUT_DIR Always',
+            '            VS_DEPLOYMENT_CONTENT TRUE',
+            '            VS_DEPLOYMENT_LOCATION "${_deployment_dir}")',
+            '    target_sources(${PROJECT_NAME} PRIVATE "${_source_file}")',
+            'endforeach ()',
+            '',
+            'uwp_pkg(${PROJECT_NAME} "${DUSK_SOURCE_DIR}/res" "res")'
+          ) -join "`n"
+          if (-not $uwpCos706.Contains($pkgAnchor706)) {
+            throw 'UWP package helper anchor changed before .706 Cosmetics integration.'
+          }
+          $uwpCos706 = $uwpCos706.Replace($pkgAnchor706, $pkgNew706)
+
+          $linkOld706 = @(
+            'target_link_libraries(${PROJECT_NAME} PRIVATE',
+            '    "${_randomizer_archive}"',
+            '    "${_feed_archive}"'
+          ) -join "`n"
+          $linkNew706 = @(
+            'target_link_libraries(${PROJECT_NAME} PRIVATE',
+            '    "${_randomizer_archive}"',
+            '    "${_cosmetics_archive}"',
+            '    "${_feed_archive}"'
+          ) -join "`n"
+          if (-not $uwpCos706.Contains($linkOld706)) {
+            throw 'UWP archive link anchor changed before .706 Cosmetics integration.'
+          }
+          $uwpCos706 = $uwpCos706.Replace($linkOld706, $linkNew706)
+
+          $wholeOld706 = '    "/WHOLEARCHIVE:${_randomizer_archive}"'
+          $wholeNew706 = @(
+            '    "/WHOLEARCHIVE:${_randomizer_archive}"',
+            '    "/WHOLEARCHIVE:${_cosmetics_archive}"'
+          ) -join "`n"
+          if (-not $uwpCos706.Contains($wholeOld706)) {
+            throw 'UWP Randomizer WHOLEARCHIVE anchor changed before .706 Cosmetics integration.'
+          }
+          $uwpCos706 = $uwpCos706.Replace($wholeOld706, $wholeNew706)
+          [IO.File]::WriteAllText($uwpCos706Path, $uwpCos706, [Text.UTF8Encoding]::new($false))
+
+          # Verify the editor surface we expect the user to see.
+          $cosmeticsUi706 = [IO.File]::ReadAllText("$env:TPR_SRC\mods\cosmetics\src\mod.cpp")
+          foreach ($uiMarker706 in @(
+            'Open Cosmetics Menu',
+            'Hero''s Tunic',
+            'Hearts',
+            'Midna''s Hair Base Color',
+            'Wolf Link')) {
+            if (-not $cosmeticsUi706.Contains($uiMarker706)) {
+              throw "Cosmetics editor marker is missing: $uiMarker706"
+            }
+          }
           foreach ($safetyMarker700 in @(
             'autoSkipMajor && !is_trig_skipbtn',
             'evtControl->offSkipFade();',
@@ -2527,6 +2850,8 @@ jobs:
             'readXboxRandomizerSave(mData)',
             'xboxOverlayStableFrames',
             'xboxTextureStableFrames',
+            'DUSK_STATIC_COSMETICS=1',
+            'native.ready:dev.twilitrealm.cosmetics:built-in',
             'randomizer-xbox')) {
             if (-not ($hooks700.Contains($safetyMarker700) -or
                       $memCard700.Contains($safetyMarker700) -or
@@ -2539,6 +2864,9 @@ jobs:
                       $hooks706.Contains($safetyMarker700) -or
                       $overlay706.Contains($safetyMarker700) -or
                       $texture706.Contains($safetyMarker700) -or
+                      $modSdkCos706.Contains($safetyMarker700) -or
+                      $nativesCos706.Contains($safetyMarker700) -or
+                      $uwpCos706.Contains($safetyMarker700) -or
                       $session700.Contains($safetyMarker700))) {
               throw "Xbox .706 runtime safety marker missing: $safetyMarker700"
             }
@@ -4848,6 +5176,30 @@ jobs:
               throw 'Built-in Randomizer still embeds a duplicate header-only fmt implementation.'
             }
           }
+          $cosmeticsDefinitions = @()
+          for ($i = 0; $i -lt $ninjaLines.Count; $i++) {
+            if ($ninjaLines[$i] -match '^build .*cosmetics\.dir.*\.(c|cc|cpp)\.obj:') {
+              for ($j = $i + 1; $j -lt [Math]::Min($i + 12, $ninjaLines.Count); $j++) {
+                if ($ninjaLines[$j] -match '^  DEFINES = ') {
+                  $cosmeticsDefinitions += $ninjaLines[$j]
+                  break
+                }
+              }
+            }
+          }
+          if ($cosmeticsDefinitions.Count -lt 1) {
+            throw 'Could not inspect built-in Cosmetics compile definitions.'
+          }
+          foreach ($definitions in $cosmeticsDefinitions) {
+            foreach ($requiredDefinition in @(
+              'DUSK_STATIC_BUILTIN_MOD=1',
+              'DUSK_STATIC_COSMETICS=1',
+              'mod_ctx=cosmetics_mod_ctx')) {
+              if (-not $definitions.Contains($requiredDefinition)) {
+                throw "Built-in Cosmetics objects are missing $requiredDefinition."
+              }
+            }
+          }
 
       - name: Decide whether full generator certification is required
         shell: powershell
@@ -4891,7 +5243,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $targets = @('dusklight', 'randomizer_package')
+          $targets = @('dusklight', 'randomizer_package', 'cosmetics_package')
           if ($env:RUN_GENERATOR_SUITE -eq 'true') {
             $targets += 'randomizer_generator_tests'
           }
@@ -4907,6 +5259,12 @@ jobs:
           }
           if (-not (Test-Path "$env:TPR_FEED\mods\randomizer\randomizer.lib" -PathType Leaf)) {
             throw 'Built-in randomizer.lib was not produced.'
+          }
+          if (-not (Test-Path "$env:TPR_FEED\bundled_mods\cosmetics.dusk" -PathType Leaf)) {
+            throw 'Bundled cosmetics.dusk was not produced.'
+          }
+          if (-not (Test-Path "$env:TPR_FEED\mods\cosmetics\cosmetics.lib" -PathType Leaf)) {
+            throw 'Built-in cosmetics.lib was not produced.'
           }
 
       - name: Certify Randomizer generator scenarios
@@ -5041,9 +5399,11 @@ jobs:
           }
           $exe = "$env:TPR_MSIX_INSPECT\TwilightPrincessRandomizer.exe"
           $packagedModRoot = "$env:TPR_MSIX_INSPECT\mods\randomizer"
+          $packagedCosmeticsRoot = "$env:TPR_MSIX_INSPECT\mods\cosmetics"
           foreach ($required in @(
             $exe,
             "$packagedModRoot\mod.json",
+            "$packagedCosmeticsRoot\mod.json",
             "$packagedModRoot\res\models\boss_souls\boss_soul_argorok.bmd",
             "$packagedModRoot\res\models\boss_souls\boss_soul_zant.bmd",
             "$env:TPR_MSIX_INSPECT\SDL3.dll",
@@ -5060,6 +5420,11 @@ jobs:
             Where-Object { $_.Extension -in '.dll','.exe' })
           if ($separateModCode.Count -ne 0 -or (Test-Path "$packagedModRoot\lib")) {
             throw 'MSIX still contains a separately loaded Randomizer native image.'
+          }
+          $separateCosmeticsCode = @(Get-ChildItem $packagedCosmeticsRoot -Recurse -File |
+            Where-Object { $_.Extension -in '.dll','.exe' })
+          if ($separateCosmeticsCode.Count -ne 0 -or (Test-Path "$packagedCosmeticsRoot\lib")) {
+            throw 'MSIX still contains a separately loaded Cosmetics native image.'
           }
 
           $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-706-feed-module'
@@ -5343,7 +5708,7 @@ jobs:
             overlayRuntimePatchSha256 = '14ce6714583a84f4258dacd4b00f1a6897bff4b867b19c4d5aeacb99aa2b0b8f'
             sdlMainHandledPatchSha256 = '90877b6c7e6fcbff29375b73d86c5da5f31669379f5284a41dcb154b7f4aa2a2'
             xboxStartupGuard = 'Mode carousel is selection-only; Play activates hooks and exits before another launcher frame; Xbox core audio uses callback-free queue pumping; damaged/no-card name-entry routes are gated through Randomizer seed selection; runtime mod-failure toasts include the exact reason'
-            nativeModuleDeployment = 'Single signed native executable; packaged mods/randomizer contains data only and no DLL'
+            nativeModuleDeployment = 'Single signed native executable; packaged Randomizer and Cosmetics contain data only and no DLL'
             uwpDependency = '810cdcb672383045a8b03d1d55bb535352d7d46f'
             sdl3Sha256 = 'f288fd682ea19fa82bf9bbbfefab4132853555ad6dfe37cbe9f9c55acff4bf06'
             dawnSha256 = 'd1126d70c0eee87d69b802d10527d3dc301fce7514a206112ed4056cbf5b6910'
@@ -5352,6 +5717,7 @@ jobs:
             controllerCursor = $true
             textureZipAutoload = $true
             menuColorRandomization = $true
+            cosmeticsEditor = $true
             xboxAssetMods = 'overlay and texture services restored after 60 stable gameplay frames'
             restoredRandomizerRows = 7
             enemySouls = $true

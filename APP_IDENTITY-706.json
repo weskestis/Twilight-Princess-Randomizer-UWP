@@ -10,5 +10,6 @@
   "modRestore": "overlay and texture services delayed until 60 stable gameplay frames",
   "audioStatus": "native XAudio2 retained",
   "startupJournal": "xbox-startup-stage-706.txt",
-  "launcherVersion": "1.4.1.706"
+  "launcherVersion": "1.4.1.706",
+  "cosmetics": "official Dusklight Cosmetics built into the single signed executable with separate metadata section"
 }
