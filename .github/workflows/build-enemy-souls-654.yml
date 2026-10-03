@@ -1,4 +1,4 @@
-name: Build Runtime Load and Shop Hotfix 658
+name: Build Legacy 658 Side-by-Side
 # Build control revision: runtime-load-and-shop-stability-v3
 
 on:
@@ -6,6 +6,7 @@ on:
     branches:
       - codex/enemy-souls-654-build
       - rebuild/1.4.658
+      - legacy/1.4.658-side-by-side
   workflow_dispatch:
 
 permissions:
@@ -1737,6 +1738,47 @@ jobs:
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
 
+      - name: Assign Legacy 658 side-by-side UWP identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
+          $manifest = [IO.File]::ReadAllText($manifestPath)
+
+          $expectedIdentity = 'Name="TwilightPrincessRandomizer" Publisher="CN=TwilightPrincessRandomizer" Version="1.4.1.658"'
+          if (-not $manifest.Contains($expectedIdentity)) {
+            throw 'Expected original .658 UWP identity was not present before Legacy conversion.'
+          }
+
+          $manifest = $manifest.Replace(
+            $expectedIdentity,
+            'Name="TwilightPrincessRandomizerLegacy658" Publisher="CN=TwilightPrincessRandomizer" Version="1.4.1.658"')
+          $manifest = $manifest.Replace(
+            '<DisplayName>Twilight Princess Randomizer</DisplayName>',
+            '<DisplayName>Twilight Princess Randomizer Legacy 658</DisplayName>')
+          $manifest = $manifest.Replace(
+            'DisplayName="Twilight Princess Randomizer" Square150x150Logo=',
+            'DisplayName="Twilight Princess Randomizer Legacy 658" Square150x150Logo=')
+          $manifest = $manifest.Replace(
+            'Description="Twilight Princess Randomizer for Xbox/UWP"',
+            'Description="Twilight Princess Randomizer Legacy 658 for Xbox/UWP"')
+          $manifest = $manifest.Replace(
+            'PhoneProductId="e3b5e8e8-c7e7-5c3d-affa-0500675ffa0d"',
+            'PhoneProductId="65865865-8658-4658-8658-658658658658"')
+
+          foreach ($required in @(
+            'Name="TwilightPrincessRandomizerLegacy658"',
+            '<DisplayName>Twilight Princess Randomizer Legacy 658</DisplayName>',
+            'DisplayName="Twilight Princess Randomizer Legacy 658"',
+            'PhoneProductId="65865865-8658-4658-8658-658658658658"')) {
+            if (-not $manifest.Contains($required)) {
+              throw "Legacy 658 manifest conversion is missing: $required"
+            }
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [IO.File]::WriteAllText($manifestPath, $manifest, $utf8NoBom)
+
       - name: Emit patch mismatch diagnostics
         if: failure()
         shell: powershell
@@ -1774,6 +1816,9 @@ jobs:
           $manifest = Get-Content "$env:TPR_SRC\platforms\uwp\Package.appxmanifest" -Raw
           if ($manifest -notmatch 'Version="1[.]4[.]1[.]658"') {
             throw 'Assembled package identity is not 1.4.1.658.'
+          }
+          if ($manifest -notmatch 'Name="TwilightPrincessRandomizerLegacy658"') {
+            throw 'Assembled package identity is not the side-by-side Legacy 658 app.'
           }
 
           $checks = @(
@@ -2069,7 +2114,7 @@ jobs:
             throw 'UWP build did not produce an MSIX package.'
           }
 
-          $package = Join-Path $packageDir 'TwilightPrincessRandomizer_1.4.1.658_x64.msix'
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizerLegacy658_1.4.1.658_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -2080,9 +2125,11 @@ jobs:
             $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
             try { $packageManifest = $reader.ReadToEnd() }
             finally { $reader.Dispose() }
-            if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizer"' -or
-                $packageManifest -notmatch 'Version="1[.]4[.]1[.]658"') {
-              throw 'Signed MSIX identity/version is not the expected .658 in-place update.'
+            if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizerLegacy658"' -or
+                $packageManifest -notmatch 'Version="1[.]4[.]1[.]658"' -or
+                $packageManifest -notmatch '<DisplayName>Twilight Princess Randomizer Legacy 658</DisplayName>' -or
+                $packageManifest -notmatch 'DisplayName="Twilight Princess Randomizer Legacy 658"') {
+              throw 'Signed MSIX identity/version is not the expected side-by-side Legacy 658 app.'
             }
 
             $exeEntry = $archive.GetEntry('TwilightPrincessRandomizer.exe')
@@ -2200,11 +2247,15 @@ jobs:
 
           $identity = Get-Content "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Raw |
             ConvertFrom-Json
+          $identity.package_identity = 'TwilightPrincessRandomizerLegacy658'
+          $identity.display_name = 'Twilight Princess Randomizer Legacy 658'
+          $identity.description = 'Twilight Princess Randomizer Legacy 658 for Xbox/UWP'
+          $identity.phone_product_id = '65865865-8658-4658-8658-658658658658'
           $identity.version = '1.4.1.658'
           $identity | ConvertTo-Json | Set-Content `
             "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
           $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
-          $nextInstallInstruction = 'Do **not** uninstall your current working build. Deploy `.658` over it'
+          $nextInstallInstruction = 'Legacy 658 is a **separate side-by-side app**. Install it alongside your current development build; do **not** uninstall either app. Legacy 658 has separate saves/settings/LocalState.'
           $knownInstallInstructions = @(
             'Do **not** uninstall `.633`. Deploy `.634` over it',
             'Do **not** uninstall `.635`. Deploy `.636` over it',
@@ -2234,7 +2285,7 @@ jobs:
             $installGuide = $installGuide.Replace($knownInstruction, $nextInstallInstruction)
           }
           if (-not $installGuide.Contains($nextInstallInstruction)) {
-            throw 'Xbox install guide could not be advanced to the .658 in-place update instructions.'
+            throw 'Xbox install guide could not be advanced to the Legacy 658 side-by-side instructions.'
           }
           Set-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" $installGuide -Encoding UTF8
 
@@ -2244,7 +2295,7 @@ jobs:
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
 
           $supportDir = Join-Path $packageDir 'Support'
-          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-1.4.1.658-Xbox-Support.zip'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-Legacy-1.4.1.658-Xbox-Support.zip'
           New-Item -ItemType Directory -Force $supportDir | Out-Null
           Copy-Item @(
             (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
@@ -2335,7 +2386,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.658-Private-Test
+          name: Twilight-Princess-Randomizer-UWP-Legacy-1.4.1.658-Side-by-Side
           path: TPR-Xbox-Package/
           if-no-files-found: error
           retention-days: 14
@@ -2354,10 +2405,14 @@ jobs:
             throw 'No verified package files are available for private handoff.'
           }
 
-          $tag = "tpr-uwp-1.4.1.658-private-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          $title = 'Twilight Princess Randomizer UWP 1.4.1.658 Private Test'
+          $tag = "tpr-uwp-legacy-1.4.1.658-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer Legacy 658 Side-by-Side'
           $notes = @'
-          PRIVATE DRAFT TEST BUILD — NOT PUBLISHED
+          PRIVATE SIDE-BY-SIDE LEGACY BUILD — NOT PUBLISHED
+
+          This package uses the independent UWP identity TwilightPrincessRandomizerLegacy658.
+          It can remain installed alongside the current TwilightPrincessRandomizer development app.
+          Its LocalState, saves, settings, and generated seed storage are separate from the development app.
 
           This .658 hotfix fixes the reported post-seed boot and randomized-cave load failures.
           Locked Enemy Soul actors are now rejected cleanly before their subclass constructor runs,
