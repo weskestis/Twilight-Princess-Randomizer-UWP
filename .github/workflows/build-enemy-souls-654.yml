@@ -6,7 +6,6 @@ on:
     branches:
       - codex/enemy-souls-654-build
       - rebuild/1.4.658
-      - legacy/1.4.658-side-by-side
   workflow_dispatch:
 
 permissions:
