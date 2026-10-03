@@ -5207,39 +5207,47 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $baseline = 'ed81ef9d93c354f842b44be98fa7c4030b136dd2'
+          # Run 37083344092 reached and passed all 58 generator scenarios at this exact
+          # .706 source state before failing later in the final Cosmetics link. Reuse
+          # that certification unless generator-sensitive controls changed afterward.
+          $baseline = 'fd9646860ca16b30a05463682b9d0b808ec42fc4'
           git -C "$env:TPR_CONTROL" fetch --depth 1 origin $baseline
-          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .688 generator baseline.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .706 generator baseline.' }
 
           $changed = @(git -C "$env:TPR_CONTROL" diff --name-only $baseline HEAD)
-          $workflowText = Get-Content "$env:TPR_CONTROL\.github\workflows\build-dusklight2-xbox-660.yml" -Raw
-          $generatorSensitive = @($changed | Where-Object {
-            $_ -match '(?i)(randomizer|enemy|boss|pot|pumpkin|shop|entrance|seed|logic|soul|breakable|item)'
+          $generatorPattern = '(?i)(randomizer|enemy|boss|pot|pumpkin|shop|entrance|seed|logic|soul|breakable|item)'
+          $generatorSensitive = @($changed | Where-Object { $_ -match $generatorPattern })
+
+          # Most .706 implementation work lives inside this workflow, so inspect the
+          # actual changed workflow lines too instead of relying only on its filename.
+          $workflowPath = '.github/workflows/build-dusklight2-xbox-660.yml'
+          $workflowDiff = @(git -C "$env:TPR_CONTROL" diff --unified=0 $baseline HEAD -- $workflowPath)
+          $generatorSensitiveWorkflow = @($workflowDiff | Where-Object {
+            ($_ -match '^[+-](?![+-])') -and ($_ -match $generatorPattern)
           })
 
-          $runSuite = $generatorSensitive.Count -gt 0
+          $workflowText = Get-Content "$env:TPR_CONTROL\$workflowPath" -Raw
+          $runSuite = ($generatorSensitive.Count -gt 0) -or ($generatorSensitiveWorkflow.Count -gt 0)
           if (-not $workflowText.Contains('d0ceae8f18bbef4a40287a72a2791a3c06c9aca5')) {
             $runSuite = $true
-            Write-Host 'Randomizer upstream pin changed from the certified .679 input.'
+            Write-Host 'Randomizer upstream pin changed from the certified .706 input.'
           }
-
-          $runSuite = $true
-          Write-Host '.706 preserves the working direct Randomizer save, restores delayed asset mods, and removes the unsafe immediate auto-skip fade shortcut from loading transitions.'
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
             Write-Host 'Generator-sensitive inputs changed; all 58 settings scenarios will run.'
             if ($generatorSensitive.Count -gt 0) {
-              Write-Host ('Generator-sensitive control changes: ' + ($generatorSensitive -join ', '))
+              Write-Host ('Generator-sensitive control files: ' + ($generatorSensitive -join ', '))
+            }
+            if ($generatorSensitiveWorkflow.Count -gt 0) {
+              Write-Host 'Generator-sensitive workflow lines changed after the certified .706 baseline.'
             }
           }
           else {
             "RUN_GENERATOR_SUITE=false" >> $env:GITHUB_ENV
-            Write-Host 'Reusing all-58-scenario generator certification from .688 run 36657213524.'
-            Write-Host 'No Randomizer/generator-sensitive inputs changed from certified commit ed81ef9d.'
+            Write-Host 'Reusing all-58-scenario generator certification from .706 run 37083344092.'
+            Write-Host 'No generator-sensitive inputs changed after fd964686.'
           }
-          # Run 36657213524 certified all 58 generator scenarios with the 3-attempt harness at ed81ef9d.
-          # Re-run the suite only when generator-sensitive inputs change after that certified point.
 
       - name: Compile core, built-in Randomizer, and package
         shell: powershell
