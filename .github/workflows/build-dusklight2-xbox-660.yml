@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 710
+name: Build Dusklight 2.0.1 Xbox 711
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-710-release-${{ github.ref }}
+  group: xbox-711-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 710 identity
+      - name: Apply reviewed source layers and advance 711 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -184,7 +184,7 @@ jobs:
 
           $duskPatch = Expand-ControlPatch `
             'dusklight201-uwp-662' `
-            '82302f5d940161c1458950a3352bc71048f379a2a39b884d2eddbce227c415bc' `
+            '82302f5d940161c1458950a3352bc71148f379a2a39b884d2eddbce227c415bc' `
             '095f123e3469f636f7491f6e6b092e8a0bf097a926a9b34ae736382e159fc123' `
             '7ea1bb82f45f54c333f682639250986930628cab71d2353d58cf9688b243f393'
           $auroraPatch = Expand-ControlPatch `
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-710.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-711.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -2444,25 +2444,25 @@ jobs:
           if (-not $overlay706.Contains($overlayQuarantine706)) {
             throw 'Xbox overlay quarantine block changed before .706.'
           }
-          # .710: keep Xbox DVD overlays enabled and trace the exact sync operation.
+          # .711: keep Xbox DVD overlays enabled and trace the exact sync operation.
           $overlay706 = $overlay706.Replace($overlayQuarantine706, $overlayDeferred706)
-          $overlaySyncBeginOld710 = 'void overlay_sync_files() {'
-          $overlaySyncBeginNew710 = @(
+          $overlaySyncBeginOld711 = 'void overlay_sync_files() {'
+          $overlaySyncBeginNew711 = @(
             'void overlay_sync_files() {',
             '    startup_guard::stage("overlay.sync.begin");'
           ) -join "`n"
-          if (-not $overlay706.Contains($overlaySyncBeginOld710)) {
-            throw 'Overlay sync entry changed before .710 diagnostics.'
+          if (-not $overlay706.Contains($overlaySyncBeginOld711)) {
+            throw 'Overlay sync entry changed before .711 diagnostics.'
           }
-          $overlay706 = $overlay706.Replace($overlaySyncBeginOld710, $overlaySyncBeginNew710)
+          $overlay706 = $overlay706.Replace($overlaySyncBeginOld711, $overlaySyncBeginNew711)
 
-          $overlayCallbacksOld710 = @(
+          $overlayCallbacksOld711 = @(
             '    if (!callbacksRegistered) {',
             '        aurora_dvd_overlay_callbacks(&s_overlayCallbacks);',
             '        callbacksRegistered = true;',
             '    }'
           ) -join "`n"
-          $overlayCallbacksNew710 = @(
+          $overlayCallbacksNew711 = @(
             '    if (!callbacksRegistered) {',
             '        startup_guard::stage("overlay.sync.callbacks");',
             '        aurora_dvd_overlay_callbacks(&s_overlayCallbacks);',
@@ -2470,12 +2470,12 @@ jobs:
             '        startup_guard::stage("overlay.sync.callbacks-ready");',
             '    }'
           ) -join "`n"
-          if (-not $overlay706.Contains($overlayCallbacksOld710)) {
-            throw 'Overlay callback registration changed before .710 diagnostics.'
+          if (-not $overlay706.Contains($overlayCallbacksOld711)) {
+            throw 'Overlay callback registration changed before .711 diagnostics.'
           }
-          $overlay706 = $overlay706.Replace($overlayCallbacksOld710, $overlayCallbacksNew710)
+          $overlay706 = $overlay706.Replace($overlayCallbacksOld711, $overlayCallbacksNew711)
 
-          $overlayScanOld710 = @(
+          $overlayScanOld711 = @(
             '    {',
             '        std::lock_guard lock{s_overlayMutex};',
             '        s_overlayFiles.clear();',
@@ -2485,13 +2485,19 @@ jobs:
             '        }',
             '    }'
           ) -join "`n"
-          $overlayScanNew710 = @(
+          $overlayScanNew711 = @(
             '    startup_guard::stage("overlay.sync.scan");',
             '    {',
             '        std::lock_guard lock{s_overlayMutex};',
             '        s_overlayFiles.clear();',
             '        for (auto& mod : ModLoader::instance().active_mods()) {',
             '            startup_guard::stage(std::string{"overlay.sync.mod:"} + mod.metadata.id);',
+            '            if (mod.metadata.id == "dev.twilitrealm.cosmetics" ||',
+            '                mod.metadata.id == "dev.twilitrealm.randomizer")',
+            '            {',
+            '                startup_guard::stage(std::string{"overlay.sync.skip-built-in:"} + mod.metadata.id);',
+            '                continue;',
+            '            }',
             '            if (mod.bundle == nullptr) {',
             '                Log.warn("Skipping overlay scan for {}: no mod bundle", mod.metadata.id);',
             '                continue;',
@@ -2502,17 +2508,17 @@ jobs:
             '    }',
             '    startup_guard::stage("overlay.sync.scan-ready");'
           ) -join "`n"
-          if (-not $overlay706.Contains($overlayScanOld710)) {
-            throw 'Overlay active-mod scan changed before .710 diagnostics.'
+          if (-not $overlay706.Contains($overlayScanOld711)) {
+            throw 'Overlay active-mod scan changed before .711 diagnostics.'
           }
-          $overlay706 = $overlay706.Replace($overlayScanOld710, $overlayScanNew710)
+          $overlay706 = $overlay706.Replace($overlayScanOld711, $overlayScanNew711)
 
-          $overlayAuroraOld710 = @(
+          $overlayAuroraOld711 = @(
             '    Log.debug("Registering {} overlay file(s).", files.size());',
             '    aurora_dvd_overlay_files(files.data(), files.size(), nullptr);',
             '    JKRArchive::notifyOverlayFilesChanged();'
           ) -join "`n"
-          $overlayAuroraNew710 = @(
+          $overlayAuroraNew711 = @(
             '    Log.debug("Registering {} overlay file(s).", files.size());',
             '    startup_guard::stage("overlay.sync.aurora-files");',
             '    aurora_dvd_overlay_files(files.data(), files.size(), nullptr);',
@@ -2521,10 +2527,10 @@ jobs:
             '    JKRArchive::notifyOverlayFilesChanged();',
             '    startup_guard::stage("overlay.sync.ready");'
           ) -join "`n"
-          if (-not $overlay706.Contains($overlayAuroraOld710)) {
-            throw 'Overlay Aurora registration changed before .710 diagnostics.'
+          if (-not $overlay706.Contains($overlayAuroraOld711)) {
+            throw 'Overlay Aurora registration changed before .711 diagnostics.'
           }
-          $overlay706 = $overlay706.Replace($overlayAuroraOld710, $overlayAuroraNew710)
+          $overlay706 = $overlay706.Replace($overlayAuroraOld711, $overlayAuroraNew711)
 
           [IO.File]::WriteAllText($overlay706Path, $overlay706, [Text.UTF8Encoding]::new($false))
 
@@ -2591,45 +2597,51 @@ jobs:
             throw 'Xbox texture quarantine block changed before .706.'
           }
           $texture706 = $texture706.Replace($textureQuarantine706, $textureDeferred706)
-          $textureSyncBeginOld710 = 'void textures_sync_replacements() {'
-          $textureSyncBeginNew710 = @(
+          $textureSyncBeginOld711 = 'void textures_sync_replacements() {'
+          $textureSyncBeginNew711 = @(
             'void textures_sync_replacements() {',
             '    startup_guard::stage("texture.sync.begin");',
             '    startup_guard::stage("texture.sync.cleanup");'
           ) -join "`n"
-          if (-not $texture706.Contains($textureSyncBeginOld710)) {
-            throw 'Texture sync entry changed before .710 diagnostics.'
+          if (-not $texture706.Contains($textureSyncBeginOld711)) {
+            throw 'Texture sync entry changed before .711 diagnostics.'
           }
-          $texture706 = $texture706.Replace($textureSyncBeginOld710, $textureSyncBeginNew710)
+          $texture706 = $texture706.Replace($textureSyncBeginOld711, $textureSyncBeginNew711)
 
-          $textureLoopOld710 = '    for (auto& mod : ModLoader::instance().active_mods()) {'
-          $textureLoopNew710 = @(
+          $textureLoopOld711 = '    for (auto& mod : ModLoader::instance().active_mods()) {'
+          $textureLoopNew711 = @(
             '    startup_guard::stage("texture.sync.cleanup-ready");',
             '    startup_guard::stage("texture.sync.scan");',
             '    for (auto& mod : ModLoader::instance().active_mods()) {',
             '        startup_guard::stage(std::string{"texture.sync.mod:"} + mod.metadata.id);',
+            '        if (mod.metadata.id == "dev.twilitrealm.cosmetics" ||',
+            '            mod.metadata.id == "dev.twilitrealm.randomizer")',
+            '        {',
+            '            startup_guard::stage(std::string{"texture.sync.skip-built-in:"} + mod.metadata.id);',
+            '            continue;',
+            '        }',
             '        if (mod.bundle == nullptr) {',
             '            Log.warn("[{}] skipping texture scan: no mod bundle", mod.metadata.id);',
             '            continue;',
             '        }'
           ) -join "`n"
-          if (-not $texture706.Contains($textureLoopOld710)) {
-            throw 'Texture active-mod loop changed before .710 diagnostics.'
+          if (-not $texture706.Contains($textureLoopOld711)) {
+            throw 'Texture active-mod loop changed before .711 diagnostics.'
           }
-          $texture706 = $texture706.Replace($textureLoopOld710, $textureLoopNew710)
+          $texture706 = $texture706.Replace($textureLoopOld711, $textureLoopNew711)
 
-          $textureStaticOld710 = '            register_static_textures(mod, record);'
-          $textureStaticNew710 = @(
+          $textureStaticOld711 = '            register_static_textures(mod, record);'
+          $textureStaticNew711 = @(
             '            startup_guard::stage("texture.sync.register-static");',
             '            register_static_textures(mod, record);',
             '            startup_guard::stage("texture.sync.register-static-ready");'
           ) -join "`n"
-          $textureStaticMatches710 = ([regex]::Matches(
-            $texture706, [regex]::Escape($textureStaticOld710))).Count
-          if ($textureStaticMatches710 -lt 1) {
-            throw 'Texture static registration changed before .710 diagnostics.'
+          $textureStaticMatches711 = ([regex]::Matches(
+            $texture706, [regex]::Escape($textureStaticOld711))).Count
+          if ($textureStaticMatches711 -lt 1) {
+            throw 'Texture static registration changed before .711 diagnostics.'
           }
-          $texture706 = $texture706.Replace($textureStaticOld710, $textureStaticNew710)
+          $texture706 = $texture706.Replace($textureStaticOld711, $textureStaticNew711)
 
           [IO.File]::WriteAllText($texture706Path, $texture706, [Text.UTF8Encoding]::new($false))
 
@@ -2976,30 +2988,30 @@ jobs:
             throw 'Official Cosmetics MenuRing hook anchor changed before .706 Xbox hardening.'
           }
           $cosmeticsHooks706 = $cosmeticsHooks706.Replace($menuRingHookOld706, $menuRingHookNew706)
-          $menuRingRegisterOld710 =
+          $menuRingRegisterOld711 =
             '    ADD_POST_HOOK(MenuRingCreate, menu_ring_create_post, dMenu_Ring_c::_create)'
-          $menuRingRegisterNew710 = @(
+          $menuRingRegisterNew711 = @(
             '#if !defined(_UWP)',
             '    ADD_POST_HOOK(MenuRingCreate, menu_ring_create_post, dMenu_Ring_c::_create)',
             '#endif'
           ) -join "`n"
-          if (-not $cosmeticsHooks706.Contains($menuRingRegisterOld710)) {
-            throw 'Official Cosmetics MenuRing registration anchor changed before .710.'
+          if (-not $cosmeticsHooks706.Contains($menuRingRegisterOld711)) {
+            throw 'Official Cosmetics MenuRing registration anchor changed before .711.'
           }
           $cosmeticsHooks706 = $cosmeticsHooks706.Replace(
-            $menuRingRegisterOld710, $menuRingRegisterNew710)
+            $menuRingRegisterOld711, $menuRingRegisterNew711)
 
-          $menuRingUninstallOld710 = '    UNINSTALL_HOOK(MenuRingCreate)'
-          $menuRingUninstallNew710 = @(
+          $menuRingUninstallOld711 = '    UNINSTALL_HOOK(MenuRingCreate)'
+          $menuRingUninstallNew711 = @(
             '#if !defined(_UWP)',
             '    UNINSTALL_HOOK(MenuRingCreate)',
             '#endif'
           ) -join "`n"
-          if (-not $cosmeticsHooks706.Contains($menuRingUninstallOld710)) {
-            throw 'Official Cosmetics MenuRing uninstall anchor changed before .710.'
+          if (-not $cosmeticsHooks706.Contains($menuRingUninstallOld711)) {
+            throw 'Official Cosmetics MenuRing uninstall anchor changed before .711.'
           }
           $cosmeticsHooks706 = $cosmeticsHooks706.Replace(
-            $menuRingUninstallOld710, $menuRingUninstallNew710)
+            $menuRingUninstallOld711, $menuRingUninstallNew711)
           [IO.File]::WriteAllText(
             $cosmeticsHooks706Path, $cosmeticsHooks706, [Text.UTF8Encoding]::new($false))
           if (-not $cosmeticsHooks706.Contains(
@@ -3054,7 +3066,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.710");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.711");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -3108,6 +3120,7 @@ jobs:
             'overlay.sync.begin',
             'overlay.sync.callbacks',
             'overlay.sync.scan',
+            'overlay.sync.skip-built-in:dev.twilitrealm.cosmetics',
             'overlay.sync.aurora-files',
             'overlay.sync.jkr-notify',
             'overlay.sync.ready')) {
@@ -3123,6 +3136,7 @@ jobs:
             'texture.sync.begin',
             'texture.sync.cleanup',
             'texture.sync.scan',
+            'texture.sync.skip-built-in:dev.twilitrealm.cosmetics',
             'texture.sync.register-static',
             '.lifecycleApplied = textures_lifecycle_applied',
             '.frameEnd = textures_frame_end')) {
@@ -3158,7 +3172,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-710.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-711.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
@@ -3272,7 +3286,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.710");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.711");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -5214,7 +5228,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.710"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.711"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -5387,7 +5401,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          # Run 37103344092 reached and passed all 58 generator scenarios at this exact
+          # Run 37113344092 reached and passed all 58 generator scenarios at this exact
           # .706 source state before failing later in the final Cosmetics link. Reuse
           # that certification unless generator-sensitive controls changed afterward.
           $baseline = '0721d1cd2d719719e3f58237c76479113677715f'
@@ -5536,7 +5550,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 710 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 711 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -5563,17 +5577,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 710 package
+      - name: Verify and collect full 711 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-710"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-711"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.710_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.711_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -5585,7 +5599,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.710"',
+            'Version="1.4.1.711"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -5620,7 +5634,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Cosmetics native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-710-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-711-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -5723,7 +5737,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-710.txt',
+            'xbox-startup-stage-711.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -5799,7 +5813,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-710-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-711-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -5819,8 +5833,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-710-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-710-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-711-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-711-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -5863,11 +5877,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-710.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-710.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-711.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-711.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.710'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.711'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -5911,7 +5925,7 @@ jobs:
             textureZipAutoload = $true
             menuColorRandomization = $true
             cosmeticsEditor = $true
-            xboxAssetMods = 'DVD overlay and texture services remain enabled; .710 adds granular Xbox sync diagnostics and null-bundle guards'
+            xboxAssetMods = 'DVD overlay and texture services remain enabled; .711 adds granular Xbox sync diagnostics and null-bundle guards'
             restoredRandomizerRows = 7
             enemySouls = $true
             xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
@@ -5922,13 +5936,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-710.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-711.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.710-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.711-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -5937,7 +5951,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.710-Xbox
-          path: TPR-Xbox-Package-710/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.711-Xbox
+          path: TPR-Xbox-Package-711/*
           if-no-files-found: error
           retention-days: 30

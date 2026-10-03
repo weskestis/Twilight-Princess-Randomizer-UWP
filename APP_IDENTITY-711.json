@@ -1,0 +1,14 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "publisher": "CN=TwilightPrincessRandomizer",
+  "version": "1.4.1.711",
+  "architecture": "x64",
+  "target": "Windows.Universal / Xbox UWP",
+  "base": "1.4.1.710 commit 6c790d957051c2ad6a2a4663819bd17b50584632",
+  "saveStatus": "direct Randomizer LocalState save architecture preserved",
+  "assetServices": "DVD overlay and texture services remain enabled; built-in Randomizer/Cosmetics bundles are skipped only during asset enumeration because they contain no overlay or texture payloads",
+  "audioStatus": "native XAudio2 retained",
+  "startupJournal": "xbox-startup-stage-711.txt",
+  "launcherVersion": "1.4.1.711",
+  "cosmetics": "official Cosmetics editor remains active; shared Xbox MenuRing hook remains isolated"
+}
