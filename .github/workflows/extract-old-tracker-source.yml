@@ -1,0 +1,50 @@
+name: Extract legacy tracker source
+
+on:
+  push:
+    branches:
+      - codex/tracker-source-extract
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - name: Download and extract old tracker source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-source/Twilight-Princess-Randomizer-UWP-Working-627-Zip-Cursor-Tracker-Hotfix-3.zip'
+          $zip = Join-Path $env:RUNNER_TEMP 'old-tracker.zip'
+          $src = Join-Path $env:RUNNER_TEMP 'old-tracker'
+          $out = Join-Path $env:GITHUB_WORKSPACE 'legacy-tracker-source'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $src -Force
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $wanted = @(
+            'ImGuiMenuRandomizer.cpp',
+            'ImGuiMenuRandomizer.hpp',
+            'randomizer_context.hpp',
+            'settings.cpp',
+            'settings.h',
+            'rando_config.cpp',
+            'input.cpp'
+          )
+          foreach ($name in $wanted) {
+            $matches = @(Get-ChildItem $src -Recurse -File -Filter $name)
+            foreach ($match in $matches) {
+              $relative = $match.FullName.Substring($src.Length).TrimStart('\\','/')
+              $safe = ($relative -replace '[:\\/]', '__')
+              Copy-Item $match.FullName (Join-Path $out $safe) -Force
+            }
+          }
+          Get-ChildItem $out | Select-Object Name,Length | Format-Table -AutoSize
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legacy-tracker-source
+          path: legacy-tracker-source/*
+          if-no-files-found: error
