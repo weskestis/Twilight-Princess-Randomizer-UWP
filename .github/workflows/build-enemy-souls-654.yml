@@ -6,6 +6,7 @@ on:
     branches:
       - codex/enemy-souls-654-build
       - rebuild/1.4.658
+      - diag/legacy658-save-hooks
   workflow_dispatch:
 
 permissions:
@@ -1791,6 +1792,29 @@ jobs:
               $verifyVisual.GetAttribute('DisplayName') -ne 'Twilight Princess Randomizer Legacy 658') {
             throw 'Legacy 658 manifest verification failed after XML rewrite.'
           }
+
+      - name: Dump Legacy 658 save hooks
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $paths = @(
+            "$env:TPR_SRC\src\m_Do\m_Do_MemCard.cpp",
+            "$env:TPR_SRC\src\m_Do\m_Do_MemCard.h"
+          )
+          foreach ($path in $paths) {
+            Write-Host "===== FILE: $path ====="
+            if (Test-Path -LiteralPath $path) {
+              Get-Content -LiteralPath $path -Raw | Write-Host
+            } else {
+              Write-Host "MISSING"
+            }
+          }
+          Write-Host "===== RANDOMIZER SAVE REFERENCES ====="
+          Get-ChildItem "$env:TPR_SRC" -Recurse -File -Include *.cpp,*.hpp,*.h |
+            Select-String -Pattern 'save_name|randomizer-xbox|setFileName\(|mFileName|CARD_STATE_FATAL_ERROR|CARDCreate\(|CARDOpen\(' |
+            Select-Object Path,LineNumber,Line |
+            Format-List | Out-String -Width 400 | Write-Host
+          throw 'Diagnostic stop after save-hook capture.'
 
       - name: Emit patch mismatch diagnostics
         if: failure()
