@@ -288,79 +288,8 @@ $guard = $guard.Substring(0, $prevStart) + $previousStageImpl +
 Write-Utf8 $guardPath $guard
 Write-Utf8 $prePath $pre
 
-# -----------------------------------------------------------------------------
-# Clean process exit clears the active gameplay marker.
-# A hard process crash never reaches this code, so the marker survives.
-# -----------------------------------------------------------------------------
-$mainPath = "$src\src\dusk\main.cpp"
-$main = Read-Normalized $mainPath
-
-if (-not $main.Contains('#include "dusk/config.hpp"')) {
-  $main = $main.Replace(
-    '#include "dusk/main.h"',
-    '#include "dusk/main.h"' + "`n" + '#include "dusk/config.hpp"')
-}
-
-$namespaceAnchor = @'
-namespace {
-
-bool RestartProcess(int argc, char* argv[]) {
-'@
-if (-not $main.Contains($namespaceAnchor)) {
-  throw '.728 hard-crash report could not find main anonymous namespace anchor.'
-}
-$mainHelpers = @'
-namespace {
-
-void ClearXboxRuntimeSessionOnCleanExit() noexcept {
-#if defined(_UWP)
-    std::error_code ec;
-    std::filesystem::remove(dusk::ConfigPath / "xbox-session-active.txt", ec);
-#endif
-}
-
-bool RestartProcess(int argc, char* argv[]) {
-'@
-$main = $main.Replace($namespaceAnchor, $mainHelpers)
-
-$windowsResultAnchor = @'
-    const int result = game_main(argc, argv);
-    if constexpr (dusk::SupportsProcessRestart) {
-'@
-if (-not $main.Contains($windowsResultAnchor)) {
-  throw '.728 hard-crash report could not find Windows clean-exit anchor.'
-}
-$main = $main.Replace(
-  $windowsResultAnchor,
-  @'
-    const int result = game_main(argc, argv);
-    if (result == 0) {
-        ClearXboxRuntimeSessionOnCleanExit();
-    }
-    if constexpr (dusk::SupportsProcessRestart) {
-'@)
-
-$nonWindowsAnchor = @'
-    const int result = game_main(argc, argv);
-    if (dusk::RestartRequested && RestartProcess(argc, argv)) {
-'@
-if ($main.Contains($nonWindowsAnchor)) {
-  $main = $main.Replace(
-    $nonWindowsAnchor,
-    @'
-    const int result = game_main(argc, argv);
-    if (result == 0) {
-        ClearXboxRuntimeSessionOnCleanExit();
-    }
-    if (dusk::RestartRequested && RestartProcess(argc, argv)) {
-'@)
-}
-
-Write-Utf8 $mainPath $main
-
 # Contract verification.
 $preVerify = Read-Normalized $prePath
-$mainVerify = Read-Normalized $mainPath
 $resetVerify = Read-Normalized $resetPath
 $guardVerify = Read-Normalized $guardPath
 foreach ($marker in @(
@@ -392,13 +321,6 @@ foreach ($marker in @(
 }
 
 foreach ($marker in @(
-  'ClearXboxRuntimeSessionOnCleanExit',
-  'xbox-session-active.txt')) {
-  if (-not $mainVerify.Contains($marker)) {
-    throw "Missing .728 clean-exit marker: $marker"
-  }
-}
-foreach ($marker in @(
   'dusk::ui::return_to_prelaunch();',
   'xbox-session-active.txt')) {
   if (-not $resetVerify.Contains($marker)) {
@@ -411,4 +333,4 @@ if ($LASTEXITCODE -ne 0) {
   throw '.728 main-menu hard-crash report failed git diff --check.'
 }
 
-Write-Host 'Applied .728 main-menu hard-crash handoff.'
+Write-Host 'Applied .728 hard-crash handoff: failed launches and reset-to-menu clear the session marker; gameplay termination leaves it for next-launch reporting.'
