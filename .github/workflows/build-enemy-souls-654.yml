@@ -2307,7 +2307,7 @@ jobs:
           $identity.description = 'Twilight Princess Randomizer Legacy 658 for Xbox/UWP'
           $identity.phone_product_id = '65865865-8658-4658-8658-658658658658'
           $identity.version = '1.4.1.659'
-          $identity.save_backend = 'LocalState/legacy658-xbox.sav direct checksummed storage; emulated CARD bypassed on Xbox Legacy app'
+          $identity | Add-Member -NotePropertyName save_backend -NotePropertyValue 'LocalState/legacy658-xbox.sav direct checksummed storage; emulated CARD bypassed on Xbox Legacy app' -Force
           $identity | ConvertTo-Json | Set-Content `
             "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
           $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
