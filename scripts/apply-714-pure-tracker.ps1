@@ -263,6 +263,8 @@ foreach ($marker in @(
   'ImVec4(1.0f, 1.0f, 1.0f, 0.20f)',
   'trackerDesignSize(440.0f, 500.0f)',
   'tpr_pure_tracker_slot_owned',
+  'kPureTrackerStageStableFrames',
+  'pureTrackerRuntimeReady',
   'game.showPureItemTracker',
   'Pure Tracker Icon Size',
   'Pure Tracker Columns',

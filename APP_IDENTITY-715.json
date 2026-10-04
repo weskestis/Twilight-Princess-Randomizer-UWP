@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.715",
+  "architecture": "x64",
+  "base": "1.4.1.714 tracker restoration",
+  "tracker": "Pure Item Tracker V3 retained; startup is gated until Randomizer state and gameplay stage are stable",
+  "seedFlow": "Selected generated seed remains preactivated for new-save creation",
+  "crashFix": "Blocks Pure Item Tracker world generation during title/file creation and room loading; requires 120 stable gameplay frames",
+  "transitions": "Xbox black-transition recovery retained",
+  "resetAudio": "Xbox reset audio guards retained",
+  "assetServices": "DVD overlay and texture replacement services remain enabled",
+  "startupJournal": "xbox-startup-stage-715.txt"
+}

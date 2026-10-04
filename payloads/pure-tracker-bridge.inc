@@ -50,11 +50,50 @@ std::unique_ptr<::randomizer::Randomizer> s_pureTrackerRando;
 std::string s_pureTrackerHash{};
 bool s_pureTrackerReady = false;
 
-bool refreshPureTrackerSnapshot() {
+constexpr uint32_t kPureTrackerStageStableFrames = 120;
+uint32_t s_pureTrackerStageStableFrames = 0;
+int s_pureTrackerObservedStage = -1;
+
+void resetPureTrackerStageGate() noexcept {
+    s_pureTrackerStageStableFrames = 0;
+    s_pureTrackerObservedStage = -1;
+}
+
+bool pureTrackerRuntimeReady() noexcept {
     auto& context = randomizer_GetContext();
-    if (!g_seedActivated || context.mCreatingSave || context.mHash.empty() || !randomizer_IsActive()) {
+    if (!g_seedActivated || context.mCreatingSave || context.mHash.empty() ||
+        !randomizer_IsActive() || !g_randomizerState.mInitialized ||
+        g_randomizerState.getRoomReloadingState())
+    {
+        resetPureTrackerStageGate();
         return false;
     }
+
+    const int stage = getStageID();
+    if (stage < 0 || stage == Title_Screen) {
+        resetPureTrackerStageGate();
+        return false;
+    }
+
+    if (s_pureTrackerObservedStage != stage) {
+        s_pureTrackerObservedStage = stage;
+        s_pureTrackerStageStableFrames = 0;
+        return false;
+    }
+
+    if (s_pureTrackerStageStableFrames < kPureTrackerStageStableFrames) {
+        ++s_pureTrackerStageStableFrames;
+        return false;
+    }
+
+    return true;
+}
+
+bool refreshPureTrackerSnapshot() {
+    if (!pureTrackerRuntimeReady()) {
+        return false;
+    }
+    auto& context = randomizer_GetContext();
 
     const bool needsRefresh =
         !s_pureTrackerRando || s_pureTrackerHash != context.mHash || g_randomizerState.mUpdateTracker;
