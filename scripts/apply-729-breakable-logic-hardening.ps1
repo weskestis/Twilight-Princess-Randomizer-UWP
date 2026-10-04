@@ -171,6 +171,65 @@ if (-not $verifySegment.Contains('requiresBeatable')) {
 }
 Write-Utf8 $searchPath $search
 
+# .729: bottle-capacity logic must survive post-fill bottle-content replacement.
+# Filled bottle rewards still represent a reusable bottle slot after their contents
+# are consumed/used, so Empty Bottle requirements count any owned bottle item.
+$requirementPath = "$src\mods\randomizer\generator\logic\requirement.cpp"
+$requirement = Read-Normalized $requirementPath
+$evalStart = $requirement.IndexOf('bool EvaluateRequirementAtFormTime')
+if ($evalStart -lt 0) {
+  throw '.729 bottle logic could not locate EvaluateRequirementAtFormTime.'
+}
+$itemCaseStart = $requirement.IndexOf('            case Type::ITEM:', $evalStart)
+$countCaseStart = $requirement.IndexOf('            case Type::COUNT:', $itemCaseStart)
+$eventCaseStart = $requirement.IndexOf('            case Type::EVENT:', $countCaseStart)
+if ($itemCaseStart -lt 0 -or $countCaseStart -lt 0 -or $eventCaseStart -lt 0) {
+  throw '.729 bottle logic could not locate ITEM/COUNT requirement cases.'
+}
+$itemCountReplacement = @'
+            case Type::ITEM:
+                item = std::get<item::Item*>(req._args[0]);
+                if (item->GetName() == "Empty Bottle") {
+                    const auto& ownedItems = search->_onlySearchWithItemsAtStart ?
+                        search->_itemsAtStart : search->_ownedItems;
+                    return std::ranges::any_of(
+                        ownedItems,
+                        [&](const auto* ownedItem) {
+                            return ownedItem != nullptr &&
+                                   ownedItem->GetWorld() == item->GetWorld() &&
+                                   ownedItem->IsBottle();
+                        });
+                }
+                if (search->_onlySearchWithItemsAtStart) {
+                    return search->_itemsAtStart.contains(item);
+                }
+                return search->_ownedItems.contains(item);
+
+            case Type::COUNT:
+                count = std::get<int>(req._args[0]);
+                item = std::get<item::Item*>(req._args[1]);
+                if (item->GetName() == "Empty Bottle") {
+                    const auto& ownedItems = search->_onlySearchWithItemsAtStart ?
+                        search->_itemsAtStart : search->_ownedItems;
+                    return std::ranges::count_if(
+                               ownedItems,
+                               [&](const auto* ownedItem) {
+                                   return ownedItem != nullptr &&
+                                          ownedItem->GetWorld() == item->GetWorld() &&
+                                          ownedItem->IsBottle();
+                               }) >= count;
+                }
+                if (search->_onlySearchWithItemsAtStart) {
+                    return search->_itemsAtStart.count(item) >= count;
+                }
+                return search->_ownedItems.count(item) >= count;
+
+'@
+$requirement = $requirement.Substring(0, $itemCaseStart) +
+               $itemCountReplacement +
+               $requirement.Substring($eventCaseStart)
+Write-Utf8 $requirementPath $requirement
+
 # .729: final validation after every post-fill/custom transform.
 $randomizerPath = "$src\mods\randomizer\generator\randomizer.cpp"
 $randomizer = Read-Normalized $randomizerPath
@@ -319,6 +378,7 @@ Write-Utf8 $contextPath $context
 # Regression guards.
 $breakablesVerify = Read-Normalized $breakablesPath
 $searchVerify = Read-Normalized $searchPath
+$requirementVerify = Read-Normalized $requirementPath
 $randomizerVerify = Read-Normalized $randomizerPath
 $contextVerify = Read-Normalized $contextPath
 
@@ -347,6 +407,14 @@ foreach ($marker in @(
   }
 }
 foreach ($marker in @(
+  'item->GetName() == "Empty Bottle"',
+  'ownedItem->IsBottle()',
+  'std::ranges::count_if')) {
+  if (-not $requirementVerify.Contains($marker)) {
+    throw "Missing .729 bottle-capacity logic marker: $marker"
+  }
+}
+foreach ($marker in @(
   'Final logic validation...',
   'Final seed validation failed:',
   'logic::search::VerifyLogic(&this->_worlds)')) {
@@ -368,4 +436,4 @@ if ($LASTEXITCODE -ne 0) {
   throw '.729 breakable/logic hardening failed git diff --check.'
 }
 
-Write-Host 'Applied .729 breakable pickup/collection fix, final logic validation, and 50-attempt runtime reroll hardening.'
+Write-Host 'Applied .729 breakable pickup/collection fix, bottle-capacity logic, final validation, and 50-attempt runtime reroll hardening.'
