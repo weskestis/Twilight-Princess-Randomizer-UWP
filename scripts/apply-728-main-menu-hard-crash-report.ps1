@@ -33,7 +33,6 @@ $helpers = @'
 constexpr std::string_view kXboxSessionMarkerName = "xbox-session-active.txt";
 constexpr std::string_view kXboxRuntimeFailureName = "xbox-runtime-failure.txt";
 constexpr std::string_view kXboxRuntimeFailureHistoryName = "xbox-runtime-failures.log";
-bool sXboxHardCrashModalPresented = false;
 
 std::filesystem::path xbox_session_marker_path() {
     return ConfigPath / kXboxSessionMarkerName;
@@ -229,54 +228,30 @@ if (-not $reset.Contains('#include <filesystem>')) {
 }
 Write-Utf8 $resetPath $reset
 
-# Automatically surface a previous unclean gameplay session on the main menu.
-$showAnchor = @'
-void Prelaunch::show() {
-    Document::show();
-    mDocument->SetAttribute("open", "");
-    mRoot->SetAttribute("open", "");
+# Surface a previous unclean gameplay session through the existing Xbox startup
+# diagnostic area. This UI is already proven on console and survives launcher rewrites.
+$diagnosticAnchor = @'
+    const std::string previousStage = startup_guard::previous_stage();
+    if (mStartupDiagnostic != nullptr && !previousStage.empty()) {
 '@
-if (-not $pre.Contains($showAnchor)) {
-  throw '.728 hard-crash report could not find Prelaunch::show anchor.'
+if (-not $pre.Contains($diagnosticAnchor)) {
+  throw '.728 hard-crash report could not find proven Xbox startup diagnostic anchor.'
 }
-$showReplacement = @'
-void Prelaunch::show() {
-    Document::show();
-    mDocument->SetAttribute("open", "");
-    mRoot->SetAttribute("open", "");
-
-#if defined(_UWP)
-    if (!sXboxHardCrashModalPresented) {
-        if (const auto report = xbox_previous_hard_crash_report(); report.has_value()) {
-            sXboxHardCrashModalPresented = true;
-            const std::string stage = xbox_rml_safe(xbox_latest_runtime_stage());
-            const auto dismiss = [](Modal& modal) {
-                xbox_clear_runtime_session();
-                modal.pop();
-            };
-            push(std::make_unique<Modal>(Modal::Props{
-                .title = "Xbox Runtime Failure - Previous Session",
-                .bodyRml = fmt::format(
-                    "The previous gameplay session ended unexpectedly or was terminated before "
-                    "Dusklight could shut it down cleanly.<br/><br/>"
-                    "<b>Failure class:</b> hard_process_termination<br/>"
-                    "<b>Last runtime checkpoint:</b> {}<br/><br/>"
-                    "The full report was saved as <b>xbox-runtime-failure.txt</b> in LocalState.",
-                    stage),
-                .actions = {
-                    ModalAction{
-                        .label = "Dismiss",
-                        .onPressed = dismiss,
-                    },
-                },
-                .onDismiss = dismiss,
-            }));
-            return;
-        }
-    }
-#endif
+$diagnosticReplacement = @'
+    const auto previousHardCrash = xbox_previous_hard_crash_report();
+    const std::string previousStage = startup_guard::previous_stage();
+    if (mStartupDiagnostic != nullptr && previousHardCrash.has_value()) {
+        set_text_content(
+            mStartupDiagnostic,
+            fmt::format(
+                "Xbox Runtime Failure - Previous Session | "
+                "hard_process_termination | Last runtime checkpoint: {} | "
+                "Full report: xbox-runtime-failure.txt",
+                xbox_latest_runtime_stage()));
+        mStartupDiagnostic->SetAttribute("visible", "");
+    } else if (mStartupDiagnostic != nullptr && !previousStage.empty()) {
 '@
-$pre = $pre.Replace($showAnchor, $showReplacement)
+$pre = $pre.Replace($diagnosticAnchor, $diagnosticReplacement)
 
 Write-Utf8 $prePath $pre
 
@@ -358,6 +333,8 @@ foreach ($marker in @(
   'xbox-session-active.txt',
   'hard_process_termination',
   'Xbox Runtime Failure - Previous Session',
+  'Full report: xbox-runtime-failure.txt',
+  'mStartupDiagnostic->SetAttribute("visible", "")',
   'xbox_previous_hard_crash_report',
   'xbox_arm_runtime_session',
   'setCurrentGameMode(mPendingGameModeId)',
