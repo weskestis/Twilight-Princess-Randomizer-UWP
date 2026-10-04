@@ -95,17 +95,9 @@ Write-Utf8 $nodeReqPath $nodeReq
 $deletorPath = "$src\src\f_pc\f_pc_deletor.cpp"
 $deletor = Read-Normalized $deletorPath
 
-$deleteAnchor = @'
-BOOL fpcDt_IsComplete() {
-    return fpcDtTg_IsEmpty();
-}
-'@
+$deleteAnchor = 'int fpcDt_deleteMethod(base_process_class* i_proc) {'
 
 $deleteDiag = @'
-BOOL fpcDt_IsComplete() {
-    return fpcDtTg_IsEmpty();
-}
-
 static base_process_class* tpr_xbox_delete_queue_entry(int index, delete_tag_class** outTag) {
     if (index < 0) {
         return nullptr;
@@ -163,9 +155,11 @@ if ($deletor.Contains('tpr_xbox_delete_queue_size()')) {
   throw '.725 delete diagnostics already present unexpectedly.'
 }
 if (-not $deletor.Contains($deleteAnchor)) {
-  throw 'Deletor completion anchor changed before .725 diagnostics.'
+  throw 'Deletor function-boundary anchor changed before .725 diagnostics.'
 }
-$deletor = $deletor.Replace($deleteAnchor, $deleteDiag)
+$deletor = $deletor.Replace(
+  $deleteAnchor,
+  $deleteDiag + "`n`n" + $deleteAnchor)
 Write-Utf8 $deletorPath $deletor
 
 # Regression guards

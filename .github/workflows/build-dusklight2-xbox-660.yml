@@ -5549,7 +5549,7 @@ jobs:
             'cameraProcess->mCamera.QuickStart()',
             'cameraProcess->mCamera.Active()',
             'fpcM_SearchByName(fpcNm_PLAY_SCENE_e)',
-            'fpcM_PauseDisable(playScene, 1)',
+            'fpcM_PauseDisable(activeGameplayScene, 1)',
             'dComIfGd_setView(&cameraProcess->view)',
             'dComIfGd_getView() == &cameraProcess->view',
             'Recovery state cleared - press B to close after verifying the scene',
