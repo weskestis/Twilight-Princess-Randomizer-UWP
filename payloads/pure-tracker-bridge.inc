@@ -54,7 +54,59 @@ bool s_xboxTransitionFailurePending = false;
 std::string s_xboxTransitionFailureReport{};
 u32 s_xboxTransitionFailureSerial = 0;
 
+extern "C" int tpr_xbox_scene_change_present() noexcept;
+extern "C" int tpr_xbox_scene_change_phase() noexcept;
+extern "C" int tpr_xbox_scene_change_target() noexcept;
+extern "C" int tpr_xbox_scene_change_creating_id() noexcept;
+extern "C" int tpr_xbox_scene_change_old_id() noexcept;
+extern "C" int tpr_xbox_scene_change_creating() noexcept;
+extern "C" int tpr_xbox_scene_change_created_exists() noexcept;
+
+extern "C" int tpr_xbox_delete_queue_size() noexcept;
+extern "C" int tpr_xbox_delete_queue_entry_name(int index) noexcept;
+extern "C" int tpr_xbox_delete_queue_entry_profname(int index) noexcept;
+extern "C" int tpr_xbox_delete_queue_entry_id(int index) noexcept;
+extern "C" int tpr_xbox_delete_queue_entry_state(int index) noexcept;
+extern "C" int tpr_xbox_delete_queue_entry_timer(int index) noexcept;
+
+const char* xboxSceneChangePhaseName(int phase) noexcept {
+    switch (phase) {
+    case 0:
+        return "delete-timing";
+    case 1:
+        return "delete-old-scene";
+    case 2:
+        return "wait-delete-queue";
+    case 3:
+        return "create-destination";
+    case 4:
+        return "wait-destination-created";
+    default:
+        return "none/unknown";
+    }
+}
+
 int clearXboxTransitionFades() noexcept {
+    base_process_class* playScene = fpcM_SearchByName(fpcNm_PLAY_SCENE_e);
+    base_process_class* openingScene = fpcM_SearchByName(fpcNm_OPENING_SCENE_e);
+    base_process_class* activeGameplayScene = playScene != nullptr ? playScene : openingScene;
+    const bool sceneChangePending = tpr_xbox_scene_change_present() != 0;
+
+    // .725 safety: if the scene-change transaction is still creating the destination
+    // scene, do NOT cancel its overlap. Cancelling the overlap while PLAY_SCENE is
+    // absent can strand the transaction between old-scene deletion and new-scene creation.
+    if (sceneChangePending && activeGameplayScene == nullptr) {
+        if (s_xboxTransitionFailurePending) {
+            s_xboxTransitionFailureReport +=
+                "recovery_deferred_scene_change=1\n";
+        }
+        mods::log::warn(
+            "Xbox transition recovery deferred: destination scene is still being created "
+            "(phase={}, target={})",
+            tpr_xbox_scene_change_phase(), tpr_xbox_scene_change_target());
+        return 0;
+    }
+
     int cancelResult = 1;
     const bool hadOverlap = fopOvlpM_IsPeek() || fopOvlpM_IsDoingReq();
     if (hadOverlap) {
@@ -84,12 +136,12 @@ int clearXboxTransitionFades() noexcept {
     dScnPly_c::pauseTimer = 0;
     dScnPly_c::nextPauseTimer = 0;
 
-    base_process_class* playScene = fpcM_SearchByName(fpcNm_PLAY_SCENE_e);
-    if (playScene != nullptr) {
-        // Major overlaps pause the entire PLAY_SCENE node tree. Clear both pause bits
-        // directly on the scene node so the recursive layer/children are resumed too.
-        fpcM_PauseDisable(playScene, 1);
-        fpcM_PauseDisable(playScene, 2);
+    if (activeGameplayScene != nullptr) {
+        // PLAY_SCENE and OPENING_SCENE both use dScnPly. Clear the active gameplay
+        // scene node recursively; do not assume Random Start has already completed
+        // the opening-to-play handoff.
+        fpcM_PauseDisable(activeGameplayScene, 1);
+        fpcM_PauseDisable(activeGameplayScene, 2);
     }
 
     camera_process_class* cameraProcess =
@@ -137,9 +189,9 @@ int clearXboxTransitionFades() noexcept {
     const bool pauseClear =
         dComIfGp_isPauseFlag() == 0 && dScnPly_c::isPause() == 0;
     const bool playSceneClear =
-        playScene != nullptr &&
-        !fpcM_IsPause(playScene, 1) &&
-        !fpcM_IsPause(playScene, 2);
+        activeGameplayScene != nullptr &&
+        !fpcM_IsPause(activeGameplayScene, 1) &&
+        !fpcM_IsPause(activeGameplayScene, 2);
     const bool cameraClear =
         cameraProcess != nullptr &&
         cameraProcess->mCamera.Active() &&
@@ -162,7 +214,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.724\n";
+    report << "build=1.4.1.725\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
@@ -185,10 +237,40 @@ void captureXboxTransitionFailure(
         report << "camera_pause_2=" << fpcM_IsPause(cameraProcess, 2) << "\n";
     }
     base_process_class* playScene = fpcM_SearchByName(fpcNm_PLAY_SCENE_e);
+    base_process_class* openingScene = fpcM_SearchByName(fpcNm_OPENING_SCENE_e);
     report << "play_scene_present=" << (playScene != nullptr ? 1 : 0) << "\n";
     if (playScene != nullptr) {
         report << "play_scene_pause_1=" << fpcM_IsPause(playScene, 1) << "\n";
         report << "play_scene_pause_2=" << fpcM_IsPause(playScene, 2) << "\n";
+    }
+    report << "opening_scene_present=" << (openingScene != nullptr ? 1 : 0) << "\n";
+    if (openingScene != nullptr) {
+        report << "opening_scene_pause_1=" << fpcM_IsPause(openingScene, 1) << "\n";
+        report << "opening_scene_pause_2=" << fpcM_IsPause(openingScene, 2) << "\n";
+    }
+
+    const int sceneChangePresent = tpr_xbox_scene_change_present();
+    const int sceneChangePhase = tpr_xbox_scene_change_phase();
+    report << "scene_change_present=" << sceneChangePresent << "\n";
+    report << "scene_change_phase=" << sceneChangePhase << "\n";
+    report << "scene_change_phase_name=" << xboxSceneChangePhaseName(sceneChangePhase) << "\n";
+    report << "scene_change_target=" << tpr_xbox_scene_change_target() << "\n";
+    report << "scene_change_old_id=" << tpr_xbox_scene_change_old_id() << "\n";
+    report << "scene_change_creating_id=" << tpr_xbox_scene_change_creating_id() << "\n";
+    report << "scene_change_creating=" << tpr_xbox_scene_change_creating() << "\n";
+    report << "scene_change_created_exists=" << tpr_xbox_scene_change_created_exists() << "\n";
+
+    const int deleteQueueSize = tpr_xbox_delete_queue_size();
+    report << "delete_queue_size=" << deleteQueueSize << "\n";
+    const int deleteEntries = std::min(deleteQueueSize, 8);
+    for (int i = 0; i < deleteEntries; ++i) {
+        report << "delete_queue[" << i << "]="
+               << "name:" << tpr_xbox_delete_queue_entry_name(i)
+               << ",prof:" << tpr_xbox_delete_queue_entry_profname(i)
+               << ",id:" << tpr_xbox_delete_queue_entry_id(i)
+               << ",state:" << tpr_xbox_delete_queue_entry_state(i)
+               << ",timer:" << tpr_xbox_delete_queue_entry_timer(i)
+               << "\n";
     }
     report << "render_view_present=" << (dComIfGd_getView() != nullptr ? 1 : 0) << "\n";
     report << "render_view_is_player_camera="

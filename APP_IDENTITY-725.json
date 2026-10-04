@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.725",
+  "architecture": "x64",
+  "base": "1.4.1.724 play-scene/render-view recovery",
+  "transitionEvidence": "724 showed PLAY_SCENE absent while overlap request and partial player/camera/render state were live",
+  "transitionSafety": "Do not cancel overlap while destination scene creation transaction is still pending",
+  "diagnostics": "Scene-change node phase/target/creating state plus deletion queue blocker details",
+  "recovery": "Supports active PLAY_SCENE or OPENING_SCENE only after a gameplay scene actually exists",
+  "breakables": "Gold pending randomized pots and green pending randomized pumpkins retained; vanilla after claim",
+  "seedHardening": "Deferred to 1.4.1.726",
+  "startupJournal": "xbox-startup-stage-725.txt"
+}
