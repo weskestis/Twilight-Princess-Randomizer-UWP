@@ -195,22 +195,39 @@ $pre = $pre.Replace(
   $callbackFailedStage + "`n" + '                xbox_clear_runtime_session();')
 
 # Clean return-to-menu is not a crash.
-$returnAnchor = @'
-void return_to_prelaunch() noexcept {
-    close_all_documents();
-'@
-if (-not $pre.Contains($returnAnchor)) {
-  throw '.728 hard-crash report could not find return-to-prelaunch anchor.'
+# Patch the reset call site instead of the prelaunch function body; the Xbox launcher
+# source is heavily rewritten by earlier layers, while the reset handoff is stable.
+$resetPath = "$src\src\m_Do\m_Do_Reset.cpp"
+$reset = Read-Normalized $resetPath
+$resetAnchor = '        dusk::ui::return_to_prelaunch();'
+if (-not $reset.Contains($resetAnchor)) {
+  throw '.728 hard-crash report could not find reset-to-prelaunch call.'
 }
-$pre = $pre.Replace(
-  $returnAnchor,
+$reset = $reset.Replace(
+  $resetAnchor,
   @'
-void return_to_prelaunch() noexcept {
 #if defined(_UWP)
-    xbox_clear_runtime_session();
+        {
+            std::error_code ec;
+            std::filesystem::remove(dusk::ConfigPath / "xbox-session-active.txt", ec);
+        }
 #endif
-    close_all_documents();
+        dusk::ui::return_to_prelaunch();
 '@)
+
+if (-not $reset.Contains('#include "dusk/config.hpp"')) {
+  $includeAnchor = '#include "dusk/ui/prelaunch.hpp"'
+  if (-not $reset.Contains($includeAnchor)) {
+    throw '.728 hard-crash report could not find reset include anchor.'
+  }
+  $reset = $reset.Replace(
+    $includeAnchor,
+    $includeAnchor + "`n" + '#include "dusk/config.hpp"')
+}
+if (-not $reset.Contains('#include <filesystem>')) {
+  $reset = '#include <filesystem>' + "`n" + $reset
+}
+Write-Utf8 $resetPath $reset
 
 # Automatically surface a previous unclean gameplay session on the main menu.
 $showAnchor = @'
@@ -336,6 +353,7 @@ Write-Utf8 $mainPath $main
 # Contract verification.
 $preVerify = Read-Normalized $prePath
 $mainVerify = Read-Normalized $mainPath
+$resetVerify = Read-Normalized $resetPath
 foreach ($marker in @(
   'xbox-session-active.txt',
   'hard_process_termination',
@@ -357,6 +375,13 @@ foreach ($marker in @(
   'xbox-session-active.txt')) {
   if (-not $mainVerify.Contains($marker)) {
     throw "Missing .728 clean-exit marker: $marker"
+  }
+}
+foreach ($marker in @(
+  'dusk::ui::return_to_prelaunch();',
+  'xbox-session-active.txt')) {
+  if (-not $resetVerify.Contains($marker)) {
+    throw "Missing .728 reset-to-menu crash-marker cleanup: $marker"
   }
 }
 
