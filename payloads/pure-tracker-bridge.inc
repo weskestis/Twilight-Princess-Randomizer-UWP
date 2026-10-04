@@ -55,6 +55,19 @@ std::string s_xboxTransitionFailureReport{};
 u32 s_xboxTransitionFailureSerial = 0;
 
 void clearXboxTransitionFades() noexcept {
+    // The hardware failure report from .717 showed the destination scene and player
+    // were already live while the overlap request remained in peek state. Ask the
+    // overlap manager to leave its peek/fade phase using the same public clear path
+    // the scene-request state machine normally calls.
+    if (fopOvlpM_IsPeek()) {
+        const int clearResult = fopOvlpM_ClearOfReq();
+        mods::log::warn(
+            "Xbox transition recovery requested overlap clear: result={}, peek={}",
+            clearResult, fopOvlpM_IsPeek());
+    }
+
+    // Unhide the scene immediately as a fail-safe. Once ClearOfReq is accepted,
+    // normal overlap management will run the outgoing phase and resume the scene.
     mDoGph_gInf_c::offFade();
     mDoGph_gInf_c::setFadeRate(0.0f);
     mDoGph_gInf_c::getFadeColor().a = 0;
@@ -81,6 +94,10 @@ void captureXboxTransitionFailure(
     report << "event_running=" << (dComIfGp_event_runCheck() ? 1 : 0) << "\n";
     report << "next_stage_enabled=" << (dComIfGp_isEnableNextStage() ? 1 : 0) << "\n";
     report << "overlap_peek=" << (fopOvlpM_IsPeek() ? 1 : 0) << "\n";
+    report << "overlap_doing_req=" << (fopOvlpM_IsDoingReq() ? 1 : 0) << "\n";
+    if (stage >= 0 && stage < 78) {
+        report << "stage_name=" << allStages[stage] << "\n";
+    }
     report << "black_frames=" << blackFrames << "\n";
     report << "stage_ready_frames=" << readyFrames << "\n";
     report << "global_fade_active=" << static_cast<int>(mDoGph_gInf_c::isFade()) << "\n";

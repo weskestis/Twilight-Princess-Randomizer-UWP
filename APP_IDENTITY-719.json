@@ -1,0 +1,11 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.719",
+  "architecture": "x64",
+  "base": "1.4.1.718 failure-report input fix",
+  "rootCauseEvidence": "717 report: stage 61 Upper Zora's River loaded, player present, no event/next-stage, overlap peek stuck 300 frames, global fade inactive, JUTFader fully black",
+  "transitionFix": "Calls fopOvlpM_ClearOfReq when destination gameplay is live behind a stale overlap, then clears both fade systems as fail-safe",
+  "failureReport": "Adds overlap_doing_req and human-readable stage_name",
+  "controls": "A retry, B dismiss, default Retry focus, top-layer ImGui cursor",
+  "startupJournal": "xbox-startup-stage-719.txt"
+}
