@@ -1,0 +1,12 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.720",
+  "architecture": "x64",
+  "base": "1.4.1.719 stale-overlap diagnostic build",
+  "overlapRecovery": "Force-advances only a 300-frame stale peek/doing overlap after destination gameplay is already live",
+  "failureReporter": "Reports force-clear acceptance; right-stick ImGui pointer plus A click and B dismiss",
+  "potMarker": "Gold 255/185/42 only while randomized reward is pending/uncollected; per-draw material state restored",
+  "pumpkinMarker": "Green 24/255/48 only while randomized reward is pending/uncollected; per-draw material state restored",
+  "collectedBehavior": "Pots and pumpkins render vanilla again once reward is claimed and on later reloads",
+  "startupJournal": "xbox-startup-stage-720.txt"
+}

@@ -23,7 +23,7 @@ namespace dusk {
 extern "C" bool tpr_xbox_transition_failure_pending() noexcept;
 extern "C" const char* tpr_xbox_transition_failure_report() noexcept;
 extern "C" void tpr_xbox_transition_failure_acknowledge() noexcept;
-extern "C" void tpr_xbox_transition_retry_recovery() noexcept;
+extern "C" int tpr_xbox_transition_retry_recovery() noexcept;
 extern "C" bool tpr_pure_tracker_active() noexcept;
 extern "C" std::size_t tpr_pure_tracker_slot_count() noexcept;
 extern "C" const char* tpr_pure_tracker_slot_label(std::size_t index) noexcept;
@@ -90,6 +90,10 @@ void draw_xbox_failure_report() {
 #else
     static bool cursorOverrideActive = false;
     static bool previousMouseDrawCursor = false;
+    static bool popupPointerInitialized = false;
+    static float popupPointerX = 0.0f;
+    static float popupPointerY = 0.0f;
+    static int lastRecoveryResult = -1;
 
     if (!tpr_xbox_transition_failure_pending()) {
         if (cursorOverrideActive) {
@@ -114,8 +118,31 @@ void draw_xbox_failure_report() {
         lastPersistedReport = report;
     }
 
-    // Do not rely on ImGui navigation being configured correctly on Xbox.
-    // Read the native Twilight Princess controller trigger state directly.
+    // This modal is ImGui, while the normal controller cursor targets RmlUi.
+    // Drive an ImGui pointer directly from the right stick while the report is open.
+    auto& io = ImGui::GetIO();
+    const ImVec2 displaySize = io.DisplaySize;
+    if (!popupPointerInitialized) {
+        popupPointerX = displaySize.x * 0.5f;
+        popupPointerY = displaySize.y * 0.5f;
+        popupPointerInitialized = true;
+    }
+    const float pointerDt = std::clamp(io.DeltaTime, 0.0f, 0.05f);
+    const float pointerSpeed = 1050.0f;
+    const float stickX = mDoCPd_c::getSubStickX(PAD_1);
+    const float stickY = mDoCPd_c::getSubStickY(PAD_1);
+    if (std::abs(stickX) > 0.15f) {
+        popupPointerX += stickX * pointerSpeed * pointerDt;
+    }
+    if (std::abs(stickY) > 0.15f) {
+        popupPointerY -= stickY * pointerSpeed * pointerDt;
+    }
+    popupPointerX = std::clamp(popupPointerX, 0.0f, std::max(0.0f, displaySize.x - 1.0f));
+    popupPointerY = std::clamp(popupPointerY, 0.0f, std::max(0.0f, displaySize.y - 1.0f));
+    io.MousePos = ImVec2(popupPointerX, popupPointerY);
+    io.MouseDown[0] = mDoCPd_c::getHoldA(PAD_1) != 0;
+    io.MouseDrawCursor = true;
+
     const bool retryPressed = mDoCPd_c::getTrigA(PAD_1) != 0;
     const bool dismissPressed = mDoCPd_c::getTrigB(PAD_1) != 0;
 
@@ -150,11 +177,25 @@ void draw_xbox_failure_report() {
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
         const bool dismissButton = ImGui::Button("Dismiss");
+        const bool dismissHovered = ImGui::IsItemHovered();
 
-        if (retryButton || retryPressed) {
-            tpr_xbox_transition_retry_recovery();
+        if (lastRecoveryResult >= 0) {
+            ImGui::SameLine();
+            ImGui::TextUnformatted(
+                lastRecoveryResult != 0 ? "Recovery command accepted" : "Recovery command was not accepted");
         }
-        if (dismissButton || dismissPressed) {
+
+        if (retryButton || (retryPressed && !dismissHovered)) {
+            lastRecoveryResult = tpr_xbox_transition_retry_recovery();
+            if (lastRecoveryResult != 0) {
+                tpr_xbox_transition_failure_acknowledge();
+                ImGui::CloseCurrentPopup();
+                ImGui::GetIO().MouseDrawCursor = previousMouseDrawCursor;
+                cursorOverrideActive = false;
+                popupPointerInitialized = false;
+            }
+        }
+        if (dismissButton || dismissPressed || (retryPressed && dismissHovered)) {
             tpr_xbox_transition_failure_acknowledge();
             ImGui::CloseCurrentPopup();
             ImGui::GetIO().MouseDrawCursor = previousMouseDrawCursor;

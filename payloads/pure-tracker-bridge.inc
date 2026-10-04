@@ -54,20 +54,24 @@ bool s_xboxTransitionFailurePending = false;
 std::string s_xboxTransitionFailureReport{};
 u32 s_xboxTransitionFailureSerial = 0;
 
-void clearXboxTransitionFades() noexcept {
-    // The hardware failure report from .717 showed the destination scene and player
-    // were already live while the overlap request remained in peek state. Ask the
-    // overlap manager to leave its peek/fade phase using the same public clear path
-    // the scene-request state machine normally calls.
+int clearXboxTransitionFades() noexcept {
+    int clearResult = 0;
     if (fopOvlpM_IsPeek()) {
-        const int clearResult = fopOvlpM_ClearOfReq();
+        // .719 hardware report showed overlap_doing_req=1 after 300 stable frames.
+        // The normal ClearOfReq intentionally refuses that state, so .720 uses a
+        // narrowly gated manager helper that advances the already-stale peek request.
+        clearResult = fopOvlpM_ForceClearStale();
         mods::log::warn(
-            "Xbox transition recovery requested overlap clear: result={}, peek={}",
-            clearResult, fopOvlpM_IsPeek());
+            "Xbox transition force-clear requested: result={}, peek={}, doing={}",
+            clearResult, fopOvlpM_IsPeek(), fopOvlpM_IsDoingReq());
+        if (s_xboxTransitionFailurePending) {
+            s_xboxTransitionFailureReport +=
+                "recovery_force_clear_result=" + std::to_string(clearResult) + "\n";
+        }
     }
 
-    // Unhide the scene immediately as a fail-safe. Once ClearOfReq is accepted,
-    // normal overlap management will run the outgoing phase and resume the scene.
+    // Unhide the scene immediately as a fail-safe. The forced request then advances
+    // through the engine's ordinary outbound overlap state on the following tick.
     mDoGph_gInf_c::offFade();
     mDoGph_gInf_c::setFadeRate(0.0f);
     mDoGph_gInf_c::getFadeColor().a = 0;
@@ -77,6 +81,7 @@ void clearXboxTransitionFades() noexcept {
         fader->setStatus(JUTFader::None, -1);
         fader->startFadeIn(1);
     }
+    return clearResult;
 }
 
 void captureXboxTransitionFailure(
@@ -85,7 +90,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.717\n";
+    report << "build=1.4.1.720\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
@@ -220,8 +225,8 @@ extern "C" void tpr_xbox_transition_failure_acknowledge() noexcept {
     s_xboxTransitionFailurePending = false;
 }
 
-extern "C" void tpr_xbox_transition_retry_recovery() noexcept {
-    clearXboxTransitionFades();
+extern "C" int tpr_xbox_transition_retry_recovery() noexcept {
+    return clearXboxTransitionFades();
 }
 
 extern "C" bool tpr_pure_tracker_active() noexcept {
