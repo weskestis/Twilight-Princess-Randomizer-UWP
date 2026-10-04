@@ -263,7 +263,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox runtime failure report\n";
-    report << "build=1.4.1.728\n";
+    report << "build=1.4.1.729\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
 
     const int classifiedSceneChangePresent = tpr_xbox_scene_change_present();
