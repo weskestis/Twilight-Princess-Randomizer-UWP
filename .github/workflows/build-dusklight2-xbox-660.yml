@@ -5529,8 +5529,10 @@ jobs:
             'kMaxSeedGenerationAttempts = 50',
             'Final logic validation...',
             'Finished seed is not beatable from the configured start.',
-            'contents == RandomizerContext::CheckContents::Junk',
-            'junkCheckCompleted')) {
+            'spawned_item_assignment',
+            'item::exec_item_get(*breakableItem)',
+            'breakables::collect_spawned_item(i_this)',
+            'i_this->mItemOverridden = true;')) {
             if (-not $randomizerSource728.Contains($hardeningMarker729)) {
               throw "Xbox .729 hardening marker missing: $hardeningMarker729"
             }
