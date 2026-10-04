@@ -1,0 +1,12 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.721",
+  "architecture": "x64",
+  "base": "1.4.1.720 force-overlap and breakable-color build",
+  "transitionEvidence": "720 accepted force outbound command but remained hidden",
+  "transitionFix": "Cancel/delete stale overlap actor and retry until manager clears; restore window, 2D, camera and both fades",
+  "failureReport": "Adds window_num and show_2d; records recovery_cancel_result",
+  "breakables": "Gold unclaimed randomized pots and green unclaimed randomized pumpkins retained; vanilla after claim",
+  "seedHardening": "Deferred to 1.4.1.722 to isolate the blocking Xbox runtime transition repair",
+  "startupJournal": "xbox-startup-stage-721.txt"
+}

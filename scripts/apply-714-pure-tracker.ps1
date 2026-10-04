@@ -20,7 +20,8 @@ $includeNew = Join-Lines @(
   '#include "../generator/utility/text.hpp"',
   '#include "../generator/randomizer.hpp"',
   '#include "paths.hpp"',
-  '#include "f_op/f_op_actor_mng.h"'
+  '#include "f_op/f_op_actor_mng.h"',
+  '#include "d/d_camera.h"'
 )
 if (-not $session.Contains($includeOld)) { throw 'Pure tracker generator include anchor changed.' }
 $session = $session.Replace($includeOld, $includeNew)

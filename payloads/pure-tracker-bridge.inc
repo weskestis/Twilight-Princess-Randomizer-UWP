@@ -55,23 +55,31 @@ std::string s_xboxTransitionFailureReport{};
 u32 s_xboxTransitionFailureSerial = 0;
 
 int clearXboxTransitionFades() noexcept {
-    int clearResult = 0;
-    if (fopOvlpM_IsPeek()) {
-        // .719 hardware report showed overlap_doing_req=1 after 300 stable frames.
-        // The normal ClearOfReq intentionally refuses that state, so .720 uses a
-        // narrowly gated manager helper that advances the already-stale peek request.
-        clearResult = fopOvlpM_ForceClearStale();
+    int cancelResult = 1;
+    const bool hadOverlap = fopOvlpM_IsPeek() || fopOvlpM_IsDoingReq();
+    if (hadOverlap) {
+        // .720 proved that issuing the outbound request is accepted, but the overlap
+        // actor can still fail to execute its final FadeOut/Done path. At the proven
+        // 300-frame stale point, use the engine's own cancel/delete path instead.
+        fopOvlpM_SceneIsStart();
+        cancelResult = fopOvlpM_Cancel();
         mods::log::warn(
-            "Xbox transition force-clear requested: result={}, peek={}, doing={}",
-            clearResult, fopOvlpM_IsPeek(), fopOvlpM_IsDoingReq());
+            "Xbox stale-overlap cancel requested: result={}, peek={}, doing={}",
+            cancelResult, fopOvlpM_IsPeek(), fopOvlpM_IsDoingReq());
         if (s_xboxTransitionFailurePending) {
             s_xboxTransitionFailureReport +=
-                "recovery_force_clear_result=" + std::to_string(clearResult) + "\n";
+                "recovery_cancel_result=" + std::to_string(cancelResult) + "\n";
         }
     }
 
-    // Unhide the scene immediately as a fail-safe. The forced request then advances
-    // through the engine's ordinary outbound overlap state on the following tick.
+    // Major overlap types 2/3 can hide the gameplay window and 2D layer independently
+    // of JUTFader. Restore those end-of-transition states explicitly.
+    dComIfGp_setWindowNum(1);
+    dComIfGp_2dShowOn();
+    if (!dComIfGp_event_runCheck() && dCam_getBody() != nullptr) {
+        dCam_getBody()->Start();
+    }
+
     mDoGph_gInf_c::offFade();
     mDoGph_gInf_c::setFadeRate(0.0f);
     mDoGph_gInf_c::getFadeColor().a = 0;
@@ -81,7 +89,7 @@ int clearXboxTransitionFades() noexcept {
         fader->setStatus(JUTFader::None, -1);
         fader->startFadeIn(1);
     }
-    return clearResult;
+    return cancelResult;
 }
 
 void captureXboxTransitionFailure(
@@ -90,7 +98,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.720\n";
+    report << "build=1.4.1.721\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
@@ -100,6 +108,8 @@ void captureXboxTransitionFailure(
     report << "next_stage_enabled=" << (dComIfGp_isEnableNextStage() ? 1 : 0) << "\n";
     report << "overlap_peek=" << (fopOvlpM_IsPeek() ? 1 : 0) << "\n";
     report << "overlap_doing_req=" << (fopOvlpM_IsDoingReq() ? 1 : 0) << "\n";
+    report << "window_num=" << static_cast<int>(dComIfGp_getWindowNum()) << "\n";
+    report << "show_2d=" << static_cast<int>(dComIfGp_2dShowCheck()) << "\n";
     if (stage >= 0 && stage < 78) {
         report << "stage_name=" << allStages[stage] << "\n";
     }

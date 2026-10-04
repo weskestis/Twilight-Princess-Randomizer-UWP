@@ -154,9 +154,9 @@ void draw_xbox_failure_report() {
             ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextWrapped(
-            "The game stayed hidden behind a transition fade after gameplay was already live. "
-            "Automatic recovery cleared both Twilight Princess fade systems. "
-            "This report was captured before recovery so the exact stuck state is preserved.");
+            "The game stayed hidden after a major transition even though gameplay was already live. "
+            "Automatic recovery is cancelling the stale overlap and restoring the gameplay window, "
+            "camera, 2D layer, and both fade systems. This report preserves the pre-recovery state.");
         ImGui::Spacing();
         ImGui::TextUnformatted("Controller: A = Retry Fade Recovery    B = Dismiss");
 
@@ -182,7 +182,7 @@ void draw_xbox_failure_report() {
         if (lastRecoveryResult >= 0) {
             ImGui::SameLine();
             ImGui::TextUnformatted(
-                lastRecoveryResult != 0 ? "Recovery command accepted" : "Recovery command was not accepted");
+                lastRecoveryResult != 0 ? "Stale overlap cancelled" : "Cancel pending - retrying automatically");
         }
 
         if (retryButton || (retryPressed && !dismissHovered)) {
