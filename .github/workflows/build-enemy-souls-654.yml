@@ -1814,8 +1814,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & "$env:GITHUB_WORKSPACE\_control\scripts\apply_legacy658_savefix.ps1" -SourceRoot "$env:TPR_SRC"
-          if ($LASTEXITCODE -ne 0) { throw 'Legacy 658 direct-save backport failed.' }
+          if (-not $?) { throw 'Legacy 658 direct-save backport script failed.' }
           git -C "$env:TPR_SRC" diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy 658 direct-save backport failed diff validation.' }
           $memCard = Get-Content "$env:TPR_SRC\src\m_Do\m_Do_MemCard.cpp" -Raw
           foreach ($marker in @(
             'legacy658-xbox.sav',
