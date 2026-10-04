@@ -6,7 +6,7 @@ on:
     branches:
       - codex/enemy-souls-654-build
       - rebuild/1.4.658
-      - legacy/1.4.658-cardfix
+      - legacy/1.4.658-directsave
       - legacy/1.4.658-side-by-side
   workflow_dispatch:
 
@@ -1794,10 +1794,14 @@ jobs:
             throw 'Legacy 658 manifest verification failed after XML rewrite.'
           }
 
-      - name: Backport Xbox card repair for Legacy 658
+      - name: Backport direct Xbox save and DevelopmentFiles storage for Legacy 658
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+
+          # Pre-2.0 Legacy 658 has one play path, not separate vanilla/randomizer modes.
+          # On Xbox, bypass emulated CARD for that single path and persist the three quest-log
+          # buffers directly beside the selected ISO under DevelopmentFiles/Legacy658Data.
           $memCardPath = "$env:TPR_SRC\src\m_Do\m_Do_MemCard.cpp"
           $memCard = [IO.File]::ReadAllText($memCardPath).Replace("`r`n", "`n")
 
@@ -1806,67 +1810,436 @@ jobs:
             '#include "dusk/version.hpp"',
             '',
             '#if defined(_UWP)',
+            '#include <array>',
+            '#include <cstdint>',
             '#include <filesystem>',
+            '#include <fstream>',
             '#endif'
           ) -join "`n"
           if (-not $memCard.Contains($includeAnchor)) {
-            throw 'Legacy 658 memory-card include anchor changed.'
+            throw 'Legacy 658 direct-save include anchor changed.'
           }
           $memCard = $memCard.Replace($includeAnchor, $includeReplacement)
 
-          $cardTypeOld = '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());'
-          $cardTypeNew = @(
+          $helperAnchor = @(
+            '#define CHECKSPACE_RESULT_ERROR    3',
+            '',
+            '#if PLATFORM_WII'
+          ) -join "`n"
+          $helperReplacement = @(
+            '#define CHECKSPACE_RESULT_ERROR    3',
+            '',
             '#if defined(_UWP)',
-            '    // Legacy 658 Xbox repair: isolate Slot A from any stale or malformed GCI data',
-            '    // left in the package root while keeping the normal GameCube CARD implementation.',
-            '    CARDSetLoadType(CARD_GCIFOLDER);',
-            '    const auto xboxCardBasePath = dusk::ConfigPath / "legacy658_memory_card_v2";',
-            '    std::error_code xboxCardPathError;',
-            '    std::filesystem::create_directories(xboxCardBasePath, xboxCardPathError);',
-            '    if (xboxCardPathError) {',
-            '        OS_REPORT("Legacy658 card path creation failed: %s\n", xboxCardPathError.message().c_str());',
+            'namespace {',
+            'constexpr std::array<char, 8> kLegacy658SaveMagic = {''T'',''P'',''L'',''6'',''5'',''8'',''S'',''1''};',
+            'constexpr uint32_t kLegacy658SaveFormatVersion = 1;',
+            '',
+            'struct Legacy658SaveHeader {',
+            '    std::array<char, 8> magic;',
+            '    uint32_t formatVersion;',
+            '    uint32_t dataVersion;',
+            '    uint32_t dataSize;',
+            '    uint32_t checksum;',
+            '};',
+            '',
+            'enum class Legacy658SaveStatus { Missing, Valid, Invalid };',
+            '',
+            'std::filesystem::path legacy658DataRoot() {',
+            '    const std::string isoPathText = dusk::getSettings().backend.isoPath.getValue();',
+            '    if (!isoPathText.empty()) {',
+            '        const std::filesystem::path isoPath{isoPathText};',
+            '        const auto parent = isoPath.parent_path();',
+            '        if (!parent.empty()) {',
+            '            return parent / "Legacy658Data";',
+            '        }',
             '    }',
-            '    CARDSetBasePath(xboxCardBasePath.string().c_str(), -1);',
-            '#else',
+            '    return dusk::ConfigPath / "Legacy658Data";',
+            '}',
+            '',
+            'std::filesystem::path legacy658SavePath() {',
+            '    return legacy658DataRoot() / "legacy658-xbox.sav";',
+            '}',
+            '',
+            'uint32_t legacy658Checksum(const u8* data, size_t size) {',
+            '    uint32_t hash = 2166136261u;',
+            '    for (size_t i = 0; i < size; ++i) {',
+            '        hash ^= data[i];',
+            '        hash *= 16777619u;',
+            '    }',
+            '    return hash;',
+            '}',
+            '',
+            'Legacy658SaveStatus inspectLegacy658SaveAt(const std::filesystem::path& path) {',
+            '    std::error_code ec;',
+            '    if (!std::filesystem::exists(path, ec)) {',
+            '        return ec ? Legacy658SaveStatus::Invalid : Legacy658SaveStatus::Missing;',
+            '    }',
+            '    std::ifstream in(path, std::ios::binary);',
+            '    Legacy658SaveHeader header{};',
+            '    if (!in.read(reinterpret_cast<char*>(&header), sizeof(header))) {',
+            '        return Legacy658SaveStatus::Invalid;',
+            '    }',
+            '    if (header.magic != kLegacy658SaveMagic ||',
+            '        header.formatVersion != kLegacy658SaveFormatVersion ||',
+            '        header.dataVersion != SAVEDATA_VERSION ||',
+            '        header.dataSize != SAVEFILE_SIZE) {',
+            '        return Legacy658SaveStatus::Invalid;',
+            '    }',
+            '    std::array<u8, SAVEFILE_SIZE> data{};',
+            '    if (!in.read(reinterpret_cast<char*>(data.data()), data.size())) {',
+            '        return Legacy658SaveStatus::Invalid;',
+            '    }',
+            '    return legacy658Checksum(data.data(), data.size()) == header.checksum ?',
+            '        Legacy658SaveStatus::Valid : Legacy658SaveStatus::Invalid;',
+            '}',
+            '',
+            'Legacy658SaveStatus inspectLegacy658Save() {',
+            '    const auto path = legacy658SavePath();',
+            '    auto status = inspectLegacy658SaveAt(path);',
+            '    if (status == Legacy658SaveStatus::Invalid) {',
+            '        auto backup = path;',
+            '        backup += ".bak";',
+            '        if (inspectLegacy658SaveAt(backup) == Legacy658SaveStatus::Valid) {',
+            '            std::error_code ec;',
+            '            std::filesystem::remove(path, ec);',
+            '            ec.clear();',
+            '            std::filesystem::rename(backup, path, ec);',
+            '            if (!ec) {',
+            '                status = Legacy658SaveStatus::Valid;',
+            '            }',
+            '        }',
+            '    }',
+            '    return status;',
+            '}',
+            '',
+            'bool readLegacy658Save(u8* outData) {',
+            '    const auto path = legacy658SavePath();',
+            '    if (inspectLegacy658Save() != Legacy658SaveStatus::Valid) {',
+            '        return false;',
+            '    }',
+            '    std::ifstream in(path, std::ios::binary);',
+            '    Legacy658SaveHeader header{};',
+            '    if (!in.read(reinterpret_cast<char*>(&header), sizeof(header))) {',
+            '        return false;',
+            '    }',
+            '    std::array<u8, SAVEFILE_SIZE> data{};',
+            '    if (!in.read(reinterpret_cast<char*>(data.data()), data.size()) ||',
+            '        legacy658Checksum(data.data(), data.size()) != header.checksum) {',
+            '        return false;',
+            '    }',
+            '    std::memcpy(outData, data.data(), data.size());',
+            '    return true;',
+            '}',
+            '',
+            'bool writeLegacy658Save(const u8* data) {',
+            '    const auto path = legacy658SavePath();',
+            '    auto tempPath = path;',
+            '    tempPath += ".tmp";',
+            '    auto backupPath = path;',
+            '    backupPath += ".bak";',
+            '    std::error_code ec;',
+            '    std::filesystem::create_directories(path.parent_path(), ec);',
+            '    if (ec) {',
+            '        OS_REPORT("Legacy658 direct-save directory error: %s\\n", ec.message().c_str());',
+            '        return false;',
+            '    }',
+            '    Legacy658SaveHeader header{',
+            '        kLegacy658SaveMagic,',
+            '        kLegacy658SaveFormatVersion,',
+            '        SAVEDATA_VERSION,',
+            '        SAVEFILE_SIZE,',
+            '        legacy658Checksum(data, SAVEFILE_SIZE),',
+            '    };',
+            '    {',
+            '        std::ofstream out(tempPath, std::ios::binary | std::ios::trunc);',
+            '        if (!out.write(reinterpret_cast<const char*>(&header), sizeof(header)) ||',
+            '            !out.write(reinterpret_cast<const char*>(data), SAVEFILE_SIZE)) {',
+            '            return false;',
+            '        }',
+            '        out.flush();',
+            '        if (!out.good()) {',
+            '            return false;',
+            '        }',
+            '    }',
+            '    if (inspectLegacy658SaveAt(tempPath) != Legacy658SaveStatus::Valid) {',
+            '        std::filesystem::remove(tempPath, ec);',
+            '        return false;',
+            '    }',
+            '    std::filesystem::remove(backupPath, ec);',
+            '    ec.clear();',
+            '    if (std::filesystem::exists(path, ec) && !ec) {',
+            '        std::filesystem::rename(path, backupPath, ec);',
+            '        if (ec) {',
+            '            std::filesystem::remove(tempPath);',
+            '            return false;',
+            '        }',
+            '    }',
+            '    ec.clear();',
+            '    std::filesystem::rename(tempPath, path, ec);',
+            '    if (ec) {',
+            '        std::error_code restoreEc;',
+            '        if (std::filesystem::exists(backupPath, restoreEc) && !restoreEc) {',
+            '            std::filesystem::rename(backupPath, path, restoreEc);',
+            '        }',
+            '        return false;',
+            '    }',
+            '    if (inspectLegacy658SaveAt(path) != Legacy658SaveStatus::Valid) {',
+            '        return false;',
+            '    }',
+            '    std::filesystem::remove(backupPath, ec);',
+            '    return true;',
+            '}',
+            '}  // namespace',
+            '#endif',
+            '',
+            '#if PLATFORM_WII'
+          ) -join "`n"
+          if (-not $memCard.Contains($helperAnchor)) {
+            throw 'Legacy 658 direct-save helper anchor changed.'
+          }
+          $memCard = $memCard.Replace($helperAnchor, $helperReplacement)
+
+          $threadInitOld = @(
+            '    #if !PLATFORM_SHIELD',
             '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());',
+            '',
+            '    char version[5] = {};',
+            '    char maker[3] = {};',
+            '    std::memcpy(version, dusk::version::getDiskID().gameName, 4);',
+            '    std::memcpy(maker, dusk::version::getDiskID().company, 2);',
+            '    CARDInit(version, maker);',
+            '    #endif'
+          ) -join "`n"
+          $threadInitNew = @(
+            '    #if defined(_UWP)',
+            '    // Pre-2.0 Xbox Legacy build: one play path, one direct save backend.',
+            '    const auto directStatus = inspectLegacy658Save();',
+            '    mCardState = directStatus == Legacy658SaveStatus::Valid ? CARD_STATE_READY_e :',
+            '        directStatus == Legacy658SaveStatus::Missing ? CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;',
+            '    field_0x1fc8 = 1;',
+            '    #elif !PLATFORM_SHIELD',
+            '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());',
+            '',
+            '    char version[5] = {};',
+            '    char maker[3] = {};',
+            '    std::memcpy(version, dusk::version::getDiskID().gameName, 4);',
+            '    std::memcpy(maker, dusk::version::getDiskID().company, 2);',
+            '    CARDInit(version, maker);',
+            '    #endif'
+          ) -join "`n"
+          if (-not $memCard.Contains($threadInitOld)) {
+            throw 'Legacy 658 direct-save ThdInit anchor changed.'
+          }
+          $memCard = $memCard.Replace($threadInitOld, $threadInitNew)
+
+          $commandOld = @(
+            '#if TARGET_PC',
+            '    mCardCommand = COMM_ATTACH_e;',
+            '#else',
+            '    mCardCommand = COMM_NONE_e;',
             '#endif'
           ) -join "`n"
-          if (-not $memCard.Contains($cardTypeOld)) {
-            throw 'Legacy 658 CARD backend anchor changed.'
+          $commandNew = @(
+            '#if defined(_UWP)',
+            '    mCardCommand = COMM_NONE_e;',
+            '#elif TARGET_PC',
+            '    mCardCommand = COMM_ATTACH_e;',
+            '#else',
+            '    mCardCommand = COMM_NONE_e;',
+            '#endif'
+          ) -join "`n"
+          if (-not $memCard.Contains($commandOld)) {
+            throw 'Legacy 658 direct-save command initialization anchor changed.'
           }
-          $memCard = $memCard.Replace($cardTypeOld, $cardTypeNew)
+          $memCard = $memCard.Replace($commandOld, $commandNew)
 
-          [IO.File]::WriteAllText(
-            $memCardPath, $memCard, [Text.UTF8Encoding]::new($false))
+          $updateOld = 'void mDoMemCd_Ctrl_c::update() {'
+          $updateNew = @(
+            'void mDoMemCd_Ctrl_c::update() {',
+            '#if defined(_UWP)',
+            '    return;',
+            '#endif'
+          ) -join "`n"
+          if (-not $memCard.Contains($updateOld)) {
+            throw 'Legacy 658 direct-save update anchor changed.'
+          }
+          $memCard = $memCard.Replace($updateOld, $updateNew)
+
+          $loadOld = @(
+            'void mDoMemCd_Ctrl_c::load() {',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        field_0x1fc8 = 0;',
+            '        mCardCommand = COMM_RESTORE_e;',
+            '        OSUnlockMutex(&mMutex);',
+            '        OSSignalCond(&mCond);',
+            '    }',
+            '}'
+          ) -join "`n"
+          $loadNew = @(
+            'void mDoMemCd_Ctrl_c::load() {',
+            '#if defined(_UWP)',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        field_0x1fc8 = 0;',
+            '        if (readLegacy658Save(mData)) {',
+            '            mDataVersion = SAVEDATA_VERSION;',
+            '            mCardState = CARD_STATE_READ_e;',
+            '        } else {',
+            '            const auto directStatus = inspectLegacy658Save();',
+            '            mCardState = directStatus == Legacy658SaveStatus::Missing ?',
+            '                CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;',
+            '        }',
+            '        field_0x1fc8 = 1;',
+            '        OSUnlockMutex(&mMutex);',
+            '    }',
+            '    return;',
+            '#endif',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        field_0x1fc8 = 0;',
+            '        mCardCommand = COMM_RESTORE_e;',
+            '        OSUnlockMutex(&mMutex);',
+            '        OSSignalCond(&mCond);',
+            '    }',
+            '}'
+          ) -join "`n"
+          if (-not $memCard.Contains($loadOld)) {
+            throw 'Legacy 658 direct-save load anchor changed.'
+          }
+          $memCard = $memCard.Replace($loadOld, $loadNew)
+
+          $saveOld = @(
+            'void mDoMemCd_Ctrl_c::save(void* i_buffer, u32 i_size, u32 i_position) {',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        memcpy(&mData[i_position], i_buffer, i_size);',
+            '        field_0x1fc8 = 0;',
+            '        mCardCommand = COMM_STORE_e;',
+            '        OSUnlockMutex(&mMutex);',
+            '        OSSignalCond(&mCond);',
+            '    }',
+            '}'
+          ) -join "`n"
+          $saveNew = @(
+            'void mDoMemCd_Ctrl_c::save(void* i_buffer, u32 i_size, u32 i_position) {',
+            '#if defined(_UWP)',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        memcpy(&mData[i_position], i_buffer, i_size);',
+            '        field_0x1fc8 = 0;',
+            '        mCardState = writeLegacy658Save(mData) ? CARD_STATE_WRITE_e : CARD_STATE_FATAL_ERROR_e;',
+            '        field_0x1fc8 = 1;',
+            '        OSUnlockMutex(&mMutex);',
+            '    }',
+            '    return;',
+            '#endif',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        memcpy(&mData[i_position], i_buffer, i_size);',
+            '        field_0x1fc8 = 0;',
+            '        mCardCommand = COMM_STORE_e;',
+            '        OSUnlockMutex(&mMutex);',
+            '        OSSignalCond(&mCond);',
+            '    }',
+            '}'
+          ) -join "`n"
+          if (-not $memCard.Contains($saveOld)) {
+            throw 'Legacy 658 direct-save write anchor changed.'
+          }
+          $memCard = $memCard.Replace($saveOld, $saveNew)
+
+          $formatOld = @(
+            'void mDoMemCd_Ctrl_c::command_format() {',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        mCardCommand = COMM_FORMAT_e;',
+            '        OSUnlockMutex(&mMutex);',
+            '        OSSignalCond(&mCond);',
+            '    }',
+            '}'
+          ) -join "`n"
+          $formatNew = @(
+            'void mDoMemCd_Ctrl_c::command_format() {',
+            '#if defined(_UWP)',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        std::error_code ec;',
+            '        std::filesystem::remove(legacy658SavePath(), ec);',
+            '        auto backup = legacy658SavePath();',
+            '        backup += ".bak";',
+            '        std::filesystem::remove(backup, ec);',
+            '        mCardState = CARD_STATE_FORMAT_e;',
+            '        field_0x1fc8 = 1;',
+            '        OSUnlockMutex(&mMutex);',
+            '    }',
+            '    return;',
+            '#endif',
+            '    if (OSTryLockMutex(&mMutex)) {',
+            '        mCardCommand = COMM_FORMAT_e;',
+            '        OSUnlockMutex(&mMutex);',
+            '        OSSignalCond(&mCond);',
+            '    }',
+            '}'
+          ) -join "`n"
+          if (-not $memCard.Contains($formatOld)) {
+            throw 'Legacy 658 direct-save format anchor changed.'
+          }
+          $memCard = $memCard.Replace($formatOld, $formatNew)
+
+          [IO.File]::WriteAllText($memCardPath, $memCard, [Text.UTF8Encoding]::new($false))
+
+          # Put all Randomizer config/presets/seeds beside the selected DevelopmentFiles ISO.
+          $randoConfigPath = "$env:TPR_SRC\src\dusk\ui\rando_config.cpp"
+          $randoConfig = [IO.File]::ReadAllText($randoConfigPath).Replace("`r`n", "`n")
+          if (-not $randoConfig.Contains('#include "dusk/logging.h"')) {
+            throw 'Legacy 658 randomizer storage include anchor changed.'
+          }
+          if (-not $randoConfig.Contains('#include "dusk/settings.h"')) {
+            $randoConfig = $randoConfig.Replace(
+              '#include "dusk/logging.h"',
+              ('#include "dusk/logging.h"' + "`n" + '#include "dusk/settings.h"'))
+          }
+
+          $randoPathOld = @(
+            'std::filesystem::path GetRandomizerPath() {',
+            '    return data::configured_data_path() / "randomizer";',
+            '}'
+          ) -join "`n"
+          $randoPathNew = @(
+            'std::filesystem::path GetRandomizerPath() {',
+            '#if defined(_UWP)',
+            '    const std::string isoPathText = getSettings().backend.isoPath.getValue();',
+            '    if (!isoPathText.empty()) {',
+            '        const std::filesystem::path isoPath{isoPathText};',
+            '        const auto parent = isoPath.parent_path();',
+            '        if (!parent.empty()) {',
+            '            const auto root = parent / "Legacy658Data" / "randomizer";',
+            '            std::error_code ec;',
+            '            std::filesystem::create_directories(root, ec);',
+            '            if (!ec) {',
+            '                return root;',
+            '            }',
+            '            DuskLog.error("Could not create Legacy658 DevelopmentFiles randomizer root: {}", ec.message());',
+            '        }',
+            '    }',
+            '#endif',
+            '    return data::configured_data_path() / "randomizer";',
+            '}'
+          ) -join "`n"
+          if (-not $randoConfig.Contains($randoPathOld)) {
+            throw 'Legacy 658 randomizer data-root anchor changed.'
+          }
+          $randoConfig = $randoConfig.Replace($randoPathOld, $randoPathNew)
+          [IO.File]::WriteAllText($randoConfigPath, $randoConfig, [Text.UTF8Encoding]::new($false))
 
           foreach ($marker in @(
-            '#include <filesystem>',
-            'CARDSetLoadType(CARD_GCIFOLDER);',
-            'legacy658_memory_card_v2',
-            'std::filesystem::create_directories(xboxCardBasePath, xboxCardPathError);',
-            'CARDSetBasePath(xboxCardBasePath.string().c_str(), -1);')) {
-            if (-not $memCard.Contains($marker)) {
-              throw "Legacy 658 card repair marker missing: $marker"
-            }
-          }
-
-          # Preserve the .658 transactional seed writer. The reported seed failure was a real
-          # ENOSPC from the write itself, not merely its free-space diagnostic suffix.
-          $seedContextPath = "$env:TPR_SRC\src\dusk\randomizer\game\randomizer_context.cpp"
-          $seedContext = [IO.File]::ReadAllText($seedContextPath)
-          foreach ($marker in @(
-            'dusk::io::FileStream::WriteAllText(temporaryPath, storedPayload);',
-            'DecodeSeedPayload(temporaryBytes) != rawPayload',
-            'std::filesystem::rename(temporaryPath, seedPath);',
-            'AvailableStorageSuffix(seedPath.parent_path())')) {
-            if (-not $seedContext.Contains($marker)) {
-              throw "Legacy 658 transactional seed-storage marker missing: $marker"
+            'legacy658-xbox.sav',
+            'Legacy658Data',
+            'writeLegacy658Save(mData)',
+            'readLegacy658Save(mData)',
+            'mCardCommand = COMM_NONE_e;',
+            'const auto root = parent / "Legacy658Data" / "randomizer";')) {
+            if (-not ($memCard.Contains($marker) -or $randoConfig.Contains($marker))) {
+              throw "Legacy 658 direct-save/storage marker missing: $marker"
             }
           }
 
           git -C "$env:TPR_SRC" diff --check
           if ($LASTEXITCODE -ne 0) {
-            throw 'Legacy 658 card repair introduced a source formatting error.'
+            throw 'Legacy 658 direct-save/storage backport introduced a source formatting error.'
           }
 
       - name: Emit patch mismatch diagnostics
