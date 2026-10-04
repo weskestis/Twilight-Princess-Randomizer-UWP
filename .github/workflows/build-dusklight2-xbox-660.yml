@@ -5933,7 +5933,7 @@ jobs:
           # Run 37113344092 reached and passed all 58 generator scenarios at this exact
           # .706 source state before failing later in the final Cosmetics link. Reuse
           # that certification unless generator-sensitive controls changed afterward.
-          $baseline = '0721d1cd2d719719e3f58237c76479113677716f'
+          $baseline = '0721d1cd2d719719e3f58237c76479113677715f'
           git -C "$env:TPR_CONTROL" fetch --depth 1 origin $baseline
           if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .708 generator baseline.' }
 
