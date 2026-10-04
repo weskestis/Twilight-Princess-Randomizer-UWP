@@ -12,60 +12,123 @@ permissions:
 jobs:
   extract:
     runs-on: windows-2022
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
-      - name: Download and inspect old tracker source
+      - uses: actions/checkout@v4
+        with:
+          path: _control
+
+      - name: Load pinned .634 control source
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archiveName = 'Twilight-Princess-Randomizer-UWP-Working-627-Seed-Safety-Colors-Hotfix-4.zip'
+          $expectedHash = 'b7d66ba41863a1207cbdd8266f3df8657f837cae9b814e59cbbf716d8b42a1c2'
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'legacy-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'legacy-control'
+          New-Item -ItemType Directory -Force $downloadDir,$extractDir | Out-Null
+          gh release download tpr-cp20-source --repo "$env:GITHUB_REPOSITORY" --pattern $archiveName --dir $downloadDir
+          $archive = Join-Path $downloadDir $archiveName
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $expectedHash) { throw "legacy source hash mismatch: $hash" }
+          Expand-Archive $archive $extractDir -Force
+          $root = Join-Path $extractDir 'Twilight-Princess-Randomizer-UWP'
+          if (-not (Test-Path (Join-Path $root 'scripts\assemble_port.py'))) { throw 'legacy control root invalid' }
+          "LEGACY_CONTROL=$root" >> $env:GITHUB_ENV
+
+      - name: Assemble pinned .634 runtime
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $url = 'https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-source/Twilight-Princess-Randomizer-UWP-Working-627-Zip-Cursor-Tracker-Hotfix-3.zip'
-          $zip = Join-Path $env:RUNNER_TEMP 'old-tracker.zip'
-          $src = Join-Path $env:RUNNER_TEMP 'old-tracker'
-          $out = Join-Path $env:GITHUB_WORKSPACE 'legacy-tracker-source'
-          Invoke-WebRequest -Uri $url -OutFile $zip
-          Expand-Archive -Path $zip -DestinationPath $src -Force
-          New-Item -ItemType Directory -Force $out | Out-Null
+          git config --global core.longpaths true
+          $src = Join-Path $env:RUNNER_TEMP 'legacy-runtime'
+          python "$env:LEGACY_CONTROL\scripts\assemble_port.py" --output $src
+          if ($LASTEXITCODE -ne 0) { throw 'legacy .634 assembly failed' }
+          "LEGACY_RUNTIME=$src" >> $env:GITHUB_ENV
 
-          Write-Host 'Initial archive contents:'
-          Get-ChildItem $src -Recurse -File | Select-Object -First 250 FullName,Length | Format-Table -AutoSize
-
-          $nested = @(Get-ChildItem $src -Recurse -File -Filter '*.zip')
-          $n = 0
-          foreach ($nestedZip in $nested) {
-            $n++
-            $nestedOut = Join-Path $src ("nested-" + $n)
+      - name: Apply preserved .636 through .649 layers
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Expand-Patch([string]$stem) {
+            $parts = @(Get-ChildItem "$env:GITHUB_WORKSPACE\_control\patches\$stem.patch.gz.b64.part*" -File | Sort-Object Name)
+            if ($parts.Count -lt 1) { throw "Missing patch parts for $stem" }
+            $encoded = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+            $gz = Join-Path $env:RUNNER_TEMP "$stem.patch.gz"
+            $patch = Join-Path $env:RUNNER_TEMP "$stem.patch"
+            [IO.File]::WriteAllBytes($gz, [Convert]::FromBase64String($encoded))
+            $input = [IO.File]::OpenRead($gz)
             try {
-              Expand-Archive -Path $nestedZip.FullName -DestinationPath $nestedOut -Force
-            } catch {
-              Write-Warning "Could not expand nested zip $($nestedZip.FullName): $($_.Exception.Message)"
-            }
+              $decoder = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
+              try {
+                $output = [IO.File]::Create($patch)
+                try { $decoder.CopyTo($output) } finally { $output.Dispose() }
+              } finally { $decoder.Dispose() }
+            } finally { $input.Dispose() }
+            $text = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+            [IO.File]::WriteAllText($patch, $text, [Text.UTF8Encoding]::new($false))
+            return $patch
           }
 
-          $all = @(Get-ChildItem $src -Recurse -File)
-          $manifest = Join-Path $out 'manifest.txt'
-          $all | ForEach-Object { $_.FullName.Substring($src.Length) } | Set-Content $manifest
-
-          $wanted = @(
-            'ImGuiMenuRandomizer.cpp',
-            'ImGuiMenuRandomizer.hpp',
-            'randomizer_context.hpp',
-            'settings.cpp',
-            'settings.h',
-            'rando_config.cpp',
-            'input.cpp'
+          $layers = @(
+            'dungeon-boss-shops-636',
+            'enemy-defeat-logic-637',
+            'enemy-randomization-638',
+            'menu-color-safety-639',
+            'transparent-input-viewer-macro-loader-640',
+            'seed-generation-tracker-641',
+            'breakable-runtime-item-safety-642',
+            'shop-rainbow-pool-643',
+            'runtime-enemy-heart-644',
+            'compact-seed-storage-645',
+            'runtime-metadata-tracker-646',
+            'shop-pumpkin-tracker-storage-647',
+            'ship-inspired-648',
+            'ordon-shop-runtime-649'
           )
-          foreach ($name in $wanted) {
-            $matches = @($all | Where-Object { $_.Name -eq $name })
-            foreach ($match in $matches) {
-              $relative = $match.FullName.Substring($src.Length).TrimStart('\\','/')
-              $safe = ($relative -replace '[:\\/]', '__')
-              Copy-Item $match.FullName (Join-Path $out $safe) -Force
+          Push-Location $env:LEGACY_RUNTIME
+          try {
+            foreach ($layer in $layers) {
+              $patch = Expand-Patch $layer
+              git apply --check $patch
+              if ($LASTEXITCODE -ne 0) { throw "Patch check failed: $layer" }
+              git apply $patch
+              if ($LASTEXITCODE -ne 0) { throw "Patch apply failed: $layer" }
+              Write-Host "Applied $layer"
             }
+          } finally { Pop-Location }
+
+      - name: Collect exact .649 tracker source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = Join-Path $env:GITHUB_WORKSPACE 'legacy-tracker-source'
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $files = @(
+            'src/dusk/imgui/ImGuiMenuRandomizer.cpp',
+            'src/dusk/imgui/ImGuiMenuRandomizer.hpp',
+            'src/dusk/imgui/ImGuiConsole.cpp',
+            'src/dusk/randomizer/game/randomizer_context.hpp',
+            'src/dusk/randomizer/game/randomizer_context.cpp',
+            'src/dusk/randomizer/game/tools.cpp',
+            'src/dusk/settings.h',
+            'src/dusk/settings.cpp',
+            'src/dusk/ui/settings.cpp',
+            'src/dusk/ui/rando_config.cpp',
+            'src/dusk/ui/input.cpp'
+          )
+          foreach ($relative in $files) {
+            $source = Join-Path $env:LEGACY_RUNTIME $relative
+            if (-not (Test-Path $source)) { throw "Missing expected .649 file: $relative" }
+            $name = $relative.Replace('/','__')
+            Copy-Item $source (Join-Path $out $name)
           }
-          Write-Host 'Collected files:'
           Get-ChildItem $out | Select-Object Name,Length | Format-Table -AutoSize
+
       - uses: actions/upload-artifact@v4
         with:
-          name: legacy-tracker-source
+          name: legacy-tracker-source-649
           path: legacy-tracker-source/*
           if-no-files-found: error
