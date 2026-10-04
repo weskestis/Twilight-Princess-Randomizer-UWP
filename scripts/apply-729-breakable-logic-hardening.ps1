@@ -20,20 +20,18 @@ if (-not $breakablesHeader.Contains('#include <optional>')) {
     '#include <cstdint>',
     '#include <cstdint>' + [string][char]10 + '#include <optional>')
 }
-$breakablesDeclOld = @'
-bool refresh_spawned_item(fopAc_ac_c* actor) noexcept;
-void collect_spawned_item(const fopAc_ac_c* actor) noexcept;
-'@
-if (-not $breakablesHeader.Contains($breakablesDeclOld)) {
-  throw '.729 breakable hardening could not find spawned-item declaration anchor.'
+$breakablesDeclAnchor =
+  'bool refresh_spawned_item(fopAc_ac_c* actor) noexcept;'
+if (-not $breakablesHeader.Contains($breakablesDeclAnchor)) {
+  throw '.729 breakable hardening could not find refresh_spawned_item declaration.'
 }
-$breakablesHeader = $breakablesHeader.Replace(
-  $breakablesDeclOld,
-  @'
-bool refresh_spawned_item(fopAc_ac_c* actor) noexcept;
-std::optional<uint8_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept;
-void collect_spawned_item(const fopAc_ac_c* actor) noexcept;
-'@)
+if (-not $breakablesHeader.Contains(
+      'spawned_item_assignment(const fopAc_ac_c* actor) noexcept;')) {
+  $breakablesHeader = $breakablesHeader.Replace(
+    $breakablesDeclAnchor,
+    $breakablesDeclAnchor + [string][char]10 +
+      'std::optional<uint8_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept;')
+}
 Write-Utf8 $breakablesHeaderPath $breakablesHeader
 
 $breakablesPath = "$src\mods\randomizer\src\breakables.cpp"
