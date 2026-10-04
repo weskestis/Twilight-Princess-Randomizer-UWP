@@ -76,8 +76,22 @@ int clearXboxTransitionFades() noexcept {
     // of JUTFader. Restore those end-of-transition states explicitly.
     dComIfGp_setWindowNum(1);
     dComIfGp_2dShowOn();
-    if (!dComIfGp_event_runCheck() && dCam_getBody() != nullptr) {
-        dCam_getBody()->Start();
+
+    // .723: the camera framework itself refuses to execute/draw while either
+    // global gameplay pause or the play-scene pause timer remains set.
+    // This recovery only runs after 300 stable frames with no event/next-stage request.
+    dComIfGp_offPauseFlag();
+    dScnPly_c::pauseTimer = 0;
+    dScnPly_c::nextPauseTimer = 0;
+
+    camera_process_class* cameraProcess =
+        dComIfGp_getCamera(dComIfGp_getPlayerCameraID(0));
+    if (cameraProcess != nullptr) {
+        fpcM_PauseDisable(cameraProcess, 1);
+        fpcM_PauseDisable(cameraProcess, 2);
+        cameraProcess->mCamera.SetTrimSize(0);
+        cameraProcess->mCamera.QuickStart();
+        cameraProcess->mCamera.ResetView();
     }
 
     mDoGph_gInf_c::offFade();
@@ -105,8 +119,18 @@ int clearXboxTransitionFades() noexcept {
         mDoGph_gInf_c::isFade() == 0 && mDoGph_gInf_c::getFadeColor().a == 0;
     const bool windowRestored =
         dComIfGp_getWindowNum() == 1 && dComIfGp_2dShowCheck() != 0;
+    const bool pauseClear =
+        dComIfGp_isPauseFlag() == 0 && dScnPly_c::isPause() == 0;
+    const bool cameraClear =
+        cameraProcess != nullptr &&
+        cameraProcess->mCamera.Active() &&
+        !fpcM_IsPause(cameraProcess, 1) &&
+        !fpcM_IsPause(cameraProcess, 2);
 
-    return overlapGone && faderClear && globalFadeClear && windowRestored ? 1 : 0;
+    return overlapGone && faderClear && globalFadeClear && windowRestored &&
+                   pauseClear && cameraClear
+               ? 1
+               : 0;
 }
 
 void captureXboxTransitionFailure(
@@ -115,7 +139,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.722\n";
+    report << "build=1.4.1.723\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
@@ -127,6 +151,16 @@ void captureXboxTransitionFailure(
     report << "overlap_doing_req=" << (fopOvlpM_IsDoingReq() ? 1 : 0) << "\n";
     report << "window_num=" << static_cast<int>(dComIfGp_getWindowNum()) << "\n";
     report << "show_2d=" << static_cast<int>(dComIfGp_2dShowCheck()) << "\n";
+    report << "global_pause=" << static_cast<int>(dComIfGp_isPauseFlag()) << "\n";
+    report << "play_pause=" << static_cast<int>(dScnPly_c::isPause()) << "\n";
+    camera_process_class* cameraProcess =
+        dComIfGp_getCamera(dComIfGp_getPlayerCameraID(0));
+    report << "camera_present=" << (cameraProcess != nullptr ? 1 : 0) << "\n";
+    if (cameraProcess != nullptr) {
+        report << "camera_active=" << (cameraProcess->mCamera.Active() ? 1 : 0) << "\n";
+        report << "camera_pause_1=" << fpcM_IsPause(cameraProcess, 1) << "\n";
+        report << "camera_pause_2=" << fpcM_IsPause(cameraProcess, 2) << "\n";
+    }
     if (stage >= 0 && stage < 78) {
         report << "stage_name=" << allStages[stage] << "\n";
     }

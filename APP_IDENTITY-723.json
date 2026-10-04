@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.723",
+  "architecture": "x64",
+  "base": "1.4.1.722 direct transparent-fader recovery",
+  "transitionEvidence": "722 reported internal fade/overlap/window success while hardware remained black",
+  "transitionFix": "Clear proven-stale gameplay/play-scene pause gates and camera pause bits; QuickStart camera directly into active state",
+  "successGate": "Requires camera Active plus pause gates clear in addition to overlap/fader/window conditions",
+  "failureReport": "Adds global_pause, play_pause, camera_present, camera_active, camera_pause_1 and camera_pause_2",
+  "breakables": "Gold pending randomized pots and green pending randomized pumpkins retained; vanilla after claim",
+  "seedHardening": "Deferred to 1.4.1.724",
+  "startupJournal": "xbox-startup-stage-723.txt"
+}
