@@ -58,6 +58,19 @@ ImTextureID tracker_texture(uint8_t itemNo) {
     }
     return texture;
 }
+std::string runtime_report_field(std::string_view report, std::string_view key) {
+    const std::string prefix = std::string(key) + "=";
+    const std::size_t start = report.find(prefix);
+    if (start == std::string_view::npos) {
+        return {};
+    }
+    const std::size_t valueStart = start + prefix.size();
+    const std::size_t end = report.find('\n', valueStart);
+    return std::string(report.substr(
+        valueStart,
+        end == std::string_view::npos ? report.size() - valueStart : end - valueStart));
+}
+
 std::string persist_transition_failure_report(std::string_view report) {
     if (report.empty()) {
         return {};
@@ -65,8 +78,8 @@ std::string persist_transition_failure_report(std::string_view report) {
 
     try {
         std::filesystem::create_directories(ConfigPath);
-        const auto latestPath = ConfigPath / "xbox-transition-failure.txt";
-        const auto historyPath = ConfigPath / "xbox-transition-failures.log";
+        const auto latestPath = ConfigPath / "xbox-runtime-failure.txt";
+        const auto historyPath = ConfigPath / "xbox-runtime-failures.log";
 
         {
             std::ofstream latest(latestPath, std::ios::out | std::ios::trunc);
@@ -74,7 +87,7 @@ std::string persist_transition_failure_report(std::string_view report) {
         }
         {
             std::ofstream history(historyPath, std::ios::out | std::ios::app);
-            history << "\n===== transition failure =====\n" << report;
+            history << "\n===== runtime failure =====\n" << report;
         }
         return latestPath.string();
     } catch (...) {
@@ -146,19 +159,31 @@ void draw_xbox_failure_report() {
     const bool retryPressed = mDoCPd_c::getTrigA(PAD_1) != 0;
     const bool dismissPressed = mDoCPd_c::getTrigB(PAD_1) != 0;
 
-    ImGui::OpenPopup("Xbox Transition Failure###XboxTransitionFailure");
+    ImGui::OpenPopup("Xbox Runtime Failure###XboxTransitionFailure");
     ImGui::SetNextWindowSize(ImVec2(720.0f, 0.0f), ImGuiCond_Appearing);
     if (ImGui::BeginPopupModal(
-            "Xbox Transition Failure###XboxTransitionFailure",
+            "Xbox Runtime Failure###XboxTransitionFailure",
             nullptr,
             ImGuiWindowFlags_AlwaysAutoResize))
     {
+        const std::string failureClass = runtime_report_field(report, "failure_class");
+        const std::string failureSummary = runtime_report_field(report, "failure_summary");
+        const std::string failureHint = runtime_report_field(report, "failure_hint");
+
         ImGui::TextWrapped(
-            "The game stayed hidden after a major transition even though gameplay was already live. "
-            "Automatic recovery is cancelling the stale overlap and restoring the gameplay window, "
-            "camera, 2D layer, and both fade systems. This report preserves the pre-recovery state.");
+            "Xbox detected a Randomizer runtime failure. The state below was captured before "
+            "recovery so the next fix can target the actual blocker.");
+        if (!failureClass.empty()) {
+            ImGui::TextWrapped("Failure class: %s", failureClass.c_str());
+        }
+        if (!failureSummary.empty()) {
+            ImGui::TextWrapped("Detected: %s", failureSummary.c_str());
+        }
+        if (!failureHint.empty()) {
+            ImGui::TextWrapped("Hint: %s", failureHint.c_str());
+        }
         ImGui::Spacing();
-        ImGui::TextUnformatted("Controller: A = Retry Fade Recovery    B = Dismiss");
+        ImGui::TextUnformatted("Controller: A = Retry Recovery    B = Dismiss");
 
         if (!persistedPath.empty()) {
             ImGui::TextWrapped("Saved report: %s", persistedPath.c_str());
@@ -173,7 +198,7 @@ void draw_xbox_failure_report() {
         ImGui::PopTextWrapPos();
         ImGui::Separator();
 
-        const bool retryButton = ImGui::Button("Retry Fade Recovery");
+        const bool retryButton = ImGui::Button("Retry Recovery");
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
         const bool dismissButton = ImGui::Button("Dismiss");

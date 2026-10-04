@@ -262,9 +262,56 @@ void captureXboxTransitionFailure(
     s_xboxTransitionDeferredReported = false;
     auto& context = randomizer_GetContext();
     std::ostringstream report;
-    report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.727\n";
+    report << "Twilight Princess Randomizer Xbox runtime failure report\n";
+    report << "build=1.4.1.728\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
+
+    const int classifiedSceneChangePresent = tpr_xbox_scene_change_present();
+    const int classifiedSceneChangePhase = tpr_xbox_scene_change_phase();
+    const int classifiedCreateQueueSize = tpr_xbox_create_queue_size();
+    bool classifiedPoeBlocker = false;
+    int classifiedPoeResourcePhase = -1;
+    for (int i = 0; i < std::min(classifiedCreateQueueSize, 8); ++i) {
+        if (tpr_xbox_create_queue_entry_process_name(i) == 481) {
+            classifiedPoeBlocker = true;
+            classifiedPoeResourcePhase =
+                tpr_xbox_create_queue_entry_poe_resource_phase(i);
+            break;
+        }
+    }
+
+    if (classifiedSceneChangePresent != 0 && classifiedSceneChangePhase == 4 &&
+        classifiedPoeBlocker)
+    {
+        report << "failure_class=child_actor_creation_stall\n";
+        report << "failure_summary=PLAY_SCENE is waiting for E_HP/Poe actor creation to finish.\n";
+        report << "failure_blocker=E_HP/Poe\n";
+        report << "failure_blocker_resource_phase=" << classifiedPoeResourcePhase << "\n";
+        if (classifiedPoeResourcePhase == 0) {
+            report << "failure_hint=Poe is blocked before E_HP resource loading begins; enemy/Soul create gating is suspect.\n";
+        } else if (classifiedPoeResourcePhase == 1) {
+            report << "failure_hint=Poe is waiting for the E_HP resource archive to finish loading.\n";
+        } else if (classifiedPoeResourcePhase == 2) {
+            report << "failure_hint=Poe resources are loaded; heap/model initialization is suspect.\n";
+        }
+    } else if (classifiedSceneChangePresent != 0 && classifiedSceneChangePhase == 4) {
+        report << "failure_class=destination_scene_creation_stall\n";
+        report << "failure_summary=The destination gameplay scene is waiting for child creation to complete.\n";
+    } else if (classifiedSceneChangePresent != 0) {
+        report << "failure_class=scene_change_stall\n";
+        report << "failure_summary=The engine scene-change transaction stopped making progress.\n";
+    } else if (fopOvlpM_IsPeek() || fopOvlpM_IsDoingReq()) {
+        report << "failure_class=transition_overlap_stall\n";
+        report << "failure_summary=The gameplay scene exists, but the transition overlap did not finish.\n";
+    } else if (mDoGph_gInf_c::isFade() != 0 ||
+               (fader != nullptr && fader->getStatus() != JUTFader::Wait)) {
+        report << "failure_class=fade_state_stall\n";
+        report << "failure_summary=The gameplay scene exists, but a fade system remains active.\n";
+    } else {
+        report << "failure_class=runtime_stall_unknown\n";
+        report << "failure_summary=The game stopped progressing and no known transition blocker matched.\n";
+    }
+
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
     report << "room=" << static_cast<int>(dComIfGp_roomControl_getStayNo()) << "\n";
