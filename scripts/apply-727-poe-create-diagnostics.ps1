@@ -23,19 +23,8 @@ if (-not $text.Contains('#include "d/actor/d_a_e_hp.h"')) {
     $includeAnchor + "`n" + '#include "d/actor/d_a_e_hp.h"')
 }
 
-$anchor = @'
-extern "C" int tpr_xbox_create_queue_entry_process_state(int index) noexcept {
-    auto* req = tpr_xbox_create_queue_entry(index);
-    return req != nullptr && req->base.process != nullptr ? req->base.process->state.init_state : -1;
-}
-'@
-
-$replacement = @'
-extern "C" int tpr_xbox_create_queue_entry_process_state(int index) noexcept {
-    auto* req = tpr_xbox_create_queue_entry(index);
-    return req != nullptr && req->base.process != nullptr ? req->base.process->state.init_state : -1;
-}
-
+$insertAnchor = 'int fpcSCtRq_phase_Load(standard_create_request_class* i_request) {'
+$diag = @'
 extern "C" int tpr_xbox_create_queue_entry_process_create_phase(int index) noexcept {
     auto* req = tpr_xbox_create_queue_entry(index);
     return req != nullptr && req->base.process != nullptr ? req->base.process->state.create_phase : -1;
@@ -77,10 +66,15 @@ extern "C" int tpr_xbox_create_queue_entry_poe_morf_present(int index) noexcept 
 }
 '@
 
-if (-not $text.Contains($anchor)) {
-  throw '.727 create-queue process-state anchor changed.'
+if ($text.Contains('tpr_xbox_create_queue_entry_poe_resource_phase')) {
+  throw '.727 Poe diagnostics already present unexpectedly.'
 }
-$text = $text.Replace($anchor, $replacement)
+if (-not $text.Contains($insertAnchor)) {
+  throw '.727 stable create-function boundary changed.'
+}
+$text = $text.Replace(
+  $insertAnchor,
+  $diag + "`n`n" + $insertAnchor)
 Write-Utf8 $path $text
 
 foreach ($marker in @(
