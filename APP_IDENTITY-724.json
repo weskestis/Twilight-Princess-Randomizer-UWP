@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.724",
+  "architecture": "x64",
+  "base": "1.4.1.723 camera/pause recovery",
+  "transitionEvidence": "723 pre-recovery report showed global/play/camera pause all clear and camera active while screen remained black",
+  "transitionFix": "Unpause PLAY_SCENE tree recursively and rebind global drawlist window/viewport/player-camera view",
+  "successGate": "Adds play-scene pause and render-view binding to recovery success conditions",
+  "failureReport": "Adds play_scene pause state and render_view/viewport binding state",
+  "breakables": "Gold pending randomized pots and green pending randomized pumpkins retained; vanilla after claim",
+  "seedHardening": "Deferred to 1.4.1.725",
+  "startupJournal": "xbox-startup-stage-724.txt"
+}

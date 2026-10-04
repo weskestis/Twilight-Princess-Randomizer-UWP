@@ -84,6 +84,14 @@ int clearXboxTransitionFades() noexcept {
     dScnPly_c::pauseTimer = 0;
     dScnPly_c::nextPauseTimer = 0;
 
+    base_process_class* playScene = fpcM_SearchByName(fpcNm_PLAY_SCENE_e);
+    if (playScene != nullptr) {
+        // Major overlaps pause the entire PLAY_SCENE node tree. Clear both pause bits
+        // directly on the scene node so the recursive layer/children are resumed too.
+        fpcM_PauseDisable(playScene, 1);
+        fpcM_PauseDisable(playScene, 2);
+    }
+
     camera_process_class* cameraProcess =
         dComIfGp_getCamera(dComIfGp_getPlayerCameraID(0));
     if (cameraProcess != nullptr) {
@@ -92,6 +100,13 @@ int clearXboxTransitionFades() noexcept {
         cameraProcess->mCamera.SetTrimSize(0);
         cameraProcess->mCamera.QuickStart();
         cameraProcess->mCamera.ResetView();
+
+        // Rebind the main gameplay render targets. Scene teardown/name screens can
+        // leave these null; ImGui can still draw while the 3D game has no active view.
+        dDlst_window_c* window = dComIfGp_getWindow(0);
+        dComIfGd_setWindow(window);
+        dComIfGd_setViewport(window != nullptr ? window->getViewPort() : nullptr);
+        dComIfGd_setView(&cameraProcess->view);
     }
 
     mDoGph_gInf_c::offFade();
@@ -121,14 +136,22 @@ int clearXboxTransitionFades() noexcept {
         dComIfGp_getWindowNum() == 1 && dComIfGp_2dShowCheck() != 0;
     const bool pauseClear =
         dComIfGp_isPauseFlag() == 0 && dScnPly_c::isPause() == 0;
+    const bool playSceneClear =
+        playScene != nullptr &&
+        !fpcM_IsPause(playScene, 1) &&
+        !fpcM_IsPause(playScene, 2);
     const bool cameraClear =
         cameraProcess != nullptr &&
         cameraProcess->mCamera.Active() &&
         !fpcM_IsPause(cameraProcess, 1) &&
         !fpcM_IsPause(cameraProcess, 2);
+    const bool renderViewClear =
+        cameraProcess != nullptr &&
+        dComIfGd_getView() == &cameraProcess->view &&
+        dComIfGd_getViewport() != nullptr;
 
     return overlapGone && faderClear && globalFadeClear && windowRestored &&
-                   pauseClear && cameraClear
+                   pauseClear && playSceneClear && cameraClear && renderViewClear
                ? 1
                : 0;
 }
@@ -139,7 +162,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.723\n";
+    report << "build=1.4.1.724\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
@@ -161,6 +184,17 @@ void captureXboxTransitionFailure(
         report << "camera_pause_1=" << fpcM_IsPause(cameraProcess, 1) << "\n";
         report << "camera_pause_2=" << fpcM_IsPause(cameraProcess, 2) << "\n";
     }
+    base_process_class* playScene = fpcM_SearchByName(fpcNm_PLAY_SCENE_e);
+    report << "play_scene_present=" << (playScene != nullptr ? 1 : 0) << "\n";
+    if (playScene != nullptr) {
+        report << "play_scene_pause_1=" << fpcM_IsPause(playScene, 1) << "\n";
+        report << "play_scene_pause_2=" << fpcM_IsPause(playScene, 2) << "\n";
+    }
+    report << "render_view_present=" << (dComIfGd_getView() != nullptr ? 1 : 0) << "\n";
+    report << "render_view_is_player_camera="
+           << (cameraProcess != nullptr && dComIfGd_getView() == &cameraProcess->view ? 1 : 0)
+           << "\n";
+    report << "render_viewport_present=" << (dComIfGd_getViewport() != nullptr ? 1 : 0) << "\n";
     if (stage >= 0 && stage < 78) {
         report << "stage_name=" << allStages[stage] << "\n";
     }
