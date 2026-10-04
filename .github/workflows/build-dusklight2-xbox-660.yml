@@ -5529,6 +5529,8 @@ jobs:
             'kMaxSeedGenerationAttempts = 50',
             'Final logic validation...',
             'Finished seed is not beatable from the configured start.',
+            'item->GetName() == "Empty Bottle"',
+            'ownedItem->IsBottle()',
             'spawned_item_assignment',
             'item::exec_item_get(*breakableItem)',
             'breakables::collect_spawned_item(i_this)',
@@ -5916,6 +5918,11 @@ jobs:
           # Retry each scenario locally before declaring the settings combination broken.
           $generatorTestPath = "$env:TPR_SRC\mods\randomizer\generator\test\test.cpp"
           $generatorTest = [IO.File]::ReadAllText($generatorTestPath).Replace("`r`n", "`n")
+          if (-not $generatorTest.Contains('#include <fstream>')) {
+            $generatorTest = $generatorTest.Replace(
+              '#include <filesystem>',
+              '#include <filesystem>' + "`n" + '#include <fstream>' + "`n" + '#include <iterator>')
+          }
           $generatorTestOld = @(
             '        try',
             '        {',
@@ -5936,6 +5943,23 @@ jobs:
             '        std::string lastError;',
             '        for (int attempt = 1; attempt <= kScenarioAttempts; ++attempt)',
             '        {',
+            '            // .729 certification: every retry must exercise a different seed.',
+            '            // Keep the sequence deterministic so CI failures remain reproducible.',
+            '            {',
+            '                std::ifstream settingsIn(SETTINGS_PATH);',
+            '                std::string settingsText((std::istreambuf_iterator<char>(settingsIn)),',
+            '                                         std::istreambuf_iterator<char>());',
+            '                settingsIn.close();',
+            '                const auto seedStart = settingsText.find("Seed:");',
+            '                const auto seedEnd = settingsText.find(''\n'', seedStart);',
+            '                if (seedStart == std::string::npos || seedEnd == std::string::npos) {',
+            '                    throw std::runtime_error("Logic test settings are missing a Seed line");',
+            '                }',
+            '                const std::string retrySeed = "CI_ATTEMPT_" + std::to_string(attempt);',
+            '                settingsText.replace(seedStart, seedEnd - seedStart, "Seed: " + retrySeed);',
+            '                std::ofstream settingsOut(SETTINGS_PATH, std::ios::trunc);',
+            '                settingsOut << settingsText;',
+            '            }',
             '            try',
             '            {',
             '                randomizer::Randomizer r{RANDO_SAVE_PATH};',
@@ -5969,7 +5993,8 @@ jobs:
           [IO.File]::WriteAllText(
             $generatorTestPath, $generatorTest, [Text.UTF8Encoding]::new($false))
           if (-not $generatorTest.Contains('constexpr int kScenarioAttempts = 50;') -or
-              -not $generatorTest.Contains('Retrying \"" << testName')) {
+              -not $generatorTest.Contains('Retrying \"" << testName') -or
+              -not $generatorTest.Contains('CI_ATTEMPT_')) {
             throw 'Generator scenario retry harness was not installed.'
           }
 
