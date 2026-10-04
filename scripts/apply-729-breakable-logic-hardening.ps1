@@ -142,16 +142,19 @@ Write-Utf8 $hooksPath $hooks
 # .729: enforce beatability for every logic-enabled world.
 $searchPath = "$src\mods\randomizer\generator\logic\search.cpp"
 $search = Read-Normalized $searchPath
-$verifyTail = @'
-        return std::nullopt;
-    }
-
-    void GeneratePlaythrough(Randomizer* randomizer)
-'@
-if (-not $search.Contains($verifyTail)) {
-  throw '.729 logic hardening could not find VerifyLogic tail.'
+$verifyStart = $search.IndexOf('std::optional<std::string> VerifyLogic')
+$verifyEnd = $search.IndexOf('void GeneratePlaythrough', $verifyStart)
+if ($verifyStart -lt 0 -or $verifyEnd -lt 0) {
+  throw '.729 logic hardening could not locate VerifyLogic boundaries.'
 }
-$verifyTailNew = @'
+$verifySegment = $search.Substring($verifyStart, $verifyEnd - $verifyStart)
+$verifyReturn = '        return std::nullopt;'
+$verifyReturnRel = $verifySegment.LastIndexOf($verifyReturn)
+if ($verifyReturnRel -lt 0) {
+  throw '.729 logic hardening could not locate VerifyLogic final return.'
+}
+if (-not $verifySegment.Contains('requiresBeatable')) {
+  $verifyInsert = @'
         const bool requiresBeatable = std::ranges::any_of(
             *worlds, [](const auto& world) {
                 return world->Setting("Logic Rules") != "No Logic";
@@ -160,28 +163,31 @@ $verifyTailNew = @'
             return "Finished seed is not beatable from the configured start.";
         }
 
-        return std::nullopt;
-    }
-
-    void GeneratePlaythrough(Randomizer* randomizer)
 '@
-$search = $search.Replace($verifyTail, $verifyTailNew)
+  $verifyInsertPos = $verifyStart + $verifyReturnRel
+  $search = $search.Substring(0, $verifyInsertPos) +
+            $verifyInsert +
+            $search.Substring($verifyInsertPos)
+}
 Write-Utf8 $searchPath $search
 
 # .729: final validation after every post-fill/custom transform.
 $randomizerPath = "$src\mods\randomizer\generator\randomizer.cpp"
 $randomizer = Read-Normalized $randomizerPath
-$finalValidationAnchor = @'
-        ApplySeedAwareJunk(*this);
-
-        // Generate Playthrough
-        logic::search::GeneratePlaythrough(this);
-'@
-if (-not $randomizer.Contains($finalValidationAnchor)) {
-  throw '.729 logic hardening could not find final post-fill validation anchor.'
+$junkCall = '        ApplySeedAwareJunk(*this);'
+$junkPos = $randomizer.IndexOf($junkCall)
+if ($junkPos -lt 0) {
+  throw '.729 logic hardening could not find ApplySeedAwareJunk call.'
 }
-$finalValidationNew = @'
-        ApplySeedAwareJunk(*this);
+$playthroughCall = '        logic::search::GeneratePlaythrough(this);'
+$playthroughPos = $randomizer.IndexOf($playthroughCall, $junkPos)
+if ($playthroughPos -lt 0) {
+  throw '.729 logic hardening could not find GeneratePlaythrough after junk pass.'
+}
+$betweenLength = $playthroughPos - $junkPos
+$between = $randomizer.Substring($junkPos, $betweenLength)
+if (-not $between.Contains('Final logic validation...')) {
+  $finalValidation = @'
 
         // .729: validate the final world after every post-fill/custom randomizer
         // transformation. This catches self-locks introduced by Pots, Pumpkins,
@@ -195,10 +201,11 @@ $finalValidationNew = @'
                 "Final seed validation failed: " + finalLogicError.value());
         }
 
-        // Generate Playthrough
-        logic::search::GeneratePlaythrough(this);
 '@
-$randomizer = $randomizer.Replace($finalValidationAnchor, $finalValidationNew)
+  $randomizer = $randomizer.Substring(0, $playthroughPos) +
+                $finalValidation +
+                $randomizer.Substring($playthroughPos)
+}
 Write-Utf8 $randomizerPath $randomizer
 
 # .729: runtime generator re-rolls invalid worlds up to 50 times.
@@ -210,54 +217,32 @@ if (-not $context.Contains('#include "ui/rando_seed_generation.hpp"')) {
 if (-not $context.Contains('#include "ui/config_store.hpp"')) {
   $context = $context.Replace(
     '#include "ui/rando_seed_generation.hpp"',
-    '#include "ui/rando_seed_generation.hpp"' + [string][char]10 + '#include "ui/config_store.hpp"')
+    '#include "ui/rando_seed_generation.hpp"' + [string][char]10 +
+    '#include "ui/config_store.hpp"')
 }
 
-$generateOld = @'
-bool GenerateAndWriteSeed() {
-    auto r = randomizer::Randomizer{::randomizer::paths::GetRandomizerPath()};
-
-    auto generationResult = r.Generate();
-    if (generationResult.has_value()) {
-        randomizer::ui::UpdateGenerationStatusMsg(
-            fmt::format("Failed to generate seed. Reason:\n{}", generationResult.value()));
-        DeleteFailedGenerationFiles(r);
-        return false;
-    }
-
-    const auto world = r.GetWorld();
-    RandomizerContext randoData{};
-    try {
-        randoData = WriteSeedData(world);
-    } catch (const std::runtime_error& e) {
-        randomizer::ui::UpdateGenerationStatusMsg(
-            fmt::format("Failed to write seed data. Reason:\n{}", e.what()));
-        DeleteFailedGenerationFiles(r);
-        return false;
-    }
-
-    randoData.mHash = r.GetConfig().GetHash();
-    auto writeToFileResult = randoData.WriteToFile();
-    if (writeToFileResult.has_value()) {
-        randomizer::ui::UpdateGenerationStatusMsg(
-            fmt::format("Failed to write seed data to file. Reason:\n{}", writeToFileResult.value()));
-        DeleteFailedGenerationFiles(r);
-        return false;
-    }
-
-    {
-        std::scoped_lock lock(sLastGeneratedSeedMutex);
-        sLastGeneratedSeedHash = randoData.mHash;
-    }
-
-    randomizer::ui::UpdateGenerationStatusMsg(fmt::format(
-        "Seed generated and verified!\n\n{}", randoData.FormatSeedAuditReport()));
-    return true;
+$generateStart = $context.IndexOf('bool GenerateAndWriteSeed() {')
+if ($generateStart -lt 0) {
+  throw '.729 seed retry could not find GenerateAndWriteSeed start.'
 }
-'@
-if (-not $context.Contains($generateOld)) {
-  throw '.729 seed retry could not find GenerateAndWriteSeed body.'
+$depth = 0
+$generateEnd = -1
+for ($idx = $generateStart; $idx -lt $context.Length; ++$idx) {
+  $ch = $context[$idx]
+  if ($ch -eq '{') {
+    ++$depth
+  } elseif ($ch -eq '}') {
+    --$depth
+    if ($depth -eq 0) {
+      $generateEnd = $idx + 1
+      break
+    }
+  }
 }
+if ($generateEnd -lt 0) {
+  throw '.729 seed retry could not find GenerateAndWriteSeed end.'
+}
+
 $generateNew = @'
 bool GenerateAndWriteSeed() {
     constexpr int kMaxSeedGenerationAttempts = 50;
@@ -301,7 +286,8 @@ bool GenerateAndWriteSeed() {
         auto writeToFileResult = randoData.WriteToFile();
         if (writeToFileResult.has_value()) {
             randomizer::ui::UpdateGenerationStatusMsg(
-                fmt::format("Failed to write seed data to file. Reason:\n{}", writeToFileResult.value()));
+                fmt::format("Failed to write seed data to file. Reason:\n{}",
+                            writeToFileResult.value()));
             DeleteFailedGenerationFiles(r);
             return false;
         }
@@ -313,16 +299,21 @@ bool GenerateAndWriteSeed() {
 
         randomizer::ui::UpdateGenerationStatusMsg(fmt::format(
             "Seed generated and verified on attempt {}/{}!\n\n{}",
-            attempt, kMaxSeedGenerationAttempts, randoData.FormatSeedAuditReport()));
+            attempt, kMaxSeedGenerationAttempts,
+            randoData.FormatSeedAuditReport()));
         return true;
     }
 
     randomizer::ui::UpdateGenerationStatusMsg(fmt::format(
-        "Failed to generate a verified seed. Reason:\n{}", lastGenerationError));
+        "Failed to generate a verified seed. Reason:\n{}",
+        lastGenerationError));
     return false;
 }
 '@
-$context = $context.Replace($generateOld, $generateNew)
+
+$context = $context.Substring(0, $generateStart) +
+           $generateNew +
+           $context.Substring($generateEnd)
 Write-Utf8 $contextPath $context
 
 # Regression guards.
