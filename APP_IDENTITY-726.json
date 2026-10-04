@@ -1,0 +1,11 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.726",
+  "architecture": "x64",
+  "evidence": "725 video: scene change phase 4 wait-destination-created, target PLAY_SCENE, creating id 144 active, created process absent, delete queue empty",
+  "change": "Bounded deferred report plus PLAY_SCENE standard-create and dScnPly phase diagnostics",
+  "recovery": "Still defers destructive overlap recovery while destination scene creation is active",
+  "breakables": "Gold pending randomized pots and green pending randomized pumpkins retained; vanilla after claim",
+  "seedHardening": "Deferred to 1.4.1.727",
+  "startupJournal": "xbox-startup-stage-726.txt"
+}

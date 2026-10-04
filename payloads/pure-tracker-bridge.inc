@@ -53,6 +53,7 @@ bool s_pureTrackerReady = false;
 bool s_xboxTransitionFailurePending = false;
 std::string s_xboxTransitionFailureReport{};
 u32 s_xboxTransitionFailureSerial = 0;
+bool s_xboxTransitionDeferredReported = false;
 
 extern "C" int tpr_xbox_scene_change_present() noexcept;
 extern "C" int tpr_xbox_scene_change_phase() noexcept;
@@ -68,6 +69,51 @@ extern "C" int tpr_xbox_delete_queue_entry_profname(int index) noexcept;
 extern "C" int tpr_xbox_delete_queue_entry_id(int index) noexcept;
 extern "C" int tpr_xbox_delete_queue_entry_state(int index) noexcept;
 extern "C" int tpr_xbox_delete_queue_entry_timer(int index) noexcept;
+
+extern "C" int tpr_xbox_create_request_present(int id) noexcept;
+extern "C" int tpr_xbox_create_request_phase(int id) noexcept;
+extern "C" int tpr_xbox_create_request_process_present(int id) noexcept;
+extern "C" int tpr_xbox_create_request_process_name(int id) noexcept;
+extern "C" int tpr_xbox_create_request_process_profname(int id) noexcept;
+extern "C" int tpr_xbox_create_request_process_init_state(int id) noexcept;
+extern "C" int tpr_xbox_create_request_process_create_phase(int id) noexcept;
+extern "C" int tpr_xbox_create_request_layer_creating(int id) noexcept;
+extern "C" int tpr_xbox_play_scene_create_phase(int id) noexcept;
+extern "C" int tpr_xbox_create_queue_size() noexcept;
+extern "C" int tpr_xbox_create_queue_entry_id(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_target(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_phase(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_process_name(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_process_state(int index) noexcept;
+
+const char* xboxCreateRequestPhaseName(int phase) noexcept {
+    switch (phase) {
+    case 0: return "load-profile";
+    case 1: return "allocate-process";
+    case 2: return "run-process-create";
+    case 3: return "wait-layer-children";
+    case 4: return "post-create";
+    case 5: return "done";
+    default: return "none/unknown";
+    }
+}
+
+const char* xboxPlaySceneCreatePhaseName(int phase) noexcept {
+    switch (phase) {
+    case 0: return "phase_00-reset";
+    case 1: return "phase_1-stage-setup";
+    case 2: return "phase_1_0-stage-resources";
+    case 3: return "phase_01-audio-scene";
+    case 4: return "phase_0";
+    case 5: return "phase_2-object-resources";
+    case 6: return "phase_3-particle-message-audio-sync";
+    case 7: return "phase_4-world-init";
+    case 8: return "phase_5-preload-resources";
+    case 9: return "phase_6-preload-dyl";
+    case 10: return "complete";
+    default: return "not-play-scene/unknown";
+    }
+}
 
 const char* xboxSceneChangePhaseName(int phase) noexcept {
     switch (phase) {
@@ -96,14 +142,10 @@ int clearXboxTransitionFades() noexcept {
     // scene, do NOT cancel its overlap. Cancelling the overlap while PLAY_SCENE is
     // absent can strand the transaction between old-scene deletion and new-scene creation.
     if (sceneChangePending && activeGameplayScene == nullptr) {
-        if (s_xboxTransitionFailurePending) {
-            s_xboxTransitionFailureReport +=
-                "recovery_deferred_scene_change=1\n";
+        if (s_xboxTransitionFailurePending && !s_xboxTransitionDeferredReported) {
+            s_xboxTransitionFailureReport += "recovery_deferred_scene_change=1\n";
+            s_xboxTransitionDeferredReported = true;
         }
-        mods::log::warn(
-            "Xbox transition recovery deferred: destination scene is still being created "
-            "(phase={}, target={})",
-            tpr_xbox_scene_change_phase(), tpr_xbox_scene_change_target());
         return 0;
     }
 
@@ -211,10 +253,11 @@ int clearXboxTransitionFades() noexcept {
 void captureXboxTransitionFailure(
     JUTFader* fader, int stage, u32 blackFrames, u32 readyFrames)
 {
+    s_xboxTransitionDeferredReported = false;
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.725\n";
+    report << "build=1.4.1.726\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
@@ -259,6 +302,34 @@ void captureXboxTransitionFailure(
     report << "scene_change_creating_id=" << tpr_xbox_scene_change_creating_id() << "\n";
     report << "scene_change_creating=" << tpr_xbox_scene_change_creating() << "\n";
     report << "scene_change_created_exists=" << tpr_xbox_scene_change_created_exists() << "\n";
+
+    const int creatingId = tpr_xbox_scene_change_creating_id();
+    report << "create_request_present=" << tpr_xbox_create_request_present(creatingId) << "\n";
+    const int createRequestPhase = tpr_xbox_create_request_phase(creatingId);
+    report << "create_request_phase=" << createRequestPhase << "\n";
+    report << "create_request_phase_name=" << xboxCreateRequestPhaseName(createRequestPhase) << "\n";
+    report << "create_process_present=" << tpr_xbox_create_request_process_present(creatingId) << "\n";
+    report << "create_process_name=" << tpr_xbox_create_request_process_name(creatingId) << "\n";
+    report << "create_process_profname=" << tpr_xbox_create_request_process_profname(creatingId) << "\n";
+    report << "create_process_init_state=" << tpr_xbox_create_request_process_init_state(creatingId) << "\n";
+    report << "create_process_create_phase=" << tpr_xbox_create_request_process_create_phase(creatingId) << "\n";
+    report << "create_layer_creating=" << tpr_xbox_create_request_layer_creating(creatingId) << "\n";
+    const int playCreatePhase = tpr_xbox_play_scene_create_phase(creatingId);
+    report << "play_scene_create_phase=" << playCreatePhase << "\n";
+    report << "play_scene_create_phase_name=" << xboxPlaySceneCreatePhaseName(playCreatePhase) << "\n";
+
+    const int createQueueSize = tpr_xbox_create_queue_size();
+    report << "create_queue_size=" << createQueueSize << "\n";
+    const int createEntries = std::min(createQueueSize, 8);
+    for (int i = 0; i < createEntries; ++i) {
+        report << "create_queue[" << i << "]="
+               << "id:" << tpr_xbox_create_queue_entry_id(i)
+               << ",target:" << tpr_xbox_create_queue_entry_target(i)
+               << ",phase:" << tpr_xbox_create_queue_entry_phase(i)
+               << ",proc:" << tpr_xbox_create_queue_entry_process_name(i)
+               << ",state:" << tpr_xbox_create_queue_entry_process_state(i)
+               << "\n";
+    }
 
     const int deleteQueueSize = tpr_xbox_delete_queue_size();
     report << "delete_queue_size=" << deleteQueueSize << "\n";
