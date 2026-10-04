@@ -110,7 +110,7 @@ $potDrawNew = @(
   '    g_env_light.settingTevStruct(8, &current.pos, &tevStr);',
   '    g_env_light.setLightTevColorType_MAJI(mpModel, &tevStr);',
   '',
-  '    // .720 randomized breakable marker: gold only while this pot still owns',
+  '    // .729 randomized breakable marker: dim gold only while this pot still owns',
   '    // an unclaimed shuffled reward. Environment lighting runs first so a collected',
   '    // pot naturally returns to its vanilla color on the next draw/reload.',
   '    J3DGXColor* tprPotMarkerColor = nullptr;',
@@ -121,9 +121,9 @@ $potDrawNew = @(
   '            tprPotMarkerColor = material->getTevKColor(0);',
   '            if (tprPotMarkerColor != nullptr) {',
   '                tprPotSavedMarkerColor = *tprPotMarkerColor;',
-  '                tprPotMarkerColor->r = 255;',
-  '                tprPotMarkerColor->g = 185;',
-  '                tprPotMarkerColor->b = 42;',
+  '                tprPotMarkerColor->r = 102;',
+  '                tprPotMarkerColor->g = 74;',
+  '                tprPotMarkerColor->b = 17;',
   '                tprPotMarkerColor->a = 255;',
   '            }',
   '        }',
@@ -175,7 +175,7 @@ $pumpkinDrawNew = @(
   '        g_env_light.settingTevStruct(0, &current.pos, &tevStr);',
   '        g_env_light.setLightTevColorType_MAJI(mpModel, &tevStr);',
   '',
-  '        // .720 randomized breakable marker: green only while the shuffled reward',
+  '        // .729 randomized breakable marker: dim green only while the shuffled reward',
   '        // remains unclaimed. The saved material color is restored immediately after',
   '        // this draw so shared materials cannot leak the marker into vanilla pumpkins.',
   '        J3DGXColor* tprPumpkinMarkerColor = nullptr;',
@@ -186,9 +186,9 @@ $pumpkinDrawNew = @(
   '                tprPumpkinMarkerColor = material->getTevKColor(0);',
   '                if (tprPumpkinMarkerColor != nullptr) {',
   '                    tprPumpkinSavedMarkerColor = *tprPumpkinMarkerColor;',
-  '                    tprPumpkinMarkerColor->r = 24;',
-  '                    tprPumpkinMarkerColor->g = 255;',
-  '                    tprPumpkinMarkerColor->b = 48;',
+  '                    tprPumpkinMarkerColor->r = 10;',
+  '                    tprPumpkinMarkerColor->g = 102;',
+  '                    tprPumpkinMarkerColor->b = 19;',
   '                    tprPumpkinMarkerColor->a = 255;',
   '                }',
   '            }',
@@ -235,17 +235,17 @@ foreach ($marker in @(
   if (-not $breakablesVerify.Contains($marker)) { throw "Missing .720 breakable bridge marker: $marker" }
 }
 foreach ($marker in @(
-  'tprPotMarkerColor->r = 255;',
-  'tprPotMarkerColor->g = 185;',
-  'tprPotMarkerColor->b = 42;',
+  'tprPotMarkerColor->r = 102;',
+  'tprPotMarkerColor->g = 74;',
+  'tprPotMarkerColor->b = 17;',
   '*tprPotMarkerColor = tprPotSavedMarkerColor;'
 )) {
   if (-not $potVerify.Contains($marker)) { throw "Missing .720 gold-pot lifecycle marker: $marker" }
 }
 foreach ($marker in @(
-  'tprPumpkinMarkerColor->r = 24;',
-  'tprPumpkinMarkerColor->g = 255;',
-  'tprPumpkinMarkerColor->b = 48;',
+  'tprPumpkinMarkerColor->r = 10;',
+  'tprPumpkinMarkerColor->g = 102;',
+  'tprPumpkinMarkerColor->b = 19;',
   '*tprPumpkinMarkerColor = tprPumpkinSavedMarkerColor;'
 )) {
   if (-not $pumpkinVerify.Contains($marker)) { throw "Missing .720 green-pumpkin lifecycle marker: $marker" }
