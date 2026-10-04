@@ -6050,13 +6050,13 @@ jobs:
           $pot720 = Get-Content "$env:TPR_SRC\src\d\actor\d_a_obj_carry.cpp" -Raw
           $pumpkin720 = Get-Content "$env:TPR_SRC\src\d\actor\d_a_obj_pumpkin.cpp" -Raw
           foreach ($breakableColorMarker in @(
-            'tprPotMarkerColor->r = 255;',
-            'tprPotMarkerColor->g = 185;',
-            'tprPotMarkerColor->b = 42;',
+            'tprPotMarkerColor->r = 102;',
+            'tprPotMarkerColor->g = 74;',
+            'tprPotMarkerColor->b = 17;',
             '*tprPotMarkerColor = tprPotSavedMarkerColor;',
-            'tprPumpkinMarkerColor->r = 24;',
-            'tprPumpkinMarkerColor->g = 255;',
-            'tprPumpkinMarkerColor->b = 48;',
+            'tprPumpkinMarkerColor->r = 10;',
+            'tprPumpkinMarkerColor->g = 102;',
+            'tprPumpkinMarkerColor->b = 19;',
             '*tprPumpkinMarkerColor = tprPumpkinSavedMarkerColor;')) {
             if (-not ($pot720.Contains($breakableColorMarker) -or $pumpkin720.Contains($breakableColorMarker))) {
               throw "Breakable color lifecycle marker missing: $breakableColorMarker"
