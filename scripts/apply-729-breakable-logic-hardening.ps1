@@ -75,20 +75,22 @@ Write-Utf8 $breakablesPath $breakables
 $hooksPath = "$src\mods\randomizer\src\hooks.cpp"
 $hooks = Read-Normalized $hooksPath
 
-$nextGetOld = @'
-HookAction hookPreItemItemGetNextExecute(ModContext*, void* args, void* retval, void*) {
-    auto* i_this = mods::arg<daItem_c*>(args, 0);
-
-    if (!i_this->checkFlag(daItem_c::FLAG_DELETE_ITEM_e) && !i_this->checkFlag(daItem_c::FLAG_INIT_GET_ITEM_e)) {
-'@
-if (-not $hooks.Contains($nextGetOld)) {
-  throw '.729 breakable hardening could not find itemGetNextExecute anchor.'
+$nextGetFunction = 'HookAction hookPreItemItemGetNextExecute('
+$nextGetStart = $hooks.IndexOf($nextGetFunction)
+if ($nextGetStart -lt 0) {
+  throw '.729 breakable hardening could not find itemGetNextExecute function.'
 }
-$hooks = $hooks.Replace(
-  $nextGetOld,
-  @'
-HookAction hookPreItemItemGetNextExecute(ModContext*, void* args, void* retval, void*) {
-    auto* i_this = mods::arg<daItem_c*>(args, 0);
+$nextGetActor = '    auto* i_this = mods::arg<daItem_c*>(args, 0);'
+$nextGetActorPos = $hooks.IndexOf($nextGetActor, $nextGetStart)
+if ($nextGetActorPos -lt 0) {
+  throw '.729 breakable hardening could not find itemGetNextExecute actor line.'
+}
+$nextGetInsertPos = $nextGetActorPos + $nextGetActor.Length
+if (-not $hooks.Substring(
+      $nextGetStart,
+      [Math]::Min(1800, $hooks.Length - $nextGetStart)).Contains(
+        'breakables::spawned_item_assignment(i_this)')) {
+  $nextGetInjection = @'
 
     // A shuffled breakable reward was already resolved before this actor was
     // created. Force custom Randomizer/junk IDs through the get-demo path
@@ -96,24 +98,28 @@ HookAction hookPreItemItemGetNextExecute(ModContext*, void* args, void* retval, 
     if (breakables::spawned_item_assignment(i_this).has_value()) {
         i_this->mItemOverridden = true;
     }
-
-    if (!i_this->checkFlag(daItem_c::FLAG_DELETE_ITEM_e) && !i_this->checkFlag(daItem_c::FLAG_INIT_GET_ITEM_e)) {
-'@)
-
-$itemGetOld = @'
-HookAction hookPreItemItemGet(ModContext*, void* args, void*, void*) {
-    auto* i_this = mods::arg<daItem_c*>(args, 0);
-
-    if (enemy_souls::collect_extended_item(i_this)) {
 '@
-if (-not $hooks.Contains($itemGetOld)) {
-  throw '.729 breakable hardening could not find itemGet anchor.'
+  $hooks = $hooks.Substring(0, $nextGetInsertPos) +
+           $nextGetInjection +
+           $hooks.Substring($nextGetInsertPos)
 }
-$hooks = $hooks.Replace(
-  $itemGetOld,
-  @'
-HookAction hookPreItemItemGet(ModContext*, void* args, void*, void*) {
-    auto* i_this = mods::arg<daItem_c*>(args, 0);
+
+$itemGetFunction = 'HookAction hookPreItemItemGet('
+$itemGetStart = $hooks.IndexOf($itemGetFunction)
+if ($itemGetStart -lt 0) {
+  throw '.729 breakable hardening could not find itemGet function.'
+}
+$itemGetActor = '    auto* i_this = mods::arg<daItem_c*>(args, 0);'
+$itemGetActorPos = $hooks.IndexOf($itemGetActor, $itemGetStart)
+if ($itemGetActorPos -lt 0) {
+  throw '.729 breakable hardening could not find itemGet actor line.'
+}
+$itemGetInsertPos = $itemGetActorPos + $itemGetActor.Length
+if (-not $hooks.Substring(
+      $itemGetStart,
+      [Math]::Min(2200, $hooks.Length - $itemGetStart)).Contains(
+        'item::exec_item_get(*breakableItem)')) {
+  $itemGetInjection = @'
 
     // Grant the exact breakable assignment through the Randomizer item table.
     // This handles vanilla filler, Foolish Items, progressive items, keys,
@@ -126,9 +132,11 @@ HookAction hookPreItemItemGet(ModContext*, void* args, void*, void*) {
         breakables::collect_spawned_item(i_this);
         return HOOK_SKIP_ORIGINAL;
     }
-
-    if (enemy_souls::collect_extended_item(i_this)) {
-'@)
+'@
+  $hooks = $hooks.Substring(0, $itemGetInsertPos) +
+           $itemGetInjection +
+           $hooks.Substring($itemGetInsertPos)
+}
 Write-Utf8 $hooksPath $hooks
 
 # .729: enforce beatability for every logic-enabled world.
