@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.722",
+  "architecture": "x64",
+  "base": "1.4.1.721 stale-overlap cancel/delete build",
+  "rootCauseCorrection": "JUTFader None is opaque black; Wait is transparent/no-draw",
+  "transitionFix": "Directly force Wait + alpha 0 after proven failure; no recovery fade animation",
+  "successGate": "Overlap gone, JUTFader Wait/alpha0, global fade clear, window 1 and 2D restored",
+  "reporter": "Retry no longer acknowledges or closes the report; user dismisses only after visually verifying recovery",
+  "breakables": "Gold pending randomized pots and green pending randomized pumpkins retained; vanilla after claim",
+  "seedHardening": "Deferred to 1.4.1.723",
+  "startupJournal": "xbox-startup-stage-722.txt"
+}

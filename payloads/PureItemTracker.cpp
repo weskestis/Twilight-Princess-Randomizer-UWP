@@ -182,18 +182,16 @@ void draw_xbox_failure_report() {
         if (lastRecoveryResult >= 0) {
             ImGui::SameLine();
             ImGui::TextUnformatted(
-                lastRecoveryResult != 0 ? "Stale overlap cancelled" : "Cancel pending - retrying automatically");
+                lastRecoveryResult != 0 ?
+                    "Recovery state cleared - press B to close after verifying the scene" :
+                    "Recovery still pending - report remains armed");
         }
 
         if (retryButton || (retryPressed && !dismissHovered)) {
             lastRecoveryResult = tpr_xbox_transition_retry_recovery();
-            if (lastRecoveryResult != 0) {
-                tpr_xbox_transition_failure_acknowledge();
-                ImGui::CloseCurrentPopup();
-                ImGui::GetIO().MouseDrawCursor = previousMouseDrawCursor;
-                cursorOverrideActive = false;
-                popupPointerInitialized = false;
-            }
+            // Deliberately keep the report open even after an internally successful
+            // recovery. The user can verify that gameplay is actually visible before
+            // dismissing it, and a still-black result remains diagnosable.
         }
         if (dismissButton || dismissPressed || (retryPressed && dismissHovered)) {
             tpr_xbox_transition_failure_acknowledge();

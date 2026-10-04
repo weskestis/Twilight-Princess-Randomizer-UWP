@@ -84,12 +84,29 @@ int clearXboxTransitionFades() noexcept {
     mDoGph_gInf_c::setFadeRate(0.0f);
     mDoGph_gInf_c::getFadeColor().a = 0;
 
-    if (JUTFader* fader = mDoGph_gInf_c::getFader(); fader != nullptr) {
-        fader->setStatus(JUTFader::None, 0);
-        fader->setStatus(JUTFader::None, -1);
-        fader->startFadeIn(1);
+    JUTFader* fader = mDoGph_gInf_c::getFader();
+    if (fader != nullptr) {
+        // Critical .722 correction: JUTFader::None is fully opaque black.
+        // Do not rely on a follow-up fade animation after a transition failure.
+        // Put the fader directly into the transparent/non-drawing state.
+        fader->setStatus(JUTFader::Wait, 0);
+        fader->mColor.a = 0;
+        fader->mDuration = 0;
+        fader->mTimer = 0;
+        fader->mStatusTimer = -1;
+        fader->mNextStatus = JUTFader::Wait;
     }
-    return cancelResult;
+
+    const bool overlapGone = !fopOvlpM_IsPeek() && !fopOvlpM_IsDoingReq();
+    const bool faderClear =
+        fader == nullptr ||
+        (fader->getStatus() == JUTFader::Wait && fader->mColor.a == 0);
+    const bool globalFadeClear =
+        mDoGph_gInf_c::isFade() == 0 && mDoGph_gInf_c::getFadeColor().a == 0;
+    const bool windowRestored =
+        dComIfGp_getWindowNum() == 1 && dComIfGp_2dShowCheck() != 0;
+
+    return overlapGone && faderClear && globalFadeClear && windowRestored ? 1 : 0;
 }
 
 void captureXboxTransitionFailure(
@@ -98,7 +115,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.721\n";
+    report << "build=1.4.1.722\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
