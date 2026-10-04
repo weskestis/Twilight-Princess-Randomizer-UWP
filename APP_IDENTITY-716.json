@@ -1,0 +1,12 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.716",
+  "architecture": "x64",
+  "base": "1.4.1.715 new-save tracker crash fix",
+  "tracker": "Pure Item Tracker V3 retained; startup deferred to player-controlled stable gameplay; world reused on inventory refresh; one icon upload per frame",
+  "transitions": "Opaque fader recovery uses player/stage stability and handles a stuck overlap manager with the canonical JUTFader fade-in reset",
+  "seedFlow": "Selected generated seed remains preactivated and consumed by one new save",
+  "resetAudio": "Xbox reset audio guards retained",
+  "assetServices": "DVD overlay and texture replacement services remain enabled",
+  "startupJournal": "xbox-startup-stage-716.txt"
+}

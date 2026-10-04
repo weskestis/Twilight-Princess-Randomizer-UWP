@@ -25,9 +25,18 @@ extern "C" int tpr_pure_tracker_slot_owned(std::size_t index) noexcept;
 namespace {
 ImTextureID tracker_texture(uint8_t itemNo) {
     static std::unordered_map<uint8_t, ImTextureID> textures;
+    static int lastUploadFrame = -1;
     if (const auto found = textures.find(itemNo); found != textures.end()) {
         return found->second;
     }
+
+    // Upload at most one previously unseen tracker icon per rendered frame.
+    // The old all-at-once path could hammer Xbox during the opening scene.
+    const int frame = ImGui::GetFrameCount();
+    if (lastUploadFrame == frame) {
+        return {};
+    }
+    lastUploadFrame = frame;
 
     auto pixels = ui::render_item_icon_pixels(itemNo);
     if (!pixels || pixels->rgba8.empty() || pixels->width == 0 || pixels->height == 0) {

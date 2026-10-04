@@ -19,7 +19,8 @@ $includeOld = '#include "../generator/utility/text.hpp"'
 $includeNew = Join-Lines @(
   '#include "../generator/utility/text.hpp"',
   '#include "../generator/randomizer.hpp"',
-  '#include "paths.hpp"'
+  '#include "paths.hpp"',
+  '#include "f_op/f_op_actor_mng.h"'
 )
 if (-not $session.Contains($includeOld)) { throw 'Pure tracker generator include anchor changed.' }
 $session = $session.Replace($includeOld, $includeNew)
@@ -265,6 +266,9 @@ foreach ($marker in @(
   'tpr_pure_tracker_slot_owned',
   'kPureTrackerStageStableFrames',
   'pureTrackerRuntimeReady',
+  'dComIfGp_event_runCheck()',
+  'needsWorldBuild',
+  'ImGui::GetFrameCount()',
   'game.showPureItemTracker',
   'Pure Tracker Icon Size',
   'Pure Tracker Columns',

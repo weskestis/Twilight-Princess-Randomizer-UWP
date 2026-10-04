@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 715
+name: Build Dusklight 2.0.1 Xbox 716
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-715-release-${{ github.ref }}
+  group: xbox-716-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 715 identity
+      - name: Apply reviewed source layers and advance 716 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-715.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-716.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -3145,7 +3145,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.715");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.716");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -3288,7 +3288,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-715.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-716.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
@@ -3402,7 +3402,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.715");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.716");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -5194,6 +5194,7 @@ jobs:
             '#include "d/d_meter2_info.h"',
             '#if defined(_UWP)',
             '#include "f_op/f_op_overlap_mng.h"',
+            '#include "f_op/f_op_actor_mng.h"',
             '#include "m_Do/m_Do_Reset.h"',
             '#include "m_Do/m_Do_graphic.h"',
             '#endif'
@@ -5232,18 +5233,39 @@ jobs:
           $updateNew713 = @(
             'void update() {',
             '#if defined(_UWP)',
-            '    // Xbox can occasionally finish a major scene load while JUTFader remains in',
-            '    // None (fully opaque black). Only recover after the overlap is gone and the',
-            '    // frame has remained black for several seconds, so normal transitions are untouched.',
+            '    // .716 Xbox: recover an opaque fader after the destination stage/player are live.',
+            '    // This also handles the failure mode where the overlap manager itself never clears.',
             '    static u32 s_xboxBlackTransitionFrames = 0;',
+            '    static u32 s_xboxTransitionReadyFrames = 0;',
+            '    static int s_xboxTransitionStage = -1;',
             '    JUTFader* fader = mDoGph_gInf_c::getFader();',
-            '    const bool blackAfterTransition = fader != nullptr &&',
-            '        fader->getStatus() == JUTFader::None &&',
-            '        !fopOvlpM_IsPeek() && !mDoRst::isReset();',
-            '    if (blackAfterTransition) {',
-            '        if (++s_xboxBlackTransitionFrames >= 180) {',
-            '            mods::log::warn("Xbox transition remained black after scene load; forcing fade-in");',
-            '            mDoGph_gInf_c::startFadeIn(1);',
+            '    const int transitionStage = getStageID();',
+            '    const bool gameplayReady = transitionStage >= 0 && transitionStage != Title_Screen &&',
+            '        dComIfGp_getPlayer(0) != nullptr && !mDoRst::isReset();',
+            '    if (gameplayReady && transitionStage == s_xboxTransitionStage) {',
+            '        if (s_xboxTransitionReadyFrames < 600) {',
+            '            ++s_xboxTransitionReadyFrames;',
+            '        }',
+            '    } else {',
+            '        s_xboxTransitionStage = transitionStage;',
+            '        s_xboxTransitionReadyFrames = gameplayReady ? 1 : 0;',
+            '    }',
+            '    const bool opaqueBlack = fader != nullptr && fader->getStatus() == JUTFader::None;',
+            '    if (opaqueBlack && gameplayReady) {',
+            '        ++s_xboxBlackTransitionFrames;',
+            '        const bool overlapFinished = !fopOvlpM_IsPeek();',
+            '        const bool overlapLooksStuck = fopOvlpM_IsPeek() && s_xboxTransitionReadyFrames >= 300;',
+            '        if ((overlapFinished && s_xboxBlackTransitionFrames >= 90) ||',
+            '            (overlapLooksStuck && s_xboxBlackTransitionFrames >= 300))',
+            '        {',
+            '            mods::log::warn(',
+            '                "Xbox transition stayed opaque; forcing canonical fade-in (overlap={}, stage={})",',
+            '                fopOvlpM_IsPeek(), transitionStage);',
+            '            // Match the engine overlap fade-in handshake instead of calling startFadeIn',
+            '            // against whatever stale status/timer the failed transition left behind.',
+            '            fader->setStatus(JUTFader::None, 0);',
+            '            fader->setStatus(JUTFader::None, -1);',
+            '            fader->startFadeIn(1);',
             '            s_xboxBlackTransitionFrames = 0;',
             '        }',
             '    } else {',
@@ -5437,6 +5459,8 @@ jobs:
             'Selected seed is fully parsed and activated before name/save creation begins.',
             'g_pending_seed_hash.clear();',
             's_xboxBlackTransitionFrames',
+            's_xboxTransitionReadyFrames',
+            'fader->setStatus(JUTFader::None, -1);',
             'audio.gframe-reset-skip',
             'audio.gframe.zelda',
             'audio.gframe.soundmgr',
@@ -5460,6 +5484,9 @@ jobs:
             'tpr_pure_tracker_slot_owned',
             'kPureTrackerStageStableFrames',
             'pureTrackerRuntimeReady',
+            'dComIfGp_event_runCheck()',
+            'needsWorldBuild',
+            'ImGui::GetFrameCount()',
             'game.showPureItemTracker',
             'game.pureItemTrackerIconSize',
             'game.pureItemTrackerColumns')) {
@@ -5730,7 +5757,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.715"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.716"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -5906,7 +5933,7 @@ jobs:
           # Run 37113344092 reached and passed all 58 generator scenarios at this exact
           # .706 source state before failing later in the final Cosmetics link. Reuse
           # that certification unless generator-sensitive controls changed afterward.
-          $baseline = '0721d1cd2d719719e3f58237c76479113677715f'
+          $baseline = '0721d1cd2d719719e3f58237c76479113677716f'
           git -C "$env:TPR_CONTROL" fetch --depth 1 origin $baseline
           if ($LASTEXITCODE -ne 0) { throw 'Could not fetch certified .708 generator baseline.' }
 
@@ -6052,7 +6079,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 715 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 716 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -6079,17 +6106,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 715 package
+      - name: Verify and collect full 716 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-715"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-716"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.715_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.716_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6101,7 +6128,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.715"',
+            'Version="1.4.1.716"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6136,7 +6163,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Cosmetics native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-715-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-716-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -6239,7 +6266,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-715.txt',
+            'xbox-startup-stage-716.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -6315,7 +6342,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-715-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-716-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -6335,8 +6362,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-715-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-715-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-716-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-716-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -6379,11 +6406,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-715.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-715.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-716.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-716.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.715'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.716'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -6438,13 +6465,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-715.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-716.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.715-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.716-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -6453,7 +6480,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.715-Xbox
-          path: TPR-Xbox-Package-715/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.716-Xbox
+          path: TPR-Xbox-Package-716/*
           if-no-files-found: error
           retention-days: 30

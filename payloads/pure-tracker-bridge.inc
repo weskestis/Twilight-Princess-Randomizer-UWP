@@ -50,7 +50,7 @@ std::unique_ptr<::randomizer::Randomizer> s_pureTrackerRando;
 std::string s_pureTrackerHash{};
 bool s_pureTrackerReady = false;
 
-constexpr uint32_t kPureTrackerStageStableFrames = 120;
+constexpr uint32_t kPureTrackerStageStableFrames = 300;
 uint32_t s_pureTrackerStageStableFrames = 0;
 int s_pureTrackerObservedStage = -1;
 
@@ -63,7 +63,8 @@ bool pureTrackerRuntimeReady() noexcept {
     auto& context = randomizer_GetContext();
     if (!g_seedActivated || context.mCreatingSave || context.mHash.empty() ||
         !randomizer_IsActive() || !g_randomizerState.mInitialized ||
-        g_randomizerState.getRoomReloadingState())
+        g_randomizerState.getRoomReloadingState() ||
+        dComIfGp_getPlayer(0) == nullptr || dComIfGp_event_runCheck())
     {
         resetPureTrackerStageGate();
         return false;
@@ -95,34 +96,45 @@ bool refreshPureTrackerSnapshot() {
     }
     auto& context = randomizer_GetContext();
 
-    const bool needsRefresh =
-        !s_pureTrackerRando || s_pureTrackerHash != context.mHash || g_randomizerState.mUpdateTracker;
-    if (!needsRefresh) {
+    const bool needsWorldBuild =
+        !s_pureTrackerRando || s_pureTrackerHash != context.mHash;
+    const bool needsInventoryRefresh =
+        needsWorldBuild || g_randomizerState.mUpdateTracker;
+    if (!needsInventoryRefresh) {
         return s_pureTrackerReady;
     }
 
     g_randomizerState.mUpdateTracker = false;
-    s_pureTrackerHash = context.mHash;
-    s_pureTrackerReady = false;
-    s_pureTrackerInventory.clear();
 
     try {
-        s_pureTrackerRando =
-            std::make_unique<::randomizer::Randomizer>(::randomizer::paths::GetRandomizerPath());
-        s_pureTrackerRando->GenerateTrackerWorld();
-        auto* world = s_pureTrackerRando->GetWorld();
+        if (needsWorldBuild) {
+            s_pureTrackerHash = context.mHash;
+            s_pureTrackerReady = false;
+            s_pureTrackerInventory.clear();
+            s_pureTrackerRando =
+                std::make_unique<::randomizer::Randomizer>(::randomizer::paths::GetRandomizerPath());
+            s_pureTrackerRando->GenerateTrackerWorld();
+        }
+
+        auto* world = s_pureTrackerRando ? s_pureTrackerRando->GetWorld() : nullptr;
         if (world == nullptr) {
             mods::log::warn("Pure Item Tracker could not build a tracker world for {}", context.mHash);
+            s_pureTrackerRando.reset();
             return false;
         }
+
+        // Inventory changes do not require rebuilding the logic world. Re-snapshot only
+        // the current save state so item pickups cannot trigger a full generator pass.
         s_pureTrackerInventory = getSaveItemPool(world);
         s_pureTrackerReady = true;
     } catch (const std::exception& error) {
         mods::log::warn("Pure Item Tracker refresh failed for {}: {}", context.mHash, error.what());
         s_pureTrackerRando.reset();
+        s_pureTrackerReady = false;
     } catch (...) {
         mods::log::warn("Pure Item Tracker refresh failed for {}: unknown error", context.mHash);
         s_pureTrackerRando.reset();
+        s_pureTrackerReady = false;
     }
     return s_pureTrackerReady;
 }
