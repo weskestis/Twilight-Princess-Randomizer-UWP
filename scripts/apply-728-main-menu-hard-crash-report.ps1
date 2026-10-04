@@ -214,14 +214,14 @@ $reset = $reset.Replace(
         dusk::ui::return_to_prelaunch();
 '@)
 
-if (-not $reset.Contains('#include "dusk/config.hpp"')) {
+if (-not $reset.Contains('#include "dusk/main.h"')) {
   $includeAnchor = '#include "dusk/ui/prelaunch.hpp"'
   if (-not $reset.Contains($includeAnchor)) {
     throw '.728 hard-crash report could not find reset include anchor.'
   }
   $reset = $reset.Replace(
     $includeAnchor,
-    $includeAnchor + "`n" + '#include "dusk/config.hpp"')
+    $includeAnchor + "`n" + '#include "dusk/main.h"')
 }
 if (-not $reset.Contains('#include <filesystem>')) {
   $reset = '#include <filesystem>' + "`n" + $reset
