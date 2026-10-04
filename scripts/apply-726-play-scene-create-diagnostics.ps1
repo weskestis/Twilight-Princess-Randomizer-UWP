@@ -26,15 +26,8 @@ if (-not $text.Contains('#include "d/d_s_play.h"')) {
   $text = $text.Replace($includeAnchor, $includeAnchor + "`n" + $extraIncludes)
 }
 
-$structAnchor = @'
-} standard_create_request_class;
-
-int fpcSCtRq_phase_Load(standard_create_request_class* i_request) {
-'@
-
+$insertAnchor = 'int fpcSCtRq_phase_Load(standard_create_request_class* i_request) {'
 $diag = @'
-} standard_create_request_class;
-
 static standard_create_request_class* tpr_xbox_find_create_request(int id) {
     node_class* node = g_fpcCtTg_Queue.mpHead;
     while (node != nullptr) {
@@ -152,17 +145,17 @@ extern "C" int tpr_xbox_create_queue_entry_process_state(int index) noexcept {
     auto* req = tpr_xbox_create_queue_entry(index);
     return req != nullptr && req->base.process != nullptr ? req->base.process->state.init_state : -1;
 }
-
-int fpcSCtRq_phase_Load(standard_create_request_class* i_request) {
 '@
 
 if ($text.Contains('tpr_xbox_play_scene_create_phase')) {
   throw '.726 create diagnostics already present unexpectedly.'
 }
-if (-not $text.Contains($structAnchor)) {
-  throw 'Standard create struct boundary changed before .726 diagnostics.'
+if (-not $text.Contains($insertAnchor)) {
+  throw 'Standard create function boundary changed before .726 diagnostics.'
 }
-$text = $text.Replace($structAnchor, $diag)
+$text = $text.Replace(
+  $insertAnchor,
+  $diag + "`n`n" + $insertAnchor)
 Write-Utf8 $path $text
 
 foreach ($marker in @(
