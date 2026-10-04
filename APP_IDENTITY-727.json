@@ -1,0 +1,11 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.727",
+  "architecture": "x64",
+  "evidence": "726: PLAY_SCENE waits on E_HP/Poe child creation with Full Enemy Randomizer + First Enemy Check + Enemy Souls + Boss Souls enabled",
+  "diagnostics": "Reports E_HP resource phase and heap/model construction state from the live create request",
+  "interpretation": "phase0=soul/create gate suspect; phase1=archive sync; phase2=post-resource heap/model path",
+  "breakables": "Gold pending randomized pots and green pending randomized pumpkins retained; vanilla after claim",
+  "seedHardening": "Deferred to 1.4.1.728",
+  "startupJournal": "xbox-startup-stage-727.txt"
+}

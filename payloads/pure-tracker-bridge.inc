@@ -85,6 +85,12 @@ extern "C" int tpr_xbox_create_queue_entry_target(int index) noexcept;
 extern "C" int tpr_xbox_create_queue_entry_phase(int index) noexcept;
 extern "C" int tpr_xbox_create_queue_entry_process_name(int index) noexcept;
 extern "C" int tpr_xbox_create_queue_entry_process_state(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_process_create_phase(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_poe_resource_phase(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_poe_heap_present(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_poe_morfso_present(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_poe_model_present(int index) noexcept;
+extern "C" int tpr_xbox_create_queue_entry_poe_morf_present(int index) noexcept;
 
 const char* xboxCreateRequestPhaseName(int phase) noexcept {
     switch (phase) {
@@ -257,7 +263,7 @@ void captureXboxTransitionFailure(
     auto& context = randomizer_GetContext();
     std::ostringstream report;
     report << "Twilight Princess Randomizer Xbox transition failure report\n";
-    report << "build=1.4.1.726\n";
+    report << "build=1.4.1.727\n";
     report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
     report << "seed_hash=" << context.mHash << "\n";
     report << "stage_id=" << stage << "\n";
@@ -328,7 +334,18 @@ void captureXboxTransitionFailure(
                << ",phase:" << tpr_xbox_create_queue_entry_phase(i)
                << ",proc:" << tpr_xbox_create_queue_entry_process_name(i)
                << ",state:" << tpr_xbox_create_queue_entry_process_state(i)
+               << ",create_phase:" << tpr_xbox_create_queue_entry_process_create_phase(i)
                << "\n";
+        const int poePhase = tpr_xbox_create_queue_entry_poe_resource_phase(i);
+        if (poePhase >= 0) {
+            report << "create_queue[" << i << "].poe="
+                   << "resource_phase:" << poePhase
+                   << ",heap:" << tpr_xbox_create_queue_entry_poe_heap_present(i)
+                   << ",morfso:" << tpr_xbox_create_queue_entry_poe_morfso_present(i)
+                   << ",model:" << tpr_xbox_create_queue_entry_poe_model_present(i)
+                   << ",morf:" << tpr_xbox_create_queue_entry_poe_morf_present(i)
+                   << "\n";
+        }
     }
 
     const int deleteQueueSize = tpr_xbox_delete_queue_size();
