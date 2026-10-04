@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 10
     steps:
-      - name: Download and extract old tracker source
+      - name: Download and inspect old tracker source
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -25,6 +25,26 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile $zip
           Expand-Archive -Path $zip -DestinationPath $src -Force
           New-Item -ItemType Directory -Force $out | Out-Null
+
+          Write-Host 'Initial archive contents:'
+          Get-ChildItem $src -Recurse -File | Select-Object -First 250 FullName,Length | Format-Table -AutoSize
+
+          $nested = @(Get-ChildItem $src -Recurse -File -Filter '*.zip')
+          $n = 0
+          foreach ($nestedZip in $nested) {
+            $n++
+            $nestedOut = Join-Path $src ("nested-" + $n)
+            try {
+              Expand-Archive -Path $nestedZip.FullName -DestinationPath $nestedOut -Force
+            } catch {
+              Write-Warning "Could not expand nested zip $($nestedZip.FullName): $($_.Exception.Message)"
+            }
+          }
+
+          $all = @(Get-ChildItem $src -Recurse -File)
+          $manifest = Join-Path $out 'manifest.txt'
+          $all | ForEach-Object { $_.FullName.Substring($src.Length) } | Set-Content $manifest
+
           $wanted = @(
             'ImGuiMenuRandomizer.cpp',
             'ImGuiMenuRandomizer.hpp',
@@ -35,13 +55,14 @@ jobs:
             'input.cpp'
           )
           foreach ($name in $wanted) {
-            $matches = @(Get-ChildItem $src -Recurse -File -Filter $name)
+            $matches = @($all | Where-Object { $_.Name -eq $name })
             foreach ($match in $matches) {
               $relative = $match.FullName.Substring($src.Length).TrimStart('\\','/')
               $safe = ($relative -replace '[:\\/]', '__')
               Copy-Item $match.FullName (Join-Path $out $safe) -Force
             }
           }
+          Write-Host 'Collected files:'
           Get-ChildItem $out | Select-Object Name,Length | Format-Table -AutoSize
       - uses: actions/upload-artifact@v4
         with:
