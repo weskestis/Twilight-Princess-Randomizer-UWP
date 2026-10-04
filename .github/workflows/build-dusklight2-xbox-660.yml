@@ -5494,20 +5494,28 @@ jobs:
           $deletor725 = [IO.File]::ReadAllText("$env:TPR_SRC\src\f_pc\f_pc_deletor.cpp")
           $creator726 = [IO.File]::ReadAllText("$env:TPR_SRC\src\f_pc\f_pc_stdcreate_req.cpp")
           $prelaunchHardCrash728 = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          $mainHardCrash728 = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\main.cpp")
-          foreach ($hardCrashMarker728 in @(
+          $startupGuardHardCrash728 = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\startup_guard.hpp")
+          foreach ($prelaunchCrashMarker728 in @(
             'xbox-session-active.txt',
-            'hard_process_termination',
-            'Xbox Runtime Failure - Previous Session',
             'xbox_previous_hard_crash_report',
+            'xbox_arm_runtime_session',
+            'xbox_clear_runtime_session',
             'xbox-runtime-failure.txt',
             'last_runtime_stage=')) {
-            if (-not $prelaunchHardCrash728.Contains($hardCrashMarker728)) {
-              throw "Xbox .728 hard-crash main-menu marker missing: $hardCrashMarker728"
+            if (-not $prelaunchHardCrash728.Contains($prelaunchCrashMarker728)) {
+              throw "Xbox .728 prelaunch crash marker missing: $prelaunchCrashMarker728"
             }
           }
-          if (-not $mainHardCrash728.Contains('ClearXboxRuntimeSessionOnCleanExit')) {
-            throw 'Xbox .728 clean-exit session marker cleanup is missing.'
+          foreach ($startupCrashMarker728 in @(
+            'hard_process_termination',
+            'Xbox Runtime Failure - Previous Session',
+            'Last runtime checkpoint:',
+            'Full report: xbox-runtime-failure.txt',
+            'xbox-runtime-failures.log',
+            'source=next_launch_main_menu')) {
+            if (-not $startupGuardHardCrash728.Contains($startupCrashMarker728)) {
+              throw "Xbox .728 startup journal crash marker missing: $startupCrashMarker728"
+            }
           }
 
           $randomizerSource728 = @(
