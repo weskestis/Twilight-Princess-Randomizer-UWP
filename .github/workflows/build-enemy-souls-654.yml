@@ -2351,7 +2351,10 @@ jobs:
             '.label = "Vanilla"',
             '.label = "Randomizer"',
             'MEMCARDCHECKPROC_AUTO_MAKE_GAMEFILE')) {
-            if (-not ($memCard.Contains($marker) -or $randoConfig.Contains($marker))) {
+            if (-not ($memCard.Contains($marker) -or
+                      $randoConfig.Contains($marker) -or
+                      $fileSelectHeader.Contains($marker) -or
+                      $fileSelectSource.Contains($marker))) {
               throw "Legacy 658 direct-save/storage marker missing: $marker"
             }
           }
