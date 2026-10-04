@@ -3260,8 +3260,8 @@ jobs:
               throw "Xbox .712 Cosmetics menu marker missing: $cosmeticsMarker712"
             }
           }
-          $randoConfig712Verify = [IO.File]::ReadAllText(
-            "$env:TPR_SRC\mods\randomizer\src\ui\rando_config.cpp")
+          # rando_config.cpp is still being transformed in memory at this point.
+          $randoConfig712Verify = $randoConfigSource
           foreach ($freshSeedMarker712 in @(
             'NewRandomSeed();',
             'GenerateAndWriteSeed()',
