@@ -34,7 +34,8 @@ $trackerStdIncludes = @(
   '#include <array>',
   '#include <cstddef>',
   '#include <cstdint>',
-  '#include <memory>'
+  '#include <memory>',
+  '#include <sstream>'
 )
 $missingTrackerStdIncludes = @(
   $trackerStdIncludes | Where-Object { -not $session.Contains($_) }
@@ -248,7 +249,7 @@ $consoleIncludeNew = Join-Lines @('#include "ImGuiEngine.hpp"','#include "PureIt
 if (-not $console.Contains($consoleInclude)) { throw 'Pure tracker ImGuiConsole include anchor changed.' }
 $console = $console.Replace($consoleInclude, $consoleIncludeNew)
 $consoleDraw = '        m_menuTools.ShowInputViewer();'
-$consoleDrawNew = Join-Lines @('        m_menuTools.ShowInputViewer();','        draw_pure_item_tracker();')
+$consoleDrawNew = Join-Lines @('        m_menuTools.ShowInputViewer();','        draw_pure_item_tracker();','        draw_xbox_failure_report();')
 if (-not $console.Contains($consoleDraw)) { throw 'Pure tracker ImGuiConsole draw anchor changed.' }
 $console = $console.Replace($consoleDraw, $consoleDrawNew)
 Write-Utf8 $consolePath $console
@@ -269,6 +270,10 @@ foreach ($marker in @(
   'dComIfGp_event_runCheck()',
   'needsWorldBuild',
   'ImGui::GetFrameCount()',
+  'Xbox Transition Failure###XboxTransitionFailure',
+  'xbox-transition-failure.txt',
+  'tpr_xbox_transition_failure_pending',
+  'clearXboxTransitionFades',
   'game.showPureItemTracker',
   'Pure Tracker Icon Size',
   'Pure Tracker Columns',

@@ -50,6 +50,57 @@ std::unique_ptr<::randomizer::Randomizer> s_pureTrackerRando;
 std::string s_pureTrackerHash{};
 bool s_pureTrackerReady = false;
 
+bool s_xboxTransitionFailurePending = false;
+std::string s_xboxTransitionFailureReport{};
+u32 s_xboxTransitionFailureSerial = 0;
+
+void clearXboxTransitionFades() noexcept {
+    mDoGph_gInf_c::offFade();
+    mDoGph_gInf_c::setFadeRate(0.0f);
+    mDoGph_gInf_c::getFadeColor().a = 0;
+
+    if (JUTFader* fader = mDoGph_gInf_c::getFader(); fader != nullptr) {
+        fader->setStatus(JUTFader::None, 0);
+        fader->setStatus(JUTFader::None, -1);
+        fader->startFadeIn(1);
+    }
+}
+
+void captureXboxTransitionFailure(
+    JUTFader* fader, int stage, u32 blackFrames, u32 readyFrames)
+{
+    auto& context = randomizer_GetContext();
+    std::ostringstream report;
+    report << "Twilight Princess Randomizer Xbox transition failure report\n";
+    report << "build=1.4.1.717\n";
+    report << "failure_serial=" << ++s_xboxTransitionFailureSerial << "\n";
+    report << "seed_hash=" << context.mHash << "\n";
+    report << "stage_id=" << stage << "\n";
+    report << "room=" << static_cast<int>(dComIfGp_roomControl_getStayNo()) << "\n";
+    report << "player_present=" << (dComIfGp_getPlayer(0) != nullptr ? 1 : 0) << "\n";
+    report << "event_running=" << (dComIfGp_event_runCheck() ? 1 : 0) << "\n";
+    report << "next_stage_enabled=" << (dComIfGp_isEnableNextStage() ? 1 : 0) << "\n";
+    report << "overlap_peek=" << (fopOvlpM_IsPeek() ? 1 : 0) << "\n";
+    report << "black_frames=" << blackFrames << "\n";
+    report << "stage_ready_frames=" << readyFrames << "\n";
+    report << "global_fade_active=" << static_cast<int>(mDoGph_gInf_c::isFade()) << "\n";
+    report << "global_fade_rate=" << mDoGph_gInf_c::getFadeRate() << "\n";
+    report << "global_fade_speed=" << mDoGph_gInf_c::getFadeSpeed() << "\n";
+    report << "global_fade_alpha=" << static_cast<int>(mDoGph_gInf_c::getFadeColor().a) << "\n";
+    if (fader != nullptr) {
+        report << "jutfader_status=" << fader->getStatus() << "\n";
+        report << "jutfader_timer=" << fader->mTimer << "\n";
+        report << "jutfader_duration=" << fader->mDuration << "\n";
+        report << "jutfader_status_timer=" << fader->mStatusTimer << "\n";
+        report << "jutfader_next_status=" << fader->mNextStatus << "\n";
+    } else {
+        report << "jutfader=null\n";
+    }
+
+    s_xboxTransitionFailureReport = report.str();
+    s_xboxTransitionFailurePending = true;
+}
+
 constexpr uint32_t kPureTrackerStageStableFrames = 300;
 uint32_t s_pureTrackerStageStableFrames = 0;
 int s_pureTrackerObservedStage = -1;
@@ -139,6 +190,22 @@ bool refreshPureTrackerSnapshot() {
     return s_pureTrackerReady;
 }
 }  // namespace
+
+extern "C" bool tpr_xbox_transition_failure_pending() noexcept {
+    return s_xboxTransitionFailurePending;
+}
+
+extern "C" const char* tpr_xbox_transition_failure_report() noexcept {
+    return s_xboxTransitionFailureReport.c_str();
+}
+
+extern "C" void tpr_xbox_transition_failure_acknowledge() noexcept {
+    s_xboxTransitionFailurePending = false;
+}
+
+extern "C" void tpr_xbox_transition_retry_recovery() noexcept {
+    clearXboxTransitionFades();
+}
 
 extern "C" bool tpr_pure_tracker_active() noexcept {
     return refreshPureTrackerSnapshot();

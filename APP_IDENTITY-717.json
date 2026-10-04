@@ -1,0 +1,13 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.717",
+  "architecture": "x64",
+  "base": "1.4.1.716 transition/tracker performance build",
+  "transitions": "Dual-fade Xbox watchdog clears both mDoGph_gInf_c filter fade and JUTFader when gameplay is live behind persistent black",
+  "failureReport": "On-screen Xbox Transition Failure modal plus xbox-transition-failure.txt and append-only xbox-transition-failures.log in writable Dusklight user data",
+  "reportFields": "seed, stage, room, player/event/next-stage/overlap, black/stable frames, global fade state/rate/speed/alpha, JUTFader state/timers",
+  "tracker": "Pure Item Tracker V3 retained with delayed gameplay startup, reused tracker world and one texture upload per frame",
+  "resetAudio": "Xbox reset audio guards retained",
+  "assetServices": "DVD overlay and texture replacement services remain enabled",
+  "startupJournal": "xbox-startup-stage-717.txt"
+}

@@ -1,6 +1,7 @@
 #include "PureItemTracker.hpp"
 
 #include "dusk/config.hpp"
+#include "dusk/main.h"
 #include "dusk/settings.h"
 #include "dusk/ui/icon_provider.hpp"
 
@@ -9,12 +10,19 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace dusk {
 
 #if defined(_UWP)
+extern "C" bool tpr_xbox_transition_failure_pending() noexcept;
+extern "C" const char* tpr_xbox_transition_failure_report() noexcept;
+extern "C" void tpr_xbox_transition_failure_acknowledge() noexcept;
+extern "C" void tpr_xbox_transition_retry_recovery() noexcept;
 extern "C" bool tpr_pure_tracker_active() noexcept;
 extern "C" std::size_t tpr_pure_tracker_slot_count() noexcept;
 extern "C" const char* tpr_pure_tracker_slot_label(std::size_t index) noexcept;
@@ -49,8 +57,88 @@ ImTextureID tracker_texture(uint8_t itemNo) {
     }
     return texture;
 }
+std::string persist_transition_failure_report(std::string_view report) {
+    if (report.empty()) {
+        return {};
+    }
+
+    try {
+        std::filesystem::create_directories(ConfigPath);
+        const auto latestPath = ConfigPath / "xbox-transition-failure.txt";
+        const auto historyPath = ConfigPath / "xbox-transition-failures.log";
+
+        {
+            std::ofstream latest(latestPath, std::ios::out | std::ios::trunc);
+            latest << report;
+        }
+        {
+            std::ofstream history(historyPath, std::ios::out | std::ios::app);
+            history << "\n===== transition failure =====\n" << report;
+        }
+        return latestPath.string();
+    } catch (...) {
+        return {};
+    }
+}
 }  // namespace
 #endif
+
+void draw_xbox_failure_report() {
+#if !defined(_UWP)
+    return;
+#else
+    if (!tpr_xbox_transition_failure_pending()) {
+        return;
+    }
+
+    const char* rawReport = tpr_xbox_transition_failure_report();
+    const std::string report = rawReport != nullptr ? rawReport : "";
+    static std::string lastPersistedReport;
+    static std::string persistedPath;
+    if (report != lastPersistedReport) {
+        persistedPath = persist_transition_failure_report(report);
+        lastPersistedReport = report;
+    }
+
+    ImGui::OpenPopup("Xbox Transition Failure###XboxTransitionFailure");
+    ImGui::SetNextWindowSize(ImVec2(720.0f, 0.0f), ImGuiCond_Appearing);
+    if (ImGui::BeginPopupModal(
+            "Xbox Transition Failure###XboxTransitionFailure",
+            nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextWrapped(
+            "The game stayed hidden behind a transition fade after gameplay was already live. "
+            "Automatic recovery cleared both Twilight Princess fade systems. "
+            "This report was captured before recovery so the exact stuck state is preserved.");
+        ImGui::Spacing();
+
+        if (!persistedPath.empty()) {
+            ImGui::TextWrapped("Saved report: %s", persistedPath.c_str());
+        } else {
+            ImGui::TextWrapped(
+                "The report could not be written to disk, but the captured data is shown below.");
+        }
+
+        ImGui::Separator();
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 660.0f);
+        ImGui::TextUnformatted(report.c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::Separator();
+
+        if (ImGui::Button("Retry Fade Recovery")) {
+            tpr_xbox_transition_retry_recovery();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Dismiss")) {
+            tpr_xbox_transition_failure_acknowledge();
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+#endif
+}
 
 void draw_pure_item_tracker() {
 #if !defined(_UWP)
