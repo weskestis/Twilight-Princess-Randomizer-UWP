@@ -6,6 +6,7 @@ on:
     branches:
       - codex/enemy-souls-654-build
       - rebuild/1.4.658
+      - legacy/1.4.658-cardfix
       - legacy/1.4.658-side-by-side
   workflow_dispatch:
 
@@ -1791,6 +1792,81 @@ jobs:
               $verifyPhone.GetAttribute('PhoneProductId') -ne '65865865-8658-4658-8658-658658658658' -or
               $verifyVisual.GetAttribute('DisplayName') -ne 'Twilight Princess Randomizer Legacy 658') {
             throw 'Legacy 658 manifest verification failed after XML rewrite.'
+          }
+
+      - name: Backport Xbox card repair for Legacy 658
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $memCardPath = "$env:TPR_SRC\src\m_Do\m_Do_MemCard.cpp"
+          $memCard = [IO.File]::ReadAllText($memCardPath).Replace("`r`n", "`n")
+
+          $includeAnchor = '#include "dusk/version.hpp"'
+          $includeReplacement = @(
+            '#include "dusk/version.hpp"',
+            '',
+            '#if defined(_UWP)',
+            '#include <filesystem>',
+            '#endif'
+          ) -join "`n"
+          if (-not $memCard.Contains($includeAnchor)) {
+            throw 'Legacy 658 memory-card include anchor changed.'
+          }
+          $memCard = $memCard.Replace($includeAnchor, $includeReplacement)
+
+          $cardTypeOld = '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());'
+          $cardTypeNew = @(
+            '#if defined(_UWP)',
+            '    // Legacy 658 Xbox repair: isolate Slot A from any stale or malformed GCI data',
+            '    // left in the package root while keeping the normal GameCube CARD implementation.',
+            '    CARDSetLoadType(CARD_GCIFOLDER);',
+            '    const auto xboxCardBasePath = dusk::ConfigPath / "legacy658_memory_card_v2";',
+            '    std::error_code xboxCardPathError;',
+            '    std::filesystem::create_directories(xboxCardBasePath, xboxCardPathError);',
+            '    if (xboxCardPathError) {',
+            '        OS_REPORT("Legacy658 card path creation failed: %s\n", xboxCardPathError.message().c_str());',
+            '    }',
+            '    CARDSetBasePath(xboxCardBasePath.string().c_str(), -1);',
+            '#else',
+            '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());',
+            '#endif'
+          ) -join "`n"
+          if (-not $memCard.Contains($cardTypeOld)) {
+            throw 'Legacy 658 CARD backend anchor changed.'
+          }
+          $memCard = $memCard.Replace($cardTypeOld, $cardTypeNew)
+
+          [IO.File]::WriteAllText(
+            $memCardPath, $memCard, [Text.UTF8Encoding]::new($false))
+
+          foreach ($marker in @(
+            '#include <filesystem>',
+            'CARDSetLoadType(CARD_GCIFOLDER);',
+            'legacy658_memory_card_v2',
+            'std::filesystem::create_directories(xboxCardBasePath, xboxCardPathError);',
+            'CARDSetBasePath(xboxCardBasePath.string().c_str(), -1);')) {
+            if (-not $memCard.Contains($marker)) {
+              throw "Legacy 658 card repair marker missing: $marker"
+            }
+          }
+
+          # Preserve the .658 transactional seed writer. The reported seed failure was a real
+          # ENOSPC from the write itself, not merely its free-space diagnostic suffix.
+          $seedContextPath = "$env:TPR_SRC\src\dusk\randomizer\game\randomizer_context.cpp"
+          $seedContext = [IO.File]::ReadAllText($seedContextPath)
+          foreach ($marker in @(
+            'dusk::io::FileStream::WriteAllText(temporaryPath, storedPayload);',
+            'DecodeSeedPayload(temporaryBytes) != rawPayload',
+            'std::filesystem::rename(temporaryPath, seedPath);',
+            'AvailableStorageSuffix(seedPath.parent_path())')) {
+            if (-not $seedContext.Contains($marker)) {
+              throw "Legacy 658 transactional seed-storage marker missing: $marker"
+            }
+          }
+
+          git -C "$env:TPR_SRC" diff --check
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Legacy 658 card repair introduced a source formatting error.'
           }
 
       - name: Emit patch mismatch diagnostics
