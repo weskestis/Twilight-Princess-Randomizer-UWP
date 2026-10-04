@@ -5539,7 +5539,7 @@ jobs:
             'MouseDrawCursor = true',
             'getSubStickX(PAD_1)',
             'io.MouseDown[0] = mDoCPd_c::getHoldA(PAD_1) != 0',
-            'Recovery command accepted',
+            'Stale overlap cancelled',
             'ImGui::SetItemDefaultFocus()',
             'game.showPureItemTracker',
             'game.pureItemTrackerIconSize',
