@@ -228,31 +228,64 @@ if (-not $reset.Contains('#include <filesystem>')) {
 }
 Write-Utf8 $resetPath $reset
 
-# Surface a previous unclean gameplay session through the existing Xbox startup
-# diagnostic area. This UI is already proven on console and survives launcher rewrites.
-$diagnosticAnchor = @'
-    const std::string previousStage = startup_guard::previous_stage();
-    if (mStartupDiagnostic != nullptr && !previousStage.empty()) {
-'@
-if (-not $pre.Contains($diagnosticAnchor)) {
-  throw '.728 hard-crash report could not find proven Xbox startup diagnostic anchor.'
+# Make the existing Xbox main-menu diagnostic surface the hard crash automatically.
+# Do this at startup_guard::previous_stage() so no launcher UI function needs patching.
+$guardPath = "$src\src\dusk\startup_guard.hpp"
+$guard = Read-Normalized $guardPath
+$prevStart = $guard.IndexOf('inline std::string previous_stage() noexcept {')
+$prevEnd = $guard.IndexOf('inline void stage(', $prevStart)
+if ($prevStart -lt 0 -or $prevEnd -lt 0) {
+  throw '.728 hard-crash report could not find startup_guard previous_stage boundaries.'
 }
-$diagnosticReplacement = @'
-    const auto previousHardCrash = xbox_previous_hard_crash_report();
-    const std::string previousStage = startup_guard::previous_stage();
-    if (mStartupDiagnostic != nullptr && previousHardCrash.has_value()) {
-        set_text_content(
-            mStartupDiagnostic,
-            fmt::format(
-                "Xbox Runtime Failure - Previous Session | "
-                "hard_process_termination | Last runtime checkpoint: {} | "
-                "Full report: xbox-runtime-failure.txt",
-                xbox_latest_runtime_stage()));
-        mStartupDiagnostic->SetAttribute("visible", "");
-    } else if (mStartupDiagnostic != nullptr && !previousStage.empty()) {
-'@
-$pre = $pre.Replace($diagnosticAnchor, $diagnosticReplacement)
 
+$previousStageImpl = @'
+inline std::string previous_stage() noexcept {
+    std::scoped_lock lock(detail::mutex);
+#if defined(_UWP)
+    if (!detail::markerPath.empty()) {
+        std::error_code ec;
+        const auto sessionMarker =
+            detail::markerPath.parent_path() / "xbox-session-active.txt";
+        if (std::filesystem::exists(sessionMarker, ec)) {
+            const std::string lastStage =
+                detail::previousStage.empty() ? "unavailable" : detail::previousStage;
+            const std::string report =
+                "Twilight Princess Randomizer Xbox runtime failure report\n"
+                "build=1.4.1.728\n"
+                "failure_class=hard_process_termination\n"
+                "failure_summary=The previous gameplay session ended unexpectedly or was terminated before a clean shutdown.\n"
+                "failure_hint=The last persisted runtime checkpoint is shown below.\n"
+                "last_runtime_stage=" + lastStage + "\n"
+                "source=next_launch_main_menu\n";
+            try {
+                {
+                    std::ofstream latest(
+                        detail::markerPath.parent_path() / "xbox-runtime-failure.txt",
+                        std::ios::binary | std::ios::trunc);
+                    latest << report;
+                }
+                {
+                    std::ofstream history(
+                        detail::markerPath.parent_path() / "xbox-runtime-failures.log",
+                        std::ios::binary | std::ios::app);
+                    history << "\n===== hard process termination =====\n" << report;
+                }
+            } catch (...) {
+            }
+            return "Xbox Runtime Failure - Previous Session | "
+                   "hard_process_termination | Last runtime checkpoint: " +
+                   lastStage + " | Full report: xbox-runtime-failure.txt";
+        }
+    }
+#endif
+    return detail::previousStage;
+}
+
+'@
+
+$guard = $guard.Substring(0, $prevStart) + $previousStageImpl +
+         $guard.Substring($prevEnd)
+Write-Utf8 $guardPath $guard
 Write-Utf8 $prePath $pre
 
 # -----------------------------------------------------------------------------
@@ -329,12 +362,10 @@ Write-Utf8 $mainPath $main
 $preVerify = Read-Normalized $prePath
 $mainVerify = Read-Normalized $mainPath
 $resetVerify = Read-Normalized $resetPath
+$guardVerify = Read-Normalized $guardPath
 foreach ($marker in @(
   'xbox-session-active.txt',
   'hard_process_termination',
-  'Xbox Runtime Failure - Previous Session',
-  'Full report: xbox-runtime-failure.txt',
-  'mStartupDiagnostic->SetAttribute("visible", "")',
   'xbox_previous_hard_crash_report',
   'xbox_arm_runtime_session',
   'setCurrentGameMode(mPendingGameModeId)',
@@ -347,6 +378,19 @@ foreach ($marker in @(
     throw "Missing .728 main-menu hard-crash marker: $marker"
   }
 }
+foreach ($marker in @(
+  'Xbox Runtime Failure - Previous Session',
+  'hard_process_termination',
+  'Last runtime checkpoint:',
+  'Full report: xbox-runtime-failure.txt',
+  'xbox-runtime-failure.txt',
+  'xbox-runtime-failures.log',
+  'source=next_launch_main_menu')) {
+  if (-not $guardVerify.Contains($marker)) {
+    throw "Missing .728 startup journal hard-crash marker: $marker"
+  }
+}
+
 foreach ($marker in @(
   'ClearXboxRuntimeSessionOnCleanExit',
   'xbox-session-active.txt')) {
