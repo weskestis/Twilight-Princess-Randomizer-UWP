@@ -3260,17 +3260,6 @@ jobs:
               throw "Xbox .712 Cosmetics menu marker missing: $cosmeticsMarker712"
             }
           }
-          # rando_config.cpp is still being transformed in memory at this point.
-          $randoConfig712Verify = $randoConfigSource
-          foreach ($freshSeedMarker712 in @(
-            'NewRandomSeed();',
-            'GenerateAndWriteSeed()',
-            'refresh_play_seed_options(true)',
-            'Seed is fully generated, selected, parsed and activated before name entry.')) {
-            if (-not $randoConfig712Verify.Contains($freshSeedMarker712)) {
-              throw "Xbox .712 fresh-seed marker missing: $freshSeedMarker712"
-            }
-          }
           if ($hooks706.Contains('evtControl->offSkipFade();')) {
             throw 'Xbox .712 still disables the upstream skip-fade handshake.'
           }
@@ -4175,6 +4164,16 @@ jobs:
             throw 'Start Randomizer callback anchor changed before .688.'
           }
           $randoConfigSource = $randoConfigSource.Replace($startOld, $startNew)
+
+          foreach ($freshSeedMarker712 in @(
+            'NewRandomSeed();',
+            'GenerateAndWriteSeed()',
+            'refresh_play_seed_options(true)',
+            'Seed is fully generated, selected, parsed and activated before name entry.')) {
+            if (-not $randoConfigSource.Contains($freshSeedMarker712)) {
+              throw "Xbox .712 fresh-seed marker missing after Start Randomizer transform: $freshSeedMarker712"
+            }
+          }
 
           [IO.File]::WriteAllText(
             $sessionHeaderPath, $sessionHeader, [Text.UTF8Encoding]::new($false))
