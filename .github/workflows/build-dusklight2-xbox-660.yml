@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 712
+name: Build Dusklight 2.0.1 Xbox 713
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-712-release-${{ github.ref }}
+  group: xbox-713-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 712 identity
+      - name: Apply reviewed source layers and advance 713 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-712.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-713.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -3145,7 +3145,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.712");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.713");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -3288,7 +3288,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-712.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-713.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
@@ -3402,7 +3402,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.712");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.713");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -4164,16 +4164,6 @@ jobs:
             throw 'Start Randomizer callback anchor changed before .688.'
           }
           $randoConfigSource = $randoConfigSource.Replace($startOld, $startNew)
-
-          foreach ($freshSeedMarker712 in @(
-            'NewRandomSeed();',
-            'GenerateAndWriteSeed()',
-            'refresh_play_seed_options(true)',
-            'Seed is fully generated, selected, parsed and activated before name entry.')) {
-            if (-not $randoConfigSource.Contains($freshSeedMarker712)) {
-              throw "Xbox .712 fresh-seed marker missing after Start Randomizer transform: $freshSeedMarker712"
-            }
-          }
 
           [IO.File]::WriteAllText(
             $sessionHeaderPath, $sessionHeader, [Text.UTF8Encoding]::new($false))
@@ -5109,6 +5099,356 @@ jobs:
             $contextSourcePath, $contextSource, [Text.UTF8Encoding]::new($false))
           [IO.File]::WriteAllText(
             $itemPoolPath, $itemPoolSource, [Text.UTF8Encoding]::new($false))
+
+          # .713: hardware fixes from .712 testing.
+          # 1) Start Randomizer must never run the full generator synchronously on the UI thread.
+          # 2) A selected seed is consumed by one new save and cannot silently carry into another slot.
+          # 3) Surface Cosmetics from the launcher.
+          # 4) Recover a completed scene transition if the PC fader remains fully black.
+          # 5) Do not drive the Xbox audio frame/pump while an engine reset is active, and add
+          #    granular gframe markers so a non-reset audio crash identifies its exact sub-step.
+
+          $rando713Path = "$env:TPR_SRC\mods\randomizer\src\ui\rando_config.cpp"
+          $rando713 = [IO.File]::ReadAllText($rando713Path).Replace("`r`n", "`n")
+          $startBlocking713 = @(
+            '        desc.on_pressed = [](ModContext*, void* userdata) {',
+            '            // .712 Xbox: every new file gets a freshly generated seed from the current',
+            '            // Randomizer settings instead of silently reusing g_pending_seed_hash.',
+            '            NewRandomSeed();',
+            '            if (!GenerateAndWriteSeed()) {',
+            '                const std::string detail = ReadGenerationStatusMsg();',
+            '                UiToastDesc errorToast = UI_TOAST_DESC_INIT;',
+            '                errorToast.title_rml = "Randomizer Seed Error";',
+            '                errorToast.body_rml = detail.empty() ?',
+            '                    "A fresh seed could not be generated for this save." : detail.c_str();',
+            '                errorToast.duration_ms = 9000;',
+            '                errorToast.type = "error";',
+            '                session::svc_mng.ui->push_toast(session::svc_mng.mod_ctx, &errorToast);',
+            '                return;',
+            '            }',
+            '            refresh_play_seed_options(true);',
+            '            const std::string hash = session::g_pending_seed_hash;',
+            '            if (hash.empty() || hash == "None") {',
+            '                return;',
+            '            }',
+            '            if (!session::g_seedActivated || randomizer_GetContext().mHash != hash) {',
+            '                session::deactivateSeed();',
+            '                if (!session::activateSeed(hash.c_str())) {',
+            '                    const std::string detail = session::lastSeedActivationError();',
+            '                    UiToastDesc errorToast = UI_TOAST_DESC_INIT;',
+            '                    errorToast.title_rml = "Randomizer Seed Error";',
+            '                    errorToast.body_rml = detail.empty() ?',
+            '                        "The freshly generated Randomizer seed could not be activated." : detail.c_str();',
+            '                    errorToast.duration_ms = 9000;',
+            '                    errorToast.type = "error";',
+            '                    session::svc_mng.ui->push_toast(session::svc_mng.mod_ctx, &errorToast);',
+            '                    return;',
+            '                }',
+            '            }',
+            '            // Seed is fully generated, selected, parsed and activated before name entry.',
+            '            g_file_select_window_ctx.is_proceed = true;',
+            '            session::svc_mng.ui->window_close(',
+            '                session::svc_mng.mod_ctx, *static_cast<UiWindowHandle*>(userdata));',
+            '            mDoAud_seStartMenu(Z2SE_SY_NEW_FILE);',
+            '        };'
+          ) -join "`n"
+          $startImmediate713 = @(
+            '        desc.on_pressed = [](ModContext*, void* userdata) {',
+            '            // .713 Xbox: the selected seed is already generated. Activate it and proceed',
+            '            // immediately; generation remains on the existing asynchronous Generate Seed path.',
+            '            const std::string hash = session::g_pending_seed_hash;',
+            '            if (hash.empty() || hash == "None") {',
+            '                return;',
+            '            }',
+            '            if (!session::g_seedActivated || randomizer_GetContext().mHash != hash) {',
+            '                session::deactivateSeed();',
+            '                if (!session::activateSeed(hash.c_str())) {',
+            '                    const std::string detail = session::lastSeedActivationError();',
+            '                    UiToastDesc errorToast = UI_TOAST_DESC_INIT;',
+            '                    errorToast.title_rml = "Randomizer Seed Error";',
+            '                    errorToast.body_rml = detail.empty() ?',
+            '                        "The selected Randomizer seed could not be activated." : detail.c_str();',
+            '                    errorToast.duration_ms = 9000;',
+            '                    errorToast.type = "error";',
+            '                    session::svc_mng.ui->push_toast(session::svc_mng.mod_ctx, &errorToast);',
+            '                    return;',
+            '                }',
+            '            }',
+            '            // Selected seed is fully parsed and activated before name/save creation begins.',
+            '            g_file_select_window_ctx.is_proceed = true;',
+            '            session::svc_mng.ui->window_close(',
+            '                session::svc_mng.mod_ctx, *static_cast<UiWindowHandle*>(userdata));',
+            '            mDoAud_seStartMenu(Z2SE_SY_NEW_FILE);',
+            '        };'
+          ) -join "`n"
+          if (-not $rando713.Contains($startBlocking713)) {
+            throw 'Xbox .713 blocking Start Randomizer callback anchor changed.'
+          }
+          $rando713 = $rando713.Replace($startBlocking713, $startImmediate713)
+          [IO.File]::WriteAllText($rando713Path, $rando713, [Text.UTF8Encoding]::new($false))
+
+          $session713Path = "$env:TPR_SRC\mods\randomizer\src\session.cpp"
+          $session713 = [IO.File]::ReadAllText($session713Path).Replace("`r`n", "`n")
+          $sessionInclude713 = '#include "d/d_meter2_info.h"'
+          $sessionIncludeNew713 = @(
+            '#include "d/d_meter2_info.h"',
+            '#if defined(_UWP)',
+            '#include "f_op/f_op_overlap_mng.h"',
+            '#include "m_Do/m_Do_Reset.h"',
+            '#include "m_Do/m_Do_graphic.h"',
+            '#endif'
+          ) -join "`n"
+          if (-not $session713.Contains($sessionInclude713)) {
+            throw 'Xbox .713 Randomizer session include anchor changed.'
+          }
+          $session713 = $session713.Replace($sessionInclude713, $sessionIncludeNew713)
+
+          $consumeSeedOld713 = @(
+            '    setupRandomizerFile();',
+            '    saveAncientDocumentNum();',
+            '    return MOD_OK;'
+          ) -join "`n"
+          $consumeSeedNew713 = @(
+            '    setupRandomizerFile();',
+            '    saveAncientDocumentNum();',
+            '    // One selected seed belongs to one new save. Force the next slot back through',
+            '    // seed selection/generation instead of silently reusing this hash.',
+            '    g_pending_seed_hash.clear();',
+            '    return MOD_OK;'
+          ) -join "`n"
+          if (-not $session713.Contains($consumeSeedOld713)) {
+            throw 'Xbox .713 new-save seed consumption anchor changed.'
+          }
+          $session713 = $session713.Replace($consumeSeedOld713, $consumeSeedNew713)
+
+          $updateOld713 = @(
+            'void update() {',
+            '    if (!g_randomizerState.mInitialized) {',
+            '        g_randomizerState._create();',
+            '    }',
+            '    g_randomizerState.execute();',
+            '}'
+          ) -join "`n"
+          $updateNew713 = @(
+            'void update() {',
+            '#if defined(_UWP)',
+            '    // Xbox can occasionally finish a major scene load while JUTFader remains in',
+            '    // None (fully opaque black). Only recover after the overlap is gone and the',
+            '    // frame has remained black for several seconds, so normal transitions are untouched.',
+            '    static u32 s_xboxBlackTransitionFrames = 0;',
+            '    JUTFader* fader = mDoGph_gInf_c::getFader();',
+            '    const bool blackAfterTransition = fader != nullptr &&',
+            '        fader->getStatus() == JUTFader::None &&',
+            '        !fopOvlpM_IsPeek() && !mDoRst::isReset();',
+            '    if (blackAfterTransition) {',
+            '        if (++s_xboxBlackTransitionFrames >= 180) {',
+            '            mods::log::warn("Xbox transition remained black after scene load; forcing fade-in");',
+            '            mDoGph_gInf_c::startFadeIn(1);',
+            '            s_xboxBlackTransitionFrames = 0;',
+            '        }',
+            '    } else {',
+            '        s_xboxBlackTransitionFrames = 0;',
+            '    }',
+            '#endif',
+            '    if (!g_randomizerState.mInitialized) {',
+            '        g_randomizerState._create();',
+            '    }',
+            '    g_randomizerState.execute();',
+            '}'
+          ) -join "`n"
+          if (-not $session713.Contains($updateOld713)) {
+            throw 'Xbox .713 Randomizer update anchor changed.'
+          }
+          $session713 = $session713.Replace($updateOld713, $updateNew713)
+          [IO.File]::WriteAllText($session713Path, $session713, [Text.UTF8Encoding]::new($false))
+
+          $prelaunch713Path = "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp"
+          $prelaunch713 = [IO.File]::ReadAllText($prelaunch713Path).Replace("`r`n", "`n")
+          $modsButtonAnchor713 = '        mMenuButtons.push_back(std::make_unique<Button>(menuList, "Mods"));'
+          $cosmeticsLauncher713 = @(
+            '        mMenuButtons.push_back(std::make_unique<Button>(menuList, "Colors / Cosmetics"));',
+            '        mMenuButtons.back()->set_disabled(!mods::ModLoader::instance().initialized());',
+            '        mMenuButtons.back()->on_pressed([this] {',
+            '            mRestartSuppressed = false;',
+            '            auto window = std::make_unique<ModsWindow>();',
+            '            window->select_mod("dev.twilitrealm.cosmetics");',
+            '            push(std::move(window));',
+            '        });',
+            '        apply_intro_animation(mMenuButtons.back()->root(), "delay-3");',
+            '',
+            '        mMenuButtons.push_back(std::make_unique<Button>(menuList, "Mods"));'
+          ) -join "`n"
+          if (-not $prelaunch713.Contains($modsButtonAnchor713)) {
+            throw 'Xbox .713 launcher Mods button anchor changed.'
+          }
+          $prelaunch713 = $prelaunch713.Replace($modsButtonAnchor713, $cosmeticsLauncher713)
+          [IO.File]::WriteAllText($prelaunch713Path, $prelaunch713, [Text.UTF8Encoding]::new($false))
+
+          $audioMgr713Path = "$env:TPR_SRC\src\m_Do\m_Do_audio.cpp"
+          $audioMgr713 = [IO.File]::ReadAllText($audioMgr713Path).Replace("`r`n", "`n")
+          $audioGframeOld713 = @(
+            '#if defined(_UWP)',
+            '        dusk::startup_guard::stage("audio.gframe");',
+            '#endif'
+          ) -join "`n"
+          $audioGframeNew713 = @(
+            '#if defined(_UWP)',
+            '        dusk::startup_guard::stage("audio.gframe");',
+            '        if (mDoRst::isReset()) {',
+            '            dusk::startup_guard::stage("audio.gframe-reset-skip");',
+            '            return;',
+            '        }',
+            '#endif'
+          ) -join "`n"
+          if (-not $audioMgr713.Contains($audioGframeOld713)) {
+            throw 'Xbox .713 audio gframe guard anchor changed.'
+          }
+          $audioMgr713 = $audioMgr713.Replace($audioGframeOld713, $audioGframeNew713)
+          [IO.File]::WriteAllText($audioMgr713Path, $audioMgr713, [Text.UTF8Encoding]::new($false))
+
+          $z2Audio713Path = "$env:TPR_SRC\src\Z2AudioLib\Z2AudioMgr.cpp"
+          $z2Audio713 = [IO.File]::ReadAllText($z2Audio713Path).Replace("`r`n", "`n")
+          $z2IncludeAnchor713 = '#include "Z2AudioLib/Z2AudioMgr.h"'
+          $z2IncludeNew713 = @(
+            '#include "Z2AudioLib/Z2AudioMgr.h"',
+            '#if defined(_UWP)',
+            '#include "dusk/startup_guard.hpp"',
+            '#endif'
+          ) -join "`n"
+          if (-not $z2Audio713.Contains($z2IncludeAnchor713)) {
+            throw 'Xbox .713 Z2 audio include anchor changed.'
+          }
+          $z2Audio713 = $z2Audio713.Replace($z2IncludeAnchor713, $z2IncludeNew713)
+
+          $zeldaOld713 = @(
+            'void Z2AudioMgr::zeldaGFrameWork() {',
+            '    processTime();',
+            '    mSpeechMgr.framework();',
+            '    processSeFramework();',
+            '    processBgmFramework();'
+          ) -join "`n"
+          $zeldaNew713 = @(
+            'void Z2AudioMgr::zeldaGFrameWork() {',
+            '#if defined(_UWP)',
+            '    dusk::startup_guard::stage("audio.gframe.time");',
+            '#endif',
+            '    processTime();',
+            '#if defined(_UWP)',
+            '    dusk::startup_guard::stage("audio.gframe.speech");',
+            '#endif',
+            '    mSpeechMgr.framework();',
+            '#if defined(_UWP)',
+            '    dusk::startup_guard::stage("audio.gframe.se");',
+            '#endif',
+            '    processSeFramework();',
+            '#if defined(_UWP)',
+            '    dusk::startup_guard::stage("audio.gframe.bgm");',
+            '#endif',
+            '    processBgmFramework();'
+          ) -join "`n"
+          if (-not $z2Audio713.Contains($zeldaOld713)) {
+            throw 'Xbox .713 Z2 zeldaGFrameWork anchor changed.'
+          }
+          $z2Audio713 = $z2Audio713.Replace($zeldaOld713, $zeldaNew713)
+
+          $gframeOld713 = @(
+            'void Z2AudioMgr::gframeProcess() {',
+            '    zeldaGFrameWork();',
+            '',
+            '    if (mResettingFlag && mAudioReseter.checkDone()) {',
+            '        if (!field_0x519) {',
+            '            mSoundMgr.stopSync();',
+            '        }',
+            '    } else {',
+            '        mSoundMgr.framework();',
+            '        framework();',
+            '    }',
+            '}'
+          ) -join "`n"
+          $gframeNew713 = @(
+            'void Z2AudioMgr::gframeProcess() {',
+            '#if defined(_UWP)',
+            '    dusk::startup_guard::stage("audio.gframe.zelda");',
+            '#endif',
+            '    zeldaGFrameWork();',
+            '#if defined(_UWP)',
+            '    dusk::startup_guard::stage("audio.gframe.zelda-ready");',
+            '#endif',
+            '',
+            '    if (mResettingFlag && mAudioReseter.checkDone()) {',
+            '#if defined(_UWP)',
+            '        dusk::startup_guard::stage("audio.gframe.reset");',
+            '#endif',
+            '        if (!field_0x519) {',
+            '            mSoundMgr.stopSync();',
+            '        }',
+            '    } else {',
+            '#if defined(_UWP)',
+            '        dusk::startup_guard::stage("audio.gframe.soundmgr");',
+            '#endif',
+            '        mSoundMgr.framework();',
+            '#if defined(_UWP)',
+            '        dusk::startup_guard::stage("audio.gframe.soundmgr-ready");',
+            '        dusk::startup_guard::stage("audio.gframe.framework");',
+            '#endif',
+            '        framework();',
+            '#if defined(_UWP)',
+            '        dusk::startup_guard::stage("audio.gframe.framework-ready");',
+            '#endif',
+            '    }',
+            '}'
+          ) -join "`n"
+          if (-not $z2Audio713.Contains($gframeOld713)) {
+            throw 'Xbox .713 Z2 gframeProcess anchor changed.'
+          }
+          $z2Audio713 = $z2Audio713.Replace($gframeOld713, $gframeNew713)
+          [IO.File]::WriteAllText($z2Audio713Path, $z2Audio713, [Text.UTF8Encoding]::new($false))
+
+          $audioPump713Path = "$env:TPR_SRC\src\dusk\audio\DuskAudioSystem.cpp"
+          $audioPump713 = [IO.File]::ReadAllText($audioPump713Path).Replace("`r`n", "`n")
+          if (-not $audioPump713.Contains('#include "DuskDsp.hpp"')) {
+            throw 'Xbox .713 audio pump include anchor changed.'
+          }
+          if (-not $audioPump713.Contains('#include "m_Do/m_Do_Reset.h"')) {
+            $audioPump713 = $audioPump713.Replace(
+              '#include "DuskDsp.hpp"',
+              '#include "DuskDsp.hpp"' + "`n" + '#if defined(_UWP)' + "`n" +
+              '#include "m_Do/m_Do_Reset.h"' + "`n" + '#endif')
+          }
+          $pumpEntryOld713 = @(
+            'void dusk::audio::Pump() {',
+            '    if (!PlaybackStream || OutChannelCount == 0) {'
+          ) -join "`n"
+          $pumpEntryNew713 = @(
+            'void dusk::audio::Pump() {',
+            '#if defined(_UWP)',
+            '    if (mDoRst::isReset()) {',
+            '        return;',
+            '    }',
+            '#endif',
+            '    if (!PlaybackStream || OutChannelCount == 0) {'
+          ) -join "`n"
+          if (-not $audioPump713.Contains($pumpEntryOld713)) {
+            throw 'Xbox .713 audio pump reset guard anchor changed.'
+          }
+          $audioPump713 = $audioPump713.Replace($pumpEntryOld713, $pumpEntryNew713)
+          [IO.File]::WriteAllText($audioPump713Path, $audioPump713, [Text.UTF8Encoding]::new($false))
+
+          foreach ($required713 in @(
+            'Colors / Cosmetics',
+            'Selected seed is fully parsed and activated before name/save creation begins.',
+            'g_pending_seed_hash.clear();',
+            's_xboxBlackTransitionFrames',
+            'audio.gframe-reset-skip',
+            'audio.gframe.zelda',
+            'audio.gframe.soundmgr',
+            'audio.gframe.framework')) {
+            $all713 = $rando713 + $session713 + $prelaunch713 + $audioMgr713 + $z2Audio713 + $audioPump713
+            if (-not $all713.Contains($required713)) {
+              throw "Xbox .713 runtime marker missing: $required713"
+            }
+          }
+
           # .685: Xbox reached seed generation and exposed an unresolved symbolic flow target:
           # group 2 -> Kakariko Malo Mart Red Potion Sold Out. The source links remain conditional
           # on Shop_Items == On, but their custom target nodes must always be present in the flow
@@ -5257,7 +5597,7 @@ jobs:
             'g_last_seed_activation_error',
             'lastSeedActivationError()',
             'if (!g_seedActivated || randomizer_GetContext().mHash != hash)',
-            'Seed is fully generated, selected, parsed and activated before name entry.')) {
+            'Selected seed is fully parsed and activated before name/save creation begins.')) {
             if (-not ($session688Verify.Contains($seedLaunchMarker) -or
                       $rando688Verify.Contains($seedLaunchMarker))) {
               throw "Xbox .688 seed preactivation marker is missing: $seedLaunchMarker"
@@ -5369,7 +5709,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.712"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.713"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -5691,7 +6031,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 712 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 713 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -5718,17 +6058,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 712 package
+      - name: Verify and collect full 713 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-712"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-713"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.712_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.713_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -5740,7 +6080,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.712"',
+            'Version="1.4.1.713"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -5775,7 +6115,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Cosmetics native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-712-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-713-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -5878,7 +6218,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-712.txt',
+            'xbox-startup-stage-713.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -5954,7 +6294,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-712-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-713-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -5974,8 +6314,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-712-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-712-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-713-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-713-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -6018,11 +6358,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-712.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-712.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-713.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-713.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.712'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.713'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -6077,13 +6417,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-712.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-713.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.712-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.713-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -6092,7 +6432,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.712-Xbox
-          path: TPR-Xbox-Package-712/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.713-Xbox
+          path: TPR-Xbox-Package-713/*
           if-no-files-found: error
           retention-days: 30

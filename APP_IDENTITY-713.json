@@ -1,0 +1,15 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.713",
+  "architecture": "x64",
+  "base": "1.4.1.712 commit 2c063e2299b10bd92b0dbe81714dc357b5b51782",
+  "changes": [
+    "Start Randomizer no longer generates synchronously on the UI thread",
+    "selected seed is consumed after one new save so it cannot silently carry into another slot",
+    "Colors / Cosmetics is exposed from the launcher",
+    "Randomizer recovers a completed transition that remains fully black for 180 frames",
+    "Xbox audio gframe and pump skip active reset teardown and have granular crash markers"
+  ],
+  "assetServices": "DVD overlay and texture replacement services remain enabled",
+  "startupJournal": "xbox-startup-stage-713.txt"
+}
