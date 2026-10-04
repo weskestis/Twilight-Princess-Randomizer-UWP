@@ -11,90 +11,127 @@ function Write-Utf8([string]$Path, [string]$Text) {
 $src = $env:TPR_SRC
 if (-not $src) { throw 'TPR_SRC is not set.' }
 
-# .729: junk breakable checks complete as soon as their reward actor spawns.
+# .729: make every shuffled pot/pumpkin reward collect through the Randomizer
+# item table, then persist completion only after the pickup grant succeeds.
+$breakablesHeaderPath = "$src\mods\randomizer\src\breakables.hpp"
+$breakablesHeader = Read-Normalized $breakablesHeaderPath
+if (-not $breakablesHeader.Contains('#include <optional>')) {
+  $breakablesHeader = $breakablesHeader.Replace(
+    '#include <cstdint>',
+    '#include <cstdint>' + [string][char]10 + '#include <optional>')
+}
+$breakablesDeclOld = @'
+bool refresh_spawned_item(fopAc_ac_c* actor) noexcept;
+void collect_spawned_item(const fopAc_ac_c* actor) noexcept;
+'@
+if (-not $breakablesHeader.Contains($breakablesDeclOld)) {
+  throw '.729 breakable hardening could not find spawned-item declaration anchor.'
+}
+$breakablesHeader = $breakablesHeader.Replace(
+  $breakablesDeclOld,
+  @'
+bool refresh_spawned_item(fopAc_ac_c* actor) noexcept;
+std::optional<uint8_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept;
+void collect_spawned_item(const fopAc_ac_c* actor) noexcept;
+'@)
+Write-Utf8 $breakablesHeaderPath $breakablesHeader
+
 $breakablesPath = "$src\mods\randomizer\src\breakables.cpp"
 $breakables = Read-Normalized $breakablesPath
-
-$rawItemAnchor = '        uint8_t rawItem = 0xFF;'
-if (-not $breakables.Contains($rawItemAnchor)) {
-  throw '.729 breakable hardening could not find raw item anchor.'
+$collectAnchor = 'void collect_spawned_item(const fopAc_ac_c* actor) noexcept {'
+if (-not $breakables.Contains($collectAnchor)) {
+  throw '.729 breakable hardening could not find collect anchor.'
 }
-$breakables = $breakables.Replace(
-  $rawItemAnchor,
-  @'
-        uint8_t rawItem = 0xFF;
-        RandomizerContext::CheckContents contents =
-            RandomizerContext::CheckContents::Junk;
-'@)
-
-$contentsAnchor = @'
-            rawItem = override->second.itemId;
-            if (rawItem == 0xFF) {
-'@
-if (-not $breakables.Contains($contentsAnchor)) {
-  throw '.729 breakable hardening could not find override contents anchor.'
-}
-$breakables = $breakables.Replace(
-  $contentsAnchor,
-  @'
-            rawItem = override->second.itemId;
-            contents = override->second.contents;
-            if (rawItem == 0xFF) {
-'@)
-
-$spawnCommitOld = @'
+$assignmentImpl = @'
+std::optional<uint8_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept {
+    try {
+        if (actor == nullptr) {
+            return std::nullopt;
+        }
         std::scoped_lock lock(s_mutex);
-        if (itemId == fpcM_ERROR_PROCESS_ID_e) {
-            s_pendingKeys.erase(key);
-            mods::log::error("Failed to create item {} for randomized breakable {}", item, key);
-            // Let the caller use its vanilla drop rather than silently lose an
-            // item. Because the location is not collected, reloading the room
-            // permits another attempt.
-            return false;
+        ensure_collection_locked();
+        const auto key = spawned_key_locked(actor);
+        if (!key) {
+            return std::nullopt;
         }
-        s_spawnedItemKeys[itemId] = key;
-        if (spawnedItemId != nullptr) {
-            *spawnedItemId = itemId;
-        }
-        return true;
-'@
-if (-not $breakables.Contains($spawnCommitOld)) {
-  throw '.729 breakable hardening could not find spawned-item commit block.'
-}
-$spawnCommitNew = @'
-        bool junkCheckCompleted = false;
+        const auto found = randomizer_GetContext().mBreakableOverrides.find(*key);
+        if (found == randomizer_GetContext().mBreakableOverrides.end() ||
+            s_collectedKeys.contains(*key))
         {
-            std::scoped_lock lock(s_mutex);
-            if (itemId == fpcM_ERROR_PROCESS_ID_e) {
-                s_pendingKeys.erase(key);
-                mods::log::error("Failed to create item {} for randomized breakable {}", item, key);
-                // Let the caller use its vanilla drop rather than silently lose an
-                // item. Because the location is not collected, reloading the room
-                // permits another attempt.
-                return false;
-            }
-            s_spawnedItemKeys[itemId] = key;
-            if (contents == RandomizerContext::CheckContents::Junk) {
-                // Junk can be rejected by vanilla capacity rules. The breakable
-                // itself was successfully opened, so persist that junk check now
-                // instead of letting a regrowing pot/pumpkin become gold/green again.
-                s_pendingKeys.erase(key);
-                junkCheckCompleted = s_collectedKeys.insert(key).second;
-                if (junkCheckCompleted) {
-                    persist_collection_locked();
-                }
-            }
-            if (spawnedItemId != nullptr) {
-                *spawnedItemId = itemId;
-            }
+            return std::nullopt;
         }
-        if (junkCheckCompleted) {
-            g_randomizerState.mUpdateTracker = true;
-        }
-        return true;
+        return found->second.itemId;
+    } catch (const std::exception& error) {
+        mods::log::error("Could not resolve spawned breakable item: {}", error.what());
+    } catch (...) {
+        mods::log::error("Could not resolve spawned breakable item: unknown error");
+    }
+    return std::nullopt;
+}
+
 '@
-$breakables = $breakables.Replace($spawnCommitOld, $spawnCommitNew)
+$breakables = $breakables.Replace(
+  $collectAnchor, $assignmentImpl + $collectAnchor)
 Write-Utf8 $breakablesPath $breakables
+
+$hooksPath = "$src\mods\randomizer\src\hooks.cpp"
+$hooks = Read-Normalized $hooksPath
+
+$nextGetOld = @'
+HookAction hookPreItemItemGetNextExecute(ModContext*, void* args, void* retval, void*) {
+    auto* i_this = mods::arg<daItem_c*>(args, 0);
+
+    if (!i_this->checkFlag(daItem_c::FLAG_DELETE_ITEM_e) && !i_this->checkFlag(daItem_c::FLAG_INIT_GET_ITEM_e)) {
+'@
+if (-not $hooks.Contains($nextGetOld)) {
+  throw '.729 breakable hardening could not find itemGetNextExecute anchor.'
+}
+$hooks = $hooks.Replace(
+  $nextGetOld,
+  @'
+HookAction hookPreItemItemGetNextExecute(ModContext*, void* args, void* retval, void*) {
+    auto* i_this = mods::arg<daItem_c*>(args, 0);
+
+    // A shuffled breakable reward was already resolved before this actor was
+    // created. Force custom Randomizer/junk IDs through the get-demo path
+    // instead of allowing the vanilla switch to disable pickup collision.
+    if (breakables::spawned_item_assignment(i_this).has_value()) {
+        i_this->mItemOverridden = true;
+    }
+
+    if (!i_this->checkFlag(daItem_c::FLAG_DELETE_ITEM_e) && !i_this->checkFlag(daItem_c::FLAG_INIT_GET_ITEM_e)) {
+'@)
+
+$itemGetOld = @'
+HookAction hookPreItemItemGet(ModContext*, void* args, void*, void*) {
+    auto* i_this = mods::arg<daItem_c*>(args, 0);
+
+    if (enemy_souls::collect_extended_item(i_this)) {
+'@
+if (-not $hooks.Contains($itemGetOld)) {
+  throw '.729 breakable hardening could not find itemGet anchor.'
+}
+$hooks = $hooks.Replace(
+  $itemGetOld,
+  @'
+HookAction hookPreItemItemGet(ModContext*, void* args, void*, void*) {
+    auto* i_this = mods::arg<daItem_c*>(args, 0);
+
+    // Grant the exact breakable assignment through the Randomizer item table.
+    // This handles vanilla filler, Foolish Items, progressive items, keys,
+    // souls, and custom IDs without re-resolving it as a freestanding check.
+    if (const auto breakableItem = breakables::spawned_item_assignment(i_this);
+        breakableItem.has_value())
+    {
+        mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
+        item::exec_item_get(*breakableItem);
+        breakables::collect_spawned_item(i_this);
+        return HOOK_SKIP_ORIGINAL;
+    }
+
+    if (enemy_souls::collect_extended_item(i_this)) {
+'@)
+Write-Utf8 $hooksPath $hooks
 
 # .729: enforce beatability for every logic-enabled world.
 $searchPath = "$src\mods\randomizer\generator\logic\search.cpp"
@@ -289,11 +326,20 @@ $randomizerVerify = Read-Normalized $randomizerPath
 $contextVerify = Read-Normalized $contextPath
 
 foreach ($marker in @(
-  'contents == RandomizerContext::CheckContents::Junk',
-  'junkCheckCompleted',
-  'persist_collection_locked();')) {
+  'spawned_item_assignment',
+  'return found->second.itemId;')) {
   if (-not $breakablesVerify.Contains($marker)) {
-    throw "Missing .729 junk breakable completion marker: $marker"
+    throw "Missing .729 breakable assignment marker: $marker"
+  }
+}
+$hooksVerify = Read-Normalized $hooksPath
+foreach ($marker in @(
+  'breakables::spawned_item_assignment(i_this)',
+  'i_this->mItemOverridden = true;',
+  'item::exec_item_get(*breakableItem)',
+  'breakables::collect_spawned_item(i_this)')) {
+  if (-not $hooksVerify.Contains($marker)) {
+    throw "Missing .729 breakable pickup marker: $marker"
   }
 }
 foreach ($marker in @(
@@ -325,4 +371,4 @@ if ($LASTEXITCODE -ne 0) {
   throw '.729 breakable/logic hardening failed git diff --check.'
 }
 
-Write-Host 'Applied .729 junk breakable completion, final logic validation, and 50-attempt runtime reroll hardening.'
+Write-Host 'Applied .729 breakable pickup/collection fix, final logic validation, and 50-attempt runtime reroll hardening.'
