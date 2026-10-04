@@ -4,6 +4,7 @@
 #include "dusk/main.h"
 #include "dusk/settings.h"
 #include "dusk/ui/icon_provider.hpp"
+#include "m_Do/m_Do_controller_pad.h"
 
 #include <aurora/imgui.h>
 
@@ -87,8 +88,21 @@ void draw_xbox_failure_report() {
 #if !defined(_UWP)
     return;
 #else
+    static bool cursorOverrideActive = false;
+    static bool previousMouseDrawCursor = false;
+
     if (!tpr_xbox_transition_failure_pending()) {
+        if (cursorOverrideActive) {
+            ImGui::GetIO().MouseDrawCursor = previousMouseDrawCursor;
+            cursorOverrideActive = false;
+        }
         return;
+    }
+
+    if (!cursorOverrideActive) {
+        previousMouseDrawCursor = ImGui::GetIO().MouseDrawCursor;
+        ImGui::GetIO().MouseDrawCursor = true;
+        cursorOverrideActive = true;
     }
 
     const char* rawReport = tpr_xbox_transition_failure_report();
@@ -99,6 +113,11 @@ void draw_xbox_failure_report() {
         persistedPath = persist_transition_failure_report(report);
         lastPersistedReport = report;
     }
+
+    // Do not rely on ImGui navigation being configured correctly on Xbox.
+    // Read the native Twilight Princess controller trigger state directly.
+    const bool retryPressed = mDoCPd_c::getTrigA(PAD_1) != 0;
+    const bool dismissPressed = mDoCPd_c::getTrigB(PAD_1) != 0;
 
     ImGui::OpenPopup("Xbox Transition Failure###XboxTransitionFailure");
     ImGui::SetNextWindowSize(ImVec2(720.0f, 0.0f), ImGuiCond_Appearing);
@@ -112,6 +131,7 @@ void draw_xbox_failure_report() {
             "Automatic recovery cleared both Twilight Princess fade systems. "
             "This report was captured before recovery so the exact stuck state is preserved.");
         ImGui::Spacing();
+        ImGui::TextUnformatted("Controller: A = Retry Fade Recovery    B = Dismiss");
 
         if (!persistedPath.empty()) {
             ImGui::TextWrapped("Saved report: %s", persistedPath.c_str());
@@ -126,13 +146,19 @@ void draw_xbox_failure_report() {
         ImGui::PopTextWrapPos();
         ImGui::Separator();
 
-        if (ImGui::Button("Retry Fade Recovery")) {
+        const bool retryButton = ImGui::Button("Retry Fade Recovery");
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        const bool dismissButton = ImGui::Button("Dismiss");
+
+        if (retryButton || retryPressed) {
             tpr_xbox_transition_retry_recovery();
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Dismiss")) {
+        if (dismissButton || dismissPressed) {
             tpr_xbox_transition_failure_acknowledge();
             ImGui::CloseCurrentPopup();
+            ImGui::GetIO().MouseDrawCursor = previousMouseDrawCursor;
+            cursorOverrideActive = false;
         }
 
         ImGui::EndPopup();

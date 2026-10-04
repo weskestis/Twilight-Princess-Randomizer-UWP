@@ -1,0 +1,10 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.718",
+  "architecture": "x64",
+  "base": "1.4.1.717 dual-fade recovery and failure report",
+  "failureReportControls": "A retries recovery; B dismisses; Retry is default-focused; ImGui software cursor renders above popup",
+  "transitions": "Dual-fade Xbox watchdog retained",
+  "tracker": "Pure Item Tracker V3 performance fixes retained",
+  "startupJournal": "xbox-startup-stage-718.txt"
+}
