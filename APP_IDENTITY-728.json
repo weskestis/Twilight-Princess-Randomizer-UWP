@@ -1,0 +1,17 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.728",
+  "architecture": "x64",
+  "fix": "Enemy Souls no longer pre-gates fpcMtd_Create; gating remains on enemy execution after creation",
+  "evidence": "726 PLAY_SCENE blocked by E_HP/Poe child while Full Enemy Randomizer + First Enemy + Enemy Souls + Boss Souls enabled",
+  "preserved": [
+    "Full Enemy Randomizer",
+    "Enemy First-Defeat Checks",
+    "Enemy Souls",
+    "Boss Souls",
+    "Poe create diagnostics",
+    "gold pots",
+    "green pumpkins"
+  ],
+  "startupJournal": "xbox-startup-stage-728.txt"
+}
