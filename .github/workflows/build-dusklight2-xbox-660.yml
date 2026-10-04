@@ -5478,7 +5478,6 @@ jobs:
             'globalFadeOpaque',
             'captureXboxTransitionFailure',
             'clearXboxTransitionFades',
-            'mDoGph_gInf_c::offFade();',
             'audio.gframe-reset-skip',
             'audio.gframe.zelda',
             'audio.gframe.soundmgr',
@@ -5508,6 +5507,8 @@ jobs:
             'Xbox Transition Failure###XboxTransitionFailure',
             'xbox-transition-failure.txt',
             'tpr_xbox_transition_failure_pending',
+            'clearXboxTransitionFades',
+            'mDoGph_gInf_c::offFade();',
             'game.showPureItemTracker',
             'game.pureItemTrackerIconSize',
             'game.pureItemTrackerColumns')) {
