@@ -2012,11 +2012,8 @@ jobs:
           ) -join "`n"
           $threadInitNew = @(
             '    #if defined(_UWP)',
-            '    // Pre-2.0 Xbox Legacy build: one play path, one direct save backend.',
-            '    const auto directStatus = inspectLegacy658Save();',
-            '    mCardState = directStatus == Legacy658SaveStatus::Valid ? CARD_STATE_READY_e :',
-            '        directStatus == Legacy658SaveStatus::Missing ? CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;',
-            '    field_0x1fc8 = 1;',
+            '    // Pre-2.0 Xbox Legacy build: CARD init is bypassed; direct-save state is',
+            '    // assigned after the common controller fields are initialized below.',
             '    #elif !PLATFORM_SHIELD',
             '    CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());',
             '',
@@ -2031,6 +2028,28 @@ jobs:
             throw 'Legacy 658 direct-save ThdInit anchor changed.'
           }
           $memCard = $memCard.Replace($threadInitOld, $threadInitNew)
+
+          $stateInitOld = @(
+            '    mCopyToPos = 0;',
+            '    mProbeStat = 2;',
+            '    mCardState = CARD_STATE_NO_CARD_e;'
+          ) -join "`n"
+          $stateInitNew = @(
+            '    mCopyToPos = 0;',
+            '    mProbeStat = 2;',
+            '#if defined(_UWP)',
+            '    const auto directStatus = inspectLegacy658Save();',
+            '    mCardState = directStatus == Legacy658SaveStatus::Valid ? CARD_STATE_READY_e :',
+            '        directStatus == Legacy658SaveStatus::Missing ? CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;',
+            '    field_0x1fc8 = 1;',
+            '#else',
+            '    mCardState = CARD_STATE_NO_CARD_e;',
+            '#endif'
+          ) -join "`n"
+          if (-not $memCard.Contains($stateInitOld)) {
+            throw 'Legacy 658 direct-save state-init anchor changed.'
+          }
+          $memCard = $memCard.Replace($stateInitOld, $stateInitNew)
 
           $commandOld = @(
             '#if TARGET_PC',
@@ -2225,13 +2244,113 @@ jobs:
           $randoConfig = $randoConfig.Replace($randoPathOld, $randoPathNew)
           [IO.File]::WriteAllText($randoConfigPath, $randoConfig, [Text.UTF8Encoding]::new($false))
 
+          # Restore the original pre-2.0 blank-file Play Type flow on Xbox/UWP.
+          # Upstream keeps this flow behind TARGET_PC; the UWP build needs only these exact
+          # old file-select pieces enabled, not any Dusklight 2.0 launcher/menu behavior.
+          $fileSelectHeaderPath = "$env:TPR_SRC\include\d\d_file_select.h"
+          $fileSelectSourcePath = "$env:TPR_SRC\src\d\d_file_select.cpp"
+          $fileSelectHeader = [IO.File]::ReadAllText($fileSelectHeaderPath).Replace("`r`n", "`n")
+          $fileSelectSource = [IO.File]::ReadAllText($fileSelectSourcePath).Replace("`r`n", "`n")
+
+          $headerReplacements = @(
+            @(
+              "#if TARGET_PC`n        DATASELPROC_SELECT_DATA_PLAY_MOVE, // Select between vanilla or randomizer play",
+              "#if TARGET_PC || defined(_UWP)`n        DATASELPROC_SELECT_DATA_PLAY_MOVE, // Select between vanilla or randomizer play"
+            ),
+            @(
+              "#if TARGET_PC`n    void selectDataPlayTypeMove();",
+              "#if TARGET_PC || defined(_UWP)`n    void selectDataPlayTypeMove();"
+            ),
+            @(
+              "#if TARGET_PC`n        MEMCARDCHECKPROC_AUTO_MAKE_GAMEFILE,",
+              "#if TARGET_PC || defined(_UWP)`n        MEMCARDCHECKPROC_AUTO_MAKE_GAMEFILE,"
+            ),
+            @(
+              "#if TARGET_PC`n    void MemCardAutoMakeGameFile();",
+              "#if TARGET_PC || defined(_UWP)`n    void MemCardAutoMakeGameFile();"
+            ),
+            @(
+              "#ifdef TARGET_PC`n    struct mDusk {",
+              "#if defined(TARGET_PC) || defined(_UWP)`n    struct mDusk {"
+            ),
+            @(
+              "#ifdef TARGET_PC`nSTATIC_ASSERT(sizeof(dFile_select_c) == 0x237C + sizeof(dFile_select_c::mDusk));",
+              "#if defined(TARGET_PC) || defined(_UWP)`nSTATIC_ASSERT(sizeof(dFile_select_c) == 0x237C + sizeof(dFile_select_c::mDusk));"
+            )
+          )
+          foreach ($pair in $headerReplacements) {
+            if (-not $fileSelectHeader.Contains($pair[0])) {
+              throw "Legacy 658 Play Type header anchor changed: $($pair[0])"
+            }
+            $fileSelectHeader = $fileSelectHeader.Replace($pair[0], $pair[1])
+          }
+
+          $sourceReplacements = @(
+            @(
+              "#if TARGET_PC`n#include ""dusk/config.hpp""",
+              "#if TARGET_PC || defined(_UWP)`n#include ""dusk/config.hpp"""
+            ),
+            @(
+              "#if TARGET_PC`n    &dFile_select_c::selectDataPlayTypeMove,",
+              "#if TARGET_PC || defined(_UWP)`n    &dFile_select_c::selectDataPlayTypeMove,"
+            ),
+            @(
+              "#if TARGET_PC`n// Custom Proc to allow the player to select the play type and a randomizer seed",
+              "#if TARGET_PC || defined(_UWP)`n// Custom Proc to allow the player to select the play type and a randomizer seed"
+            ),
+            @(
+              "#if TARGET_PC`n        mDataSelProc = DATASELPROC_SELECT_DATA_PLAY_MOVE;",
+              "#if TARGET_PC || defined(_UWP)`n        mDataSelProc = DATASELPROC_SELECT_DATA_PLAY_MOVE;"
+            ),
+            @(
+              "#if TARGET_PC`n        // Load the randomizer seed if one is tied to this file",
+              "#if TARGET_PC || defined(_UWP)`n        // Load the randomizer seed if one is tied to this file"
+            ),
+            @(
+              "#if TARGET_PC`n    // Delay this animation to make for a smoother transition from the Rmlui menus",
+              "#if TARGET_PC || defined(_UWP)`n    // Delay this animation to make for a smoother transition from the Rmlui menus"
+            ),
+            @(
+              "#if TARGET_PC`n        // Create a randomizer save if one is selected",
+              "#if TARGET_PC || defined(_UWP)`n        // Create a randomizer save if one is selected"
+            ),
+            @(
+              "#if TARGET_PC`n    &dFile_select_c::MemCardAutoMakeGameFile,",
+              "#if TARGET_PC || defined(_UWP)`n    &dFile_select_c::MemCardAutoMakeGameFile,"
+            ),
+            @(
+              "#if TARGET_PC`n    case 1: { // no save file",
+              "#if TARGET_PC || defined(_UWP)`n    case 1: { // no save file"
+            ),
+            @(
+              "#if TARGET_PC`nvoid dFile_select_c::MemCardAutoMakeGameFile() {",
+              "#if TARGET_PC || defined(_UWP)`nvoid dFile_select_c::MemCardAutoMakeGameFile() {"
+            )
+          )
+          foreach ($pair in $sourceReplacements) {
+            if (-not $fileSelectSource.Contains($pair[0])) {
+              throw "Legacy 658 Play Type source anchor changed: $($pair[0])"
+            }
+            $fileSelectSource = $fileSelectSource.Replace($pair[0], $pair[1])
+          }
+
+          [IO.File]::WriteAllText(
+            $fileSelectHeaderPath, $fileSelectHeader, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText(
+            $fileSelectSourcePath, $fileSelectSource, [Text.UTF8Encoding]::new($false))
+
           foreach ($marker in @(
             'legacy658-xbox.sav',
             'Legacy658Data',
             'writeLegacy658Save(mData)',
             'readLegacy658Save(mData)',
             'mCardCommand = COMM_NONE_e;',
-            'const auto root = parent / "Legacy658Data" / "randomizer";')) {
+            'const auto root = parent / "Legacy658Data" / "randomizer";',
+            'DATASELPROC_SELECT_DATA_PLAY_MOVE',
+            '.title = "Play Type"',
+            '.label = "Vanilla"',
+            '.label = "Randomizer"',
+            'MEMCARDCHECKPROC_AUTO_MAKE_GAMEFILE')) {
             if (-not ($memCard.Contains($marker) -or $randoConfig.Contains($marker))) {
               throw "Legacy 658 direct-save/storage marker missing: $marker"
             }
