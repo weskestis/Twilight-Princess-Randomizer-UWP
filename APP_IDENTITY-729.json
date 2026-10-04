@@ -1,0 +1,37 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.729",
+  "architecture": "x64",
+  "base": "1.4.1.728 known-good Enemy Souls transition fix",
+  "fixes": [
+    "Junk breakable checks persist complete when their reward actor successfully spawns",
+    "Gold pot marker brightness reduced about 60 percent",
+    "Green pumpkin marker brightness reduced about 60 percent",
+    "Final post-fill world logic validation",
+    "Beatable Only final beatability enforcement",
+    "Up to 50 runtime generation rerolls after failed validation",
+    "Generator scenario retry ceiling increased to 50"
+  ],
+  "preserved": [
+    "Full Enemy Randomizer",
+    "Enemy First-Defeat Checks",
+    "Enemy Souls execute-time gate",
+    "Boss Souls",
+    "Poe create diagnostics",
+    "Xbox runtime failure reporting",
+    "hard-crash next-launch reporting"
+  ],
+  "colors": {
+    "goldPot": [
+      102,
+      74,
+      17
+    ],
+    "greenPumpkin": [
+      10,
+      102,
+      19
+    ]
+  },
+  "startupJournal": "xbox-startup-stage-729.txt"
+}
