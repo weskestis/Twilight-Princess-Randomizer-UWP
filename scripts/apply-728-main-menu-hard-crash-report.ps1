@@ -43,7 +43,7 @@ void xbox_arm_runtime_session() noexcept {
         std::filesystem::create_directories(ConfigPath);
         std::ofstream marker(xbox_session_marker_path(), std::ios::out | std::ios::trunc);
         marker << "session_state=gameplay_active\n";
-        marker << "build=1.4.1.728\n";
+        marker << "build=1.4.1.729\n";
     } catch (...) {
     }
 }
@@ -130,7 +130,7 @@ std::optional<std::string> xbox_previous_hard_crash_report() {
     const std::string stage = xbox_latest_runtime_stage();
     std::string report;
     report += "Twilight Princess Randomizer Xbox runtime failure report\n";
-    report += "build=1.4.1.728\n";
+    report += "build=1.4.1.729\n";
     report += "failure_class=hard_process_termination\n";
     report += "failure_summary=The previous gameplay session ended without a clean shutdown.\n";
     report += "failure_hint=The last persisted runtime checkpoint is shown below.\n";
@@ -251,7 +251,7 @@ inline std::string previous_stage() noexcept {
                 detail::previousStage.empty() ? "unavailable" : detail::previousStage;
             const std::string report =
                 "Twilight Princess Randomizer Xbox runtime failure report\n"
-                "build=1.4.1.728\n"
+                "build=1.4.1.729\n"
                 "failure_class=hard_process_termination\n"
                 "failure_summary=The previous gameplay session ended unexpectedly or was terminated before a clean shutdown.\n"
                 "failure_hint=The last persisted runtime checkpoint is shown below.\n"
