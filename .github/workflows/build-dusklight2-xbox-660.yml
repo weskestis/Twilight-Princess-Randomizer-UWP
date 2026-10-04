@@ -5257,7 +5257,7 @@ jobs:
             'g_last_seed_activation_error',
             'lastSeedActivationError()',
             'if (!g_seedActivated || randomizer_GetContext().mHash != hash)',
-            'Seed is fully parsed and activated before name/save creation begins.')) {
+            'Seed is fully generated, selected, parsed and activated before name entry.')) {
             if (-not ($session688Verify.Contains($seedLaunchMarker) -or
                       $rando688Verify.Contains($seedLaunchMarker))) {
               throw "Xbox .688 seed preactivation marker is missing: $seedLaunchMarker"
