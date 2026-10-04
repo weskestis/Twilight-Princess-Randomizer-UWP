@@ -1,4 +1,4 @@
-name: Build Legacy 658 Side-by-Side
+name: Build Legacy 658 SaveFix
 # Build control revision: runtime-load-and-shop-stability-v3
 
 on:
@@ -6,6 +6,7 @@ on:
     branches:
       - codex/enemy-souls-654-build
       - rebuild/1.4.658
+      - legacy/1.4.658-savefix
   workflow_dispatch:
 
 permissions:
@@ -1808,6 +1809,46 @@ jobs:
             Write-Host "TPR_DIAG_END:$($_.Name)"
           }
 
+      - name: Apply proven Xbox damaged-memory-card fix to Legacy 658
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:GITHUB_WORKSPACE\_control\scripts\apply_legacy658_savefix.ps1" -SourceRoot "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy 658 direct-save backport failed.' }
+          git -C "$env:TPR_SRC" diff --check
+          $memCard = Get-Content "$env:TPR_SRC\src\m_Do\m_Do_MemCard.cpp" -Raw
+          foreach ($marker in @(
+            'legacy658-xbox.sav',
+            'inspectLegacy658Save()',
+            'readLegacy658Save(mData)',
+            'writeLegacy658Save(mData)',
+            'eraseLegacy658Save()')) {
+            if (-not $memCard.Contains($marker)) {
+              throw "Legacy 658 damaged-card backport marker missing: $marker"
+            }
+          }
+
+      - name: Advance Legacy package revision for SaveFix
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifestPath = "$env:TPR_SRC\platforms\uwp\Package.appxmanifest"
+          [xml]$manifestXml = Get-Content -LiteralPath $manifestPath -Raw
+          $ns = New-Object System.Xml.XmlNamespaceManager($manifestXml.NameTable)
+          $ns.AddNamespace('d', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+          $identity = $manifestXml.SelectSingleNode('/d:Package/d:Identity', $ns)
+          if (-not $identity) { throw 'Legacy package identity node is missing.' }
+          if ($identity.GetAttribute('Name') -ne 'TwilightPrincessRandomizerLegacy658' -or
+              $identity.GetAttribute('Version') -ne '1.4.1.658') {
+            throw "Unexpected Legacy pre-SaveFix identity: $($identity.OuterXml)"
+          }
+          $identity.SetAttribute('Version', '1.4.1.659')
+          $settings = New-Object System.Xml.XmlWriterSettings
+          $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
+          $settings.Indent = $true
+          $writer = [System.Xml.XmlWriter]::Create($manifestPath, $settings)
+          try { $manifestXml.Save($writer) } finally { $writer.Dispose() }
+
       - name: Run the complete .658 regression and feature-contract suite
         shell: powershell
         run: |
@@ -1827,8 +1868,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $manifest = Get-Content "$env:TPR_SRC\platforms\uwp\Package.appxmanifest" -Raw
-          if ($manifest -notmatch 'Version="1[.]4[.]1[.]658"') {
-            throw 'Assembled package identity is not 1.4.1.658.'
+          if ($manifest -notmatch 'Version="1[.]4[.]1[.]659"') {
+            throw 'Assembled Legacy 658 SaveFix package revision is not 1.4.1.659.'
           }
           if ($manifest -notmatch 'Name="TwilightPrincessRandomizerLegacy658"') {
             throw 'Assembled package identity is not the side-by-side Legacy 658 app.'
@@ -2127,7 +2168,7 @@ jobs:
             throw 'UWP build did not produce an MSIX package.'
           }
 
-          $package = Join-Path $packageDir 'TwilightPrincessRandomizerLegacy658_1.4.1.658_x64.msix'
+          $package = Join-Path $packageDir 'TwilightPrincessRandomizerLegacy658_1.4.1.659_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -2139,7 +2180,7 @@ jobs:
             try { $packageManifest = $reader.ReadToEnd() }
             finally { $reader.Dispose() }
             if ($packageManifest -notmatch 'Name="TwilightPrincessRandomizerLegacy658"' -or
-                $packageManifest -notmatch 'Version="1[.]4[.]1[.]658"' -or
+                $packageManifest -notmatch 'Version="1[.]4[.]1[.]659"' -or
                 $packageManifest -notmatch '<DisplayName>Twilight Princess Randomizer Legacy 658</DisplayName>' -or
                 $packageManifest -notmatch 'DisplayName="Twilight Princess Randomizer Legacy 658"') {
               throw 'Signed MSIX identity/version is not the expected side-by-side Legacy 658 app.'
@@ -2264,7 +2305,8 @@ jobs:
           $identity.display_name = 'Twilight Princess Randomizer Legacy 658'
           $identity.description = 'Twilight Princess Randomizer Legacy 658 for Xbox/UWP'
           $identity.phone_product_id = '65865865-8658-4658-8658-658658658658'
-          $identity.version = '1.4.1.658'
+          $identity.version = '1.4.1.659'
+          $identity.save_backend = 'LocalState/legacy658-xbox.sav direct checksummed storage; emulated CARD bypassed on Xbox Legacy app'
           $identity | ConvertTo-Json | Set-Content `
             "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" -Encoding UTF8
           $installGuide = Get-Content "$env:GITHUB_WORKSPACE\INSTALL_XBOX.md" -Raw
@@ -2308,7 +2350,7 @@ jobs:
           Copy-Item "$env:GITHUB_WORKSPACE\APP_IDENTITY.json" $packageDir -Force
 
           $supportDir = Join-Path $packageDir 'Support'
-          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-Legacy-1.4.1.658-Xbox-Support.zip'
+          $supportZip = Join-Path $packageDir 'Twilight-Princess-Randomizer-UWP-Legacy-1.4.1.658-SaveFix-Xbox-Support.zip'
           New-Item -ItemType Directory -Force $supportDir | Out-Null
           Copy-Item @(
             (Join-Path $packageDir 'TwilightPrincessRandomizer.cer'),
@@ -2399,7 +2441,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-Legacy-1.4.1.658-Side-by-Side
+          name: Twilight-Princess-Randomizer-UWP-Legacy-1.4.1.658-SaveFix
           path: TPR-Xbox-Package/
           if-no-files-found: error
           retention-days: 14
@@ -2418,10 +2460,15 @@ jobs:
             throw 'No verified package files are available for private handoff.'
           }
 
-          $tag = "tpr-uwp-legacy-1.4.1.658-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          $title = 'Twilight Princess Randomizer Legacy 658 Side-by-Side'
+          $tag = "tpr-uwp-legacy-1.4.1.658-savefix-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $title = 'Twilight Princess Randomizer Legacy 658 SaveFix'
           $notes = @'
-          PRIVATE SIDE-BY-SIDE LEGACY BUILD — NOT PUBLISHED
+          PRIVATE SIDE-BY-SIDE LEGACY SAVEFIX BUILD — NOT PUBLISHED
+
+          This SaveFix backports the Xbox memory-card repair proven in later builds: Legacy 658
+          bypasses the emulated CARD/GCI backend and stores the three game-save buffers directly in
+          LocalState/legacy658-xbox.sav with a format header, checksum, temp file, and backup rename.
+          A damaged legacy GCI can no longer force CARD status 8 for this Legacy app.
 
           This package uses the independent UWP identity TwilightPrincessRandomizerLegacy658.
           It can remain installed alongside the current TwilightPrincessRandomizer development app.
