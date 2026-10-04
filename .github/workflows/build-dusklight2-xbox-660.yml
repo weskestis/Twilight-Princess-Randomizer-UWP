@@ -5488,10 +5488,28 @@ jobs:
           & "$env:TPR_CONTROL\scripts\apply-726-play-scene-create-diagnostics.ps1"
           & "$env:TPR_CONTROL\scripts\apply-727-poe-create-diagnostics.ps1"
           & "$env:TPR_CONTROL\scripts\apply-728-defer-enemy-soul-create-gate.ps1"
+          & "$env:TPR_CONTROL\scripts\apply-728-main-menu-hard-crash-report.ps1"
 
           $nodeReq725 = [IO.File]::ReadAllText("$env:TPR_SRC\src\f_pc\f_pc_node_req.cpp")
           $deletor725 = [IO.File]::ReadAllText("$env:TPR_SRC\src\f_pc\f_pc_deletor.cpp")
           $creator726 = [IO.File]::ReadAllText("$env:TPR_SRC\src\f_pc\f_pc_stdcreate_req.cpp")
+          $prelaunchHardCrash728 = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
+          $mainHardCrash728 = [IO.File]::ReadAllText("$env:TPR_SRC\src\dusk\main.cpp")
+          foreach ($hardCrashMarker728 in @(
+            'xbox-session-active.txt',
+            'hard_process_termination',
+            'Xbox Runtime Failure - Previous Session',
+            'xbox_previous_hard_crash_report',
+            'xbox-runtime-failure.txt',
+            'last_runtime_stage=')) {
+            if (-not $prelaunchHardCrash728.Contains($hardCrashMarker728)) {
+              throw "Xbox .728 hard-crash main-menu marker missing: $hardCrashMarker728"
+            }
+          }
+          if (-not $mainHardCrash728.Contains('ClearXboxRuntimeSessionOnCleanExit')) {
+            throw 'Xbox .728 clean-exit session marker cleanup is missing.'
+          }
+
           $randomizerSource728 = @(
             Get-ChildItem "$env:TPR_SRC\mods\randomizer" -Recurse -File -ErrorAction SilentlyContinue
             Get-ChildItem "$env:TPR_SRC\src\dusk\randomizer" -Recurse -File -ErrorAction SilentlyContinue
@@ -6514,6 +6532,10 @@ jobs:
             'transition_overlap_stall',
             'fade_state_stall',
             'runtime_stall_unknown',
+            'hard_process_termination',
+            'Xbox Runtime Failure - Previous Session',
+            'xbox-session-active.txt',
+            'last_runtime_stage=',
             'overlap_doing_req=',
             'stage_name=',
             'recovery_cancel_result=',
