@@ -165,38 +165,71 @@ if ($pre.Contains('kXboxSessionMarkerName')) {
 }
 $pre = $pre.Replace($stateAnchor, $stateAnchor + "`n`n" + $helpers)
 
-# Arm immediately before game-mode activation. This survives a crash inside hook activation.
-$playAnchor = '            if (const auto* gameMode = gamemode::getGameModeManager().getCurrentGameMode();'
-if (-not $pre.Contains($playAnchor)) {
-  throw '.728 hard-crash report could not find game-mode Play activation anchor.'
+# Arm immediately before Xbox begins activating the selected mode.
+# This survives a crash in setCurrentGameMode() or the Randomizer Play callback.
+$activityAnchor = @'
+            startup_guard::begin_activity(
+                fmt::format("prelaunch.play-select:{}", mPendingGameModeId));
+'@
+if (-not $pre.Contains($activityAnchor)) {
+  throw '.728 hard-crash report could not find Xbox Play activity anchor.'
 }
 $pre = $pre.Replace(
-  $playAnchor,
+  $activityAnchor,
   @'
-#if defined(_UWP)
             xbox_arm_runtime_session();
-#endif
-            if (const auto* gameMode = gamemode::getGameModeManager().getCurrentGameMode();
+            startup_guard::begin_activity(
+                fmt::format("prelaunch.play-select:{}", mPendingGameModeId));
 '@)
 
-# If activation rejects the mode without crashing, do not leave a false hard-crash marker.
-$activationFailAnchor = @'
-            {
-                gamemode::getGameModeManager().setCurrentGameMode(gamemode::kVanillaGameModeId);
+# A rejected mode activation is not a crash.
+$modeFailAnchor = @'
+            if (!gamemode::getGameModeManager().setCurrentGameMode(mPendingGameModeId)) {
+                mPendingGameModeId = gamemode::kVanillaGameModeId;
+                startup_guard::end_activity("prelaunch.play-activation-failed");
                 return;
             }
 '@
-if (-not $pre.Contains($activationFailAnchor)) {
-  throw '.728 hard-crash report could not find failed game-mode activation branch.'
+if (-not $pre.Contains($modeFailAnchor)) {
+  throw '.728 hard-crash report could not find Xbox mode-activation failure branch.'
 }
 $pre = $pre.Replace(
-  $activationFailAnchor,
+  $modeFailAnchor,
   @'
-            {
-#if defined(_UWP)
+            if (!gamemode::getGameModeManager().setCurrentGameMode(mPendingGameModeId)) {
+                mPendingGameModeId = gamemode::kVanillaGameModeId;
+                startup_guard::end_activity("prelaunch.play-activation-failed");
                 xbox_clear_runtime_session();
-#endif
-                gamemode::getGameModeManager().setCurrentGameMode(gamemode::kVanillaGameModeId);
+                return;
+            }
+'@)
+
+# A Play callback that cleanly rejects launch is also not a crash.
+$callbackFailAnchor = @'
+            if (const auto* gameMode = gamemode::getGameModeManager().getCurrentGameMode();
+                gameMode != nullptr && !gameMode->invokeOnPlayFunction())
+            {
+                gamemode::getGameModeManager().setCurrentGameMode(
+                    gamemode::kVanillaGameModeId);
+                mPendingGameModeId = gamemode::kVanillaGameModeId;
+                startup_guard::end_activity("prelaunch.play-callback-failed");
+                return;
+            }
+'@
+if (-not $pre.Contains($callbackFailAnchor)) {
+  throw '.728 hard-crash report could not find Xbox Play-callback failure branch.'
+}
+$pre = $pre.Replace(
+  $callbackFailAnchor,
+  @'
+            if (const auto* gameMode = gamemode::getGameModeManager().getCurrentGameMode();
+                gameMode != nullptr && !gameMode->invokeOnPlayFunction())
+            {
+                gamemode::getGameModeManager().setCurrentGameMode(
+                    gamemode::kVanillaGameModeId);
+                mPendingGameModeId = gamemode::kVanillaGameModeId;
+                startup_guard::end_activity("prelaunch.play-callback-failed");
+                xbox_clear_runtime_session();
                 return;
             }
 '@)
@@ -349,7 +382,10 @@ foreach ($marker in @(
   'Xbox Runtime Failure - Previous Session',
   'xbox_previous_hard_crash_report',
   'xbox_arm_runtime_session',
+  'prelaunch.play-select:',
   'xbox_clear_runtime_session',
+  'prelaunch.play-activation-failed',
+  'prelaunch.play-callback-failed',
   'xbox-runtime-failure.txt',
   'last_runtime_stage=')) {
   if (-not $preVerify.Contains($marker)) {
