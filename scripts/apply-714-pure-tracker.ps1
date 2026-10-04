@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 function Read-Normalized([string]$Path) {
-  return [IO.File]::ReadAllText($Path).Replace([char]13 + [char]10, [char]10)
+  return [IO.File]::ReadAllText($Path).Replace("`r`n", "`n")
 }
 function Write-Utf8([string]$Path, [string]$Text) {
   [IO.File]::WriteAllText($Path, $Text, [Text.UTF8Encoding]::new($false))
