@@ -24,27 +24,25 @@ $includeNew = Join-Lines @(
 if (-not $session.Contains($includeOld)) { throw 'Pure tracker generator include anchor changed.' }
 $session = $session.Replace($includeOld, $includeNew)
 
-$stdOld = Join-Lines @(
-  '#include <cstdlib>',
-  '#include <cstring>',
-  '#include <optional>',
-  '#include <string_view>',
-  '#include <thread>'
-)
-$stdNew = Join-Lines @(
+$stdIncludeAnchor = '#include <cstdlib>'
+if (-not $session.Contains($stdIncludeAnchor)) {
+  throw 'Pure tracker standard include anchor changed.'
+}
+$trackerStdIncludes = @(
   '#include <algorithm>',
   '#include <array>',
   '#include <cstddef>',
   '#include <cstdint>',
-  '#include <cstdlib>',
-  '#include <cstring>',
-  '#include <memory>',
-  '#include <optional>',
-  '#include <string_view>',
-  '#include <thread>'
+  '#include <memory>'
 )
-if (-not $session.Contains($stdOld)) { throw 'Pure tracker standard include anchor changed.' }
-$session = $session.Replace($stdOld, $stdNew)
+$missingTrackerStdIncludes = @(
+  $trackerStdIncludes | Where-Object { -not $session.Contains($_) }
+)
+if ($missingTrackerStdIncludes.Count -gt 0) {
+  $session = $session.Replace(
+    $stdIncludeAnchor,
+    (Join-Lines @($missingTrackerStdIncludes + $stdIncludeAnchor)))
+}
 
 $bridgeAnchor = 'constexpr const char* kSeedHashBlobName = "seed_hash";'
 $bridge = Read-Normalized "$control\payloads\pure-tracker-bridge.inc"
