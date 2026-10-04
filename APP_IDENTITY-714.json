@@ -1,0 +1,12 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.714",
+  "architecture": "x64",
+  "base": "1.4.1.712/.713 stabilization line",
+  "tracker": "Restored .649 Pure Item Tracker V3: transparent six-column Ship-style grid, live save sync, faded unowned icons, outlined counts, adjustable scale/icon size/columns, lock/reset layout",
+  "seedFlow": "Start Randomizer uses the selected generated seed without synchronous UI-thread generation; selected seed is consumed after one new save",
+  "transitions": "Xbox black-transition recovery retained",
+  "resetAudio": "Xbox reset skips audio gframe/pump work and keeps detailed gframe markers",
+  "assetServices": "DVD overlay and texture replacement services remain enabled",
+  "startupJournal": "xbox-startup-stage-714.txt"
+}
