@@ -1793,28 +1793,27 @@ jobs:
             throw 'Legacy 658 manifest verification failed after XML rewrite.'
           }
 
-      - name: Dump Legacy 658 save hooks
+      - name: Dump Legacy 658 seed storage and card references
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $paths = @(
-            "$env:TPR_SRC\src\m_Do\m_Do_MemCard.cpp",
-            "$env:TPR_SRC\src\m_Do\m_Do_MemCard.h"
-          )
-          foreach ($path in $paths) {
-            Write-Host "===== FILE: $path ====="
-            if (Test-Path -LiteralPath $path) {
-              Get-Content -LiteralPath $path -Raw | Write-Host
-            } else {
-              Write-Host "MISSING"
+          $contextPath = "$env:TPR_SRC\src\dusk\randomizer\game\randomizer_context.cpp"
+          $context = [IO.File]::ReadAllText($contextPath).Replace("`r`n", "`n")
+          foreach ($marker in @('Could not safely save seed data','bytes reported free','std::filesystem::space','CompressSeedPayload')) {
+            $idx = $context.IndexOf($marker)
+            if ($idx -ge 0) {
+              $begin = [Math]::Max(0, $idx - 5000)
+              $len = [Math]::Min(14000, $context.Length - $begin)
+              Write-Host "===== SEED MARKER: $marker ====="
+              Write-Host $context.Substring($begin, $len)
             }
           }
-          Write-Host "===== RANDOMIZER SAVE REFERENCES ====="
-          Get-ChildItem "$env:TPR_SRC" -Recurse -File -Include *.cpp,*.hpp,*.h |
-            Select-String -Pattern 'save_name|randomizer-xbox|setFileName\(|mFileName|CARD_STATE_FATAL_ERROR|CARDCreate\(|CARDOpen\(' |
+          Write-Host "===== RANDOMIZER CARD REFERENCES ====="
+          Get-ChildItem "$env:TPR_SRC\src\dusk\randomizer" -Recurse -File -Include *.cpp,*.hpp,*.h |
+            Select-String -Pattern 'mDoMemCd|CARD_|CARD[A-Za-z]+\(|gczelda2|memory.card|save file|saveName|save_name' |
             Select-Object Path,LineNumber,Line |
             Format-List | Out-String -Width 400 | Write-Host
-          throw 'Diagnostic stop after save-hook capture.'
+          throw 'Diagnostic stop after seed/card capture.'
 
       - name: Emit patch mismatch diagnostics
         if: failure()
