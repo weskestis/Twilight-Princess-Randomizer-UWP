@@ -6379,7 +6379,6 @@ jobs:
             'stage_name=',
             'recovery_force_clear_result=',
             'Xbox transition force-clear requested:',
-            'tpr_breakable_marker_pending',
             'main01.audio-execute',
             'main01.audio-engine-ready',
             'main01.audio-pump',
