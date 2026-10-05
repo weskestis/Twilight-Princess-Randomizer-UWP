@@ -180,7 +180,7 @@ $carry = [regex]::Replace(
 $initCarry = Find-Function $carry 'void daObjCarry_c::mode_init_carry()'
 $carry = $carry.Insert(
   $initCarry.Open + 1,
-  "`n    tpr_xbox_carry_begin(this, \"carry.pickup-begin\");")
+  "`n    tpr_xbox_carry_begin(this, `"carry.pickup-begin`");")
 $initCarry = Find-Function $carry 'void daObjCarry_c::mode_init_carry()'
 $carry = $carry.Insert(
   $initCarry.Close,
@@ -208,7 +208,7 @@ $carry = $carry.Substring(0, $offsetAbsStart) + $offsetReplacement +
 $drop = Find-Function $carry 'void daObjCarry_c::mode_init_drop('
 $carry = $carry.Insert(
   $drop.Open + 1,
-  "`n    tpr_xbox_carry_begin(this, \"carry.drop-begin\");")
+  "`n    tpr_xbox_carry_begin(this, `"carry.drop-begin`");")
 $drop = Find-Function $carry 'void daObjCarry_c::mode_init_drop('
 $carry = $carry.Insert(
   $drop.Close,
@@ -218,7 +218,7 @@ $carry = $carry.Insert(
 $break = Find-Function $carry 'void daObjCarry_c::obj_break('
 $carry = $carry.Insert(
   $break.Open + 1,
-  "`n    tpr_xbox_carry_begin(this, \"carry.break-begin\");")
+  "`n    tpr_xbox_carry_begin(this, `"carry.break-begin`");")
 $break = Find-Function $carry 'void daObjCarry_c::obj_break('
 $breakText = $carry.Substring($break.Open, $break.Close - $break.Open + 1)
 $effectCall = '        eff_break_call();'
