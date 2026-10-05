@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 731
+name: Build Dusklight 2.0.1 Xbox 732
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-731-release-${{ github.ref }}
+  group: xbox-732-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 731 identity
+      - name: Apply reviewed source layers and advance 732 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-731.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-732.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -3145,7 +3145,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.731");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.732");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -3288,7 +3288,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-731.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-732.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
@@ -3402,7 +3402,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.731");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.732");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -5493,6 +5493,8 @@ jobs:
           & "$env:TPR_CONTROL\scripts\apply-730-carry-keg-hardening.ps1"
           python "$env:TPR_CONTROL\scripts\apply-731-randomizer-save-handoff.py"
           if ($LASTEXITCODE -ne 0) { throw '.731 Randomizer save-handoff patch failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-732-runtime-polish.py"
+          if ($LASTEXITCODE -ne 0) { throw '.732 runtime-polish patch failed.' }
 
           $carry730 = [IO.File]::ReadAllText("$env:TPR_SRC\src\d\actor\d_a_obj_carry.cpp")
           foreach ($carryMarker730 in @(
@@ -5538,6 +5540,51 @@ jobs:
             if (-not $session731.Contains($sessionMarker731)) {
               throw "Xbox .731 save-handoff marker missing: $sessionMarker731"
             }
+          }
+
+          $shop732 = Get-ChildItem "$env:TPR_SRC" -Recurse -File -Filter '*.cpp' |
+            Where-Object { (Get-Content $_.FullName -Raw) -match 's_pendingTextKeys' } |
+            Select-Object -First 1
+          if (-not $shop732) { throw 'Xbox .732 Ordon shop FIFO implementation is missing.' }
+          $shop732Text = [IO.File]::ReadAllText($shop732.FullName)
+          foreach ($shopMarker732 in @(
+            'std::deque<uint64_t> s_pendingTextKeys',
+            's_pendingTextKeys.push_back',
+            's_pendingTextKeys.pop_front',
+            'consumePendingKey')) {
+            if (-not $shop732Text.Contains($shopMarker732)) {
+              throw "Xbox .732 Ordon shop FIFO marker missing: $shopMarker732"
+            }
+          }
+
+          $reset732 = [IO.File]::ReadAllText("$env:TPR_SRC\src\m_Do\m_Do_Reset.cpp")
+          foreach ($resetMarker732 in @(
+            'Reject re-entry before invoking any game-mode callback',
+            'returnToPrelaunchOnReset = true;',
+            'reset.deactivate-game-mode')) {
+            if (-not $reset732.Contains($resetMarker732)) {
+              throw "Xbox .732 Reset Game marker missing: $resetMarker732"
+            }
+          }
+
+          $borealisIo732 = [IO.File]::ReadAllText("$env:TPR_SRC\extern\borealis\src\io.cpp")
+          foreach ($downloadMarker732 in @(
+            'SDL_IOFromFP(stdioFile, true)',
+            'Failed to open writable UWP file',
+            "SDL's UWP datastream backend")) {
+            if (-not $borealisIo732.Contains($downloadMarker732)) {
+              throw "Xbox .732 mod-download marker missing: $downloadMarker732"
+            }
+          }
+
+          $soulCatalog732 = Get-ChildItem "$env:TPR_SRC" -Recurse -File |
+            Where-Object {
+              $_.Name -like '*enemy_soul_catalog*.hpp' -and
+              (Get-Content $_.FullName -Raw).Contains('"Poe Enemy Soul"')
+            } |
+            Select-Object -First 1
+          if (-not $soulCatalog732) {
+            throw 'Xbox .732 lost distinct Poe Enemy Soul identity.'
           }
 
           $nodeReq725 = [IO.File]::ReadAllText("$env:TPR_SRC\src\f_pc\f_pc_node_req.cpp")
@@ -6064,7 +6111,7 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.731"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.732"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
 
@@ -6401,7 +6448,7 @@ jobs:
             -HashAlgorithm SHA256 `
             -KeyExportPolicy Exportable `
             -KeyUsage DigitalSignature `
-            -FriendlyName 'Twilight Princess Randomizer 731 Sideload Signing' `
+            -FriendlyName 'Twilight Princess Randomizer 732 Sideload Signing' `
             -CertStoreLocation 'Cert:\CurrentUser\My' `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert `
@@ -6428,17 +6475,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 731 package
+      - name: Verify and collect full 732 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-731"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-732"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.731_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.732_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6450,7 +6497,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.731"',
+            'Version="1.4.1.732"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6485,7 +6532,7 @@ jobs:
             throw 'MSIX still contains a separately loaded Cosmetics native image.'
           }
 
-          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-731-feed-module'
+          $feedModuleDir = Join-Path $env:RUNNER_TEMP 'tpr-732-feed-module'
           New-Item -ItemType Directory -Force $feedModuleDir | Out-Null
           7z x "$env:TPR_FEED\bundled_mods\randomizer.dusk" "-o$feedModuleDir" -y | Out-Null
           $packagedHashes = @{}
@@ -6588,7 +6635,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-731.txt',
+            'xbox-startup-stage-732.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -6685,7 +6732,7 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\verify_pe_symdb.py" $exe
           if ($LASTEXITCODE -ne 0) { throw 'Packaged executable has no usable hook symbol manifest.' }
-          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-731-exports.txt'
+          $exportsPath = Join-Path $env:RUNNER_TEMP 'tpr-732-exports.txt'
           & dumpbin /nologo /exports $exe | Set-Content $exportsPath -Encoding ASCII
           $exports = Get-Content $exportsPath -Raw
           foreach ($builtInExport in @(
@@ -6705,8 +6752,8 @@ jobs:
 
           if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
 
-          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-731-signtool.out'
-          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-731-signtool.err'
+          $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-732-signtool.out'
+          $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-732-signtool.err'
           $signtoolExe = (Get-Command signtool).Source
           $verify = Start-Process -FilePath $signtoolExe `
             -ArgumentList @('verify','/pa','/v',$package) `
@@ -6749,16 +6796,16 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-731.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-731.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-732.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-732.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.731'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.732'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
-            borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec'
-            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration + 678 alternate new-save gate + 679 restored settings UI/schema checks + 731 direct-save seed handoff'
+            borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec + 732 UWP writable-file bridge for online mod downloads'
+            randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration + 678 alternate new-save gate + 679 restored settings UI/schema checks + 731 direct-save seed handoff + 732 Ordon text FIFO/soul identity guard'
             xboxLoaderHotfix = 'Randomizer linked into the signed executable; Funchook uses AppContainer JIT allocation/protection APIs and write-or-execute transitions'
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
             dawnCacheApiPatchSha256 = '6b7ad75131e815f3e5e1ea54c89c40cc853f4ab1ed0ec22ae7386994fb357e7f'
@@ -6802,19 +6849,21 @@ jobs:
             enemySouls = $true
             xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
             xboxMemoryCard = '.731 keeps vanilla gczelda2 on Aurora/GCI, keeps Xbox Randomizer gameplay in direct checksummed LocalState randomizer-xbox.sav, and stores Randomizer mod blobs in LocalState randomizer-xbox-mods so seed association no longer depends on CARD/GCI availability'
+            xboxModDownloads = '.732 keeps user mods in LocalState/mods and stages online downloads in LocalState/mods/.downloads while bypassing SDL UWP datastream writes for writable filesystem paths'
+            xboxResetGame = '.732 rejects reset re-entry before Randomizer callbacks and forces one clean return to prelaunch'
             generatorScenarios = 58
             generatorScenarioAttempts = 50
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-731.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-732.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.731-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.732-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -6823,7 +6872,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.731-Xbox
-          path: TPR-Xbox-Package-731/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.732-Xbox
+          path: TPR-Xbox-Package-732/*
           if-no-files-found: error
           retention-days: 30
