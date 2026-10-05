@@ -333,12 +333,23 @@ shop_type_match = re.search(
 if not shop_type_match:
     raise RuntimeError(".732 could not verify Randomizer shop item-id width")
 shop_value_type = shop_type_match.group(1).strip()
-if shop_value_type in {"u8", "uint8_t", "unsigned char"}:
+if shop_value_type not in {"u8", "uint8_t", "unsigned char"}:
     raise RuntimeError(
-        ".732 shop override item IDs are still 8-bit; custom Enemy Soul IDs would truncate"
+        f".732 shop override item IDs unexpectedly changed from the runtime byte format: {shop_value_type}"
     )
+
+world_path = ROOT / "mods/randomizer/generator/logic/world.cpp"
+world = read_text(world_path)
+for marker in (
+    "itemId < 0 || itemId > 0xFE",
+    "ForbidUnencodableRuntimeItems",
+):
+    if marker not in world:
+        raise RuntimeError(
+            f".732 logical-only Enemy Soul exclusion marker missing from runtime-byte locations: {marker}"
+        )
 
 print(
     "Applied .732 runtime polish: Ordon FIFO text ownership, reset re-entry guard, "
-    "UWP writable download bridge, and soul/shop identity invariants."
+    "UWP writable download bridge, Poe/Enemy Soul identity guard, and logical-item shop exclusion."
 )
