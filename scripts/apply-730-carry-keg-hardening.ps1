@@ -81,14 +81,14 @@ $helpers = @'
 #if defined(_UWP)
 static fpc_ProcID tprXboxCarryActivityId = fpcM_ERROR_PROCESS_ID_e;
 
-static bool tpr_xbox_diag_carry_actor(const daObjCarry_c* actor) noexcept {
+static bool tpr_xbox_diag_carry_actor(daObjCarry_c* actor) noexcept {
     return actor != nullptr &&
            (actor->getType() == daObjCarry_c::TYPE_KIBAKO ||
             actor->getType() == daObjCarry_c::TYPE_TARU);
 }
 
 static bool tpr_xbox_carry_activity_matches(
-    const daObjCarry_c* actor) noexcept
+    daObjCarry_c* actor) noexcept
 {
     return tpr_xbox_diag_carry_actor(actor) &&
            tprXboxCarryActivityId == fopAcM_GetID(actor);
