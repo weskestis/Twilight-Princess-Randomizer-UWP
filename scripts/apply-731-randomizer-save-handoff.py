@@ -23,6 +23,39 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def function_span(text: str, signature: str) -> tuple[int, int]:
+    start = text.find(signature)
+    if start < 0:
+        raise RuntimeError(f"function signature not found: {signature}")
+    open_brace = text.find("{", start)
+    if open_brace < 0:
+        raise RuntimeError(f"function open brace not found: {signature}")
+    depth = 0
+    i = open_brace
+    in_string = False
+    in_char = False
+    escape = False
+    while i < len(text):
+        ch = text[i]
+        if escape:
+            escape = False
+        elif ch == "\\" and (in_string or in_char):
+            escape = True
+        elif ch == '"' and not in_char:
+            in_string = not in_string
+        elif ch == "'" and not in_string:
+            in_char = not in_char
+        elif not in_string and not in_char:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return start, i + 1
+        i += 1
+    raise RuntimeError(f"function close brace not found: {signature}")
+
+
 save_path = ROOT / "src/dusk/mods/svc/save.cpp"
 save = read_text(save_path)
 
@@ -144,14 +177,9 @@ write_text(save_path, save)
 session_path = ROOT / "mods/randomizer/src/session.cpp"
 session = read_text(session_path)
 
-new_save_pattern = re.compile(
-    r'ModResult onNewSave\(void\*, ModError\* error\) \{.*?\n\}\n\nModResult onSaveLoaded\(',
-    re.S,
-)
-match = new_save_pattern.search(session)
-if not match:
-    raise RuntimeError(".731 could not locate onNewSave")
-new_save = match.group(0)
+new_save_start, new_save_end = function_span(
+    session, "ModResult onNewSave(void*, ModError* error)")
+new_save = session[new_save_start:new_save_end]
 new_save = replace_once(
     new_save,
     '    svc_mng.save->set_blob(svc_mng.mod_ctx, kSeedHashBlobName, hash.data(), hash.size());',
@@ -171,15 +199,10 @@ clear_block = (
     '    g_pending_seed_hash.clear();\n'
 )
 new_save = replace_once(new_save, clear_block, "", ".731 pending-seed handoff")
-session = session[: match.start()] + new_save + session[match.end() :]
+session = session[:new_save_start] + new_save + session[new_save_end:]
 
-load_pattern = re.compile(
-    r'ModResult onSaveLoaded\(void\*, ModError\*\) \{.*?\n\}\n\nvoid onSaveWritten\(',
-    re.S,
-)
-match = load_pattern.search(session)
-if not match:
-    raise RuntimeError(".731 could not locate onSaveLoaded")
+load_start, load_end = function_span(
+    session, "ModResult onSaveLoaded(void*, ModError*)")
 replacement = '''ModResult onSaveLoaded(void*, ModError* error) {
     std::string hash;
     size_t size = 0;
@@ -187,7 +210,7 @@ replacement = '''ModResult onSaveLoaded(void*, ModError* error) {
         svc_mng.save->get_blob(mod_ctx, kSeedHashBlobName, nullptr, &size);
 
     if (sizeResult == MOD_OK && size != 0) {
-        hash.assign(size, '\0');
+        hash.assign(size, char{});
         if (svc_mng.save->get_blob(mod_ctx, kSeedHashBlobName, hash.data(), &size) != MOD_OK) {
             deactivateSeed();
             return mods::set_error(
@@ -226,16 +249,16 @@ replacement = '''ModResult onSaveLoaded(void*, ModError* error) {
     // The seed has now crossed the save-loaded boundary safely; only now consume the gate state.
     g_pending_seed_hash.clear();
     return MOD_OK;
-}
-
-void onSaveWritten('''
-session = session[: match.start()] + replacement + session[match.end() :]
+}'''
+session = session[:load_start] + replacement + session[load_end:]
 
 for marker in (
     'seed_hash staging unavailable during new save',
     'recovered seed_hash during Xbox save-loaded callback',
     'Randomizer save is missing its seed association',
     'only now consume the gate state',
+    'onObservedNewSave',
+    'onObservedSaveLoaded',
 ):
     if marker not in session:
         raise RuntimeError(f".731 Randomizer callback marker missing after patch: {marker}")
