@@ -85,7 +85,59 @@ if "#include <deque>" not in shop:
 shop = replace_once(
     shop,
     "thread_local std::optional<uint64_t> s_pendingTextKey;",
-    "thread_local std::deque<uint64_t> s_pendingTextKeys;",
+    """thread_local std::deque<uint64_t> s_pendingTextKeys;
+
+struct PendingTextKeyCompat {
+    PendingTextKeyCompat& operator=(uint64_t key) {
+        if (s_pendingTextKeys.empty() || s_pendingTextKeys.back() != key) {
+            s_pendingTextKeys.push_back(key);
+        }
+        return *this;
+    }
+
+    PendingTextKeyCompat& operator=(const std::optional<uint64_t>& key) {
+        if (key.has_value()) {
+            *this = *key;
+        } else {
+            reset();
+        }
+        return *this;
+    }
+
+    PendingTextKeyCompat& operator=(std::nullopt_t) {
+        reset();
+        return *this;
+    }
+
+    void reset() {
+        if (!s_pendingTextKeys.empty()) {
+            s_pendingTextKeys.pop_front();
+        }
+    }
+
+    bool has_value() const { return !s_pendingTextKeys.empty(); }
+    explicit operator bool() const { return has_value(); }
+    uint64_t operator*() const { return s_pendingTextKeys.front(); }
+    uint64_t value() const { return s_pendingTextKeys.front(); }
+    uint64_t value_or(uint64_t fallback) const {
+        return s_pendingTextKeys.empty() ? fallback : s_pendingTextKeys.front();
+    }
+};
+
+inline bool operator==(const PendingTextKeyCompat& pending, uint64_t key) {
+    return pending.has_value() && *pending == key;
+}
+inline bool operator==(uint64_t key, const PendingTextKeyCompat& pending) {
+    return pending == key;
+}
+inline bool operator!=(const PendingTextKeyCompat& pending, uint64_t key) {
+    return !(pending == key);
+}
+inline bool operator!=(uint64_t key, const PendingTextKeyCompat& pending) {
+    return !(pending == key);
+}
+
+thread_local PendingTextKeyCompat s_pendingTextKey;""",
     ".732 Ordon pending-key storage",
 )
 
@@ -179,6 +231,8 @@ shop = shop[:line_start] + text_fn + shop[text_end:]
 
 for marker in (
     "std::deque<uint64_t> s_pendingTextKeys",
+    "PendingTextKeyCompat",
+    "thread_local PendingTextKeyCompat s_pendingTextKey",
     "s_pendingTextKeys.push_back",
     "s_pendingTextKeys.pop_front",
     "consumePendingKey",
