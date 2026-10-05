@@ -1,0 +1,31 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.732",
+  "architecture": "x64",
+  "base": "1.4.1.731 green Randomizer save handoff",
+  "fixes": [
+    "Ordon shop delayed text uses ordered pending-item FIFO ownership instead of one overwriteable key",
+    "Xbox Reset Game blocks re-entry before game-mode callbacks and returns cleanly to the launcher",
+    "Online mod downloads bypass SDL UWP datastream writes for LocalState filesystem destinations",
+    "Enemy Soul catalog must retain distinct Poe Enemy Soul identity",
+    "Shop override item IDs must remain wider than 8-bit so custom Soul IDs cannot truncate",
+    "Runtime journal advances to xbox-startup-stage-732.txt"
+  ],
+  "preserved": [
+    "Randomizer direct LocalState save and sidecars",
+    "Full Enemy Randomizer",
+    "Enemy First-Defeat Checks",
+    "Enemy Souls execute-time gate",
+    "Boss Souls",
+    "Poe create diagnostics",
+    "scene/create/transition crash diagnostics",
+    "Xbox runtime failure reporting",
+    "hard-crash next-launch reporting",
+    "50-attempt seed certification"
+  ],
+  "startupJournal": "xbox-startup-stage-732.txt",
+  "randomizerDirectSave": "randomizer-xbox.sav",
+  "randomizerModSidecarDirectory": "randomizer-xbox-mods",
+  "userModsDirectory": "LocalState/mods",
+  "downloadStagingDirectory": "LocalState/mods/.downloads"
+}
