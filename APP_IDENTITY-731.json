@@ -1,0 +1,33 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.731",
+  "architecture": "x64",
+  "base": "1.4.1.730 green carry hardening",
+  "fixes": [
+    "Xbox Randomizer mod-save blobs use a direct LocalState sidecar path instead of requiring CARD/GCI storage",
+    "The selected seed remains available through the immediate save-loaded callback",
+    "A missing first seed_hash staging result can recover from the still-selected seed instead of disabling the Randomizer",
+    "Save-loaded seed-association failures now return a specific diagnostic",
+    "Runtime journal advances to xbox-startup-stage-731.txt",
+    "Randomizer pot marker code remains isolated to actual pot carry types",
+    "Wooden barrel/box carry path retains null guards for player and model pointers",
+    "Persistent Xbox carry checkpoints remain enabled"
+  ],
+  "preserved": [
+    "Full Enemy Randomizer",
+    "Enemy First-Defeat Checks",
+    "Enemy Souls execute-time gate",
+    "Boss Souls",
+    "Poe create diagnostics",
+    "Xbox runtime failure reporting",
+    "hard-crash next-launch reporting",
+    "50-attempt seed certification"
+  ],
+  "colors": {
+    "goldPot": [102, 74, 17],
+    "greenPumpkin": [10, 102, 19]
+  },
+  "startupJournal": "xbox-startup-stage-731.txt",
+  "randomizerDirectSave": "randomizer-xbox.sav",
+  "randomizerModSidecarDirectory": "randomizer-xbox-mods"
+}
