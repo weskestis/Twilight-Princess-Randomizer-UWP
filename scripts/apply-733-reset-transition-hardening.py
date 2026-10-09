@@ -268,6 +268,7 @@ source = once(source, '''ModResult onGameModeUpdate(void*, ModError*) {
     ui::update();''', "Randomizer reset tick guard")
 source = once(source, '''    static int s_xboxTransitionStage = -1;''', '''    static int s_xboxTransitionStage = -1;
     static u32 s_xboxTransitionDiagnosticFrames = 0;
+    static bool s_xboxTransitionDiagnosticReported = false;
     static int s_xboxTransitionRoom = -1;
     static int s_xboxTransitionLayer = -1;
     static fpc_ProcID s_xboxTransitionScene = fpcM_ERROR_PROCESS_ID_e;''', "transition identity storage")
@@ -295,6 +296,7 @@ source = once(source, '''    const bool gameplayReady = transitionStage >= 0 && 
         transitionScene == s_xboxTransitionScene;
     if (!sameScene) {
         s_xboxTransitionDiagnosticFrames = 0;
+        s_xboxTransitionDiagnosticReported = false;
     }
     if (!gameplayReady || !sameScene) {
         s_xboxBlackTransitionFrames = 0;
@@ -318,14 +320,17 @@ source = once(source, '''    const bool opaqueBlack = globalFadeOpaque || jutFad
             ++s_xboxTransitionDiagnosticFrames;
         }
         if (!gameplayReady && s_xboxTransitionDiagnosticFrames >= 300 &&
+            !s_xboxTransitionDiagnosticReported &&
             !s_xboxTransitionFailurePending)
         {
             captureXboxTransitionFailure(
                 fader, transitionStage, s_xboxTransitionDiagnosticFrames,
                 s_xboxTransitionReadyFrames);
+            s_xboxTransitionDiagnosticReported = true;
         }
     } else {
         s_xboxTransitionDiagnosticFrames = 0;
+        s_xboxTransitionDiagnosticReported = false;
     }
     if (opaqueBlack && gameplayReady) {''', "stall reporting independent of recovery")
 source = once(source, '''        if (cleanupResult != 0 || overlapGone) {''', '''        if (cleanupResult != 0) {''', "recovery completion proof")

@@ -327,6 +327,8 @@ int main(int argc, char** argv) {
     frames(1);
     assert(capturedFailures == 1 && capturedBlackFrames == 300 && capturedReadyFrames == 0);
     assert(recoveryEffects == beforeWatchdog);
+    // Dismiss is effective while the same transaction remains stalled.
+    s_xboxTransitionFailurePending = false;
     frames(400);
     assert(capturedFailures == 1 && recoveryEffects == beforeWatchdog);
 
