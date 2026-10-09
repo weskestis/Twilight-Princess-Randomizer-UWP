@@ -267,6 +267,7 @@ source = once(source, '''ModResult onGameModeUpdate(void*, ModError*) {
 #endif
     ui::update();''', "Randomizer reset tick guard")
 source = once(source, '''    static int s_xboxTransitionStage = -1;''', '''    static int s_xboxTransitionStage = -1;
+    static u32 s_xboxTransitionDiagnosticFrames = 0;
     static int s_xboxTransitionRoom = -1;
     static int s_xboxTransitionLayer = -1;
     static fpc_ProcID s_xboxTransitionScene = fpcM_ERROR_PROCESS_ID_e;''', "transition identity storage")
@@ -280,6 +281,8 @@ source = once(source, '''    const bool gameplayReady = transitionStage >= 0 && 
     }
     const fpc_ProcID transitionScene =
         liveScene != nullptr ? liveScene->id : fpcM_ERROR_PROCESS_ID_e;
+    const bool diagnosticReady = transitionStage >= 0 && transitionStage != Title_Screen &&
+        !mDoRst::isReset() && !tpr_xbox_reset_to_launcher_pending();
     const bool gameplayReady = transitionStage >= 0 && transitionStage != Title_Screen &&
         !mDoRst::isReset() && !tpr_xbox_reset_to_launcher_pending() &&
         tpr_xbox_scene_change_present() == 0 && tpr_xbox_create_queue_size() == 0 &&
@@ -290,6 +293,9 @@ source = once(source, '''    const bool gameplayReady = transitionStage >= 0 && 
     const bool sameScene = transitionStage == s_xboxTransitionStage &&
         transitionRoom == s_xboxTransitionRoom && transitionLayer == s_xboxTransitionLayer &&
         transitionScene == s_xboxTransitionScene;
+    if (!sameScene) {
+        s_xboxTransitionDiagnosticFrames = 0;
+    }
     if (!gameplayReady || !sameScene) {
         s_xboxBlackTransitionFrames = 0;
         s_xboxTransitionRecoveryLatched = false;
@@ -303,6 +309,25 @@ source = once(source, '''        s_xboxTransitionStage = transitionStage;
         s_xboxTransitionLayer = transitionLayer;
         s_xboxTransitionScene = transitionScene;
         s_xboxTransitionReadyFrames = gameplayReady ? 1 : 0;''', "destination identity update")
+source = once(source, '''    const bool opaqueBlack = globalFadeOpaque || jutFaderOpaque;
+    if (opaqueBlack && gameplayReady) {''', '''    const bool opaqueBlack = globalFadeOpaque || jutFaderOpaque;
+    // Reporting must remain active while creation/scene transactions are stalled.
+    // These frames never make the destination eligible for destructive recovery.
+    if (opaqueBlack && diagnosticReady) {
+        if (s_xboxTransitionDiagnosticFrames < 1200) {
+            ++s_xboxTransitionDiagnosticFrames;
+        }
+        if (!gameplayReady && s_xboxTransitionDiagnosticFrames >= 300 &&
+            !s_xboxTransitionFailurePending)
+        {
+            captureXboxTransitionFailure(
+                fader, transitionStage, s_xboxTransitionDiagnosticFrames,
+                s_xboxTransitionReadyFrames);
+        }
+    } else {
+        s_xboxTransitionDiagnosticFrames = 0;
+    }
+    if (opaqueBlack && gameplayReady) {''', "stall reporting independent of recovery")
 source = once(source, '''        if (cleanupResult != 0 || overlapGone) {''', '''        if (cleanupResult != 0) {''', "recovery completion proof")
 source = once(source, '''        const int cleanupResult = clearXboxTransitionFades();
         const bool overlapGone = !fopOvlpM_IsPeek() && !fopOvlpM_IsDoingReq();''', '''        const int cleanupResult = clearXboxTransitionFades();''', "recovery unused overlap result")

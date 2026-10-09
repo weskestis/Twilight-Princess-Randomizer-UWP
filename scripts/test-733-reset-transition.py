@@ -55,11 +55,12 @@ recovery = function(session, "int clearXboxTransitionFades() noexcept")
 # Exercise the exact production early-return gate. No renderer/actor stubs can
 # approximate the restoration itself; that part is exercised on Xbox.
 recovery_gate = recovery[:recovery.index("    int cancelResult = 1;")]
-recovery_gate += "    ++recoveryEffects;\n    return 1;\n}"
+recovery_gate += "    ++recoveryEffects;\n    return recoveryResult;\n}"
 reset_pump = function(audio, "void dusk::audio::Pump()")
 reset_pump = reset_pump[:reset_pump.index("#endif") + len("#endif")] + "\n}"
 gframe = function(z2, "void Z2AudioMgr::gframeProcess()")
 tick = function(session, "ModResult onGameModeUpdate(void*, ModError*)")
+watchdog = function(session, "void update()").replace("void update()", "void watchdog_update()", 1)
 
 stubs = r'''
 #define _UWP 1
@@ -77,8 +78,9 @@ using fpc_ProcID = uint32_t;
 struct ModError {};
 using ModResult = int;
 constexpr int MOD_OK = 0;
-struct base_process_class {};
-base_process_class opening, play;
+struct base_process_class { fpc_ProcID id; };
+base_process_class opening{1}, play{2};
+constexpr fpc_ProcID fpcM_ERROR_PROCESS_ID_e = UINT32_MAX;
 constexpr int fpcNm_OPENING_SCENE_e = 1, fpcNm_PLAY_SCENE_e = 2;
 int sceneQueue = 0, createQueue = 0, deleteQueue = 0;
 bool peek = false, doing = false, openingExists = true, playExists = false;
@@ -86,6 +88,8 @@ bool cardIdle = true, playerExists = true, cameraExists = true;
 bool eventRunning = false, nextStage = false;
 int recalibrations = 0, resetCallbacks = 0, setCalls = 0;
 int closeCalls = 0, launcherCalls = 0, uiTicks = 0, gameTicks = 0, recoveryEffects = 0;
+int recoveryResult = 1, capturedFailures = 0;
+u32 capturedBlackFrames = 0, capturedReadyFrames = 0;
 bool recurseReset = false, deactivateSucceeds = true;
 bool s_xboxTransitionFailurePending = false, s_xboxTransitionDeferredReported = false;
 std::string s_xboxTransitionFailureReport;
@@ -126,6 +130,37 @@ int dComIfGp_getPlayerCameraID(int) { return 0; }
 void* dComIfGp_getCamera(int) { return cameraExists ? &play : nullptr; }
 bool dComIfGp_event_runCheck() { return eventRunning; }
 bool dComIfGp_isEnableNextStage() { return nextStage; }
+int stageId = 3, roomId = 0, layerId = 0;
+constexpr int Title_Screen = 0;
+int getStageID() { return stageId; }
+int dComIfGp_roomControl_getStayNo() { return roomId; }
+int dComIfGp_getStartStageLayer() { return layerId; }
+struct JUTFader {
+    enum { None, Wait };
+    int status = Wait;
+    int getStatus() const { return status; }
+} testFader;
+struct mDoGph_gInf_c {
+    struct Color { int a = 0; };
+    static Color& getFadeColor() { static Color color; return color; }
+    static int isFade() { return 0; }
+    static float getFadeRate() { return 0.0f; }
+    static JUTFader* getFader() { return &testFader; }
+};
+void captureXboxTransitionFailure(JUTFader*, int, u32 black, u32 ready) {
+    ++capturedFailures;
+    capturedBlackFrames = black;
+    capturedReadyFrames = ready;
+    s_xboxTransitionFailurePending = true;
+}
+namespace mods::log {
+template<typename... Args> void warn(const char*, const Args&...) {}
+}
+struct RandomizerState {
+    bool mInitialized = true;
+    void _create() { mInitialized = true; }
+    void execute() {}
+} g_randomizerState;
 extern "C" int tpr_xbox_scene_change_present() noexcept { return sceneQueue; }
 extern "C" int tpr_xbox_create_queue_size() noexcept { return createQueue; }
 extern "C" int tpr_xbox_delete_queue_size() noexcept { return deleteQueue; }
@@ -278,14 +313,51 @@ int main(int argc, char** argv) {
     assert(sound.gameplayCalls == 0 && sound.mSoundMgr.syncStops == 0);
     mDoRst::offReset(); sound.mResettingFlag = false; sound.gframeProcess();
     assert(sound.gameplayCalls == 1 && sound.mSoundMgr.frames == 2 && sound.frameworkCalls == 2);
-    std::cout << "PASS .733 native lifecycle tests: duplicate/recursive reset, delayed teardown, busy save, scene queues, safe recovery, reset DSP and nonblocking sound drain.\n";
+
+    // A stalled destination must still produce the existing failure report,
+    // even with no player/camera, and cannot trigger scene/fade recovery.
+    auto frames = [](int count) { for (int i = 0; i < count; ++i) watchdog_update(); };
+    testFader.status = JUTFader::None;
+    sceneQueue = 1; createQueue = 1;
+    openingExists = false; playExists = false; playerExists = false; cameraExists = false;
+    const int beforeWatchdog = recoveryEffects;
+    s_xboxTransitionFailurePending = false;
+    frames(299);
+    assert(capturedFailures == 0 && recoveryEffects == beforeWatchdog);
+    frames(1);
+    assert(capturedFailures == 1 && capturedBlackFrames == 300 && capturedReadyFrames == 0);
+    assert(recoveryEffects == beforeWatchdog);
+    frames(400);
+    assert(capturedFailures == 1 && recoveryEffects == beforeWatchdog);
+
+    // Once queues drain, readiness starts fresh. Crossing rooms restarts the
+    // timer rather than inheriting the old room's black-frame history.
+    sceneQueue = 0; createQueue = 0;
+    playExists = true; playerExists = true; cameraExists = true;
+    frames(89); assert(recoveryEffects == beforeWatchdog);
+    ++roomId;
+    frames(89); assert(recoveryEffects == beforeWatchdog);
+    frames(1); assert(recoveryEffects == beforeWatchdog + 1);
+    frames(100); assert(recoveryEffects == beforeWatchdog + 1);
+
+    // Overlap disappearance alone cannot mark a failed camera/render repair
+    // complete; the exact production watchdog retries until the repair succeeds.
+    ++layerId;
+    recoveryResult = 0;
+    frames(90);
+    const int failedRepair = recoveryEffects;
+    frames(1); assert(recoveryEffects == failedRepair + 1);
+    recoveryResult = 1;
+    frames(1); assert(recoveryEffects == failedRepair + 2);
+    frames(100); assert(recoveryEffects == failedRepair + 2);
+    std::cout << "PASS .733 native lifecycle tests: duplicate/recursive reset, delayed teardown, busy save, scene queues, independent stall reports, stable-room recovery, full repair proof, reset DSP and nonblocking sound drain.\n";
 }
 '''
 
 with tempfile.TemporaryDirectory(prefix="tpr-733-tests-") as temp:
     work = Path(temp)
     cpp = work / "lifecycle.cpp"
-    cpp.write_text("\n".join([stubs, payload, callback, recovery_gate, reset_pump, gframe, tick, cases]), encoding="utf-8")
+    cpp.write_text("\n".join([stubs, payload, callback, recovery_gate, reset_pump, gframe, tick, watchdog, cases]), encoding="utf-8")
     if os.name == "nt":
         compiler = shutil.which("cl")
         if compiler is None:

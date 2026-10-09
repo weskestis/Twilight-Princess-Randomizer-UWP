@@ -9,6 +9,7 @@ Changes:
 - Audio reset drains sounds without waiting for DSP work on the same thread. Reset DSP subframes advance even if the output voice is paused or its queue is full. Normal XAudio2 playback is unchanged.
 - Transition recovery refuses to cancel a scene transaction, actor creation/deletion, scripted event or reset. The watchdog tracks the actual room, layer and scene process before treating the destination as stable.
 - A recovery is successful only after the existing camera, render view, pause, fade and overlap checks pass.
+- Stall reporting continues during pending scene/actor creation, including when no player or camera exists; those reports never authorize recovery of an unfinished scene.
 - Scene-change requests start persistent tracing; tracing stays active throughout scene creation/deletion and reset. The previous .732 startup checkpoint remains readable after an upgrade.
 
 Preserved:
