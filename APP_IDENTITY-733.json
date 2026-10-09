@@ -1,0 +1,34 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.733",
+  "architecture": "x64",
+  "base": "1.4.1.732 green commit 04ccd371721d5387a4d647073ec39833ccaf11ef",
+  "fixes": [
+    "Deferred Reset Game completion after audio, scene queues and saves finish",
+    "Reset requests latch before invoking game-mode callbacks",
+    "Nonblocking reset sound draining with continued DSP subframe progress",
+    "Transition recovery waits for a stable room/layer/scene and never cancels an active transaction",
+    "Recovery completion requires the full existing camera/render/fade/overlap proof",
+    "Persistent tracing throughout scene creation, deletion and reset with .732 diagnostic migration"
+  ],
+  "preserved": [
+    "Ordon shop pending-text FIFO",
+    "Normal Poe Soul and distinct Poe Enemy Soul identity",
+    "Randomizer and 50-attempt runtime seed generation",
+    "58 generator scenarios with up to 50 distinct attempts",
+    "Enemy Souls, Boss Souls and first-defeat checks",
+    "Pots and pumpkins",
+    "Transparent tracker and controller input/cursor",
+    "Cosmetics and XAudio2 playback",
+    "Checksummed Xbox saves and sidecars",
+    "Scene/create/transition and next-launch crash diagnostics",
+    "Online Mods LocalState CRT-backed downloader"
+  ],
+  "startupJournal": "xbox-startup-stage-733.txt",
+  "previousStartupJournal": "xbox-startup-stage-732.txt",
+  "randomizerDirectSave": "randomizer-xbox.sav",
+  "randomizerModSidecarDirectory": "randomizer-xbox-mods",
+  "userModsDirectory": "LocalState/mods",
+  "downloadStagingDirectory": "LocalState/mods/.downloads",
+  "hardwareValidation": "pending Xbox testing"
+}

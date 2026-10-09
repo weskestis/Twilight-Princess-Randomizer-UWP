@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 732
+name: Build Dusklight 2.0.1 Xbox 733
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-732-release-${{ github.ref }}
+  group: xbox-733-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 732 identity
+      - name: Apply reviewed source layers and advance 733 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -946,7 +946,7 @@ jobs:
             throw 'Expected green-baseline startup journal marker is missing before .684 rollover.'
           }
           $startupGuard684 = $startupGuard684.Replace(
-            'xbox-startup-stage-678.txt', 'xbox-startup-stage-732.txt')
+            'xbox-startup-stage-678.txt', 'xbox-startup-stage-733.txt')
           if (-not $startupGuard684.Contains('kActivityTraceFrames = 12')) {
             throw 'Expected 12-frame activation trace constant is missing before .684 extension.'
           }
@@ -3145,7 +3145,7 @@ jobs:
             throw 'Prelaunch version expression changed before .684 identity fix.'
           }
           $prelaunch684 = $prelaunch684.Replace(
-            $versionExpr, 'std::string_view versionStr("1.4.1.732");')
+            $versionExpr, 'std::string_view versionStr("1.4.1.733");')
           [IO.File]::WriteAllText(
             $prelaunchPath, $prelaunch684, [Text.UTF8Encoding]::new($false))
           $uwpBootstrapSource = [IO.File]::ReadAllText(
@@ -3288,7 +3288,7 @@ jobs:
           $startupGuardSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\startup_guard.hpp")
           if (-not $startupGuardSource.Contains('detail::recoveryMode = false;') -or
-              -not $startupGuardSource.Contains('xbox-startup-stage-732.txt') -or
+              -not $startupGuardSource.Contains('xbox-startup-stage-733.txt') -or
               -not $startupGuardSource.Contains('std::unique_ptr<std::fstream> markerStream') -or
               -not $startupGuardSource.Contains('activityAwaitingFrame') -or
               -not $startupGuardSource.Contains('kActivityTraceFrames = 240') -or
@@ -3402,7 +3402,7 @@ jobs:
           }
           $prelaunchSource = [IO.File]::ReadAllText(
             "$env:TPR_SRC\src\dusk\ui\prelaunch.cpp")
-          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.732");')) {
+          if (-not $prelaunchSource.Contains('std::string_view versionStr("1.4.1.733");')) {
             throw 'Xbox launcher still reports detached-build UNKNOWN-VERSION metadata.'
           }
           if ($prelaunchSource.Contains('mRestoreGameModeAfterFirstFrame') -or
@@ -6111,9 +6111,17 @@ jobs:
           if (-not $manifest.Contains('Version="1.4.1.662"')) {
             throw 'Reviewed source layer did not produce the expected 1.4.1.662 package identity.'
           }
-          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.732"')
+          $manifest = $manifest.Replace('Version="1.4.1.662"', 'Version="1.4.1.733"')
           [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
           git -C "$env:TPR_SRC" diff --check
+
+          # .733 is a forward layer after all .732 source guards have passed.
+          python "$env:TPR_CONTROL\scripts\apply-733-reset-transition-hardening.py"
+          if ($LASTEXITCODE -ne 0) { throw '.733 reset/transition hardening failed.' }
+          python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.733 native lifecycle regression tests failed.' }
+          git -C "$env:TPR_SRC" diff --check
+          git -C "$env:TPR_SRC\mods\randomizer" diff --check
 
       - name: Restore verified UWP artwork and pipeline cache
         shell: powershell
@@ -6475,17 +6483,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 732 package
+      - name: Verify and collect full 733 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-732"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-733"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.732_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.733_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6497,7 +6505,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.732"',
+            'Version="1.4.1.733"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6635,7 +6643,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-732.txt',
+            'xbox-startup-stage-733.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -6796,11 +6804,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-732.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-732.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-733.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-733.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.732'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.733'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -6850,20 +6858,23 @@ jobs:
             xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
             xboxMemoryCard = '.731 keeps vanilla gczelda2 on Aurora/GCI, keeps Xbox Randomizer gameplay in direct checksummed LocalState randomizer-xbox.sav, and stores Randomizer mod blobs in LocalState randomizer-xbox-mods so seed association no longer depends on CARD/GCI availability'
             xboxModDownloads = '.732 keeps user mods in LocalState/mods and stages online downloads in LocalState/mods/.downloads while bypassing SDL UWP datastream writes for writable filesystem paths'
-            xboxResetGame = '.732 rejects reset re-entry before Randomizer callbacks and forces one clean return to prelaunch'
+            xboxResetGame = '.733 completes native scene/audio/save reset before deactivation and launcher presentation; repeated requests latch once'
+            xboxTransitionRecovery = '.733 requires stable room/layer/scene identity and refuses cancellation during scene/create/delete/event/reset work'
+            xboxTransitionTrace = '.733 traces scene requests and renews the crash journal throughout pending transactions'
+            nativeLifecycleTests = 'PASS: compiled production reset/recovery/audio functions against busy-save, queued-scene, duplicate and recursive reset states'
             generatorScenarios = 58
             generatorScenarioAttempts = 50
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-732.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-733.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.732-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.733-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -6872,7 +6883,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.732-Xbox
-          path: TPR-Xbox-Package-732/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.733-Xbox
+          path: TPR-Xbox-Package-733/*
           if-no-files-found: error
           retention-days: 30
