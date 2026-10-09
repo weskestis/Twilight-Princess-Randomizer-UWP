@@ -85,7 +85,7 @@ constexpr int fpcNm_OPENING_SCENE_e = 1, fpcNm_PLAY_SCENE_e = 2;
 int sceneQueue = 0, createQueue = 0, deleteQueue = 0;
 bool peek = false, doing = false, openingExists = true, playExists = false;
 bool cardIdle = true, playerExists = true, cameraExists = true;
-bool eventRunning = false, nextStage = false;
+bool testEventRunning = false, nextStage = false;
 int recalibrations = 0, resetCallbacks = 0, setCalls = 0;
 int closeCalls = 0, launcherCalls = 0, uiTicks = 0, gameTicks = 0, recoveryEffects = 0;
 int recoveryResult = 1, capturedFailures = 0;
@@ -128,7 +128,7 @@ base_process_class* fpcM_SearchByName(int name) {
 void* dComIfGp_getPlayer(int) { return playerExists ? &play : nullptr; }
 int dComIfGp_getPlayerCameraID(int) { return 0; }
 void* dComIfGp_getCamera(int) { return cameraExists ? &play : nullptr; }
-bool dComIfGp_event_runCheck() { return eventRunning; }
+bool dComIfGp_event_runCheck() { return testEventRunning; }
 bool dComIfGp_isEnableNextStage() { return nextStage; }
 int stageId = 3, roomId = 0, layerId = 0;
 constexpr int Title_Screen = 0;
@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
     sceneQueue = 1; recoveryBlocked(); sceneQueue = 0;
     createQueue = 1; recoveryBlocked(); createQueue = 0;
     deleteQueue = 1; recoveryBlocked(); deleteQueue = 0;
-    eventRunning = true; recoveryBlocked(); eventRunning = false;
+    testEventRunning = true; recoveryBlocked(); testEventRunning = false;
     nextStage = true; recoveryBlocked(); nextStage = false;
     playerExists = false; recoveryBlocked(); playerExists = true;
     cameraExists = false; recoveryBlocked(); cameraExists = true;
@@ -369,6 +369,6 @@ with tempfile.TemporaryDirectory(prefix="tpr-733-tests-") as temp:
         if compiler is None:
             raise RuntimeError("g++ is required for the local lifecycle test")
         exe = work / "lifecycle"
-        command = [compiler, "-std=c++20", "-Wall", "-Wextra", "-Werror", "-Wno-unused-variable", str(cpp), "-o", str(exe)]
+        command = [compiler, "-std=c++20", "-Wall", "-Wextra", "-Wshadow", "-Werror", "-Wno-unused-variable", str(cpp), "-o", str(exe)]
     subprocess.run(command, cwd=work, check=True)
     subprocess.run([str(exe), str(work)], cwd=work, check=True)
