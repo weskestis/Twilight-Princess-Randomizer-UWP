@@ -41,6 +41,7 @@ driver = r'''
 #include <mods/api.h>
 #include "dusk/xbox_memory_budget.hpp"
 #include "dusk/mods/uwp_ports.hpp"
+struct ModContext { void* mod=nullptr; };
 namespace fs = std::filesystem;
 namespace xbox_memory = dusk::xbox_memory;
 namespace startup_guard = dusk::startup_guard;
@@ -52,6 +53,7 @@ extern "C" bool dusk_query_memory_budget(uint64_t* usage, uint64_t* limit, bool*
     *usage=budget.usage; *limit=budget.limit; *xbox=budget.xbox; return budget.available;
 }
 namespace fmt { template<class T> std::string format(const char*,const T& text) { return std::string(text); } }
+namespace fixture {
 struct TestLog { template<class... T> void error(const char*,const T&...) {} } Log;
 enum { LOG_LEVEL_INFO, LOG_LEVEL_ERROR };
 namespace log { template<class... T> void write(const std::string&,int,const char*,const T&...) {
@@ -73,7 +75,6 @@ struct Metadata { std::string id,name,version,author; };
 struct Runtime { std::string id; uint16_t major=0,minMinor=0; };
 struct Info { struct Import { std::string id; uint16_t major,minMinor; bool required; }; std::vector<Import> imports; };
 struct LoadedMod;
-struct ModContext { LoadedMod* mod=nullptr; };
 struct NativeMod {
     const ModMeta* meta=nullptr; ModContext** contextSymbol=nullptr;
     ModInitializeFn fn_initialize=nullptr; ModUpdateFn fn_update=nullptr; ModShutdownFn fn_shutdown=nullptr;
@@ -128,11 +129,13 @@ public:
     }
     LoadedMod* try_load_mod(const fs::path&,bool,uint32_t,std::unique_ptr<ModBundle> = {});
 };
+} // namespace fixture
 const ModMeta mod_meta{};
 ModContext* mod_ctx=nullptr;
 ModResult mod_initialize(ModError*) {return MOD_OK;}
 ModResult mod_update(ModError*) {return MOD_OK;}
 ModResult mod_shutdown(ModError*) {return MOD_OK;}
+namespace fixture {
 bool parse_meta(NativeMod&,LoadedMod&) {return true;}
 struct Modal;
 struct Action { std::string label; std::function<void(Modal&)> onPressed; };
@@ -149,6 +152,8 @@ void play() { GATE ++hookActivations; }
 std::string read_file(const fs::path& p) { std::ifstream input(p);return {std::istreambuf_iterator<char>(input),{}}; }
 FUNCTION
 BUILTIN
+} // namespace fixture
+using namespace fixture;
 int main(int argc,char** argv) {
     assert(argc==2); ConfigPath=fs::path(argv[1]); fs::create_directories(ConfigPath);
     const auto limit=budget.limit;
