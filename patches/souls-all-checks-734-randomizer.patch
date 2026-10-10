@@ -1,0 +1,1110 @@
+diff --git "a/generator/data/settings_list.yaml" "b/generator/data/settings_list.yaml"
+--- "a/generator/data/settings_list.yaml"
++++ "b/generator/data/settings_list.yaml"
+@@ -135,7 +135,7 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Bosses can be fought normally and Boss Souls are not added to the item pool."
+-    - "On": "Eight permanent Boss Souls are shuffled into the world. Each dungeon boss requires its own soul, including when boss entrances are shuffled."
++    - "On": "Eight permanent Boss Souls can appear in any enabled randomized item check that satisfies logic. Each dungeon boss requires its own soul, including when boss entrances are shuffled."
+ 
+ - Name: Enemy Souls
+   Need In Game: True
+@@ -143,7 +143,7 @@
+   Default Option: "Off"
+   Options:
+     - "Off": "Regular enemies and minibosses spawn normally and Enemy Souls are not added to the item pool."
+-    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. The four mandatory Twilight quest-target Souls start owned; all other Souls are shuffled. Requires logic."
++    - "On": "Every supported regular enemy and miniboss has a permanent Soul. A species remains hidden and inert until its own Soul is found. Mandatory target Souls for uncleared Twilight quests start owned; all other Souls can appear in any enabled randomized item check that satisfies logic. Requires logic."
+ 
+ - Name: Enemy First-Defeat Checks
+   Need In Game: True
+diff --git "a/generator/data/tests/logic/souls every check all locations/settings.yaml" "b/generator/data/tests/logic/souls every check all locations/settings.yaml"
+new file mode 100644
+--- /dev/null
++++ "b/generator/data/tests/logic/souls every check all locations/settings.yaml"
+@@ -0,0 +1,13 @@
++Seed: SOULS_ANY_CHECK
++Generate Spoiler Log: true
++Boss Souls: "On"
++Enemy Souls: "On"
++Enemy First-Defeat Checks: "On"
++Pots: All
++Pumpkins: All
++Shop Items: All
++Poe Souls: All
++Golden Bugs: "On"
++Sky Characters: "On"
++Gifts From NPCs: "On"
++Hidden Skills: "On"
+diff --git "a/generator/data/tests/logic/souls every check beatable only/settings.yaml" "b/generator/data/tests/logic/souls every check beatable only/settings.yaml"
+new file mode 100644
+--- /dev/null
++++ "b/generator/data/tests/logic/souls every check beatable only/settings.yaml"
+@@ -0,0 +1,14 @@
++Seed: SOULS_ANY_CHECK
++Generate Spoiler Log: true
++Boss Souls: "On"
++Enemy Souls: "On"
++Enemy First-Defeat Checks: "On"
++Pots: All
++Pumpkins: All
++Shop Items: All
++Poe Souls: All
++Golden Bugs: "On"
++Sky Characters: "On"
++Gifts From NPCs: "On"
++Hidden Skills: "On"
++Logic Rules: Beatable Only
+diff --git "a/generator/data/tests/logic/souls every check cleared twilights/settings.yaml" "b/generator/data/tests/logic/souls every check cleared twilights/settings.yaml"
+new file mode 100644
+--- /dev/null
++++ "b/generator/data/tests/logic/souls every check cleared twilights/settings.yaml"
+@@ -0,0 +1,16 @@
++Seed: SOULS_ANY_CHECK
++Generate Spoiler Log: true
++Boss Souls: "On"
++Enemy Souls: "On"
++Enemy First-Defeat Checks: "On"
++Pots: All
++Pumpkins: All
++Shop Items: All
++Poe Souls: All
++Golden Bugs: "On"
++Sky Characters: "On"
++Gifts From NPCs: "On"
++Hidden Skills: "On"
++Faron Twilight Cleared: "On"
++Eldin Twilight Cleared: "On"
++Lanayru Twilight Cleared: "On"
+diff --git "a/generator/data/tests/logic/souls every check entrances/settings.yaml" "b/generator/data/tests/logic/souls every check entrances/settings.yaml"
+new file mode 100644
+--- /dev/null
++++ "b/generator/data/tests/logic/souls every check entrances/settings.yaml"
+@@ -0,0 +1,17 @@
++Seed: SOULS_ANY_CHECK
++Generate Spoiler Log: true
++Boss Souls: "On"
++Enemy Souls: "On"
++Enemy First-Defeat Checks: "On"
++Pots: All
++Pumpkins: All
++Shop Items: All
++Poe Souls: All
++Golden Bugs: "On"
++Sky Characters: "On"
++Gifts From NPCs: "On"
++Hidden Skills: "On"
++Randomize Dungeon Entrances: "On"
++Randomize Boss Entrances: "On"
++Randomize Cave Entrances: "On"
++Randomize Grotto Entrances: "On"
+diff --git "a/generator/logic/fill.cpp" "b/generator/logic/fill.cpp"
+--- "a/generator/logic/fill.cpp"
++++ "b/generator/logic/fill.cpp"
+@@ -50,9 +50,9 @@
+             utility::container::FilterFromVector(locationPool,
+                                                         [](const auto& location) { return location->IsProgression(); });
+ 
+-        // Enemy Souls can only be serialized by checks with an extended-item
+-        // runtime path. Reserve those constrained locations before ordinary
+-        // major items can consume them. The guaranteed starting Soul provides
++        // Every active item check supports logical Soul IDs. Place Souls with
++        // the same progression-safe locations as ordinary major items. The
++        // guaranteed starting permissions for active Twilight quests provide
+         // a bootstrap; the exhaustive reverse fill only commits a reward when
+         // its source is reachable with the later Souls assumed, and final
+         // validation rejects every remaining dependency cycle.
+@@ -65,16 +65,12 @@
+         auto enemySoulLocations = utility::container::FilterFromVector(
+             progressLocations,
+             [](const auto& location) {
+-                const auto& categories = location->GetCategories();
+-                return location->IsEmpty() &&
+-                       (categories.contains("Chest") ||
+-                        categories.contains("Freestanding Item") ||
+-                        categories.contains("Enemy First Defeat"));
++                return location->IsEmpty();
+             });
+         if (enemySoulItems.size() > enemySoulLocations.size())
+         {
+             throw std::runtime_error(
+-                "Enemy Souls require more progression-safe extended-item checks than are available");
++                "Enemy Souls require more progression-safe randomized item checks than are available");
+         }
+         // With a large mutually gating pool, a random order can temporarily
+         // pick an item that has no legal location even though another
+@@ -731,4 +727,4 @@
+             }
+         }
+     }
+-} // namespace randomizer::logic::fill
+\ No newline at end of file
++} // namespace randomizer::logic::fill
+diff --git "a/generator/logic/world.cpp" "b/generator/logic/world.cpp"
+--- "a/generator/logic/world.cpp"
++++ "b/generator/logic/world.cpp"
+@@ -1,4 +1,5 @@
+ #include "world.hpp"
++#include "src/runtime_item_ids.hpp"
+ 
+ 
+ #include "search.hpp"
+@@ -589,16 +590,14 @@
+ 
+     void World::ForbidUnencodableRuntimeItems(location::Location* location)
+     {
+-        // Breakable and expanded-shop overrides store the shuffled item in one
+-        // byte. Logical-only items such as the three Twilight Tears use IDs
+-        // above 0xFE and cannot be materialized by either runtime actor. Keep
+-        // them in ordinary checks instead of allowing seed serialization to
+-        // reject the completed fill later.
++        // Physical items and Enemy Souls have award paths for these checks.
++        // Logical quest-state items (such as Twilight Tears) remain excluded;
++        // they belong to their authored quest checks and cannot be spawned.
+         for (const auto& itemEntry : this->_itemTable)
+         {
+             const auto& item = itemEntry.second;
+             const int itemId = item->GetID();
+-            if (itemId < 0 || itemId > 0xFE)
++            if (!randomizer::is_runtime_item_id(itemId))
+             {
+                 location->AddForbiddenItem(item.get());
+             }
+@@ -704,18 +703,10 @@
+         {
+             const auto& categories = location->GetCategories();
+             const bool firstDefeat = categories.contains("Enemy First Defeat");
+-            const bool supportsExtendedSoul = firstDefeat || categories.contains("Chest") ||
+-                                              categories.contains("Freestanding Item");
+ 
+             for (const auto& definition : randomizer::enemy_souls::kDefinitions)
+             {
+                 auto* soul = this->GetItem(definition.itemId);
+-                if (!supportsExtendedSoul)
+-                {
+-                    location->AddForbiddenItem(soul);
+-                    continue;
+-                }
+-
+                 // A species' first-defeat reward is unreachable until that
+                 // species can spawn. Its own Soul can therefore never be the
+                 // reward at this check, regardless of placement mode.
+diff --git "a/generator/test/test.cpp" "b/generator/test/test.cpp"
+--- "a/generator/test/test.cpp"
++++ "b/generator/test/test.cpp"
+@@ -38,6 +38,50 @@
+             }
+         }
+     }
++}
++
++void VerifySoulPlacementSpace(randomizer::Randomizer& r, const std::string_view testName)
++{
++    if (!testName.starts_with("souls every check ")) return;
++    constexpr std::array metadataNames{
++        "Breakable", "Expanded Shop", "Poe", "Bug Reward", "Sky Character",
++        "Golden Wolf", "Name Lookup",
++    };
++    constexpr std::array bossNames{
++        "Diababa Soul", "Fyrus Soul", "Morpheel Soul", "Stallord Soul",
++        "Blizzeta Soul", "Armogohma Soul", "Argorok Soul", "Zant Soul",
++    };
++    std::array<std::size_t, metadataNames.size()> counts{};
++    for (const auto& world : r.GetWorlds())
++    {
++        for (auto* location : world->GetAllLocations(true))
++        {
++            if (!location->IsProgression() || location->HasKnownVanillaItem()) continue;
++            const auto& metadata = location->GetMetadata();
++            if (!metadata.IsMap()) continue;
++            for (std::size_t i = 0; i < metadataNames.size(); ++i)
++            {
++                if (!metadata[metadataNames[i]]) continue;
++                ++counts[i];
++                for (const auto& definition : randomizer::enemy_souls::kDefinitions)
++                {
++                    if (location->GetForbiddenItems().contains(world->GetItem(definition.itemId)))
++                        throw std::runtime_error("Enemy Soul is category-restricted at " + location->GetName());
++                }
++                for (const auto* name : bossNames)
++                {
++                    if (location->GetForbiddenItems().contains(world->GetItem(name)))
++                        throw std::runtime_error("Boss Soul is category-restricted at " + location->GetName());
++                }
++            }
++        }
++    }
++    for (std::size_t i = 0; i < metadataNames.size(); ++i)
++    {
++        if (counts[i] == 0)
++            throw std::runtime_error(std::string("Soul placement certification has no active ") + metadataNames[i] + " check");
++    }
++    std::cout << "PASS: Enemy and Boss Souls allowed in all seven extended reward categories" << std::endl;
+ }
+ 
+ } // namespace
+@@ -115,6 +159,7 @@
+             {
+                 randomizer::Randomizer r{RANDO_SAVE_PATH};
+                 r.GenerateWorlds();
++                VerifySoulPlacementSpace(r, testName);
+                 scenarioPassed = true;
+                 break;
+             }
+diff --git "a/src/breakables.cpp" "b/src/breakables.cpp"
+--- "a/src/breakables.cpp"
++++ "b/src/breakables.cpp"
+@@ -1,4 +1,5 @@
+ #include "breakables.hpp"
++#include "enemy_souls.hpp"
+ 
+ #include "d/actor/d_a_obj_carry.h"
+ #include "d/d_com_inf_game.h"
+@@ -142,12 +143,18 @@
+         return;
+     }
+ 
++    const bool changedSession =
++        (s_loadedSlot >= 0 && slot != s_loadedSlot) ||
++        (s_loadedSeedFingerprint != 0 && fingerprint != s_loadedSeedFingerprint);
++    if (changedSession) {
++        s_spawnedItemKeys.clear();
++        s_pendingKeys.clear();
++    }
+     s_loadedSaveRevision = revision;
+     s_loadedSlot = slot;
+     s_loadedSeedFingerprint = fingerprint;
+-    s_actorKeys.clear();
+-    s_spawnedItemKeys.clear();
+-    s_pendingKeys.clear();
++    // Save callbacks reload collection bits, never forget still-live actors.
++    // Actor deletion and clear_scene_actors own these transient registrations.
+     if (slot < 0 || randomizer_GetContext().mHash.empty()) {
+         s_collectedKeys.clear();
+         return;
+@@ -468,7 +475,7 @@
+             return false;
+         }
+ 
+-        uint8_t rawItem = 0xFF;
++        uint16_t rawItem = 0xFF;
+         {
+             std::scoped_lock lock(s_mutex);
+             ensure_collection_locked();
+@@ -505,7 +512,7 @@
+         cXyz position = actor->current.pos;
+         position.y += 15.0f;
+         csXyz angle(0, actor->home.angle.y, 0);
+-        const uint8_t item = verifyProgressiveItem(rawItem);
++        const uint8_t item = enemy_souls::physical_item(static_cast<uint16_t>(verifyProgressiveItem(rawItem)));
+         const fpc_ProcID itemId = fopAcM_createItem(
+             &position, item, 0xFF, fopAcM_GetHomeRoomNo(actor), &angle, nullptr, 0);
+ 
+@@ -519,6 +526,9 @@
+             return false;
+         }
+         s_spawnedItemKeys[itemId] = key;
++        if (enemy_souls::is_enemy_soul(rawItem)) {
++            enemy_souls::associate_item(itemId, rawItem);
++        }
+         if (spawnedItemId != nullptr) {
+             *spawnedItemId = itemId;
+         }
+@@ -550,7 +560,7 @@
+         if (actor == nullptr) {
+             return false;
+         }
+-        uint8_t rawItem = 0xFF;
++        uint16_t rawItem = 0xFF;
+         {
+             std::scoped_lock lock(s_mutex);
+             ensure_collection_locked();
+@@ -565,7 +575,8 @@
+             rawItem = override->second.itemId;
+         }
+         uint32_t parameters = fopAcM_GetParam(actor);
+-        parameters = (parameters & 0xFFFFFF00U) | verifyProgressiveItem(rawItem);
++        parameters = (parameters & 0xFFFFFF00U) |
++            enemy_souls::physical_item(static_cast<uint16_t>(verifyProgressiveItem(rawItem)));
+         fopAcM_SetParam(actor, parameters);
+         return true;
+     } catch (const std::exception& error) {
+@@ -576,7 +587,7 @@
+     return false;
+ }
+ 
+-std::optional<uint8_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept {
++std::optional<uint16_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept {
+     try {
+         if (actor == nullptr) {
+             return std::nullopt;
+diff --git "a/src/breakables.hpp" "b/src/breakables.hpp"
+--- "a/src/breakables.hpp"
++++ "b/src/breakables.hpp"
+@@ -84,7 +84,7 @@
+ // A spawned item keeps the breakable's raw assignment so progressive items
+ // can be re-evaluated at pickup time.
+ bool refresh_spawned_item(fopAc_ac_c* actor) noexcept;
+-std::optional<uint8_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept;
++std::optional<uint16_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept;
+ void collect_spawned_item(const fopAc_ac_c* actor) noexcept;
+ void forget_spawned_item(const fopAc_ac_c* actor) noexcept;
+ 
+diff --git "a/src/enemy_souls.cpp" "b/src/enemy_souls.cpp"
+--- "a/src/enemy_souls.cpp"
++++ "b/src/enemy_souls.cpp"
+@@ -254,14 +254,20 @@
+         return;
+     }
+ 
++    const bool changedSession =
++        (s_loadedSlot >= 0 && slot != s_loadedSlot) ||
++        (s_loadedSeedFingerprint != 0 && fingerprint != s_loadedSeedFingerprint);
++    if (changedSession) {
++        s_itemAssociations.clear();
++        s_modelLogicalItems.clear();
++        s_defeatNotifiedActors.clear();
++        s_pendingFirstDefeats.clear();
++    }
+     s_loadedSaveRevision = revision;
+     s_loadedSlot = slot;
+     s_loadedSeedFingerprint = fingerprint;
+-    s_itemAssociations.clear();
+-    s_modelLogicalItems.clear();
+-    s_lastPositiveHealth.clear();
+-    s_defeatNotifiedActors.clear();
+-    s_pendingFirstDefeats.clear();
++    // Ownership is reloaded below. Live actor/item associations survive save
++    // callbacks and are retired by the existing actor/scene deletion paths.
+     s_retryCooldownFrames = 30;
+ 
+     // Actor lifecycle records deliberately survive a save revision change.
+@@ -1028,9 +1034,14 @@
+         }
+         std::scoped_lock lock(s_mutex);
+         ensure_state_locked();
++        const auto existing = s_itemAssociations.find(actorId);
++        const auto source = firstDefeatSource.value_or(
++            existing != s_itemAssociations.end() &&
++                    existing->second.logicalItemId == logicalItemId
++                ? existing->second.firstDefeatSource : kNoSoul);
+         s_itemAssociations[actorId] = ItemAssociation{
+             .logicalItemId = logicalItemId,
+-            .firstDefeatSource = firstDefeatSource.value_or(kNoSoul),
++            .firstDefeatSource = source,
+         };
+         s_modelLogicalItems[actorId] = logicalItemId;
+     } catch (...) {
+diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
+--- "a/src/hooks.cpp"
++++ "b/src/hooks.cpp"
+@@ -95,6 +95,7 @@
+ 
+ #include <optional>
+ 
++DEFINE_HOOK(&execItemGet, execItemGet_LogicalSoul);
+ DEFINE_HOOK(&fpcMtd_Create, fpcMtd_Create_EnemySouls);
+ DEFINE_HOOK(&fpcMtd_IsDelete, fpcMtd_IsDelete_EnemySouls);
+ DEFINE_HOOK(&fpcMtd_Delete, fpcMtd_Delete_EnemySouls);
+@@ -842,6 +843,7 @@
+ 
+     s_demoPickupActor = actor;
+     if (enemy_souls::collect_extended_item(actor)) {
++        session::completeLogicalCheck(actor, actor->m_itemNo);
+         s_demoPickupFlags = actor->field_0x93d;
+         actor->field_0x93d |= 0x1;
+         s_demoPickupSuppressed = true;
+@@ -979,7 +981,11 @@
+ 
+ void hookPostShopItemArcname(ModContext*, void* args, void* retval, void*) {
+     auto* item = mods::arg<daShopItem_c*>(args, 0);
+-    const u8 reward = shops::shuffled_item_for_child(item);
++    const u16 logicalReward = shops::shuffled_item_for_child(item);
++    const u8 reward = enemy_souls::physical_item(logicalReward);
++    if (enemy_souls::is_enemy_soul(logicalReward)) {
++        enemy_souls::associate_item(fopAcM_GetID(item), logicalReward);
++    }
+     if (reward == 0xFF) {
+         return;
+     }
+@@ -1637,6 +1643,24 @@
+     hookLureHeart_isSkipGetItem = false;
+ }
+ 
++HookAction hookPreExecItemGetLogicalSoul(ModContext*, void* args, void*, void*) {
++    const u8 physical = mods::arg<u8>(args, 0);
++    const u32 tag = mods::arg<u32>(args, 1);
++    auto* giver = mods::arg<fopAc_ac_c*>(args, 2);
++    auto logical = enemy_souls::logical_item_for_actor(giver);
++    if (!logical && tag != 0) {
++        const char* name = session::svc_mng.item->check_name(session::svc_mng.mod_ctx, tag);
++        logical = session::logicalItemForCheck(name);
++    }
++    if (!logical || !enemy_souls::is_enemy_soul(*logical)) return HOOK_CONTINUE;
++    enemy_souls::grant_soul(*logical);
++    enemy_souls::commit_item_pickup(giver);
++    if (tag != 0) {
++        session::svc_mng.item->complete_check(session::svc_mng.mod_ctx, tag, physical, giver);
++    }
++    return HOOK_SKIP_ORIGINAL;
++}
++
+ HookAction hookPreGetItemFunc(ModContext*, void* args, void*, void*) {
+     const u8 item = mods::arg<u8>(args, 0);
+ 
+@@ -1746,14 +1770,17 @@
+         }
+ 
+         if (i_this->mItemPartnerId == fpcM_ERROR_PROCESS_ID_e) {
+-            const u8 reward = shops::shuffled_item(selected);
++            const u16 reward = shops::shuffled_item(selected);
+             if (reward == 0xFF) {
+                 shops::end_purchase(selected);
+                 *static_cast<int*>(retval) = 0;
+                 return HOOK_SKIP_ORIGINAL;
+             }
+             i_this->mItemPartnerId = fopAcM_createItemForPresentDemo(
+-                &i_this->current.pos, reward, 0, -1, -1, nullptr, nullptr);
++                &i_this->current.pos, enemy_souls::physical_item(reward), 0, -1, -1, nullptr, nullptr);
++            if (enemy_souls::is_enemy_soul(reward)) {
++                enemy_souls::associate_item(i_this->mItemPartnerId, reward);
++            }
+         }
+ 
+         if (fpcEx_IsExist(i_this->mItemPartnerId)) {
+@@ -2834,22 +2861,20 @@
+ }
+ 
+ HookAction hookPreProcCoGetItem(ModContext*, void* args, void*, void*) {
+-    auto* i_this = mods::arg<daAlink_c*>(args, 0);
+-    if (i_this->field_0x32cc != 0 || i_this->mProcVar2.field_0x300c != dItemNo_Randomizer_POU_SPIRIT_e) {
++    auto* link = mods::arg<daAlink_c*>(args, 0);
++    if (link->field_0x32cc != 0) return HOOK_CONTINUE;
++    auto* partner = fopAcM_getItemEventPartner(link);
++    if (partner == nullptr || fpcM_IsCreating(fpcM_GetID(partner))) return HOOK_CONTINUE;
++    if (const u16 message = getSoulItemMessageID(
++            static_cast<u8>(link->mProcVar2.field_0x300c), partner); message != 0) {
++        link->field_0x32cc = message;
+         return HOOK_CONTINUE;
+     }
+-
+-    auto* item_partner_p = static_cast<daItemBase_c*>(fopAcM_getItemEventPartner(i_this));
+-    if (item_partner_p == nullptr || fpcM_IsCreating(fpcM_GetID(item_partner_p))) {
+-        return HOOK_CONTINUE;
+-    }
+-
+-    // Don't show special text in rando
+-    const u8 nextPoeCount = dComIfGs_getPohSpiritNum() + 1;
+-    if (nextPoeCount == 20 || nextPoeCount == 60) {
+-        i_this->field_0x32cc = i_this->mProcVar2.field_0x300c + 0x65;
+-    }
+-
++    if (link->mProcVar2.field_0x300c == dItemNo_Randomizer_POU_SPIRIT_e) {
++        const u8 nextPoeCount = dComIfGs_getPohSpiritNum() + 1;
++        if (nextPoeCount == 20 || nextPoeCount == 60)
++            link->field_0x32cc = link->mProcVar2.field_0x300c + 0x65;
++    }
+     return HOOK_CONTINUE;
+ }
+ 
+@@ -4079,11 +4104,13 @@
+     {
+         mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
+         item::exec_item_get(*breakableItem);
++        enemy_souls::commit_item_pickup(i_this);
+         breakables::collect_spawned_item(i_this);
+         return HOOK_SKIP_ORIGINAL;
+     }
+ 
+     if (enemy_souls::collect_extended_item(i_this)) {
++        session::completeLogicalCheck(i_this, i_this->m_itemNo);
+         mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
+         breakables::collect_spawned_item(i_this);
+         return HOOK_SKIP_ORIGINAL;
+@@ -4459,6 +4486,7 @@
+     }
+ 
+     // Xbox .728: defer Enemy Soul gating until execute; actor create must finish.
++    ADD_HOOK_PRE(execItemGet_LogicalSoul, hookPreExecItemGetLogicalSoul);
+     ADD_HOOK_PRE(fpcMtd_IsDelete_EnemySouls, hookPreActorSubmethodIsDelete);
+     ADD_HOOK_PRE(fpcMtd_Delete_EnemySouls, hookPreActorSubmethodDelete);
+     ADD_HOOK_POST(fopAc_Create_EnemySouls, hookPostActorCreate);
+@@ -4756,6 +4784,7 @@
+ ModResult uninstall() {
+     auto svc_hook = session::svc_mng.hook;
+ 
++    mods::hook::uninstall<execItemGet_LogicalSoul>(svc_hook);
+     mods::hook::uninstall<fpcMtd_Create_EnemySouls>(svc_hook);
+     mods::hook::uninstall<fpcMtd_IsDelete_EnemySouls>(svc_hook);
+     mods::hook::uninstall<fpcMtd_Delete_EnemySouls>(svc_hook);
+diff --git "a/src/item.cpp" "b/src/item.cpp"
+--- "a/src/item.cpp"
++++ "b/src/item.cpp"
+@@ -1,4 +1,5 @@
+ #include "item.hpp"
++#include "enemy_souls.hpp"
+ 
+ #include "d/d_com_inf_game.h"
+ #include "d/d_item.h"
+@@ -1105,10 +1106,15 @@
+ };
+ 
+ namespace randomizer::item {
+-void exec_item_get(u8 item_no) {
+-    item_no = verifyProgressiveItem(item_no);
++void exec_item_get(u16 item_no) {
++    if (enemy_souls::is_enemy_soul(item_no)) {
++        enemy_souls::grant_soul(item_no);
++        return;
++    }
++    if (item_no > 0xFE) return;
++    item_no = static_cast<u16>(verifyProgressiveItem(item_no));
+     g_randomizerState.mUpdateTracker = true;
+-    dComIfGs_onItemFirstBit(item_no);
++    dComIfGs_onItemFirstBit(static_cast<u8>(item_no));
+     item_func_ptr_randomizer[item_no]();
+ }
+ 
+diff --git "a/src/item.hpp" "b/src/item.hpp"
+--- "a/src/item.hpp"
++++ "b/src/item.hpp"
+@@ -3,7 +3,7 @@
+ #include <dolphin/types.h>
+ 
+ namespace randomizer::item {
+-void exec_item_get(u8 item_no);
++void exec_item_get(u16 item_no);
+ int check_item_get(u8 item_no, int param);
+ 
+ void apply_item_data_tables();
+diff --git "a/src/randomizer_context.cpp" "b/src/randomizer_context.cpp"
+--- "a/src/randomizer_context.cpp"
++++ "b/src/randomizer_context.cpp"
+@@ -1,4 +1,5 @@
+ #include "randomizer_context.hpp"
++#include "runtime_item_ids.hpp"
+ 
+ #include "session.hpp"
+ #include "paths.hpp"
+@@ -1276,7 +1277,10 @@
+     // Poe Overrides
+     for (const auto& poeNode : in["mPoeOverrides"]) {
+         u16 key = poeNode.first.as<u16>();
+-        u8 itemId = poeNode.second.as<u8>();
++        const int itemId = poeNode.second.as<int>();
++        if (!randomizer::is_runtime_item_id(itemId)) {
++            throw std::runtime_error("Seed data contains an invalid logical reward item");
++        }
+         this->mPoeOverrides[key] = itemId;
+     }
+ 
+@@ -1301,21 +1305,30 @@
+     // Bug Rewards
+     for (const auto& bugNode : in["mBugRewardOverrides"]) {
+         u8 bugItemId = bugNode.first.as<u8>();
+-        u8 itemId = bugNode.second.as<u8>();
++        const int itemId = bugNode.second.as<int>();
++        if (!randomizer::is_runtime_item_id(itemId)) {
++            throw std::runtime_error("Seed data contains an invalid logical reward item");
++        }
+         this->mBugRewardOverrides[bugItemId] = itemId;
+     }
+ 
+     // Sky Characters
+     for (const auto& skyCharacterNode : in["mSkyCharacterOverrides"]) {
+         u16 key = skyCharacterNode.first.as<u16>();
+-        u8 itemId = skyCharacterNode.second.as<u8>();
++        const int itemId = skyCharacterNode.second.as<int>();
++        if (!randomizer::is_runtime_item_id(itemId)) {
++            throw std::runtime_error("Seed data contains an invalid logical reward item");
++        }
+         this->mSkyCharacterOverrides[key] = itemId;
+     }
+ 
+     // Golden Wolves
+     for (const auto& goldenWolfNode : in["mGoldenWolfOverrides"]) {
+         u16 key = goldenWolfNode.first.as<u16>();
+-        u8 itemId = goldenWolfNode.second.as<u8>();
++        const int itemId = goldenWolfNode.second.as<int>();
++        if (!randomizer::is_runtime_item_id(itemId)) {
++            throw std::runtime_error("Seed data contains an invalid logical reward item");
++        }
+         this->mGoldenWolfOverrides[key] = itemId;
+     }
+ 
+@@ -1323,9 +1336,11 @@
+     for (const auto& shopNode : in["mShopOverrides"]) {
+         using ShopMap = decltype(this->mShopOverrides);
+         using ShopKey = ShopMap::key_type;
+-        using ShopItemId = ShopMap::mapped_type;
+         const ShopKey key = shopNode.first.as<ShopKey>();
+-        const ShopItemId itemId = shopNode.second.as<ShopItemId>();
++        const int itemId = shopNode.second.as<int>();
++        if (!randomizer::is_runtime_item_id(itemId)) {
++            throw std::runtime_error("Seed data contains an invalid shop reward item");
++        }
+         this->mShopOverrides[key] = itemId;
+     }
+ 
+@@ -1398,6 +1413,9 @@
+     // Helper function for getting the item data out of a YAML node
+     auto retrieveItemData = [](auto& itemData, const YAML::Node& node) {
+         itemData.itemId = node["itemId"].as<int>();
++        if (!randomizer::is_runtime_item_id(itemData.itemId)) {
++            throw std::runtime_error("Seed data contains an invalid named reward item");
++        }
+         itemData.stage = node["stage"].as<int>();
+         itemData.flag = node["flag"].as<u16>();
+     };
+@@ -1429,7 +1447,7 @@
+             const auto contents = node["contents"]
+                                       ? node["contents"].as<int>()
+                                       : static_cast<int>(CheckContents::Junk);
+-            if (itemId < 0 || itemId > 0xFE) {
++            if (!randomizer::is_runtime_item_id(itemId)) {
+                 throw std::runtime_error("Seed data contains an invalid breakable item");
+             }
+             constexpr int stageCount = sizeof(allStages) / sizeof(allStages[0]);
+@@ -1451,7 +1469,7 @@
+                 key, breakableLocationData{
+                          .index = node["index"].as<u32>(),
+                          .locationId = locationId,
+-                         .itemId = static_cast<u8>(itemId),
++                         .itemId = static_cast<u16>(itemId),
+                          .stage = static_cast<u8>(stage),
+                          .room = static_cast<s8>(room),
+                          .kind = static_cast<u8>(kind),
+@@ -1467,7 +1485,7 @@
+         if (!shops.IsSequence()) {
+             throw std::runtime_error("Seed data expanded shop overrides are malformed");
+         }
+-        std::unordered_map<u32, u8> itemByIndex;
++        std::unordered_map<u32, u16> itemByIndex;
+         for (const auto& node : shops) {
+             const auto keyText = node["key"].as<std::string>();
+             size_t parsedLength = 0;
+@@ -1488,7 +1506,8 @@
+                                       ? node["contents"].as<int>()
+                                       : static_cast<int>(CheckContents::Junk);
+             constexpr int stageCount = sizeof(allStages) / sizeof(allStages[0]);
+-            if (itemId < 0 || itemId > 0xFE || stage < 0 || stage >= stageCount ||
++            if (!randomizer::is_runtime_item_id(itemId) ||
++                stage < 0 || stage >= stageCount ||
+                 room < -1 || room > 0x7F || originalItem < 0 || originalItem > 0xFE ||
+                 flowNode < 0 || flowNode > 0xFFFE) {
+                 throw std::runtime_error("Seed data contains invalid expanded shop data");
+@@ -1501,12 +1520,12 @@
+             if (knownItem != itemByIndex.end() && knownItem->second != itemId) {
+                 throw std::runtime_error("Expanded shop aliases disagree about their shuffled item");
+             }
+-            itemByIndex[index] = static_cast<u8>(itemId);
++            itemByIndex[index] = static_cast<u16>(itemId);
+             const bool inserted = this->mExpandedShopOverrides.emplace(
+                 key, expandedShopLocationData{
+                          .index = index,
+                          .locationId = locationId,
+-                         .itemId = static_cast<u8>(itemId),
++                         .itemId = static_cast<u16>(itemId),
+                          .stage = static_cast<u8>(stage),
+                          .room = static_cast<s8>(room),
+                          .originalItem = static_cast<u8>(originalItem),
+@@ -3338,7 +3357,7 @@
+             const auto kind = ReadRuntimeMetadataInteger(breakableNode, "Kind", context);
+             const auto* item = location->GetCurrentItem();
+             const auto itemId = item == nullptr ? -1 : item->GetID();
+-            if (itemId < 0 || itemId > 0xFE) {
++            if (!randomizer::is_runtime_item_id(itemId)) {
+                 throw std::runtime_error(
+                     "Pot or pumpkin location has an unencodable shuffled item: " +
+                     location->GetName() + " -> " +
+@@ -3357,7 +3376,7 @@
+                 key, RandomizerContext::breakableLocationData{
+                          .index = static_cast<u32>(index),
+                          .locationId = checkData.locationId,
+-                         .itemId = static_cast<u8>(itemId),
++                         .itemId = static_cast<u16>(itemId),
+                          .stage = static_cast<u8>(stage),
+                          .room = static_cast<s8>(room),
+                          .kind = static_cast<u8>(kind),
+@@ -3374,7 +3393,7 @@
+                 "Expanded shop location '{}'", location->GetName());
+             const auto* item = location->GetCurrentItem();
+             const auto itemId = item == nullptr ? -1 : item->GetID();
+-            if (itemId < 0 || itemId > 0xFE) {
++            if (!randomizer::is_runtime_item_id(itemId)) {
+                 throw std::runtime_error(
+                     "Expanded shop location has an unencodable shuffled item: " +
+                     location->GetName() + " -> " +
+@@ -3419,7 +3438,7 @@
+                     key, RandomizerContext::expandedShopLocationData{
+                              .index = static_cast<u32>(index),
+                              .locationId = checkData.locationId,
+-                             .itemId = static_cast<u8>(itemId),
++                             .itemId = static_cast<u16>(itemId),
+                              .stage = static_cast<u8>(stage),
+                              .room = static_cast<s8>(room),
+                              .originalItem = static_cast<u8>(originalItem),
+@@ -3498,7 +3517,7 @@
+             for (const auto& poeNode : metaData["Poe"]) {
+                 const auto& stage = poeNode["Stage"].as<u8>();
+                 const auto& flag = poeNode["Flag"].as<u8>();
+-                u8 itemId = location->GetCurrentItem()->GetID();
++                u16 itemId = static_cast<u16>(location->GetCurrentItem()->GetID());
+                 u16 key = (stage << 8) | flag;
+                 randoData.mPoeOverrides[key] = itemId;
+             }
+@@ -3536,7 +3555,7 @@
+         if (location->HasCategories("Bug Reward")) {
+             for (const auto& bugRewardNode : metaData["Bug Reward"]) {
+                 u8 bugItemId = bugRewardNode["Item Id"].as<u8>();
+-                u8 itemId = location->GetCurrentItem()->GetID();
++                u16 itemId = static_cast<u16>(location->GetCurrentItem()->GetID());
+                 randoData.mBugRewardOverrides[bugItemId] = itemId;
+             }
+         }
+@@ -3547,7 +3566,7 @@
+             for (const auto& skyCharacterNode : metaData["Sky Character"]) {
+                 u8 stageIdx = skyCharacterNode["Stage"].as<u8>();
+                 u8 roomNo = skyCharacterNode["Room"].as<u8>();
+-                u8 itemId = location->GetCurrentItem()->GetID();
++                u16 itemId = static_cast<u16>(location->GetCurrentItem()->GetID());
+                 u16 key = (stageIdx << 8) | roomNo;
+                 randoData.mSkyCharacterOverrides[key] = itemId;
+             }
+@@ -3558,7 +3577,7 @@
+         if (location->HasCategories("Golden Wolf")) {
+             for (const auto& goldenWolfNode : metaData["Golden Wolf"]) {
+                 u16 flag = goldenWolfNode["Flag"].as<u16>();
+-                u8 itemId = location->GetCurrentItem()->GetID();
++                u16 itemId = static_cast<u16>(location->GetCurrentItem()->GetID());
+                 randoData.mGoldenWolfOverrides[flag] = itemId;
+             }
+         }
+diff --git "a/src/randomizer_context.hpp" "b/src/randomizer_context.hpp"
+--- "a/src/randomizer_context.hpp"
++++ "b/src/randomizer_context.hpp"
+@@ -70,7 +70,7 @@
+     struct breakableLocationData {
+         u32 index{0};
+         u32 locationId{0xFFFFFFFF};
+-        u8 itemId{0xFF};
++        u16 itemId{0xFF};
+         u8 stage{0xFF};
+         s8 room{-1};
+         u8 kind{0};
+@@ -83,7 +83,7 @@
+     struct expandedShopLocationData {
+         u32 index{0};
+         u32 locationId{0xFFFFFFFF};
+-        u8 itemId{0xFF};
++        u16 itemId{0xFF};
+         u8 stage{0xFF};
+         s8 room{-1};
+         u8 originalItem{0xFF};
+@@ -99,13 +99,13 @@
+ 
+     std::unordered_map<u16, u8> mTreasureChestOverrides{};
+     std::unordered_map<u16, u16> mTreasureChestEnemySoulOverrides{};
+-    std::unordered_map<u16, u8> mPoeOverrides{};
++    std::unordered_map<u16, u16> mPoeOverrides{};
+     std::unordered_map<u16, u8> mFreestandingItemOverrides{};
+     std::unordered_map<u16, u16> mFreestandingEnemySoulOverrides{};
+-    std::unordered_map<u8, u8> mBugRewardOverrides{};
+-    std::unordered_map<u16, u8> mSkyCharacterOverrides{};
+-    std::unordered_map<u16, u8> mGoldenWolfOverrides{};
+-    std::unordered_map<u32, u8> mShopOverrides{};
++    std::unordered_map<u8, u16> mBugRewardOverrides{};
++    std::unordered_map<u16, u16> mSkyCharacterOverrides{};
++    std::unordered_map<u16, u16> mGoldenWolfOverrides{};
++    std::unordered_map<u32, u16> mShopOverrides{};
+     std::unordered_map<u16, checkRuntimeData> mTreasureChestCheckData{};
+     std::unordered_map<u16, checkRuntimeData> mFreestandingCheckData{};
+     std::unordered_map<u32, checkRuntimeData> mShopCheckData{};
+diff --git "a/src/runtime_item_ids.hpp" "b/src/runtime_item_ids.hpp"
+new file mode 100644
+--- /dev/null
++++ "b/src/runtime_item_ids.hpp"
+@@ -0,0 +1,13 @@
++#pragma once
++
++#include "enemy_soul_catalog.hpp"
++
++namespace randomizer {
++// Physical byte items and the exact supported logical Soul range are encodable.
++// Validate before narrowing: a malformed large integer must not wrap into a Soul.
++constexpr bool is_runtime_item_id(const int itemId) noexcept {
++    return (itemId >= 0 && itemId <= 0xFE) ||
++        (itemId >= enemy_souls::kFirstEnemySoulId &&
++         itemId <= enemy_souls::kLastEnemySoulId);
++}
++} // namespace randomizer
+diff --git "a/src/session.cpp" "b/src/session.cpp"
+--- "a/src/session.cpp"
++++ "b/src/session.cpp"
+@@ -70,10 +70,13 @@
+ std::int32_t s_current_save_slot = -1;
+ std::uint64_t s_save_state_revision = 1;
+ 
+-void noteSaveSlot(const std::uint32_t slot) {
++void noteSaveSlot(const std::uint32_t slot, const bool reload = false) {
+     std::scoped_lock lock(s_save_state_mutex);
+-    s_current_save_slot = static_cast<std::int32_t>(slot);
+-    ++s_save_state_revision;
++    const auto next = static_cast<std::int32_t>(slot);
++    if (reload || next != s_current_save_slot) {
++        ++s_save_state_revision;
++    }
++    s_current_save_slot = next;
+ }
+ 
+ void clearSaveSlot() {
+@@ -789,75 +792,67 @@
+     return static_cast<u16>(flag);
+ }
+ 
+-bool set_resolution(
+-    const ItemCheckInfo* info, ItemCheckResolution* outResult, uint8_t resolvedItem) {
+-    outResult->item = resolvedItem;
+-    if (resolvedItem == dItemNo_Randomizer_FOOLISH_ITEM_e) {
++template <typename Map, typename Key>
++std::optional<u16> logical_override(const Map& map, const Key key) {
++    const auto found = map.find(key);
++    return found == map.end() ? std::nullopt : std::optional<u16>(found->second);
++}
++
++std::optional<u16> logicalItemForCheck(const char* name) {
++    if (name == nullptr) return std::nullopt;
++    const auto& ctx = randomizer_GetContext();
++    if (const auto found = ctx.mItemLocations.find(name); found != ctx.mItemLocations.end()) {
++        return static_cast<u16>(found->second.itemId);
++    }
++    if (auto key = parse_derived(name, ITEM_CHECK_CHEST_PREFIX)) {
++        if (auto soul = logical_override(ctx.mTreasureChestEnemySoulOverrides, key->key)) return soul;
++        return logical_override(ctx.mTreasureChestOverrides, key->key);
++    }
++    if (auto key = parse_derived(name, ITEM_CHECK_FREESTANDING_PREFIX)) {
++        if (key->stage_id == Ook) {
++            const auto found = ctx.mItemLocations.find("Forest Temple Gale Boomerang");
++            return found == ctx.mItemLocations.end() ? std::nullopt : std::optional<u16>(found->second.itemId);
++        }
++        if (auto soul = logical_override(ctx.mFreestandingEnemySoulOverrides, key->key)) return soul;
++        return logical_override(ctx.mFreestandingItemOverrides, key->key);
++    }
++    if (auto flag = parse_flag_check(name, ITEM_CHECK_GOLDEN_WOLF_PREFIX))
++        return logical_override(ctx.mGoldenWolfOverrides, *flag);
++    if (auto key = parse_derived(name, ITEM_CHECK_POE_PREFIX))
++        return logical_override(ctx.mPoeOverrides, key->key);
++    if (auto stage = parse_stage_check(name, ITEM_CHECK_BOSS_PREFIX)) {
++        const u16 key = static_cast<u16>((*stage << 8) | 0x9F);
++        if (auto soul = logical_override(ctx.mFreestandingEnemySoulOverrides, key)) return soul;
++        return logical_override(ctx.mFreestandingItemOverrides, key);
++    }
++    if (auto key = parse_shop_check(name, ITEM_CHECK_SHOP_PREFIX))
++        return logical_override(ctx.mShopOverrides, *key);
++    if (auto key = parse_derived(name, ITEM_CHECK_SKY_PREFIX))
++        return logical_override(ctx.mSkyCharacterOverrides, key->key);
++    constexpr std::string_view bugPrefix{ITEM_CHECK_BUG_PREFIX};
++    if (std::strncmp(name, bugPrefix.data(), bugPrefix.size()) == 0)
++        return logical_override(ctx.mBugRewardOverrides, static_cast<u8>(std::atoi(name + bugPrefix.size())));
++    return std::nullopt;
++}
++
++bool resolve_check(ModContext*, const ItemCheckInfo* info, ItemCheckResolution* outResult, void*) {
++    const auto logical = logicalItemForCheck(info->name);
++    if (!logical) return false;
++    outResult->item = enemy_souls::physical_item(static_cast<u16>(verifyProgressiveItem(*logical)));
++    if (enemy_souls::is_enemy_soul(*logical) && info->giver_actor != nullptr) {
++        // Actor-local presentation metadata only: previews never grant inventory.
++        const auto* actor = static_cast<const fopAc_ac_c*>(info->giver_actor);
++        enemy_souls::associate_item(fopAcM_GetID(actor), *logical);
++    }
++    if (outResult->item == dItemNo_Randomizer_FOOLISH_ITEM_e)
+         outResult->display_item = randomizer_getRandomFoolishItemModelID(info->name);
+-    }
+     return true;
+ }
+ 
+-template <typename Map, typename Key>
+-bool lookup_override(
+-    const Map& map, Key key, const ItemCheckInfo* info, ItemCheckResolution* outResult) {
+-    const auto it = map.find(key);
+-    if (it == map.end()) {
+-        return false;
+-    }
+-    return set_resolution(info, outResult, static_cast<uint8_t>(verifyProgressiveItem(it->second)));
+-}
+-
+-bool resolve_check(ModContext*, const ItemCheckInfo* info, ItemCheckResolution* outResult, void*) {
+-    auto& ctx = randomizer_GetContext();
+-
+-    if (auto it = ctx.mItemLocations.find(info->name); it != ctx.mItemLocations.end()) {
+-        return set_resolution(
+-            info, outResult, static_cast<uint8_t>(verifyProgressiveItem(it->second.itemId)));
+-    }
+-
+-    if (auto key = parse_derived(info->name, ITEM_CHECK_CHEST_PREFIX)) {
+-        return lookup_override(ctx.mTreasureChestOverrides, key->key, info, outResult);
+-    }
+-    if (auto key = parse_derived(info->name, ITEM_CHECK_FREESTANDING_PREFIX)) {
+-        if (key->stage_id == Ook) {
+-            if (auto it = ctx.mItemLocations.find("Forest Temple Gale Boomerang");
+-                it != ctx.mItemLocations.end()) {
+-                return set_resolution(info, outResult,
+-                    static_cast<uint8_t>(verifyProgressiveItem(it->second.itemId)));
+-            }
+-            return false;
+-        }
+-        return lookup_override(ctx.mFreestandingItemOverrides, key->key, info, outResult);
+-    }
+-    if (auto flag = parse_flag_check(info->name, ITEM_CHECK_GOLDEN_WOLF_PREFIX)) {
+-        return lookup_override(ctx.mGoldenWolfOverrides, *flag, info, outResult);
+-    }
+-    if (auto key = parse_derived(info->name, ITEM_CHECK_POE_PREFIX)) {
+-        return lookup_override(ctx.mPoeOverrides, key->key, info, outResult);
+-    }
+-    if (auto stageId = parse_stage_check(info->name, ITEM_CHECK_BOSS_PREFIX)) {
+-        const u16 key = static_cast<u16>((*stageId << 8) | 0x9F);
+-        return lookup_override(ctx.mFreestandingItemOverrides, key, info, outResult);
+-    }
+-    if (auto key = parse_shop_check(info->name, ITEM_CHECK_SHOP_PREFIX)) {
+-        return lookup_override(ctx.mShopOverrides, *key, info, outResult);
+-    }
+-    if (auto key = parse_derived(info->name, ITEM_CHECK_SKY_PREFIX)) {
+-        return lookup_override(ctx.mSkyCharacterOverrides, key->key, info, outResult);
+-    }
+-
+-    constexpr std::string_view bugPrefix{ITEM_CHECK_BUG_PREFIX};
+-    if (std::strncmp(info->name, bugPrefix.data(), bugPrefix.size()) == 0) {
+-        const u8 insect = static_cast<u8>(std::atoi(info->name + bugPrefix.size()));
+-        if (auto it = ctx.mBugRewardOverrides.find(insect); it != ctx.mBugRewardOverrides.end()) {
+-            return set_resolution(
+-                info, outResult, static_cast<uint8_t>(verifyProgressiveItem(it->second)));
+-        }
+-        return false;
+-    }
+-
+-    return false;
++void completeLogicalCheck(const fopAc_ac_c* actor, const u8 physicalItem) {
++    if (actor != nullptr && actor->mItemGiveTag != 0) {
++        svc_mng.item->complete_check(svc_mng.mod_ctx, actor->mItemGiveTag, physicalItem, actor);
++    }
+ }
+ 
+ void observe_give(ModContext*, const ItemGiveInfo* info, void*) {
+@@ -1179,11 +1174,11 @@
+ }
+ 
+ void onObservedNewSave(ModContext*, const uint32_t slot, void*) {
+-    noteSaveSlot(slot);
++    noteSaveSlot(slot, true);
+ }
+ 
+ void onObservedSaveLoaded(ModContext*, const uint32_t slot, void*) {
+-    noteSaveSlot(slot);
++    noteSaveSlot(slot, true);
+ }
+ 
+ void onSaveWritten(ModContext*, const uint32_t slot, void*) {
+diff --git "a/src/session.hpp" "b/src/session.hpp"
+--- "a/src/session.hpp"
++++ "b/src/session.hpp"
+@@ -21,6 +21,8 @@
+ #include <string>
+ #include <string_view>
+ #include <vector>
++
++class fopAc_ac_c;
+ 
+ namespace randomizer::session {
+ struct ServiceManager {
+@@ -54,6 +56,9 @@
+ void deactivateSeed();
+ void setupRandomizerFile();
+ void registerStageEdits();
++std::optional<std::uint16_t> logicalItemForCheck(const char* name);
++void completeLogicalCheck(const fopAc_ac_c* actor, std::uint8_t physicalItem);
++
+ 
+ // Module-owned save helpers used by the randomizer's per-slot trackers. They
+ // sit on top of Dusklight 2's public SaveService instead of the old in-tree
+diff --git "a/src/shop_items.cpp" "b/src/shop_items.cpp"
+--- "a/src/shop_items.cpp"
++++ "b/src/shop_items.cpp"
+@@ -222,8 +222,7 @@
+     s_loadedSaveRevision = revision;
+     s_loadedSlot = slot;
+     s_loadedSeedFingerprint = fingerprint;
+-    s_tagKeys.clear();
+-    s_childKeys.clear();
++    // A save notification must not remove the live shelf-to-check binding.
+     if (slot < 0 || randomizer_GetContext().mHash.empty()) {
+         s_collectedIndices.clear();
+         return;
+@@ -687,19 +686,19 @@
+     }
+ }
+ 
+-uint8_t shuffled_item(const fopAc_ac_c* actor) noexcept {
++uint16_t shuffled_item(const fopAc_ac_c* actor) noexcept {
+     try {
+         std::scoped_lock lock(s_mutex);
+         ensure_collection_locked();
+         const auto key = key_for_actor_locked(actor);
+         const auto* data = key ? data_for_key(*key) : nullptr;
+-        return data == nullptr ? uint8_t{0xFF} : data->itemId;
++        return data == nullptr ? uint16_t{0xFF} : data->itemId;
+     } catch (...) {
+         return 0xFF;
+     }
+ }
+ 
+-uint8_t shuffled_item_for_child(const fopAc_ac_c* child) noexcept {
++uint16_t shuffled_item_for_child(const fopAc_ac_c* child) noexcept {
+     try {
+         if (child == nullptr) {
+             return 0xFF;
+@@ -708,7 +707,7 @@
+         ensure_collection_locked();
+         const auto found = s_childKeys.find(fopAcM_GetID(child));
+         const auto* data = found == s_childKeys.end() ? nullptr : data_for_key(found->second);
+-        return data == nullptr ? uint8_t{0xFF} : data->itemId;
++        return data == nullptr ? uint16_t{0xFF} : data->itemId;
+     } catch (...) {
+         return 0xFF;
+     }
+diff --git "a/src/shop_items.hpp" "b/src/shop_items.hpp"
+--- "a/src/shop_items.hpp"
++++ "b/src/shop_items.hpp"
+@@ -40,8 +40,8 @@
+ 
+ uint8_t original_item(const fopAc_ac_c* actor) noexcept;
+ int flow_node(const fopAc_ac_c* actor) noexcept;
+-uint8_t shuffled_item(const fopAc_ac_c* actor) noexcept;
+-uint8_t shuffled_item_for_child(const fopAc_ac_c* child) noexcept;
++uint16_t shuffled_item(const fopAc_ac_c* actor) noexcept;
++uint16_t shuffled_item_for_child(const fopAc_ac_c* child) noexcept;
+ void mark_seen_child(const fopAc_ac_c* child) noexcept;
+ bool category_color_for_child(const fopAc_ac_c* child, uint8_t& red,
+                               uint8_t& green, uint8_t& blue) noexcept;
+diff --git "a/src/tools.cpp" "b/src/tools.cpp"
+--- "a/src/tools.cpp"
++++ "b/src/tools.cpp"
+@@ -779,6 +779,8 @@
+         auto tboxId = chestNode[0]["Tbox Id"].as<u8>();
+         auto stage = chestNode[0]["Stage"].as<u8>();
+         auto key = (stage << 8) | tboxId;
++        if (const auto soul = context.mTreasureChestEnemySoulOverrides.find(key);
++            soul != context.mTreasureChestEnemySoulOverrides.end()) return soul->second;
+         return context.mTreasureChestOverrides[key];
+     }
+     if (auto& poeNode = locationMeta["Poe"]) {
+@@ -791,6 +793,8 @@
+         auto flag = freeStandingItemNode[0]["Flag"].as<u8>();
+         auto stage = freeStandingItemNode[0]["Stage"].as<u8>();
+         auto key = (stage << 8) | flag;
++        if (const auto soul = context.mFreestandingEnemySoulOverrides.find(key);
++            soul != context.mFreestandingEnemySoulOverrides.end()) return soul->second;
+         return context.mFreestandingItemOverrides[key];
+     }
+     if (auto& bugRewardNode = locationMeta["Bug Reward"]) {

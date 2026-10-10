@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 733
+name: Build Dusklight 2.0.1 Xbox 734
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-733-release-${{ github.ref }}
+  group: xbox-734-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 733 identity
+      - name: Apply reviewed source layers and advance 734 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6120,6 +6120,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.733 reset/transition hardening failed.' }
           python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.733 native lifecycle regression tests failed.' }
+
+          # .734 expands logical Soul award paths without replacing the green .733 layer.
+          python "$env:TPR_CONTROL\scripts\apply-734-souls-breakables.py"
+          if ($LASTEXITCODE -ne 0) { throw '.734 Soul/breakable source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-734-souls-breakables.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.734 native Soul/breakable regression tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.733 reset/transition preservation tests failed after .734.' }
           git -C "$env:TPR_SRC" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
 
@@ -6338,7 +6346,7 @@ jobs:
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" >> $env:GITHUB_ENV
-            Write-Host 'Generator-sensitive inputs changed; all 58 settings scenarios will run.'
+            Write-Host 'Generator-sensitive inputs changed; all 62 settings scenarios will run.'
             if ($generatorSensitive.Count -gt 0) {
               Write-Host ('Generator-sensitive control files: ' + ($generatorSensitive -join ', '))
             }
@@ -6483,17 +6491,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 733 package
+      - name: Verify and collect full 734 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-733"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-734"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.733_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.734_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6505,7 +6513,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.733"',
+            'Version="1.4.1.734"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6643,7 +6651,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-733.txt',
+            'xbox-startup-stage-734.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -6804,11 +6812,11 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-733.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-733.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-734.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-734.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.733'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.734'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -6862,19 +6870,22 @@ jobs:
             xboxTransitionRecovery = '.733 requires stable room/layer/scene identity and refuses cancellation during scene/create/delete/event/reset work'
             xboxTransitionTrace = '.733 traces scene requests and renews the crash journal throughout pending transactions'
             nativeLifecycleTests = 'PASS: compiled production reset/recovery/audio functions against busy-save, queued-scene, duplicate and recursive reset states'
-            generatorScenarios = 58
+            soulPlacement = '.734 allows Enemy/Boss Souls at every enabled randomized item check under existing logic; extended IDs retained through serialization, grants, text and tracker'
+            breakableSaveIdentity = '.734 preserves live pot/pumpkin, drop and shelf bindings across save callbacks; native scene/actor cleanup owns retirement'
+            nativeSoulBreakableTests = 'PASS: compiled production award/resolver/sidecar functions; late callbacks, all 85 Soul IDs, native FIFO completion, Poe isolation and dedicated pickup text'
+            generatorScenarios = 62
             generatorScenarioAttempts = 50
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-733.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-734.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.733-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.734-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -6883,7 +6894,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.733-Xbox
-          path: TPR-Xbox-Package-733/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.734-Xbox
+          path: TPR-Xbox-Package-734/*
           if-no-files-found: error
           retention-days: 30

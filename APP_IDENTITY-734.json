@@ -1,0 +1,43 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.734",
+  "architecture": "x64",
+  "base": "1.4.1.733 green commit d24abf80168c1bd5d5c9c64b2977f04fd5e3fb51",
+  "fixes": [
+    "Enemy Souls eligible for all enabled randomized item checks under existing reachability rules",
+    "Wide logical reward IDs in NPC, bug, Poe, Sky Character, skill, shop and breakable metadata",
+    "Native queued and silent check completion after logical Soul awards without normal Poe grants",
+    "Live pot/pumpkin marker, spawned reward and shelf identities survive late save callbacks",
+    "First-defeat source identity survives repeated item resolution",
+    "Compiled production-function tests and 62 generator scenarios with up to 50 distinct attempts",
+    "All eight Boss Soul pickup permissions and dedicated text verified in the native regression harness"
+  ],
+  "preserved": [
+    "Ordon shop pending-text FIFO",
+    "Normal Poe Soul and distinct Poe Enemy Soul identity",
+    "Randomizer and 50-attempt runtime seed generation",
+    "62 generator scenarios with up to 50 distinct attempts",
+    "Enemy Souls, Boss Souls and first-defeat checks",
+    "Pots and pumpkins",
+    "Transparent tracker and controller input/cursor",
+    "Cosmetics and XAudio2 playback",
+    "Checksummed Xbox saves and sidecars",
+    "Scene/create/transition and next-launch crash diagnostics",
+    "Online Mods LocalState CRT-backed downloader",
+    "Green .733 deferred reset lifecycle, nonblocking reset sound/DSP progress and scene transaction guards"
+  ],
+  "startupJournal": "xbox-startup-stage-734.txt",
+  "randomizerDirectSave": "randomizer-xbox.sav",
+  "randomizerModSidecarDirectory": "randomizer-xbox-mods",
+  "userModsDirectory": "LocalState/mods",
+  "downloadStagingDirectory": "LocalState/mods/.downloads",
+  "hardwareValidation": "pending Xbox testing",
+  "previousStartupJournals": [
+    "xbox-startup-stage-733.txt",
+    "xbox-startup-stage-732.txt"
+  ],
+  "sourcePatches": {
+    "souls-all-checks-734-host.patch": "129d79a517898b93cba35f1ac46cb1366c7b835f51001c51b26a60d8bf244c7d",
+    "souls-all-checks-734-randomizer.patch": "2e1b89ab6a370bdfab0309894dad734c8d0e3ff00761976634597ce3a7715362"
+  }
+}

@@ -1,0 +1,82 @@
+diff --git "a/sdk/include/mods/svc/item.h" "b/sdk/include/mods/svc/item.h"
+--- "a/sdk/include/mods/svc/item.h"
++++ "b/sdk/include/mods/svc/item.h"
+@@ -8,7 +8,7 @@
+ 
+ #define ITEM_SERVICE_ID DUSKLIGHT_SERVICE_ID_PREFIX "item"
+ #define ITEM_SERVICE_MAJOR 2u
+-#define ITEM_SERVICE_MINOR 3u
++#define ITEM_SERVICE_MINOR 4u
+ 
+ /* 0 is never a valid handle. */
+ typedef uint64_t ItemCheckHandle;
+@@ -106,6 +106,11 @@
+      * observers. */
+     ModResult (*resolve_check_full)(ModContext* ctx, const char* name, uint8_t vanilla_item,
+         ItemCheckResolution* out_resolution);
++    /* Minor version 4: logical-item sidecars can retain native check identity. */
++    const char* (*check_name)(ModContext* ctx, uint32_t give_tag);
++    /* Notify completion after a mod has awarded an extended item itself. */
++    ModResult (*complete_check)(ModContext* ctx, uint32_t give_tag,
++        uint8_t physical_item, const void* giver_actor);
+ } ItemService;
+ 
+ MOD_DECLARE_SERVICE(ItemService, svc_item, ITEM_SERVICE_ID, ITEM_SERVICE_MAJOR, ITEM_SERVICE_MINOR);
+diff --git "a/src/dusk/mods/item.hpp" "b/src/dusk/mods/item.hpp"
+--- "a/src/dusk/mods/item.hpp"
++++ "b/src/dusk/mods/item.hpp"
+@@ -35,6 +35,7 @@
+ uint8_t item_check_golden_wolf(uint16_t eventFlag, uint8_t itemNo, fopAc_ac_c* item);
+ uint8_t item_check_shop(uint8_t itemNo, fopAc_ac_c* giver);
+ 
++const char* item_check_name(uint32_t tag);
+ uint32_t item_give_tag(const char* name);
+ uint32_t item_give_tag_chest(uint8_t boxNo);
+ uint32_t item_give_tag_boss();
+diff --git "a/src/dusk/mods/item_gives.cpp" "b/src/dusk/mods/item_gives.cpp"
+--- "a/src/dusk/mods/item_gives.cpp"
++++ "b/src/dusk/mods/item_gives.cpp"
+@@ -227,6 +227,10 @@
+ 
+ }  // namespace
+ 
++const char* item_check_name(uint32_t tag) {
++    return item_give_name(tag);
++}
++
+ uint32_t item_give_tag(const char* name) {
+     if (name == nullptr || *name == '\0') {
+         return 0;
+diff --git "a/src/dusk/mods/svc/item.cpp" "b/src/dusk/mods/svc/item.cpp"
+--- "a/src/dusk/mods/svc/item.cpp"
++++ "b/src/dusk/mods/svc/item.cpp"
+@@ -127,6 +127,20 @@
+     return item_give_remove_observer(*mod, handle);
+ }
+ 
++const char* item_check_name_for_mod(ModContext* context, uint32_t tag) {
++    return mod_from_context(context) != nullptr ? item_check_name(tag) : nullptr;
++}
++
++ModResult item_complete_check_for_mod(ModContext* context, uint32_t tag,
++    uint8_t physicalItem, const void* giver) {
++    if (mod_from_context(context) == nullptr || item_check_name(tag) == nullptr) {
++        return MOD_INVALID_ARGUMENT;
++    }
++    item_granted(physicalItem, tag,
++        const_cast<fopAc_ac_c*>(static_cast<const fopAc_ac_c*>(giver)));
++    return MOD_OK;
++}
++
+ constexpr ItemService s_itemService{
+     .header = SERVICE_HEADER(ItemService, ITEM_SERVICE_MAJOR, ITEM_SERVICE_MINOR),
+     .set_check_override = item_set_check_override,
+@@ -138,6 +152,8 @@
+     .observe_gives = item_observe_gives,
+     .unobserve_gives = item_unobserve_gives,
+     .resolve_check_full = item_resolve_check_full,
++    .check_name = item_check_name_for_mod,
++    .complete_check = item_complete_check_for_mod,
+ };
+ 
+ }  // namespace
