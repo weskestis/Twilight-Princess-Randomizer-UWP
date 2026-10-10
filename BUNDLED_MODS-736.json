@@ -1,0 +1,1319 @@
+{
+  "catalogSnapshot": "2026-10-10T05:33:42Z",
+  "inventoryRun": 38027881830,
+  "inventoryArtifact": 11660946492,
+  "inventoryZipSha256": "beb07ea82a98f2c56c7fb69082602a78ba972c212ec5f6b8e44e0a80e487c5a6",
+  "totalDownloaded": 62,
+  "bundledCatalogMods": 22,
+  "optionalByDefault": true,
+  "controllerSource": {
+    "repository": "XandasL/TP-CM-Controller-UI",
+    "commit": "1be064813e40962ad443b96a2aee7ed494a94222",
+    "path": "src/mod.cpp",
+    "sha256": "11cab25b1794e3d0007ecd9291bb0f7ec27d5dc73bb9e31d58c28ace926adf4b"
+  },
+  "mods": [
+    {
+      "id": "com.dusklight.twilit_essentials",
+      "name": "Twilit Essentials",
+      "version": "2.7.1",
+      "author": {
+        "name": "Fimmel",
+        "handle": "fimmel",
+        "official": false
+      },
+      "source_url": "https://github.com/F1mmel/dusklight-twilit-essentials",
+      "site_url": "https://twilitrealm.dev/mods/com.dusklight.twilit_essentials/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.dusklight.twilit_essentials/2.7.1",
+        "sha256": "6d74f1b1b09ac36b547975d23f50d148b14fbad69ec35aec7e5c04512425a8f4",
+        "size": 16278273
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.bezide.dawnlight",
+      "name": "Dawnlight",
+      "version": "4.0.3",
+      "author": {
+        "name": "BeZide",
+        "handle": "bezide",
+        "official": false
+      },
+      "source_url": "https://github.com/BeZide93/dawnlight",
+      "site_url": "https://twilitrealm.dev/mods/dev.bezide.dawnlight/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.bezide.dawnlight/4.0.3",
+        "sha256": "5d924cdf14c60d7c2a272b738185f2c9712be74f8afb9eed6636e001c74b6903",
+        "size": 11453666
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.melonspeedruns.rollandsprint",
+      "name": "Roll and Sprint",
+      "version": "1.1.0",
+      "author": {
+        "name": "MelonSpeedruns",
+        "handle": "melonspeedruns",
+        "official": false
+      },
+      "source_url": "https://github.com/MelonSpeedruns/Roll-and-Sprint",
+      "site_url": "https://twilitrealm.dev/mods/com.melonspeedruns.rollandsprint/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.melonspeedruns.rollandsprint/1.1.0",
+        "sha256": "674b64d2db86cbf896c746c0d50e81063354b8f2ba6052be4908d6ee76e29115",
+        "size": 1967904
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.twilitrealm.randomizer",
+      "name": "Dusklight Randomizer",
+      "version": "1.0.5",
+      "author": {
+        "name": "Twilit Realm",
+        "handle": "twilit-realm",
+        "official": true
+      },
+      "source_url": "https://github.com/TwilitRealm/dusklight-randomizer",
+      "site_url": "https://twilitrealm.dev/mods/dev.twilitrealm.randomizer/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.twilitrealm.randomizer/1.0.5",
+        "sha256": "768acef5d589ae3a9bbe4399bee4032554149063117519d4790d252ddeaac42a",
+        "size": 13490663
+      },
+      "bundle": false,
+      "status": "preserve-custom-built-in"
+    },
+    {
+      "id": "com.ditrey.linkle",
+      "name": "Linkle Mod",
+      "version": "1.1.1",
+      "author": {
+        "name": "Ditrey",
+        "handle": "ditrey",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.ditrey.linkle/",
+      "license": null,
+      "classification": "script-runtime-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.ditrey.linkle/1.1.1",
+        "sha256": "dabb4da9607d33be0f58364fe9904517b6fb45187628b7942cd4e648603ec9e5",
+        "size": 50589884
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "dev.remiafterdark.coop_mod",
+      "name": "Crests of Courage",
+      "version": "1.10.0",
+      "author": {
+        "name": "R3mii",
+        "handle": "remi",
+        "official": false
+      },
+      "source_url": "https://github.com/remiafterdark/crests-of-courage",
+      "site_url": "https://twilitrealm.dev/mods/dev.remiafterdark.coop_mod/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.remiafterdark.coop_mod/1.10.0",
+        "sha256": "6967db851bd9575eb8ec3bd2439b5d908fc26353343da03eb5346d637c62591a",
+        "size": 26218999
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "org.dusklight.tp_classic_buttons",
+      "name": "TP Classic Modern Controller UI",
+      "version": "1.3.2",
+      "author": {
+        "name": "XandasLegend",
+        "handle": "xandasl",
+        "official": false
+      },
+      "source_url": "https://github.com/XandasL/TP-CM-Controller-UI",
+      "site_url": "https://twilitrealm.dev/mods/org.dusklight.tp_classic_buttons/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/org.dusklight.tp_classic_buttons/1.3.2",
+        "sha256": "8ea688629783abacf52e3fc6cc956bc0dbd5259597fefed4fa51ce810a04452e",
+        "size": 3278148
+      },
+      "bundle": true,
+      "status": "signed-port"
+    },
+    {
+      "id": "dev.automata.deferred_fog",
+      "name": "Deferred Fog",
+      "version": "2.0.0",
+      "author": {
+        "name": "automata.",
+        "handle": "automata",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/dev.automata.deferred_fog/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.automata.deferred_fog/2.0.0",
+        "sha256": "da70c3c2bf37bcc721423d5de3c0dbb740e6877820481358b9959119579a4e8b",
+        "size": 945043
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.mikey022.tp_randomizer_tracker",
+      "name": "TPTracker",
+      "version": "0.4.42",
+      "author": {
+        "name": "mikey022",
+        "handle": "mikey022",
+        "official": false
+      },
+      "source_url": "https://github.com/mtrevor2/TP_Tracker",
+      "site_url": "https://twilitrealm.dev/mods/com.mikey022.tp_randomizer_tracker/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.mikey022.tp_randomizer_tracker/0.4.42",
+        "sha256": "087c02602b37da0fd272674e7a447dc8c933decafedc7c294f2d44127a28880b",
+        "size": 4253489
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.blueflaregames.zora_swim",
+      "name": "Zora Swim",
+      "version": "1.2.1",
+      "author": {
+        "name": "Matt (BlueFlareGames)",
+        "handle": "matt",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.blueflaregames.zora_swim/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.blueflaregames.zora_swim/1.2.1",
+        "sha256": "dc3ced805a85a9d657937e2a802c944138cbb98e5cca883d09161bc0db455140",
+        "size": 2206614
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.automata.vbao",
+      "name": "VBAO",
+      "version": "1.1.0",
+      "author": {
+        "name": "automata.",
+        "handle": "automata",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/dev.automata.vbao/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.automata.vbao/1.1.0",
+        "sha256": "cab78472368a0142f1756431807002dd454127dd03094ece9a393fc4caeb5de7",
+        "size": 681850
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.owlero.link_green_tunic",
+      "name": "Enhanced Hero's Tunic",
+      "version": "1.0.7",
+      "author": {
+        "name": "Owlero",
+        "handle": "owlero",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.owlero.link_green_tunic/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.owlero.link_green_tunic/1.0.7",
+        "sha256": "e717369934b56366272c8c99c23bdb7b12d61c907652dab0679be8da273a186b",
+        "size": 52224638
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "dev.albt.albw",
+      "name": "A Link Between Twilight",
+      "version": "0.3.0",
+      "author": {
+        "name": "WadeWinningWilson",
+        "handle": "wadewinningwilson",
+        "official": false
+      },
+      "source_url": "https://github.com/WadeWinningWilson/A-Link-Between-Twilight",
+      "site_url": "https://twilitrealm.dev/mods/dev.albt.albw/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.albt.albw/0.3.0",
+        "sha256": "91cffa72a066569e481a284a549c90700adfd9d1dc8c52ca936188261aba8d98",
+        "size": 5450009
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.baxlek.unrestricted_items",
+      "name": "Unrestricted Items",
+      "version": "1.1.2",
+      "author": {
+        "name": "baxlek",
+        "handle": "baxlek",
+        "official": false
+      },
+      "source_url": "https://github.com/baxlek/Unrestricted-Items",
+      "site_url": "https://twilitrealm.dev/mods/dev.baxlek.unrestricted_items/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.baxlek.unrestricted_items/1.1.2",
+        "sha256": "21fa6d17ffa51a9539a8eb73ab0476ebf22ae36b497f3a42e136f4caa7c24ebf",
+        "size": 2515147
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.agustinfuac.fairy_companion",
+      "name": "Fairy Companion",
+      "version": "1.2.0",
+      "author": {
+        "name": "Agustin F",
+        "handle": "agustin-f",
+        "official": false
+      },
+      "source_url": "https://github.com/AgustinFuac/fairy-companion",
+      "site_url": "https://twilitrealm.dev/mods/com.agustinfuac.fairy_companion/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.agustinfuac.fairy_companion/1.2.0",
+        "sha256": "308e8a6f343994fd3ef2b08d5444d4637f9a42d980a46612691912ffd7c6feb7",
+        "size": 2425103
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "hopex.dark_link",
+      "name": "Dark Link",
+      "version": "1.1.3",
+      "author": {
+        "name": "nozzly",
+        "handle": "nozzly",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/hopex.dark_link/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/hopex.dark_link/1.1.3",
+        "sha256": "be24e28468a2eccc737baf593c3f7fb6979f646baa334602f176c6d807a784a0",
+        "size": 3761247
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.dusklight.twilight_compass",
+      "name": "Twilight Compass",
+      "version": "1.0.2",
+      "author": {
+        "name": "CGWolf",
+        "handle": "cgwolf",
+        "official": false
+      },
+      "source_url": "https://github.com/CGWolf95/twilight-compass",
+      "site_url": "https://twilitrealm.dev/mods/com.dusklight.twilight_compass/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.dusklight.twilight_compass/1.0.2",
+        "sha256": "8f020cf06b6ca52c25c03af3422fee4f0949f436bc53a6ca9947820d71d8eb2e",
+        "size": 2551721
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.peter.link_ragdoll",
+      "name": "Ragdoll Mod",
+      "version": "0.3.25",
+      "author": {
+        "name": "Pete",
+        "handle": "pete",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.peter.link_ragdoll/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.peter.link_ragdoll/0.3.25",
+        "sha256": "58e1a65246db041310e5397703033ca7dae0034761913002a039790b9de877de",
+        "size": 13593573
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.olivia.extrabuttons",
+      "name": "Extra Buttons",
+      "version": "1.0.2",
+      "author": {
+        "name": "Olivia!!",
+        "handle": "olivia",
+        "official": false
+      },
+      "source_url": "https://github.com/Abzol/extra-item-sets",
+      "site_url": "https://twilitrealm.dev/mods/com.olivia.extrabuttons/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.olivia.extrabuttons/1.0.2",
+        "sha256": "f5ed010d61f72a251f6c7d280544cc6dcbdaa3a07c6bf76c1afec093eebc73be",
+        "size": 57001
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.loadingerror.dink",
+      "name": "Play as Dark Link",
+      "version": "1.0.0",
+      "author": {
+        "name": "LoadingError",
+        "handle": "loadingerror",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.loadingerror.dink/",
+      "license": null,
+      "classification": "script-runtime-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.loadingerror.dink/1.0.0",
+        "sha256": "ea6817e57facc84230c4e1fa970effb0df58ecb5e296ac4f27124331c18c4bf9",
+        "size": 8293385
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.ordonhero.zeldartist",
+      "name": "Ordonian Hero",
+      "version": "1.0.0",
+      "author": {
+        "name": "skilarmbabcock",
+        "handle": "skilarmbabcock",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.ordonhero.zeldartist/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.ordonhero.zeldartist/1.0.0",
+        "sha256": "832fdac4996599f1b9b6c15eba3e6defdf740811f30d450dbc2e6ef281c4da33",
+        "size": 6605783
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "dev.baxlek.time_sync_neo",
+      "name": "Time Sync Neo",
+      "version": "1.3.1",
+      "author": {
+        "name": "baxlek",
+        "handle": "baxlek",
+        "official": false
+      },
+      "source_url": "https://github.com/baxlek/Time-Sync-Neo",
+      "site_url": "https://twilitrealm.dev/mods/dev.baxlek.time_sync_neo/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.baxlek.time_sync_neo/1.3.1",
+        "sha256": "119d5bdd6c60b67ac3df0a74bd93cb7abbafff009eab68976bfd1c07a3afcfbb",
+        "size": 2724728
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "io.github.aldeus_vip.dusklight_item_tracker",
+      "name": "Dusklight Item Tracker",
+      "version": "1.1.0",
+      "author": {
+        "name": "Aldeus-Vip",
+        "handle": "aldeus-vip",
+        "official": false
+      },
+      "source_url": "https://github.com/Aldeus-Vip/Item_Tracker_Mod_for_Dusklight_Randomizer",
+      "site_url": "https://twilitrealm.dev/mods/io.github.aldeus_vip.dusklight_item_tracker/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/io.github.aldeus_vip.dusklight_item_tracker/1.1.0",
+        "sha256": "6ce47f86c9df7e7f5e549038627d5c98ee6bdf87f35a6506b0b3b9f325e37044",
+        "size": 2650786
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "io.github.mdra5000.dusklight_online",
+      "name": "MFB Multiplayer",
+      "version": "0.2.0",
+      "author": {
+        "name": "mdra5000",
+        "handle": "matthewdavidrichardanderson",
+        "official": false
+      },
+      "source_url": "https://github.com/matthewdavidrichardanderson/dusklight-online-mod",
+      "site_url": "https://twilitrealm.dev/mods/io.github.mdra5000.dusklight_online/",
+      "license": "CC0-1.0",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/io.github.mdra5000.dusklight_online/0.2.0",
+        "sha256": "0e8ba76467f70fedee7c03c90967f758b9aa5652219240fe6ca24ddcf8608d0b",
+        "size": 19248857
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "xandaslegend.twilight_princess_ptbr",
+      "name": "The Legend of Zelda: Twilight Princess - PT-BR",
+      "version": "1.15.0",
+      "author": {
+        "name": "XandasLegend",
+        "handle": "xandasl",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/xandaslegend.twilight_princess_ptbr/",
+      "license": null,
+      "classification": "script-runtime-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/xandaslegend.twilight_princess_ptbr/1.15.0",
+        "sha256": "e363d4efb1ad04c9b3a6c9c34be852da91b43a3f192eebe7e8a5393dccbd9f90",
+        "size": 6308195
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.kamilink.lazytweaks",
+      "name": "Lazy Shield Rework",
+      "version": "1.0.0",
+      "author": {
+        "name": "kamilink7",
+        "handle": "kamilink7",
+        "official": false
+      },
+      "source_url": "https://github.com/kamilink7/lazytweaks-modapi",
+      "site_url": "https://twilitrealm.dev/mods/com.kamilink.lazytweaks/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.kamilink.lazytweaks/1.0.0",
+        "sha256": "f7aecc3006ca634530ae909f1927a41c367147534c1b8bddfed400a18766ec81",
+        "size": 3610642
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.cgwolf.dialogue_options",
+      "name": "Dialogue Options",
+      "version": "1.0.1",
+      "author": {
+        "name": "CGWolf",
+        "handle": "cgwolf",
+        "official": false
+      },
+      "source_url": "https://github.com/CGWolf95/dialogue-options",
+      "site_url": "https://twilitrealm.dev/mods/com.cgwolf.dialogue_options/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.cgwolf.dialogue_options/1.0.1",
+        "sha256": "ad096fd9c437a00485d0709a5d6bc4d70086456da0b60a31a0378fa205c72986",
+        "size": 1063130
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.blueflaregames.cutscene_player",
+      "name": "Cutscene Player",
+      "version": "1.0.1",
+      "author": {
+        "name": "Matt (BlueFlareGames)",
+        "handle": "matt",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.blueflaregames.cutscene_theater/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.blueflaregames.cutscene_player/1.0.1",
+        "sha256": "be9057d29957f20b4e638b885ed9492369d525388d45fd42c2b85b394aeda472",
+        "size": 2195662
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.bytheeightdivines.redshield",
+      "name": "Red Shield",
+      "version": "1.0.0",
+      "author": {
+        "name": "ByTheEightDivines",
+        "handle": "bytheeightdivines",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/local.brian.twilight_princess.red_shield/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.bytheeightdivines.redshield/1.0.0",
+        "sha256": "04dea5067daae852c4b11c2327851191732a5fcc3080feb12a1862e7e1b325c9",
+        "size": 1381040
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.bytheeightdivines.hylianshield",
+      "name": "Hylian Shield",
+      "version": "1.0.0",
+      "author": {
+        "name": "ByTheEightDivines",
+        "handle": "bytheeightdivines",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/local.brian.twilight_princess.hylian_shield/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.bytheeightdivines.hylianshield/1.0.0",
+        "sha256": "9edb84c12fcb77662cdc4c3bdc506b9bc9389d8d3f8bed81205a61ecbeff7cbf",
+        "size": 499508
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.melonspeedruns.manualjumps",
+      "name": "Manual Jumps",
+      "version": "1.0.0",
+      "author": {
+        "name": "MelonSpeedruns",
+        "handle": "melonspeedruns",
+        "official": false
+      },
+      "source_url": "https://github.com/MelonSpeedruns/Manual-Jumps/",
+      "site_url": "https://twilitrealm.dev/mods/com.melonspeedruns.manualjumps/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.melonspeedruns.manualjumps/1.0.0",
+        "sha256": "15d0020527101ce182325a5ad965e65b360b82a0f3ae338b9db7af08a13ff029",
+        "size": 1986429
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.blueflaregames.dark_morpheel",
+      "name": "Dark Morpheel",
+      "version": "1.0.0",
+      "author": {
+        "name": "Matt (BlueFlareGames)",
+        "handle": "matt",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.blueflaregames.dark_morpheel/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.blueflaregames.dark_morpheel/1.0.0",
+        "sha256": "0cfe11a7f6d5540c04f0e3c2c568eb6e54bcf459c004a7d7b6f649ba4be955dc",
+        "size": 2454494
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.kite.kh2camera",
+      "name": "KH2 Camera",
+      "version": "1.0.1",
+      "author": {
+        "name": "Kit\u00e9",
+        "handle": "kite",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.kite.kh2camera/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.kite.kh2camera/1.0.1",
+        "sha256": "f63ea091636a3b1b5fe11bde896925d11107f4ab01b5abdda7195a01420f9765",
+        "size": 3005674
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.baxlek.zelda_on_epona",
+      "name": "Zelda on Epona",
+      "version": "1.2.3",
+      "author": {
+        "name": "baxlek",
+        "handle": "baxlek",
+        "official": false
+      },
+      "source_url": "https://github.com/baxlek/Zelda-on-Epona",
+      "site_url": "https://twilitrealm.dev/mods/dev.baxlek.zelda_on_epona/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.baxlek.zelda_on_epona/1.2.3",
+        "sha256": "e672d13353d5ed678090a9ed17594f79878c3d2c34a99f26787b052d5b5a97b3",
+        "size": 4473795
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.tomtee.no_underwater_filter",
+      "name": "No Underwater Filter",
+      "version": "1.0.0",
+      "author": {
+        "name": "tomtee",
+        "handle": "tomtee",
+        "official": false
+      },
+      "source_url": "https://github.com/t0mtee/dusklight-no-underwater-filter",
+      "site_url": "https://twilitrealm.dev/mods/com.tomtee.no_underwater_filter/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.tomtee.no_underwater_filter/1.0.0",
+        "sha256": "931352dc9fb6870633a2f9290eb4e280e3a5eca7bcc710fec50c151674294ef3",
+        "size": 3439797
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.dusklight.gz",
+      "name": "Dusklight GZ",
+      "version": "0.2.3",
+      "author": {
+        "name": "mdra5000",
+        "handle": "matthewdavidrichardanderson",
+        "official": false
+      },
+      "source_url": "https://github.com/matthewdavidrichardanderson/dusklight-gz-mod",
+      "site_url": "https://twilitrealm.dev/mods/dev.dusklight.gz/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.dusklight.gz/0.2.3",
+        "sha256": "288ab7c04a29441de7659c7a6e5d916dc1b3adae391bee86f9e4a268ca973fc4",
+        "size": 8974079
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.bytheeightdivines.fightersword",
+      "name": "Fighter's Sword",
+      "version": "1.0.0",
+      "author": {
+        "name": "ByTheEightDivines",
+        "handle": "bytheeightdivines",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/local.brian.twilight_princess.fighter_s_sword_and_sheath/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.bytheeightdivines.fightersword/1.0.0",
+        "sha256": "e956738638b98b79a792cf6db45871fcb62256eb4061362300d55b0794ad1151",
+        "size": 2028417
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "dev.remiafterdark.heros_shade",
+      "name": "Hero's Shade",
+      "version": "1.0.0",
+      "author": {
+        "name": "R3mii",
+        "handle": "remi",
+        "official": false
+      },
+      "source_url": "https://github.com/remiafterdark/heros-shade",
+      "site_url": "https://twilitrealm.dev/mods/dev.remiafterdark.heros_shade/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.remiafterdark.heros_shade/1.0.0",
+        "sha256": "b9c0117ca5e9cfd3bc0e271300559a8bedabbab4c69389167e91880393799dfe",
+        "size": 1476191
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.remiafterdark.ganondorf",
+      "name": "Ganondorf",
+      "version": "1.0.0",
+      "author": {
+        "name": "R3mii",
+        "handle": "remi",
+        "official": false
+      },
+      "source_url": "https://github.com/remiafterdark/ganondorf",
+      "site_url": "https://twilitrealm.dev/mods/dev.remiafterdark.ganondorf/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.remiafterdark.ganondorf/1.0.0",
+        "sha256": "6309ab5627ec1598e5db61dcbd6ded4198dc81ff4d717d878b947566227cdf3c",
+        "size": 1766884
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.bytheeightdivines.alttpmasterswordwhiteglow",
+      "name": "ALTTP Master Sword - White Glow",
+      "version": "1.0.0",
+      "author": {
+        "name": "ByTheEightDivines",
+        "handle": "bytheeightdivines",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/local.brian.twilight_princess.alttp_master_sword_white_glow/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.bytheeightdivines.alttpmasterswordwhiteglow/1.0.0",
+        "sha256": "e0580be9815372f764ad5f1cf666c518c09267847722c86f4ddb965f646f68ab",
+        "size": 3299282
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.madnessgod.link_blue_tunic",
+      "name": "HD Blue Tunic (Gold Stitching)",
+      "version": "1.0.0",
+      "author": {
+        "name": "MadnessGod",
+        "handle": "madnessgod",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.madnessgod.link_blue_tunic/",
+      "license": "MIT",
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.madnessgod.link_blue_tunic/1.0.0",
+        "sha256": "00ad869810e139b724dcce4dcfb8c5caa48f089c36f07445f4cfe4935bb45157",
+        "size": 9340638
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.giorgiomendieta.dof_hq",
+      "name": "HQ Depth of Field",
+      "version": "1.0.3",
+      "author": {
+        "name": "Giorgio",
+        "handle": "giorgio",
+        "official": false
+      },
+      "source_url": "https://github.com/GiorgioMendieta/dusk_hq_dof",
+      "site_url": "https://twilitrealm.dev/mods/com.giorgiomendieta.dof_hq/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.giorgiomendieta.dof_hq/1.0.3",
+        "sha256": "39d1173c4a6ae5a216b771842460e14f2852d85e78dff8fdd577364b47d39149",
+        "size": 441124
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.i12bp8.hyrule_hide_and_seek",
+      "name": "Hyrule Hide & Seek",
+      "version": "0.4.1",
+      "author": {
+        "name": "i12bp8",
+        "handle": "i12bp8",
+        "official": false
+      },
+      "source_url": "https://github.com/i12bp8/hyrule-hide-and-seek",
+      "site_url": "https://twilitrealm.dev/mods/com.i12bp8.hyrule_hide_and_seek/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.i12bp8.hyrule_hide_and_seek/0.4.1",
+        "sha256": "1240cb28c25a34f6fa676bd589642bbf9b101f5207dd1f8a8c0aee42b094c7a1",
+        "size": 4047710
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "dev.siggemckvack.dualscreen_companion",
+      "name": "Dual Screen Companion",
+      "version": "0.1.3",
+      "author": {
+        "name": "SiggeMcKvack",
+        "handle": "siggemckvack",
+        "official": false
+      },
+      "source_url": "https://github.com/SiggeMcKvack/dusklight-dualscreen-companion",
+      "site_url": "https://twilitrealm.dev/mods/dev.siggemckvack.dualscreen_companion/",
+      "license": "CC0",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.siggemckvack.dualscreen_companion/0.1.3",
+        "sha256": "5369f30af696ef4de423dee4d6c422c03f1b86b8a21cd31cc5000c269b1dc77f",
+        "size": 496877
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.nozzly.action_prompt_removal",
+      "name": "Nozzlys random QoL",
+      "version": "1.1.2",
+      "author": {
+        "name": "nozzly",
+        "handle": "nozzly",
+        "official": false
+      },
+      "source_url": "https://github.com/NozomuR/Nozzlys-QoL-Mod",
+      "site_url": "https://twilitrealm.dev/mods/com.nozzly.action_prompt_removal/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.nozzly.action_prompt_removal/1.1.2",
+        "sha256": "9c2f46b1348f23c510fbd124c12b95ff301f0a4de88f21e44d7592aaf5514a21",
+        "size": 49390
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.bytheeightdivines.alttpmasterswordnoglow",
+      "name": "ALTTP Master Sword - No Glow",
+      "version": "1.0.0",
+      "author": {
+        "name": "ByTheEightDivines",
+        "handle": "bytheeightdivines",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/local.brian.twilight_princess.alttp_master_sword_no_glow/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.bytheeightdivines.alttpmasterswordnoglow/1.0.0",
+        "sha256": "b366018930c61ed65b4d5acd9bad530cf5c315bd7366cf65f05d33bdff721d3c",
+        "size": 3206024
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.bytheeightdivines.alttpmasterswordblueglow",
+      "name": "ALTTP Master Sword - Blue Glow",
+      "version": "1.0.0",
+      "author": {
+        "name": "ByTheEightDivines",
+        "handle": "bytheeightdivines",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/local.brian.twilight_princess.alttp_master_sword_blue_glow/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.bytheeightdivines.alttpmasterswordblueglow/1.0.0",
+        "sha256": "e0156f73904a1738503f820017a3b3239558c710ca0b697bde1be54edd655fcc",
+        "size": 3345675
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.misc_recruit_ordon_sword",
+      "name": "Recruit Ordon Sword",
+      "version": "1.0.1",
+      "author": {
+        "name": "MiscDoods",
+        "handle": "miscdoods",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.misc_recruit_ordon_sword/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.misc_recruit_ordon_sword/1.0.1",
+        "sha256": "16e46d332eb85691919ad7b6a0d11b94777a3382d9c87f3169b2587e645fb70b",
+        "size": 753582
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "dev.bezide.dawnlight_custom_model",
+      "name": "Dawnlight Custom Glider",
+      "version": "1.3.0",
+      "author": {
+        "name": "BeZide",
+        "handle": "bezide",
+        "official": false
+      },
+      "source_url": "https://github.com/BeZide93/DawnlightCustomGlider",
+      "site_url": "https://twilitrealm.dev/mods/dev.bezide.dawnlight_custom_model/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.bezide.dawnlight_custom_model/1.3.0",
+        "sha256": "8620fbef4f72d8faceb7ab709a679869285700f7342ebfd66666570d4f8796bf",
+        "size": 1519413
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.i12bp8.nightwalker_epona",
+      "name": "Nightwalker Epona",
+      "version": "2.0.0",
+      "author": {
+        "name": "i12bp8",
+        "handle": "i12bp8",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.i12bp8.nightwalker_epona/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.i12bp8.nightwalker_epona/2.0.0",
+        "sha256": "30141065d7ef2f7cb6d667d0c9b3b9c14e48e04b7871328e3f505a184b42098f",
+        "size": 4183628
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.misc_lokomo_master_sword",
+      "name": "Lokomo Master Sword",
+      "version": "1.0.0",
+      "author": {
+        "name": "MiscDoods",
+        "handle": "miscdoods",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.misc_lokomo_master_sword/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.misc_lokomo_master_sword/1.0.0",
+        "sha256": "b2aa622dd5fb01fee04a0c8c8bb4f87f55a4eb296ec27decb6f2aae367e0b1fe",
+        "size": 654878
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "alexandre.cooper_hat.texture_selector",
+      "name": "Cowboy Link",
+      "version": "1.1.0",
+      "author": {
+        "name": "XandasLegend",
+        "handle": "xandasl",
+        "official": false
+      },
+      "source_url": "https://github.com/XandasL/Cowboy-Link",
+      "site_url": "https://twilitrealm.dev/mods/alexandre.cooper_hat.texture_selector/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/alexandre.cooper_hat.texture_selector/1.1.0",
+        "sha256": "2491af27748df137e8a3ce97a8b18b9d1c5ade19894c503e0498118134056430",
+        "size": 38028303
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "io.github.noaseto.arachnophobia",
+      "name": "Arachnophobia",
+      "version": "1.0.0",
+      "author": {
+        "name": "Noaseto",
+        "handle": "noaseto",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/io.github.noaseto.arachnophobia/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/io.github.noaseto.arachnophobia/1.0.0",
+        "sha256": "b07387c404088b28678f2487acc1bc28b68ea6782f4aaf41548609540d103bc5",
+        "size": 569285
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "systems.slugcat.interlacing",
+      "name": "Evil Interlacing Mod",
+      "version": "1.2.0",
+      "author": {
+        "name": "PJB",
+        "handle": "pjb",
+        "official": false
+      },
+      "source_url": "https://github.com/PJB3005/evil-interlacing-mod",
+      "site_url": "https://twilitrealm.dev/mods/systems.slugcat.interlacing/",
+      "license": "MIT",
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/systems.slugcat.interlacing/1.2.0",
+        "sha256": "bffbba08a5bdbd18501373a34bb4de0a066a01a9628a99eee26017b6d7a336eb",
+        "size": 679089
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.krowten.chicken_bomb",
+      "name": "Chicken Bombs",
+      "version": "1.0.0",
+      "author": {
+        "name": "Krowten",
+        "handle": "krowten",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.krowten.chicken_bomb/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.krowten.chicken_bomb/1.0.0",
+        "sha256": "d8537926d86ddbadf50acd07bee6023df61ee0b3b29e356bb7499becdfad38f3",
+        "size": 2027639
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.jdflyer.betaquest",
+      "name": "Beta Quest",
+      "version": "0.1.1",
+      "author": {
+        "name": "jdflyer",
+        "handle": "jdflyer",
+        "official": false
+      },
+      "source_url": "https://github.com/jdflyer/Dusklight-Beta-Quest",
+      "site_url": "https://twilitrealm.dev/mods/com.jdflyer.betaquest/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.jdflyer.betaquest/0.1.1",
+        "sha256": "8f81779d18f96884452685034f5abae634d86d746b01de39de990c84364aa536",
+        "size": 975604
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.bulankabur.bahasa_indonesia",
+      "name": "Bahasa Indonesia",
+      "version": "1.1.0",
+      "author": {
+        "name": "Bulan Kabur",
+        "handle": "bulankabur",
+        "official": false
+      },
+      "source_url": "https://gamebanana.com/mods/683963",
+      "site_url": "https://twilitrealm.dev/mods/com.bulankabur.bahasa_indonesia/",
+      "license": "CC-BY-NC-4.0",
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.bulankabur.bahasa_indonesia/1.1.0",
+        "sha256": "9a50ee0524fb03b24bb47d5ce411df1341c11dcd8585cfd282d7ba15039aa309",
+        "size": 1129885
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.etrd.tp.android",
+      "name": "Twilight Princess Arabic (Android)",
+      "version": "1.0.2-android",
+      "author": {
+        "name": "Rais.chiro",
+        "handle": "rais-chiro",
+        "official": false
+      },
+      "source_url": "https://etrdream.com/game/the-legend-of-zelda-twilight-princess/",
+      "site_url": "https://twilitrealm.dev/mods/com.etrd.tp.android/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.etrd.tp.android/1.0.2-android",
+        "sha256": "6783fba3d35a5806d7b01f0cf749e39ac0173e8bed931d3334b845040bad5c99",
+        "size": 11576521
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "yiga.cn.eu",
+      "name": "Chinese Translation (DeepSeek Ver)",
+      "version": "1.0.2",
+      "author": {
+        "name": "SaltyStar",
+        "handle": "salty-star",
+        "official": false
+      },
+      "source_url": "https://github.com/black067/twilight-princess-chs",
+      "site_url": "https://twilitrealm.dev/mods/yiga.zh.hans/",
+      "license": "MIT",
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/yiga.cn.eu/1.0.2",
+        "sha256": "eb553e1586f06fd8ca9df26d07ac3b1baf366a1d36a14d6f857d042a83dfd9f2",
+        "size": 2925291
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "io.github.noaseto.english_names",
+      "name": "English Names",
+      "version": "1.0.1",
+      "author": {
+        "name": "Noaseto",
+        "handle": "noaseto",
+        "official": false
+      },
+      "source_url": "https://github.com/Noaseto/englishNames",
+      "site_url": "https://twilitrealm.dev/mods/io.github.noaseto.english_names/",
+      "license": null,
+      "classification": "native-port-required",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/io.github.noaseto.english_names/1.0.1",
+        "sha256": "d89044d2fb5e68d6e088a076cb1ddae9d26ba06e67cdb5bbed9142a4b4cb9bc3",
+        "size": 1382926
+      },
+      "bundle": false,
+      "status": "source-port-required"
+    },
+    {
+      "id": "com.misc_custom_twilight_wolf",
+      "name": "twilight wolf",
+      "version": "1.0.0",
+      "author": {
+        "name": "MiscDoods",
+        "handle": "miscdoods",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.misc_custom_twilight_wolf/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.misc_custom_twilight_wolf/1.0.0",
+        "sha256": "a0db09f4a47dea42a103009b2fb7a9c924aa5e5045241311995600e1514b4b51",
+        "size": 4790641
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    },
+    {
+      "id": "com.magyarzeldak.tp",
+      "name": "Hungarian Translation",
+      "version": "1.0.1",
+      "author": {
+        "name": "Mario_D",
+        "handle": "mario-d",
+        "official": false
+      },
+      "source_url": null,
+      "site_url": "https://twilitrealm.dev/mods/com.magyarzeldak.hu.tp/",
+      "license": null,
+      "classification": "asset-package",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.magyarzeldak.tp/1.0.1",
+        "sha256": "4d2070906c531d959b46e17b288c692af17b685f9047b7414b6c6175c807b7b5",
+        "size": 1225326
+      },
+      "bundle": true,
+      "status": "bundled-resource"
+    }
+  ]
+}

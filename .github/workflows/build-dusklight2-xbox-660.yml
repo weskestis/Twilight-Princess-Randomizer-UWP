@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 735
+name: Build Dusklight 2.0.1 Xbox 736
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-735-release-${{ github.ref }}
+  group: xbox-736-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 735 identity
+      - name: Apply reviewed source layers and advance 736 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6139,6 +6139,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.734 Soul/breakable preservation tests failed after .735.' }
           python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.733 reset/transition preservation tests failed after .735.' }
+          # .736 adds only pinned optional resources and signed controller/Luau ports.
+          python "$env:TPR_CONTROL\scripts\apply-736-mod-ports.py"
+          if ($LASTEXITCODE -ne 0) { throw '.736 signed mod port source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\stage-736-mod-bundles.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.736 pinned optional mod staging failed.' }
+          python "$env:TPR_CONTROL\scripts\test-736-mod-ports.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.736 independent module state/resource tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-735-shop-idle.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.735 idle-shop preservation tests failed after .736.' }
+          python "$env:TPR_CONTROL\scripts\test-735-online-mod-storage.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.735 online writer preservation tests failed after .736.' }
+          python "$env:TPR_CONTROL\scripts\test-734-souls-breakables.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.734 Soul/breakable preservation tests failed after .736.' }
+          python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.733 lifecycle preservation tests failed after .736.' }
           git -C "$env:TPR_SRC" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
@@ -6398,7 +6413,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $targets = @('dusklight', 'randomizer_package', 'cosmetics_package')
+          $targets = @('dusklight', 'randomizer_package', 'cosmetics_package', 'controller_ui_package', 'luau_runtime_package')
           if ($env:RUN_GENERATOR_SUITE -eq 'true') {
             $targets += 'randomizer_generator_tests'
           }
@@ -6525,7 +6540,7 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 735 package
+      - name: Verify and collect full 736 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6535,7 +6550,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.735_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.736_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6547,7 +6562,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.735"',
+            'Version="1.4.1.736"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6685,7 +6700,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-735.txt',
+            'xbox-startup-stage-736.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -6846,11 +6861,14 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-735.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-735.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-736.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-736.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
+          python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
+          if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.735'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.736'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -6907,7 +6925,14 @@ jobs:
             soulPlacement = '.734 allows Enemy/Boss Souls at every enabled randomized item check under existing logic; extended IDs retained through serialization, grants, text and tracker'
             breakableSaveIdentity = '.734 preserves live pot/pumpkin, drop and shelf bindings across save callbacks; native scene/actor cleanup owns retirement'
             nativeSoulBreakableTests = 'PASS: compiled production award/resolver/sidecar functions; late callbacks, all 85 Soul IDs, native FIFO completion, Poe isolation and dedicated pickup text'
-            nativeOnlineMods = 'Asset packages install normally; native DLL downloads require a source port bundled in the signed UWP package'
+            nativeOnlineMods = '.736 immediately binds controller UI 1.3.2 resources to its signed source port after installation; unknown native versions require a port'
+            bundledCatalogMods = 22
+            catalogPackagesDownloadedAndVerified = 62
+            additionalSignedPorts = 'controller_ui 1.3.2; luau_runtime 1.0.0'
+            signedPortSdkIsolation = 'Independent C++ SDK namespaces, hook states, mod contexts, export names and PE metadata sections; compiled dispatch/re-enable regression proof'
+            optionalModDefaults = 'New packaged catalog mods disabled; existing LocalState asset defaults and saved preferences preserved'
+            bundledModLockSha256 = '069bc45cce256021d1c63f6cf61837173c6a4aabac513427146187ae342c7900'
+            signedPortPatchSha256 = '420c3c960f64699689306154c7f49c86541500b5a62c2cbf4947844b8e516f6c'
             nativeDownloadTests = 'PASS: binary/Unicode paths, partial/resume/metadata/staging, disk-full and no-progress failures, move ownership and handle cleanup'
             xboxShopIdle = '.735 bounds shelf sorting and stock indices, refuses duplicate/partial shelves, and retains each encoded shelf message through its message-control lifetime'
             nativeShopIdleTests = 'PASS: every 1-7 shelf permutation, 10000 idle updates, duplicate/partial stock, invalid indices, independent encoded-message ownership and control release'
@@ -6921,13 +6946,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-735.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-736.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.735-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.736-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -6936,7 +6961,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.735-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.736-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30

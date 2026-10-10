@@ -1,0 +1,470 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -561,6 +561,9 @@
+     add_subdirectory(mods/cosmetics)
+     add_subdirectory(mods/randomizer)
+     add_subdirectory(mods/audio_mod)
++    if (DUSK_UWP)
++        add_subdirectory(mods/controller_ui)
++    endif ()
+ endif ()
+
+ if (APPLE)
+diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
+--- a/cmake/ModSDK.cmake
++++ b/cmake/ModSDK.cmake
+@@ -176,7 +176,8 @@
+     set(_builtin_static FALSE)
+     if (ARG_SOURCES)
+         set(_has_lib TRUE)
+-        if (DUSK_UWP AND (target_name STREQUAL "randomizer" OR target_name STREQUAL "cosmetics"))
++        if (DUSK_UWP AND (target_name STREQUAL "randomizer" OR target_name STREQUAL "cosmetics"
++                OR target_name STREQUAL "controller_ui" OR target_name STREQUAL "luau_runtime"))
+             # Xbox cannot reliably activate an app that later introduces a second
+             # native image for the bundled Randomizer. Build it into the signed
+             # game image instead. Other platforms retain the normal module path.
+@@ -184,6 +185,29 @@
+             add_library(${target_name} STATIC ${ARG_SOURCES})
+             target_compile_definitions(${target_name} PRIVATE
+                     DUSK_STATIC_BUILTIN_MOD=1)
++            if (target_name STREQUAL "controller_ui" OR target_name STREQUAL "luau_runtime")
++                # SDK hook templates carry mutable per-mod context and target state.
++                # Give each additional signed port a separate C++ SDK namespace as
++                # well as distinct exports/metadata, preventing COMDAT coalescing.
++                target_compile_definitions(${target_name} PRIVATE
++                        mods=${target_name}_sdk
++                        mod_ctx=${target_name}_mod_ctx
++                        mod_meta=${target_name}_mod_meta
++                        mod_meta_bounds_begin=${target_name}_mod_meta_bounds_begin
++                        mod_meta_bounds_end=${target_name}_mod_meta_bounds_end
++                        mod_initialize=${target_name}_mod_initialize
++                        mod_update=${target_name}_mod_update
++                        mod_shutdown=${target_name}_mod_shutdown)
++                foreach (_service log host resource config ui hook texture overlay audio_res game)
++                    target_compile_definitions(${target_name} PRIVATE
++                            svc_${_service}=${target_name}_svc_${_service})
++                endforeach ()
++                if (target_name STREQUAL "controller_ui")
++                    target_compile_definitions(${target_name} PRIVATE DUSK_STATIC_CONTROLLER_UI=1)
++                else ()
++                    target_compile_definitions(${target_name} PRIVATE DUSK_STATIC_LUAU_RUNTIME=1)
++                endif ()
++            endif ()
+             if (target_name STREQUAL "cosmetics")
+                 target_compile_definitions(${target_name} PRIVATE
+                         DUSK_STATIC_COSMETICS=1
+diff --git a/mods/controller_ui/CMakeLists.txt b/mods/controller_ui/CMakeLists.txt
+new file mode 100644
+--- /dev/null
++++ b/mods/controller_ui/CMakeLists.txt
+@@ -0,0 +1,13 @@
++cmake_minimum_required(VERSION 3.25)
++project(controller_ui VERSION 1.3.2 LANGUAGES CXX)
++
++# Source is pinned to XandasL/TP-CM-Controller-UI 1be064813e40962ad443b96a2aee7ed494a94222.
++# Resource bytes come from the catalog's hash-verified 1.3.2 bundle.
++# Public calibration options remain off, matching the author's release build.
++add_mod(controller_ui
++    FEATURES game
++    SOURCES src/mod.cpp
++    MOD_JSON mod.json
++    RES_DIR res
++    BUNDLE
++)
+diff --git a/mods/controller_ui/res/LICENSE.txt b/mods/controller_ui/res/LICENSE.txt
+new file mode 100644
+--- /dev/null
++++ b/mods/controller_ui/res/LICENSE.txt
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2026 XandasLegend
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+diff --git a/mods/luau_runtime/res/licenses/LUABRIDGE3-MIT.txt b/mods/luau_runtime/res/licenses/LUABRIDGE3-MIT.txt
+new file mode 100644
+--- /dev/null
++++ b/mods/luau_runtime/res/licenses/LUABRIDGE3-MIT.txt
+@@ -0,0 +1,27 @@
++LuaBridge3 is published under the terms of the MIT License
++
++    http://www.opensource.org/licenses/mit-license.html
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
++
++*   Copyright 2020, kunitoki
++*   Copyright 2019, Dmitry Tarakanov
++*   Copyright 2012, Vinnie Falco
++*   Copyright 2008, Nigel Atkinson
++*   Copyright 2007, Nathan Reed
+diff --git a/platforms/uwp/CMakeLists.txt b/platforms/uwp/CMakeLists.txt
+--- a/platforms/uwp/CMakeLists.txt
++++ b/platforms/uwp/CMakeLists.txt
+@@ -171,6 +171,35 @@
+     target_sources(${PROJECT_NAME} PRIVATE "${_source_file}")
+ endforeach ()
+
++set(_additional_port_archives)
++foreach (_port controller_ui luau_runtime)
++    set(_port_archive "${DUSK_DIR}/mods/${_port}/${_port}.lib")
++    set(_port_bundle "${DUSK_DIR}/bundled_mods/${_port}.dusk")
++    if (NOT EXISTS "${_port_archive}" OR NOT EXISTS "${_port_bundle}")
++        message(FATAL_ERROR "Required signed UWP mod port is missing: ${_port}")
++    endif ()
++    list(APPEND _additional_port_archives "${_port_archive}")
++    set(_port_package_dir "${CMAKE_CURRENT_BINARY_DIR}/packaged-${_port}")
++    file(REMOVE_RECURSE "${_port_package_dir}")
++    file(MAKE_DIRECTORY "${_port_package_dir}")
++    file(ARCHIVE_EXTRACT INPUT "${_port_bundle}" DESTINATION "${_port_package_dir}")
++    if (NOT EXISTS "${_port_package_dir}/mod.json" OR EXISTS "${_port_package_dir}/lib")
++        message(FATAL_ERROR "Invalid signed UWP mod resource bundle: ${_port}")
++    endif ()
++    uwp_pkg(${PROJECT_NAME} "${_port_package_dir}" "mods/${_port}")
++endforeach ()
++
++set(_optional_mods "${DUSK_SOURCE_DIR}/platforms/uwp/optional_mods")
++if (NOT EXISTS "${_optional_mods}/BUNDLED-MODS.json")
++    message(FATAL_ERROR "Verified optional mod inventory is missing")
++endif ()
++file(GLOB_RECURSE _optional_native_files LIST_DIRECTORIES FALSE
++        "${_optional_mods}/*.dll" "${_optional_mods}/*.so" "${_optional_mods}/*.dylib")
++if (_optional_native_files)
++    message(FATAL_ERROR "Optional mod resources unexpectedly contain downloaded native code")
++endif ()
++uwp_pkg(${PROJECT_NAME} "${_optional_mods}" "mods")
++
+ uwp_pkg(${PROJECT_NAME} "${DUSK_SOURCE_DIR}/res" "res")
+
+ # The feed is single-config Ninja output. Link every static archive produced by
+@@ -195,6 +224,7 @@
+ target_link_libraries(${PROJECT_NAME} PRIVATE
+     "${_randomizer_archive}"
+     "${_cosmetics_archive}"
++    ${_additional_port_archives}
+     "${_feed_archive}"
+     ${_feed_libraries}
+     ${_uwp_import_libraries}
+@@ -213,6 +243,9 @@
+     /INCREMENTAL:NO
+     /NODEFAULTLIB:libcmt
+     /NODEFAULTLIB:libcmtd)
++foreach (_port_archive IN LISTS _additional_port_archives)
++    target_link_options(${PROJECT_NAME} PRIVATE "/WHOLEARCHIVE:${_port_archive}")
++endforeach ()
+
+ # Embed the final executable's own PDB-derived symbol database. Runtime
+ # by-name hooks reject a manifest generated from an intermediate archive.
+diff --git a/sdk/include/mods/meta.hpp b/sdk/include/mods/meta.hpp
+--- a/sdk/include/mods/meta.hpp
++++ b/sdk/include/mods/meta.hpp
+@@ -24,7 +24,17 @@
+ #endif
+
+ #if defined(_WIN32)
+-#if defined(DUSK_STATIC_COSMETICS)
++#if defined(DUSK_STATIC_CONTROLLER_UI)
++#pragma section("cuimeta$a", read, write)
++#pragma section("cuimeta$d", read, write)
++#pragma section("cuimeta$z", read, write)
++#define DUSK_MOD_META_RECORD_SECTION "cuimeta$d"
++#elif defined(DUSK_STATIC_LUAU_RUNTIME)
++#pragma section("luumeta$a", read, write)
++#pragma section("luumeta$d", read, write)
++#pragma section("luumeta$z", read, write)
++#define DUSK_MOD_META_RECORD_SECTION "luumeta$d"
++#elif defined(DUSK_STATIC_COSMETICS)
+ #pragma section("cosmeta$a", read, write)
+ #pragma section("cosmeta$d", read, write)
+ #pragma section("cosmeta$z", read, write)
+@@ -50,7 +60,13 @@
+
+ /* Section bounds for the mod_meta descriptor */
+ #if defined(_WIN32)
+-#if defined(DUSK_STATIC_COSMETICS)
++#if defined(DUSK_STATIC_CONTROLLER_UI)
++#define DUSK_MOD_META_BOUNDS_A "cuimeta$a"
++#define DUSK_MOD_META_BOUNDS_Z "cuimeta$z"
++#elif defined(DUSK_STATIC_LUAU_RUNTIME)
++#define DUSK_MOD_META_BOUNDS_A "luumeta$a"
++#define DUSK_MOD_META_BOUNDS_Z "luumeta$z"
++#elif defined(DUSK_STATIC_COSMETICS)
+ #define DUSK_MOD_META_BOUNDS_A "cosmeta$a"
+ #define DUSK_MOD_META_BOUNDS_Z "cosmeta$z"
+ #else
+diff --git a/src/dusk/mods/catalog.cpp b/src/dusk/mods/catalog.cpp
+--- a/src/dusk/mods/catalog.cpp
++++ b/src/dusk/mods/catalog.cpp
+@@ -1,6 +1,7 @@
+ #include "catalog.hpp"
+
+ #include "dusk/app_info.hpp"
++#include "dusk/mods/uwp_ports.hpp"
+ #include "fmt/format.h"
+ #include "nlohmann/json.hpp"
+
+@@ -469,6 +470,16 @@
+     return false;
+ #else
+     return true;
++#endif
++}
++
++bool supports_native_package(std::string_view id, std::string_view version) noexcept {
++#if defined(_UWP)
++    // Installing a verified matching bundle binds its resources to code already
++    // compiled into this signed app. No downloaded desktop DLL is executed.
++    return uwp_ports::available(id, version);
++#else
++    return supports_native_installs();
+ #endif
+ }
+
+diff --git a/src/dusk/mods/catalog.hpp b/src/dusk/mods/catalog.hpp
+--- a/src/dusk/mods/catalog.hpp
++++ b/src/dusk/mods/catalog.hpp
+@@ -126,6 +126,7 @@
+
+ std::string_view platform() noexcept;
+ bool supports_native_installs() noexcept;
++bool supports_native_package(std::string_view id, std::string_view version) noexcept;
+ borealis::Task<UpdateFetchResult> fetch_updates(
+     UpdateEnvironment environment, std::vector<std::string> targets);
+
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -20,6 +20,7 @@
+ #include "dusk/mods/svc/hook.hpp"
+ #include "dusk/mods/svc/registry.hpp"
+ #include "dusk/mods/updates.hpp"
++#include "dusk/mods/uwp_ports.hpp"
+ #include "dusk/startup_guard.hpp"
+ #include "dusk/ui/mod_texture_provider.hpp"
+ #include "dusk/ui/mods_window.hpp"
+@@ -180,8 +181,13 @@
+     mod.bundle = std::move(bundle);
+     mod.context = std::make_unique<ModContext>();
+     mod.context->mod = &mod;
+-    mod.cvarIsEnabled =
+-        std::make_unique<ConfigVar<bool>>(mod_enabled_cvar_name(mod.metadata.id), true);
++    bool enabledByDefault = true;
++#if defined(_UWP)
++    enabledByDefault = uwp_ports::enabled_by_default(
++        mod.metadata.id, m_searchDirs[searchDirIndex].inPlaceNative);
++#endif
++    mod.cvarIsEnabled = std::make_unique<ConfigVar<bool>>(
++        mod_enabled_cvar_name(mod.metadata.id), enabledByDefault);
+     if (mod.runtime.has_value()) {
+         const auto& runtime = *mod.runtime;
+         mod.manifestInfo.imports.push_back({runtime.id, runtime.major, runtime.minMinor, true});
+diff --git a/src/dusk/mods/loader/natives.cpp b/src/dusk/mods/loader/natives.cpp
+--- a/src/dusk/mods/loader/natives.cpp
++++ b/src/dusk/mods/loader/natives.cpp
+@@ -6,6 +6,7 @@
+ #include "dusk/data.hpp"
+ #include "dusk/mods/log_buffer.hpp"
+ #include "dusk/mods/svc/registry.hpp"
++#include "dusk/mods/uwp_ports.hpp"
+ #include "dusk/startup_guard.hpp"
+ #include "dusk/utilities.hpp"
+
+@@ -350,6 +351,16 @@
+ ModResult cosmetics_mod_initialize(ModError*);
+ ModResult cosmetics_mod_update(ModError*);
+ ModResult cosmetics_mod_shutdown(ModError*);
++extern ModContext* controller_ui_mod_ctx;
++extern const ModMeta controller_ui_mod_meta;
++ModResult controller_ui_mod_initialize(ModError*);
++ModResult controller_ui_mod_update(ModError*);
++ModResult controller_ui_mod_shutdown(ModError*);
++extern ModContext* luau_runtime_mod_ctx;
++extern const ModMeta luau_runtime_mod_meta;
++ModResult luau_runtime_mod_initialize(ModError*);
++ModResult luau_runtime_mod_update(ModError*);
++ModResult luau_runtime_mod_shutdown(ModError*);
+ }
+
+ bool load_builtin_randomizer(LoadedMod& mod, const fs::path& cacheDir) {
+@@ -413,6 +424,45 @@
+     mod.native = std::move(native);
+     mod.nativeStatus = NativeModStatus::Loaded;
+     startup_guard::stage("native.ready:dev.twilitrealm.cosmetics:built-in");
++    return true;
++}
++
++bool load_builtin_port(LoadedMod& mod, const fs::path& cacheDir) {
++    if (!uwp_ports::available(mod.metadata.id, mod.metadata.version)) {
++        return false;
++    }
++    const fs::path scratchDir = cacheDir / mod.metadata.id / "data";
++    std::error_code ec;
++    fs::create_directories(scratchDir, ec);
++    if (ec) {
++        fail_mod(mod, MOD_ERROR, fmt::format("Could not prepare mod data: {}", ec.message()));
++        return false;
++    }
++    auto native = std::make_unique<NativeMod>();
++    if (mod.metadata.id == uwp_ports::ControllerId) {
++        native->meta = &controller_ui_mod_meta;
++        native->contextSymbol = &controller_ui_mod_ctx;
++        native->fn_initialize = &controller_ui_mod_initialize;
++        native->fn_update = &controller_ui_mod_update;
++        native->fn_shutdown = &controller_ui_mod_shutdown;
++    } else {
++        native->meta = &luau_runtime_mod_meta;
++        native->contextSymbol = &luau_runtime_mod_ctx;
++        native->fn_initialize = &luau_runtime_mod_initialize;
++        native->fn_update = &luau_runtime_mod_update;
++        native->fn_shutdown = &luau_runtime_mod_shutdown;
++    }
++    if (!parse_meta(*native, mod)) {
++        return false;
++    }
++    *native->contextSymbol = mod.context.get();
++    mod.dir = fs::absolute(scratchDir);
++    mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);
++    mod.nativeDir = fs::absolute(mod.modPath);
++    mod.nativeDirUtf8 = borealis::io::fs_path_to_string(mod.nativeDir);
++    mod.native = std::move(native);
++    mod.nativeStatus = NativeModStatus::Loaded;
++    startup_guard::stage(fmt::format("native.ready:{}:built-in-port", mod.metadata.id));
+     return true;
+ }
+ #endif
+@@ -631,6 +681,20 @@
+         }
+         return true;
+     }
++    if (mod.metadata.id == uwp_ports::ControllerId || mod.metadata.id == uwp_ports::LuauId) {
++        mod.nativeStatus = NativeModStatus::Unknown;
++        if (!uwp_ports::available(mod.metadata.id, mod.metadata.version)) {
++            fail_mod(mod, MOD_UNAVAILABLE, "This mod version requires a newer Xbox app port.");
++            return false;
++        }
++        if (!load_builtin_port(mod, m_cacheDir)) {
++            if (!mod.loadFailed) {
++                fail_mod(mod, MOD_ERROR, native_status_message(mod.nativeStatus));
++            }
++            return false;
++        }
++        return true;
++    }
+ #endif
+     const auto result = locate_native_runtime(*mod.bundle);
+     if (const auto* failure = std::get_if<NativeLocateFailure>(&result)) {
+@@ -653,6 +717,11 @@
+         return true;
+     }
+
++#if defined(_UWP)
++    fail_mod(mod, MOD_UNAVAILABLE, "This native mod needs a source port included in the Xbox app.");
++    return false;
++#endif
++
+     mod.nativeStatus = NativeModStatus::Unknown;
+     load_native(mod, native.entry, native.runtimeEntries);
+     if (mod.nativeStatus != NativeModStatus::Loaded) {
+@@ -667,7 +736,7 @@
+         return;
+     }
+ #if defined(_UWP)
+-    if ((mod.metadata.id == k_builtinRandomizerId || mod.metadata.id == k_builtinCosmeticsId) && !mod.native->handle) {
++    if (!mod.native->handle) {
+         // The built-in code lives in the main executable and cannot be unloaded.
+         // Keep its entry points attached so a settings-driven re-enable works.
+         return;
+diff --git a/src/dusk/mods/updates.cpp b/src/dusk/mods/updates.cpp
+--- a/src/dusk/mods/updates.cpp
++++ b/src/dusk/mods/updates.cpp
+@@ -195,7 +195,7 @@
+     }
+     const auto& candidate = update.compatibility;
+     if (candidate.containsNativeCode) {
+-        if (!catalog::supports_native_installs()) {
++        if (!catalog::supports_native_package(update.modId, update.targetVersion)) {
+             return "Native mod updates are not supported on this device.";
+         }
+         if (environment.platform.empty() || std::ranges::find(candidate.platforms,
+diff --git a/src/dusk/mods/uwp_ports.hpp b/src/dusk/mods/uwp_ports.hpp
+new file mode 100644
+--- /dev/null
++++ b/src/dusk/mods/uwp_ports.hpp
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <string_view>
++
++namespace dusk::mods::uwp_ports {
++inline constexpr std::string_view ControllerId = "org.dusklight.tp_classic_buttons";
++inline constexpr std::string_view ControllerVersion = "1.3.2";
++inline constexpr std::string_view LuauId = "dev.twilitrealm.luau";
++inline constexpr std::string_view LuauVersion = "1.0.0";
++
++constexpr bool available(std::string_view id, std::string_view version) noexcept {
++    return (id == ControllerId && version == ControllerVersion) ||
++           (id == LuauId && version == LuauVersion);
++}
++
++constexpr bool enabled_by_default(std::string_view id, bool fromSignedPackage = true) noexcept {
++    // ConfigVar preserves any existing saved preference. New optional packages
++    // start disabled; the runtime provider is inert until a script is enabled.
++    return id == "dev.twilitrealm.randomizer" || id == "dev.twilitrealm.cosmetics" ||
++           id == LuauId || (!fromSignedPackage && id != ControllerId);
++}
++}  // namespace dusk::mods::uwp_ports
+diff --git a/src/dusk/ui/mod_browser.cpp b/src/dusk/ui/mod_browser.cpp
+--- a/src/dusk/ui/mod_browser.cpp
++++ b/src/dusk/ui/mod_browser.cpp
+@@ -167,7 +167,8 @@
+ public:
+     CatalogCard(Rml::Element* parent, const mods::catalog::Mod& mod, std::function<void()> onOpen)
+         : Button{parent, Props{}}, mId{mod.id}, mPackageSize{format_bytes(mod.packageSize)},
+-          mNativeCodeBlocked{mod.containsNativeCode && !mods::catalog::supports_native_installs()} {
++          mNativeCodeBlocked{mod.containsNativeCode &&
++              !mods::catalog::supports_native_package(mod.id, mod.version)} {
+         mRoot->SetClass("catalog-card", true);
+         mRoot->SetAttribute("mod-id", mod.id);
+         const auto category = mod.category ? mod.category->name : "Uncategorized";
+@@ -425,7 +426,8 @@
+               .icon = queue_icon(detail.mod.icon),
+           },
+           mNativeCodeBlocked{
+-              detail.mod.containsNativeCode && !mods::catalog::supports_native_installs()} {
++              detail.mod.containsNativeCode &&
++              !mods::catalog::supports_native_package(detail.mod.id, detail.mod.version)} {
+         mRoot->SetClass("catalog-install-action", true);
+         mCaption = append(parent, "small");
+         on_pressed([this] { press(); });
