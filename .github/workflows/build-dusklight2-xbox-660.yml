@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 740
+name: Build Dusklight 2.0.1 Xbox 741
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-740-release-${{ github.ref }}
+  group: xbox-741-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -170,7 +170,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 740 identity
+      - name: Apply reviewed source layers and advance 741 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6211,6 +6211,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.740 shipped asset scan negative control failed.' }
           python "$env:TPR_CONTROL\scripts\test-739-package-startup.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.739 package preparation preservation failed after .740.' }
+          python "$env:TPR_CONTROL\scripts\apply-741-generation-reset-save.py"
+          if ($LASTEXITCODE -ne 0) { throw '.741 generation/reset/vanilla save source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-741-generation-reset-save.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.741 production generation/reset/save tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-741-generation-reset-save.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.741 shipped .740 negative controls failed.' }
+          python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.733 reset lifecycle preservation failed after .741.' }
+          python "$env:TPR_CONTROL\scripts\test-734-souls-breakables.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.734 souls/breakable preservation failed after .741.' }
+
           python "$env:TPR_CONTROL\scripts\test-737-xbox-picker.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.737 native picker and filesystem tests failed.' }
           git -C "$env:TPR_SRC" diff --check
@@ -6494,7 +6505,7 @@ jobs:
           })
 
           $workflowText = Get-Content "$env:TPR_CONTROL\$workflowPath" -Raw
-          # Every .739 release retains full 62-scenario certification.
+          # Every .741 release retains full 67-scenario certification.
           $runSuite = $true
           if (-not $workflowText.Contains('d0ceae8f18bbef4a40287a72a2791a3c06c9aca5')) {
             $runSuite = $true
@@ -6503,7 +6514,7 @@ jobs:
 
           if ($runSuite) {
             "RUN_GENERATOR_SUITE=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            Write-Host 'Generator-sensitive inputs changed; all 62 settings scenarios will run.'
+            Write-Host 'Generator-sensitive inputs changed; all 67 settings scenarios will run.'
             if ($generatorSensitive.Count -gt 0) {
               Write-Host ('Generator-sensitive control files: ' + ($generatorSensitive -join ', '))
             }
@@ -6572,7 +6583,7 @@ jobs:
             Write-Warning 'Compiler cache statistics could not be read; reuse is unverified.'
             exit 0
           }
-          $cacheStats739 | Set-Content "$env:TPR_CONTROL\compiler-cache-stats-740.json" -Encoding UTF8
+          $cacheStats739 | Set-Content "$env:TPR_CONTROL\compiler-cache-stats-741.json" -Encoding UTF8
           if ($env:TPR_CPP_CACHE_ENABLED -eq 'true' -and
               ($cacheStats739 | ConvertFrom-Json).stats.compile_requests -eq 0) {
             Write-Warning 'No compiler cache requests were recorded; no speed improvement can be credited to caching.'
@@ -6682,7 +6693,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
 
-      - name: Verify and collect full 740 package
+      - name: Verify and collect full 741 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6692,7 +6703,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.740_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.741_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6706,7 +6717,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.740"',
+            'Version="1.4.1.741"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -7014,22 +7025,22 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-740.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-740.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-741.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-741.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
 
-          $cacheDescription739 = 'Compiler cache unavailable; ordinary MSVC compilation with fresh final PDB, symbol manifest, signature and 62-scenario certification'
+          $cacheDescription739 = 'Compiler cache unavailable; ordinary MSVC compilation with fresh final PDB, symbol manifest, signature and 67-scenario certification'
           if ($env:TPR_CPP_CACHE_ENABLED -eq 'true') {
-            $cacheDescription739 = 'Pinned sccache v0.16.0; Windows executable path verified; embedded object debug information and native Ninja rules verified; fresh final PDB, symbol manifest, signature and 62-scenario certification'
+            $cacheDescription739 = 'Pinned sccache v0.16.0; Windows executable path verified; embedded object debug information and native Ninja rules verified; fresh final PDB, symbol manifest, signature and 67-scenario certification'
           }
-          $cacheStatsPath739 = "$env:TPR_CONTROL\compiler-cache-stats-740.json"
+          $cacheStatsPath739 = "$env:TPR_CONTROL\compiler-cache-stats-741.json"
           if (Test-Path $cacheStatsPath739 -PathType Leaf) {
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.740'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.741'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -7079,9 +7090,12 @@ jobs:
             xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
             xboxMemoryCard = '.731 keeps vanilla gczelda2 on Aurora/GCI, keeps Xbox Randomizer gameplay in direct checksummed LocalState randomizer-xbox.sav, and stores Randomizer mod blobs in LocalState randomizer-xbox-mods so seed association no longer depends on CARD/GCI availability'
             xboxModDownloads = '.735 explicitly compiles borealis_io with _UWP=1; SDL_OpenIO callbacks write to LocalState/mods/.downloads through CreateFile2/WriteFile and preserve append/resume/metadata'
-            xboxResetGame = '.733 completes native scene/audio/save reset before deactivation and launcher presentation; repeated requests latch once'
+            xboxResetGame = '.741 submits a no-fade native opening reset even from black/paused draw; .733 scene/audio/save completion, one-shot latch and queue guards retained'
             xboxTransitionRecovery = '.733 requires stable room/layer/scene identity and refuses cancellation during scene/create/delete/event/reset work'
             xboxTransitionTrace = '.733 traces scene requests and renews the crash journal throughout pending transactions'
+            nativeGenerationResetSaveTests = 'PASS: production authored pot/pumpkin/first-defeat hint text, logical hint matching, bounded copies, cancellation/item restoration, Back/retry/single worker/exception/stale-dialog recovery, real 50-attempt write policy, black-fader reset and Slot A creation; reverse-patch .740 negative controls'
+            maxSignHintScenarios = 'Overworld, Dungeon, Any, mixed destinations and Enemy/Boss Souls with entrances; maximum 7/7/7/15 counts, Midna off'
+            vanillaSaveBackend = '.741 GCI Slot A created if missing even with Slot B; existing/error cards preserved; UTF-8 roots and launcher/gameplay backend match'
             nativeLifecycleTests = 'PASS: compiled production reset/recovery/audio functions against busy-save, queued-scene, duplicate and recursive reset states'
             soulPlacement = '.734 allows Enemy/Boss Souls at every enabled randomized item check under existing logic; extended IDs retained through serialization, grants, text and tracker'
             breakableSaveIdentity = '.734 preserves live pot/pumpkin, drop and shelf bindings across save callbacks; native scene/actor cleanup owns retirement'
@@ -7096,7 +7110,7 @@ jobs:
             nativePackageStartupTests = 'PASS: compiled production package preparation and native path binding under bundle, manifest, config, native, logging and conversion faults; no partial entries or stale contexts'
             xboxAssetScanPatchSha256 = 'aca3b58253a9a6e4ed41f53a09eb29517e5346bb39aa96a65526f116527fc7fe'
             nativeAssetScanTests = 'PASS: compiled production scoped lexical bundle scans, UWP idle dirty flag, runtime overlays, failed listing/size rollback, open handles, disable/retry and texture priority preservation; reverse-patch negative control reproduces shipped .739 defects'
-            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-740.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
+            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-741.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
             xboxMemoryBudget = 'Pre-Play guard only for a measured Xbox App allowance; Game, desktop UWP and unavailable probes keep normal launch'
             cppCompilerCacheEnabled = ($env:TPR_CPP_CACHE_ENABLED -eq 'true')
             cppCompilerCache = $cacheDescription739
@@ -7116,19 +7130,22 @@ jobs:
             shopIdleRandomizerPatchSha256 = '100e1a97f06d3b5bc91488495fbdba40ca7b9a8f63e7415382cd97a85165b6c6'
             onlineModWriterPatchSha256 = '1e514aaeb0228cfc5b5b48a7e45d1bc969f3194e373467032ac165342d9688b7'
             onlineModCompatibilityPatchSha256 = '536091ea819dc5c39e89b5e3abd4160a9728318ccdb6b2976ba1366539421449'
-            generatorScenarios = 62
+            xboxResetSaveHostPatchSha256 = '519f2c7fe9c0f5d816cf45560b4a1aab8a83793444df9361bd930fc69033fc03'
+            xboxGenerationHintsPatchSha256 = 'ab3ab14a58ce211f11d7496cf44d869f003b06d457ccad6ecf3e052977279e43'
+            xboxVanillaCardPatchSha256 = '3cbddc7019f6d044797e668248b2e2c747bd0d4b7696bd2eb6a043aed718180e'
+            generatorScenarios = 67
             generatorScenarioAttempts = 50
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-740.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-741.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.740-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.741-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7137,7 +7154,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.740-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.741-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30

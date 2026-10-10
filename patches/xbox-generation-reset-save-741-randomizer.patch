@@ -1,0 +1,954 @@
+diff --git a/generator/logic/hints.cpp b/generator/logic/hints.cpp
+index d5c5600..0a991a2 100644
+--- a/generator/logic/hints.cpp
++++ b/generator/logic/hints.cpp
+@@ -48,7 +48,37 @@ namespace randomizer::logic::hints {
+         return nullptr;
+     }
+ 
+-    static const Text& GetLocationTextObject(location::Location* location, Text::Type type) {
++    static Text GetGeneratedLocationTextObject(location::Location* location, Text::Type type) {
++        // Runtime-authored pots/pumpkins and first defeats are created after
++        // static language validation. Give these real checks stable hint text.
++        const auto& name = location->GetName();
++        Text label{name.substr(0, name.find(" ("))};
++        std::set<std::string> regions;
++        for (const auto& access : location->GetAccessList()) {
++            for (const auto& region : access->GetArea()->GetHintRegions()) {
++                regions.insert(region);
++            }
++        }
++        std::vector<Text> regionTexts;
++        for (const auto& region : regions) {
++            regionTexts.push_back(textObjectExists(region) ? getTextObject(region, type) : Text{region});
++        }
++        if (!regionTexts.empty()) {
++            label += " - ";
++            label += makeTextListing(regionTexts);
++        }
++        const auto room = name.find(", Room ");
++        if (room != std::string::npos) {
++            label += " (" + name.substr(room + 2);
++        }
++        return label;
++    }
++
++    static Text GetLocationTextObject(location::Location* location, Text::Type type) {
++        if (!textObjectExists(location->GetName()) &&
++            (location->HasCategories("Breakable") || location->HasCategories("Enemy First Defeat"))) {
++            return GetGeneratedLocationTextObject(location, type);
++        }
+         // If this location has the same name as an item, add the "Check" text to the end of the key
+         if (location->GetName() == location->GetOriginalItem()->GetName()) {
+             return getTextObject(location->GetName() + " Check", type);
+@@ -57,6 +87,10 @@ namespace randomizer::logic::hints {
+     }
+ 
+     static Text GetLocationTextObjectForTemplate(location::Location* location, Text::Type type, const std::string& textTemplate) {
++        if (!textObjectExists(location->GetName()) &&
++            (location->HasCategories("Breakable") || location->HasCategories("Enemy First Defeat"))) {
++            return GetGeneratedLocationTextObject(location, type);
++        }
+         // If this location has the same name as an item, add the "Check" text to the end of the key
+         if (location->GetName() == location->GetOriginalItem()->GetName()) {
+             return getTextObjectForTemplate(location->GetName() + " Check", type, textTemplate);
+@@ -743,9 +777,13 @@ namespace randomizer::logic::hints {
+         auto expectedNumHints = this->_world->Setting("Number of Path Hints").GetCurrentOptionAsNumber() +
+                 this->_world->Setting("Number of Barren Hints").GetCurrentOptionAsNumber() +
+                 this->_world->Setting("Number of Item Hints").GetCurrentOptionAsNumber();
+-        auto totalNumHints = this->_pathHints.size() + this->_barrenHints.size() +
+-            this->_itemHints.size() + this->_locationHints.size();
+-        numLocationHints += expectedNumHints - totalNumHints;
++        const auto otherHints = this->_pathHints.size() + this->_barrenHints.size() +
++            this->_itemHints.size();
++        // Remote location hints already count toward the location target. Only
++        // missing hints of the other types need compensation here.
++        if (static_cast<std::size_t>(expectedNumHints) > otherHints) {
++            numLocationHints += static_cast<int>(expectedNumHints - otherHints);
++        }
+         size_t curNumLocationHints = this->_locationHints.size();
+ 
+         // Choose location hints until we've filled up the amount we need. Since we previously may
+@@ -786,8 +824,7 @@ namespace randomizer::logic::hints {
+         std::erase_if(possibleHintSigns, [&](location::Location* sign) {
+             const auto& placement = sign->GetWorld()->Setting(setting);
+             return (placement == "Overworld" && sign->HasCategories("Dungeon")) ||
+-                   (placement == "Dungeon" && sign->HasCategories("Overworld")) ||
+-                   this->_reservedSigns.contains(sign);
++                   (placement == "Dungeon" && sign->HasCategories("Overworld"));
+         });
+         return possibleHintSigns;
+     }
+@@ -807,8 +844,8 @@ namespace randomizer::logic::hints {
+ 
+         auto possibleHintSigns = GetAvailableHintSigns(location, setting);
+ 
+-        // Protect scarce signs while later hints are selected. This guarantees that two
+-        // single-sign hints cannot be selected for the same one-capacity sign.
++        // Record scarce signs for hint metadata. Adaptive matching allows several
++        // useful hints to share a reachable sign, so selection does not exclude it.
+         if (!possibleHintSigns.empty() && possibleHintSigns.size() <= 2) {
+             hint.reservedSign = utility::random::RandomElement(possibleHintSigns);
+             this->_reservedSigns.insert(hint.reservedSign);
+@@ -845,90 +882,105 @@ namespace randomizer::logic::hints {
+ 
+         // Logical availability for each hint is independent of the sign chosen
+         // for every other hint. Build that bipartite graph once, then match hints
+-        // into the remaining per-sign capacity. The old random greedy retry could
+-        // reject a valid seed after 50 unlucky assignments.
++        // into per-sign capacity. Increase capacity only when the access graph
++        // needs it; equal page counts must not reject an otherwise valid seed.
+         std::vector<location::LocationPool> availableSignsByHint{};
+         availableSignsByHint.reserve(hints.size());
+         for (const auto& hint : hints) {
+             auto* hintLocation = getHintLocation(hint);
+-            item::Item* itemAtHintLocation{};
+-            if (hintLocation != nullptr) {
+-                itemAtHintLocation = hintLocation->GetCurrentItem();
+-                hintLocation->RemoveCurrentItem();
+-            }
+-
+-            auto search = search::Search::Accessible(&worlds);
+-            search.SearchWorlds();
+-
++            location::LocationPool reachableSigns{};
+             if (hintLocation != nullptr) {
+-                hintLocation->SetCurrentItem(itemAtHintLocation);
++                // This helper restores the removed item even if search is cancelled.
++                reachableSigns = search::GetPossibleHintSigns(hintLocation);
++            } else {
++                auto accessible = search::Search::Accessible(&worlds);
++                accessible.SearchWorlds();
++                for (auto* sign : hintSigns) {
++                    if (accessible._visitedLocations.contains(sign)) {
++                        reachableSigns.push_back(sign);
++                    }
++                }
+             }
+-
+             location::LocationPool availableHintSigns{};
+             for (auto* sign : hintSigns) {
+-                if (search._visitedLocations.contains(sign) &&
+-                    hintSignHintsOriginal[sign].size() < hintsPerSign)
+-                {
++                if (utility::container::ElementInContainer(reachableSigns, sign)) {
+                     availableHintSigns.emplace_back(sign);
+                 }
+             }
+             if (availableHintSigns.empty()) {
+                 throw std::runtime_error(
+-                    "No logically accessible hint sign has capacity for hint " +
++                    "No logically accessible hint sign exists for hint " +
+                     hint.text.mEntries[Text::ENGLISH].str);
+             }
+             utility::random::ShufflePool(availableHintSigns);
+             availableSignsByHint.emplace_back(std::move(availableHintSigns));
+         }
+ 
+-        location::LocationPool signSlots{};
++        std::size_t maximumOccupied = 0;
+         for (auto* sign : hintSigns) {
+-            const auto occupiedSlots = hintSignHintsOriginal[sign].size();
+-            for (std::size_t slot = occupiedSlots; slot < hintsPerSign; ++slot) {
+-                signSlots.emplace_back(sign);
+-            }
+-        }
+-        if (signSlots.size() < hints.size()) {
+-            throw std::runtime_error("Not enough hint-sign capacity to place every hint");
++            maximumOccupied = std::max(maximumOccupied, hintSignHintsOriginal[sign].size());
+         }
++        hintsPerSign = std::max(hintsPerSign, maximumOccupied + 1);
++        location::LocationPool signSlots{};
++        std::vector<int> assignedHintBySlot{};
++        for (;;) {
++            signSlots.clear();
++            for (auto* sign : hintSigns) {
++                const auto occupiedSlots = hintSignHintsOriginal[sign].size();
++                for (std::size_t slot = occupiedSlots; slot < hintsPerSign; ++slot) {
++                    signSlots.emplace_back(sign);
++                }
++            }
+ 
+-        std::vector<std::size_t> hintOrder{};
+-        hintOrder.reserve(hints.size());
+-        for (std::size_t hintIndex = 0; hintIndex < hints.size(); ++hintIndex) {
+-            hintOrder.emplace_back(hintIndex);
+-        }
+-        utility::random::ShufflePool(hintOrder);
+-        std::stable_sort(hintOrder.begin(), hintOrder.end(), [&](std::size_t left, std::size_t right) {
+-            return availableSignsByHint[left].size() < availableSignsByHint[right].size();
+-        });
++            std::vector<std::size_t> hintOrder{};
++            hintOrder.reserve(hints.size());
++            for (std::size_t hintIndex = 0; hintIndex < hints.size(); ++hintIndex) {
++                hintOrder.emplace_back(hintIndex);
++            }
++            utility::random::ShufflePool(hintOrder);
++            std::stable_sort(hintOrder.begin(), hintOrder.end(), [&](std::size_t left, std::size_t right) {
++                return availableSignsByHint[left].size() < availableSignsByHint[right].size();
++            });
+ 
+-        std::vector<int> assignedHintBySlot(signSlots.size(), -1);
+-        std::function<bool(std::size_t, std::vector<bool>&)> tryAssignHint;
+-        tryAssignHint = [&](std::size_t hintIndex, std::vector<bool>& visitedSlots) {
+-            for (auto* sign : availableSignsByHint[hintIndex]) {
+-                for (std::size_t slotIndex = 0; slotIndex < signSlots.size(); ++slotIndex) {
+-                    if (signSlots[slotIndex] != sign || visitedSlots[slotIndex]) {
+-                        continue;
+-                    }
+-                    visitedSlots[slotIndex] = true;
+-                    const auto displacedHint = assignedHintBySlot[slotIndex];
+-                    if (displacedHint < 0 ||
+-                        tryAssignHint(static_cast<std::size_t>(displacedHint), visitedSlots))
+-                    {
+-                        assignedHintBySlot[slotIndex] = static_cast<int>(hintIndex);
+-                        return true;
++            assignedHintBySlot.assign(signSlots.size(), -1);
++            std::function<bool(std::size_t, std::vector<bool>&)> tryAssignHint;
++            tryAssignHint = [&](std::size_t hintIndex, std::vector<bool>& visitedSlots) {
++                for (auto* sign : availableSignsByHint[hintIndex]) {
++                    for (std::size_t slotIndex = 0; slotIndex < signSlots.size(); ++slotIndex) {
++                        if (signSlots[slotIndex] != sign || visitedSlots[slotIndex]) {
++                            continue;
++                        }
++                        visitedSlots[slotIndex] = true;
++                        const auto displacedHint = assignedHintBySlot[slotIndex];
++                        if (displacedHint < 0 ||
++                            tryAssignHint(static_cast<std::size_t>(displacedHint), visitedSlots))
++                        {
++                            assignedHintBySlot[slotIndex] = static_cast<int>(hintIndex);
++                            return true;
++                        }
+                     }
+                 }
+-            }
+-            return false;
+-        };
++                return false;
++            };
+ 
+-        for (const auto hintIndex : hintOrder) {
+-            std::vector<bool> visitedSlots(signSlots.size(), false);
+-            if (!tryAssignHint(hintIndex, visitedSlots)) {
+-                throw std::runtime_error(
+-                    "No capacity-aware logical assignment exists for all hint sign hints");
++            bool allAssigned = true;
++            for (const auto hintIndex : hintOrder) {
++                std::vector<bool> visitedSlots(signSlots.size(), false);
++                if (!tryAssignHint(hintIndex, visitedSlots)) {
++                    allAssigned = false;
++                    break;
++                }
++            }
++            if (allAssigned) {
++                break;
++            }
++            if (hintsPerSign >= maximumOccupied + hints.size()) {
++                throw std::runtime_error("Unable to match logically reachable hint signs");
+             }
++            // Equal sign sizes are a presentation preference, not an access rule.
++            // Increase capacity only when the proven access graph needs it. Searches
++            // are reused, and every primary hint still precedes its hinted item.
++            ++hintsPerSign;
+         }
+ 
+         hintSignHints = hintSignHintsOriginal;
+@@ -939,45 +991,18 @@ namespace randomizer::logic::hints {
+             }
+         }
+ 
+-        // Once we've placed every hint at least once, duplicate hints
+-        // and place them randomly until all hint signs have the
+-        // necessary number of hints. Don't check for logic here since
+-        // every hint can already be logically accessed at some sign
+-        auto duplicateHints = hints;
+-        location::LocationPool availableHintSigns{};
+-        for (const auto& sign : hintSigns) {
+-            if (hintSignHints[sign].size() < hintsPerSign) {
+-                availableHintSigns.emplace_back(sign);
+-            }
+-        }
+-        utility::random::ShufflePool(availableHintSigns);
+-        while (!availableHintSigns.empty()) {
+-            // Reset the pool of duplicate hints if we run out.
+-            // This way we'll duplicate every hint at least n times
+-            // before potentially duplicating each hint n + 1 times
+-            if (duplicateHints.empty()) {
+-                duplicateHints = hints;
+-            }
+-
+-            auto hint = duplicateHints.back();
+-            duplicateHints.pop_back();
+-            location::Location* chosenSign{};
+-            for (auto sign : availableHintSigns) {
+-                // Don't give the same hint to a single sign multiple times
+-                if (!utility::container::ElementInContainer(hintSignHints[sign], hint)) {
+-                    chosenSign = sign;
++        // Optional copies cannot deadlock generation when a sign has already
++        // seen every distinct hint. Each sign considers each hint at most once.
++        for (auto* sign : hintSigns) {
++            auto copies = hints;
++            utility::random::ShufflePool(copies);
++            for (const auto& hint : copies) {
++                if (hintSignHints[sign].size() >= hintsPerSign) {
+                     break;
+                 }
+-            }
+-
+-            if (chosenSign == nullptr) {
+-                LOG_TO_DEBUG("Could not find any gossip stones to place hint " + hint.text.mEntries[Text::ENGLISH].str + " Trying a different hint.")
+-                continue;
+-            }
+-
+-            hintSignHints[chosenSign].push_back(hint);
+-            if (hintSignHints[chosenSign].size() >= hintsPerSign) {
+-                utility::container::Erase(availableHintSigns, chosenSign);
++                if (!utility::container::ElementInContainer(hintSignHints[sign], hint)) {
++                    hintSignHints[sign].push_back(hint);
++                }
+             }
+         }
+     }
+@@ -1042,43 +1067,18 @@ namespace randomizer::logic::hints {
+             }
+         }
+ 
+-        utility::random::ShufflePool(anySignHints);
+-        // Distribute our hints which can be on any sign to either overworld or dungeon. Ideally
+-        // we fill up each pool of hints to match the number of signs there are equally. Only do
+-        // this if we're already placing some hints on only dungeon, or only overworld hint signs.
+-        if (!overworldSignHints.empty() || !dungeonSignHints.empty()) {
+-            for (size_t i = 0; i < anySignHints.size(); ++i) {
+-                const auto& anySignHint = anySignHints[i];
+-                size_t hintsPerOverworldSign = overworldSignHints.size() / overworldSignLocations.size();
+-                size_t hintsPerDungeonSign = dungeonSignHints.size() / dungeonSignLocations.size();
+-
+-                if (hintsPerOverworldSign < hintsPerDungeonSign) {
+-                    overworldSignHints.push_back(anySignHint);
+-                } else if (hintsPerDungeonSign < hintsPerOverworldSign) {
+-                    dungeonSignHints.push_back(anySignHint);
+-                } else {
+-                    if (dungeonSignHints.empty() || (dungeonSignHints.size() % dungeonSignLocations.size() != 0 && i % 2 != 0)) {
+-                        dungeonSignHints.push_back(anySignHint);
+-                    } else {
+-                        overworldSignHints.push_back(anySignHint);
+-                    }
+-                }
+-            }
+-            anySignHints.clear();
+-        }
+-
+-        // Now distribute hints to our hint signs
+-        // If no hints have to be constrained to either overworld or dungeon signs,
+-        // then distribute all hints over all signs
+-        if (overworldSignHints.empty() && dungeonSignHints.empty()) {
+-            AssignHintSignHints(this->_world->GetHintSignLocations(), anySignHints);
+-        }
++        // Keep Any hints on their complete logical sign pool. Assigning them to
++        // a presentation-balanced dungeon/overworld subset can reject a hint
++        // whose reachable signs all lie in the other subset.
+         if (!overworldSignHints.empty()) {
+             AssignHintSignHints(overworldSignLocations, overworldSignHints);
+         }
+         if (!dungeonSignHints.empty()) {
+             AssignHintSignHints(dungeonSignLocations, dungeonSignHints);
+         }
++        if (!anySignHints.empty()) {
++            AssignHintSignHints(this->_world->GetHintSignLocations(), anySignHints);
++        }
+     }
+ 
+     void HintGenerator::FinalizeHintSignText() {
+diff --git a/generator/logic/search.cpp b/generator/logic/search.cpp
+index c0a5314..123ae21 100644
+--- a/generator/logic/search.cpp
++++ b/generator/logic/search.cpp
+@@ -1,4 +1,7 @@
+ #include "search.hpp"
++#ifndef RANDOMIZER_ONLY
++#include "../../src/ui/rando_seed_generation.hpp"
++#endif
+ 
+ #include "world.hpp"
+ #include "../randomizer.hpp"
+@@ -87,6 +90,9 @@ namespace randomizer::logic::search
+ 
+     void Search::SearchWorlds()
+     {
++#ifndef RANDOMIZER_ONLY
++        randomizer::ui::CheckSeedGenerationCancellation();
++#endif
+         if (this->_searchMode == SearchMode::NO_SEARCH) {
+             return;
+         }
+@@ -710,9 +716,14 @@ namespace randomizer::logic::search
+         const auto itemAtLocation = location->GetCurrentItem();
+         location->RemoveCurrentItem();
+ 
+-        // Run an accessible search
++        // Run an accessible search, retaining the world's item on every exit.
+         auto search = Search::Accessible(&location->GetWorld()->GetRandomizer()->GetWorlds());
+-        search.SearchWorlds();
++        try {
++            search.SearchWorlds();
++        } catch (...) {
++            location->SetCurrentItem(itemAtLocation);
++            throw;
++        }
+ 
+         // Give the item back
+         location->SetCurrentItem(itemAtLocation);
+diff --git a/generator/test/test.cpp b/generator/test/test.cpp
+index 66f7e04..6d8e896 100644
+--- a/generator/test/test.cpp
++++ b/generator/test/test.cpp
+@@ -1,7 +1,10 @@
+ #include "../randomizer.hpp"
+ #include "../utility/text.hpp"
+ #include "src/enemy_soul_catalog.hpp"
++#include "../logic/hints.hpp"
++#include "../logic/search.hpp"
+ 
++#include <algorithm>
+ #include <array>
+ #include <cstdlib>
+ #include <filesystem>
+@@ -42,7 +45,7 @@ void VerifyEnemySoulHintText()
+ 
+ void VerifySoulPlacementSpace(randomizer::Randomizer& r, const std::string_view testName)
+ {
+-    if (!testName.starts_with("souls every check ")) return;
++    if (!testName.starts_with("souls every check ") && testName != "max sign hints souls entrances") return;
+     constexpr std::array metadataNames{
+         "Breakable", "Expanded Shop", "Poe", "Bug Reward", "Sky Character",
+         "Golden Wolf", "Name Lookup",
+@@ -84,6 +87,56 @@ void VerifySoulPlacementSpace(randomizer::Randomizer& r, const std::string_view
+     std::cout << "PASS: Enemy and Boss Souls allowed in all seven extended reward categories" << std::endl;
+ }
+ 
++void VerifyMaxSignHints(randomizer::Randomizer& r, const std::string_view testName)
++{
++    if (!testName.starts_with("max sign hints ")) return;
++    using namespace randomizer::logic;
++    for (const auto& world : r.GetWorlds()) {
++        std::vector<hints::Hint> uniqueHints;
++        for (const auto& [sign, list] : world->GetHintSignHints()) {
++            for (const auto& hint : list) {
++                std::string type;
++                if (std::holds_alternative<hints::PathHint>(hint.data)) type = "Path Hints";
++                else if (std::holds_alternative<hints::BarrenHint>(hint.data)) type = "Barren Hints";
++                else if (std::holds_alternative<hints::ItemHint>(hint.data)) type = "Item Hints";
++                else if (std::holds_alternative<hints::LocationHint>(hint.data)) type = "Location Hints";
++                if (type.empty()) continue;
++                const auto& destination = world->Setting(type + " on Hint Signs");
++                if ((destination == "Overworld" && sign->HasCategories("Dungeon")) ||
++                    (destination == "Dungeon" && sign->HasCategories("Overworld"))) {
++                    throw std::runtime_error("Max hint violated its sign destination setting");
++                }
++                if (std::find(uniqueHints.begin(), uniqueHints.end(), hint) == uniqueHints.end()) {
++                    uniqueHints.push_back(hint);
++                }
++            }
++        }
++        if (uniqueHints.size() < 36) {
++            throw std::runtime_error("Max sign hints lost requested hints: " + std::to_string(uniqueHints.size()));
++        }
++        for (const auto& hint : uniqueHints) {
++            location::Location* hintedLocation = nullptr;
++            if (auto* h = std::get_if<hints::PathHint>(&hint.data)) hintedLocation = h->hintedLocation;
++            if (auto* h = std::get_if<hints::ItemHint>(&hint.data)) hintedLocation = h->location;
++            if (auto* h = std::get_if<hints::LocationHint>(&hint.data)) hintedLocation = h->location;
++            if (!hintedLocation) continue;
++            const auto signs = search::GetPossibleHintSigns(hintedLocation);
++            bool hasReachableCopy = false;
++            for (auto* sign : signs) {
++                const auto& assigned = world->GetHintSignHints()[sign];
++                if (std::find(assigned.begin(), assigned.end(), hint) != assigned.end()) {
++                    hasReachableCopy = true;
++                    break;
++                }
++            }
++            if (!hasReachableCopy) {
++                throw std::runtime_error("Max hint has no copy reachable before its hinted item");
++            }
++        }
++    }
++    std::cout << "PASS: Max sign hint counts, configured destinations and item-before-hint access" << std::endl;
++}
++
+ } // namespace
+ 
+ int main()
+@@ -160,6 +213,7 @@ int main()
+                 randomizer::Randomizer r{RANDO_SAVE_PATH};
+                 r.GenerateWorlds();
+                 VerifySoulPlacementSpace(r, testName);
++                VerifyMaxSignHints(r, testName);
+                 scenarioPassed = true;
+                 break;
+             }
+diff --git a/generator/utility/progress.hpp b/generator/utility/progress.hpp
+index 9f5ac6e..373781d 100644
+--- a/generator/utility/progress.hpp
++++ b/generator/utility/progress.hpp
+@@ -4,8 +4,10 @@
+ 
+ #ifndef RANDOMIZER_ONLY
+ #include "../../src/ui/rando_seed_generation.hpp"
+-#define UPDATE_PROGRESS_PERCENT(value) randomizer::ui::UpdateSeedGenProgressValue(value / 100.0f);
+-#define UPDATE_STATUS_MESSAGE(message) randomizer::ui::UpdateGenerationStatusMsg(message); \
++#define UPDATE_PROGRESS_PERCENT(value) randomizer::ui::CheckSeedGenerationCancellation(); \
++                                      randomizer::ui::UpdateSeedGenProgressValue(value / 100.0f);
++#define UPDATE_STATUS_MESSAGE(message) randomizer::ui::CheckSeedGenerationCancellation(); \
++                                       randomizer::ui::UpdateGenerationStatusMsg(message); \
+                                        utility::platform::Log(message);
+ #else
+ #define UPDATE_PROGRESS_PERCENT(value)
+diff --git a/src/randomizer_context.cpp b/src/randomizer_context.cpp
+index e1affe1..2763f54 100644
+--- a/src/randomizer_context.cpp
++++ b/src/randomizer_context.cpp
+@@ -4588,9 +4588,16 @@ bool GenerateAndWriteSeed() {
+     std::string lastGenerationError;
+ 
+     for (int attempt = 1; attempt <= kMaxSeedGenerationAttempts; ++attempt) {
++        if (randomizer::ui::IsSeedGenerationCancelled()) {
++            return false;
++        }
+         auto r = randomizer::Randomizer{::randomizer::paths::GetRandomizerPath()};
+ 
+         auto generationResult = r.Generate();
++        if (randomizer::ui::IsSeedGenerationCancelled()) {
++            DeleteFailedGenerationFiles(r);
++            return false;
++        }
+         if (generationResult.has_value()) {
+             lastGenerationError = generationResult.value();
+             const bool plandomizer = r.GetConfig().IsUsingPlandomizer();
+@@ -4621,6 +4628,10 @@ bool GenerateAndWriteSeed() {
+             return false;
+         }
+ 
++        if (randomizer::ui::IsSeedGenerationCancelled()) {
++            DeleteFailedGenerationFiles(r);
++            return false;
++        }
+         randoData.mHash = r.GetConfig().GetHash();
+         auto writeToFileResult = randoData.WriteToFile();
+         if (writeToFileResult.has_value()) {
+diff --git a/src/ui/rando_seed_generation.cpp b/src/ui/rando_seed_generation.cpp
+index 23b9481..ad5a8b8 100644
+--- a/src/ui/rando_seed_generation.cpp
++++ b/src/ui/rando_seed_generation.cpp
+@@ -19,6 +19,7 @@ enum class SeedGenerateStatus {
+     Generating,
+     Success,
+     Error,
++    Cancelled,
+ };
+ 
+ UiDialogHandle seedGenDialog{0};
+@@ -29,26 +30,77 @@ static std::atomic seedGenProgressValueTarget = 0.0f;
+ static float seedGenProgressValueCurrent = 0.0f;
+ static std::string generationStatusMsg{};
+ static std::mutex generationStatusMutex;
++static std::atomic_bool s_seedGenerationCancelRequested{false};
++static bool s_retryGenerationWhenIdle = false;
++static std::thread s_seedGenerationWorker;
++
++bool IsSeedGenerationCancelled() noexcept {
++    return s_seedGenerationCancelRequested.load(std::memory_order_relaxed);
++}
++
++void CheckSeedGenerationCancellation() {
++    if (IsSeedGenerationCancelled()) {
++        throw std::runtime_error("Seed generation cancelled");
++    }
++}
++
++static void ForgetSeedGenerationDialog(UiDialogHandle handle) {
++    if (seedGenDialog != handle) {
++        return;
++    }
++    std::lock_guard lock{seedGenProgressBarMutex};
++    seedGenDialog = 0;
++    seedGenProgressBar = 0;
++}
++
++void CancelSeedGeneration() noexcept {
++    s_seedGenerationCancelRequested.store(true, std::memory_order_relaxed);
++    s_retryGenerationWhenIdle = false;
++    ForgetSeedGenerationDialog(seedGenDialog);
++}
++
++void WaitForSeedGeneration() {
++    if (s_seedGenerationWorker.joinable()) {
++        s_seedGenerationWorker.join();
++    }
++}
++
++static void OnSeedGenerationDismiss(ModContext*, UiDialogHandle handle, void*) {
++    if (seedGenDialog != handle) {
++        return;
++    }
++    ForgetSeedGenerationDialog(handle);
++    s_retryGenerationWhenIdle = false;
++    if (seedGenStatus.load() == SeedGenerateStatus::Generating) {
++        s_seedGenerationCancelRequested.store(true, std::memory_order_relaxed);
++    } else {
++        seedGenStatus.store(SeedGenerateStatus::Ready);
++    }
++}
+ 
+ void OnDialogActionOK(ModContext* ctx, UiDialogHandle dialogHandle, void*) {
+     mDoAud_seStartMenu(Z2SE_SY_MENU_BACK);
+-    if (seedGenDialog == dialogHandle) {
+-        std::lock_guard lock{seedGenProgressBarMutex};
+-        seedGenDialog = 0;
+-        seedGenProgressBar = 0;
+-    }
++    OnSeedGenerationDismiss(ctx, dialogHandle, nullptr);
+     session::svc_mng.ui->dialog_close(ctx, dialogHandle);
+ }
+ 
+ static void StartSeedGeneration() {
+-    if (GenerateAndWriteSeed()) {
+-        seedGenStatus.store(SeedGenerateStatus::Success);
+-    } else {
+-        seedGenStatus.store(SeedGenerateStatus::Error);
++    bool succeeded = false;
++    try {
++        succeeded = GenerateAndWriteSeed();
++    } catch (const std::exception& error) {
++        UpdateGenerationStatusMsg(std::string{"Failed to generate seed. Reason:\n"} + error.what());
++    } catch (...) {
++        UpdateGenerationStatusMsg("Failed to generate seed: unexpected generation error.");
+     }
+-
+-    std::string generationStatus = ReadGenerationStatusMsg();
+-    mods::log::debug("{}", generationStatus);
++    const bool cancelled = IsSeedGenerationCancelled();
++    if (cancelled) {
++        UpdateGenerationStatusMsg("Seed generation cancelled. Change settings or generate again.");
++    }
++    mods::log::debug("{}", ReadGenerationStatusMsg());
++    // Publish completion last: a retry must never overlap this worker's cleanup.
++    seedGenStatus.store(cancelled ? SeedGenerateStatus::Cancelled :
++        succeeded ? SeedGenerateStatus::Success : SeedGenerateStatus::Error);
+ }
+ 
+ static ModResult buildProgressUpdate(ModContext* ctx, UiElementHandle pane, void*, ModError*) {
+@@ -62,7 +114,8 @@ static ModResult buildProgressUpdate(ModContext* ctx, UiElementHandle pane, void
+ }
+ 
+ static ModResult buildDialog() {
+-    UpdateGenerationStatusMsg("Generating Seed...");
++    UpdateGenerationStatusMsg(IsSeedGenerationCancelled() ?
++        "Cancelling the previous attempt before generating again..." : "Generating Seed...");
+ 
+     UiDialogDesc desc = UI_DIALOG_DESC_INIT;
+     desc.title = "Generating Randomizer Seed";
+@@ -70,6 +123,7 @@ static ModResult buildDialog() {
+     desc.icon = "verifying";
+     desc.variant = UI_DIALOG_NORMAL;
+     desc.build = buildProgressUpdate;
++    desc.on_dismiss = OnSeedGenerationDismiss;
+ 
+     UiDialogAction action = {
+         .struct_size = sizeof(UiDialogAction),
+@@ -94,18 +148,37 @@ static ModResult buildDialog() {
+ }
+ 
+ void GenerateRandomizerSeed() {
+-    if (seedGenStatus.load() != SeedGenerateStatus::Ready) {
++    const auto status = seedGenStatus.load();
++    if (status == SeedGenerateStatus::Generating) {
++        if (seedGenDialog == 0 && IsSeedGenerationCancelled()) {
++            s_retryGenerationWhenIdle = true;
++            if (buildDialog() != MOD_OK) {
++                s_retryGenerationWhenIdle = false;
++                ForgetSeedGenerationDialog(seedGenDialog);
++            }
++        }
+         return;
+     }
+-    if (buildDialog() != MOD_OK) {
++    if (seedGenDialog != 0) {
+         return;
+     }
+-
+-    // Start generation thread
+-    seedGenStatus.store(SeedGenerateStatus::Generating);
+-    std::thread rando_gen_thread(StartSeedGeneration);
+-    rando_gen_thread.detach();
++    WaitForSeedGeneration();
++    s_seedGenerationCancelRequested.store(false, std::memory_order_relaxed);
++    s_retryGenerationWhenIdle = false;
++    seedGenProgressValueCurrent = 0.f;
+     seedGenProgressValueTarget.store(0.f);
++    seedGenStatus.store(SeedGenerateStatus::Generating);
++    if (buildDialog() != MOD_OK) {
++        ForgetSeedGenerationDialog(seedGenDialog);
++        seedGenStatus.store(SeedGenerateStatus::Ready);
++        return;
++    }
++    try {
++        s_seedGenerationWorker = std::thread(StartSeedGeneration);
++    } catch (const std::exception& error) {
++        UpdateGenerationStatusMsg(std::string{"Cannot start seed generation: "} + error.what());
++        seedGenStatus.store(SeedGenerateStatus::Error);
++    }
+ }
+ 
+ void UpdateProgressBar() {
+@@ -136,9 +209,21 @@ void UpdateProgressBar() {
+ }
+ 
+ void UpdateSeedGenerationDialog() {
++    const auto workerStatus = seedGenStatus.load();
++    if (workerStatus != SeedGenerateStatus::Generating && s_retryGenerationWhenIdle) {
++        s_retryGenerationWhenIdle = false;
++        if (seedGenDialog != 0) {
++            session::svc_mng.ui->dialog_close(session::svc_mng.mod_ctx, seedGenDialog);
++            ForgetSeedGenerationDialog(seedGenDialog);
++        }
++        seedGenStatus.store(SeedGenerateStatus::Ready);
++        GenerateRandomizerSeed();
++        return;
++    }
+     if (seedGenDialog == 0) {
+         const auto status = seedGenStatus.load();
+-        if (status == SeedGenerateStatus::Success || status == SeedGenerateStatus::Error) {
++        if (status == SeedGenerateStatus::Success || status == SeedGenerateStatus::Error ||
++            status == SeedGenerateStatus::Cancelled) {
+             seedGenStatus.store(SeedGenerateStatus::Ready);
+         }
+         return;
+@@ -152,11 +237,15 @@ void UpdateSeedGenerationDialog() {
+ 
+     // Update the progress bar if we're still attempting to generate
+     if (curSeedGenStatus == SeedGenerateStatus::Generating) {
+-        ui_svc->dialog_set_body(ctx, seedGenDialog, generationStatus.c_str());
++        if (ui_svc->dialog_set_body(ctx, seedGenDialog, generationStatus.c_str()) != MOD_OK) {
++            // A reset/programmatic close may bypass the B callback.
++            OnSeedGenerationDismiss(ctx, seedGenDialog, nullptr);
++        }
+     }
+     // Change the modal text if we've finished attempting to generate
+     else if (curSeedGenStatus == SeedGenerateStatus::Success ||
+-             curSeedGenStatus == SeedGenerateStatus::Error)
++             curSeedGenStatus == SeedGenerateStatus::Error ||
++             curSeedGenStatus == SeedGenerateStatus::Cancelled)
+     {
+         if (curSeedGenStatus == SeedGenerateStatus::Success) {
+             seedGenProgressValueTarget.store(1.f);
+@@ -169,9 +258,16 @@ void UpdateSeedGenerationDialog() {
+             ui_svc->dialog_set_icon(ctx, seedGenDialog, "error");
+         }
+ 
+-        ui_svc->dialog_set_body(ctx, seedGenDialog, generationStatus.c_str());
++        if (ui_svc->dialog_set_body(ctx, seedGenDialog, generationStatus.c_str()) != MOD_OK) {
++            ForgetSeedGenerationDialog(seedGenDialog);
++        }
+         seedGenStatus.store(SeedGenerateStatus::Ready);
+     }
++    else if (curSeedGenStatus == SeedGenerateStatus::Ready &&
++             ui_svc->dialog_set_body(ctx, seedGenDialog, generationStatus.c_str()) != MOD_OK)
++    {
++        ForgetSeedGenerationDialog(seedGenDialog);
++    }
+ }
+ 
+ void UpdateSeedGenProgressValue(float progress) {
+diff --git a/src/ui/rando_seed_generation.hpp b/src/ui/rando_seed_generation.hpp
+index 5094bbe..ae9e1d9 100644
+--- a/src/ui/rando_seed_generation.hpp
++++ b/src/ui/rando_seed_generation.hpp
+@@ -3,10 +3,15 @@
+ #include <mods/api.h>
+ 
+ #include <string>
++#include <stdexcept>
+ 
+ namespace randomizer::ui {
+ 
+ void GenerateRandomizerSeed();
++void CancelSeedGeneration() noexcept;
++void WaitForSeedGeneration();
++bool IsSeedGenerationCancelled() noexcept;
++void CheckSeedGenerationCancellation();
+ void UpdateProgressBar();
+ void UpdateSeedGenerationDialog();
+ void UpdateSeedGenProgressValue(float progress);
+diff --git a/src/ui/ui.cpp b/src/ui/ui.cpp
+index 31f99c3..3d9cd16 100644
+--- a/src/ui/ui.cpp
++++ b/src/ui/ui.cpp
+@@ -11,6 +11,7 @@
+ 
+ namespace randomizer::ui {
+ UiStyleHandle styleHandle{};
++#if !defined(_UWP)
+ static std::atomic uiRunning = false;
+ static std::thread progressBarUpdateThread;
+ 
+@@ -23,6 +24,8 @@ void update_seed_gen_progress_bar() {
+     }
+ }
+ 
++#endif
++
+ ModResult initialize() {
+     ModResult res;
+ 
+@@ -42,23 +45,33 @@ ModResult initialize() {
+         return res;
+     }
+ 
++#if !defined(_UWP)
+     uiRunning = true;
+     progressBarUpdateThread = std::thread(update_seed_gen_progress_bar);
++#endif
+     return MOD_OK;
+ }
+ 
+ void update() {
++#if defined(_UWP)
++    // RmlUi elements and dialog slots belong to the UI thread.
++    UpdateProgressBar();
++#endif
+     UpdateSeedGenerationDialog();
+ }
+ 
+ ModResult shutdown() {
++    CancelSeedGeneration();
++    WaitForSeedGeneration();
++#if !defined(_UWP)
+     uiRunning = false;
+     if (progressBarUpdateThread.joinable()) {
+         progressBarUpdateThread.join();
+     }
++#endif
+     removeMenuTab();
+     session::svc_mng.ui->unregister_styles(mod_ctx, styleHandle);
+     return MOD_OK;
+ }
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/generator/data/tests/logic/max sign hints any/settings.yaml b/generator/data/tests/logic/max sign hints any/settings.yaml
+new file mode 100644
+--- /dev/null
++++ b/generator/data/tests/logic/max sign hints any/settings.yaml
+@@ -0,0 +1,15 @@
++Seed: MAX_SIGN_HINTS
++Generate Spoiler Log: true
++Number of Path Hints: 7
++Path Hints on Midna: "Off"
++Path Hints on Hint Signs: Any
++Number of Barren Hints: 7
++Barren Hints on Midna: "Off"
++Barren Hints on Hint Signs: Any
++Number of Item Hints: 7
++Item Hints on Midna: "Off"
++Item Hints on Hint Signs: Any
++Number of Location Hints: 15
++Location Hints on Midna: "Off"
++Location Hints on Hint Signs: Any
++Prioritize Remote Location Hints: "On"
+diff --git a/generator/data/tests/logic/max sign hints dungeon/settings.yaml b/generator/data/tests/logic/max sign hints dungeon/settings.yaml
+new file mode 100644
+--- /dev/null
++++ b/generator/data/tests/logic/max sign hints dungeon/settings.yaml
+@@ -0,0 +1,15 @@
++Seed: MAX_SIGN_HINTS
++Generate Spoiler Log: true
++Number of Path Hints: 7
++Path Hints on Midna: "Off"
++Path Hints on Hint Signs: Dungeon
++Number of Barren Hints: 7
++Barren Hints on Midna: "Off"
++Barren Hints on Hint Signs: Dungeon
++Number of Item Hints: 7
++Item Hints on Midna: "Off"
++Item Hints on Hint Signs: Dungeon
++Number of Location Hints: 15
++Location Hints on Midna: "Off"
++Location Hints on Hint Signs: Dungeon
++Prioritize Remote Location Hints: "On"
+diff --git a/generator/data/tests/logic/max sign hints mixed/settings.yaml b/generator/data/tests/logic/max sign hints mixed/settings.yaml
+new file mode 100644
+--- /dev/null
++++ b/generator/data/tests/logic/max sign hints mixed/settings.yaml
+@@ -0,0 +1,15 @@
++Seed: MAX_SIGN_HINTS
++Generate Spoiler Log: true
++Number of Path Hints: 7
++Path Hints on Midna: "Off"
++Path Hints on Hint Signs: Overworld
++Number of Barren Hints: 7
++Barren Hints on Midna: "Off"
++Barren Hints on Hint Signs: Dungeon
++Number of Item Hints: 7
++Item Hints on Midna: "Off"
++Item Hints on Hint Signs: Any
++Number of Location Hints: 15
++Location Hints on Midna: "Off"
++Location Hints on Hint Signs: Any
++Prioritize Remote Location Hints: "On"
+diff --git a/generator/data/tests/logic/max sign hints overworld/settings.yaml b/generator/data/tests/logic/max sign hints overworld/settings.yaml
+new file mode 100644
+--- /dev/null
++++ b/generator/data/tests/logic/max sign hints overworld/settings.yaml
+@@ -0,0 +1,15 @@
++Seed: MAX_SIGN_HINTS
++Generate Spoiler Log: true
++Number of Path Hints: 7
++Path Hints on Midna: "Off"
++Path Hints on Hint Signs: Overworld
++Number of Barren Hints: 7
++Barren Hints on Midna: "Off"
++Barren Hints on Hint Signs: Overworld
++Number of Item Hints: 7
++Item Hints on Midna: "Off"
++Item Hints on Hint Signs: Overworld
++Number of Location Hints: 15
++Location Hints on Midna: "Off"
++Location Hints on Hint Signs: Overworld
++Prioritize Remote Location Hints: "On"
+diff --git a/generator/data/tests/logic/max sign hints souls entrances/settings.yaml b/generator/data/tests/logic/max sign hints souls entrances/settings.yaml
+new file mode 100644
+--- /dev/null
++++ b/generator/data/tests/logic/max sign hints souls entrances/settings.yaml
+@@ -0,0 +1,30 @@
++Seed: MAX_SIGN_HINTS_SOULS
++Generate Spoiler Log: true
++Boss Souls: "On"
++Enemy Souls: "On"
++Enemy First-Defeat Checks: "On"
++Pots: All
++Pumpkins: All
++Shop Items: All
++Poe Souls: All
++Golden Bugs: "On"
++Sky Characters: "On"
++Gifts From NPCs: "On"
++Hidden Skills: "On"
++Randomize Dungeon Entrances: "On"
++Randomize Boss Entrances: "On"
++Randomize Cave Entrances: "On"
++Randomize Grotto Entrances: "On"
++Number of Path Hints: 7
++Path Hints on Midna: "Off"
++Path Hints on Hint Signs: Any
++Number of Barren Hints: 7
++Barren Hints on Midna: "Off"
++Barren Hints on Hint Signs: Any
++Number of Item Hints: 7
++Item Hints on Midna: "Off"
++Item Hints on Hint Signs: Any
++Number of Location Hints: 15
++Location Hints on Midna: "Off"
++Location Hints on Hint Signs: Any
++Prioritize Remote Location Hints: "On"

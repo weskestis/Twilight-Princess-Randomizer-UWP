@@ -80,6 +80,10 @@ using ModResult = int;
 constexpr int MOD_OK = 0;
 struct base_process_class { fpc_ProcID id; };
 base_process_class opening{1}, play{2};
+using scene_class = base_process_class;
+fpc_ProcID fpcM_GetID(base_process_class* p) { return p->id; }
+int resetOpeningRequests = 0;
+int dComIfG_resetToOpening(scene_class*) { ++resetOpeningRequests; return 1; }
 constexpr fpc_ProcID fpcM_ERROR_PROCESS_ID_e = UINT32_MAX;
 constexpr int fpcNm_OPENING_SCENE_e = 1, fpcNm_PLAY_SCENE_e = 2;
 int sceneQueue = 0, createQueue = 0, deleteQueue = 0;
@@ -355,6 +359,22 @@ int main(int argc, char** argv) {
     std::cout << "PASS .733 native lifecycle tests: duplicate/recursive reset, delayed teardown, busy save, scene queues, independent stall reports, stable-room recovery, full repair proof, reset DSP and nonblocking sound drain.\n";
 }
 '''
+
+if 's_xboxResetSourceSceneId' in payload:
+    cases = cases.replace('    blocked();\n    mDoRst::offReset();', r'''    blocked();
+    assert(resetOpeningRequests == 1);
+    for (auto* queue : {&sceneQueue, &createQueue, &deleteQueue}) {
+        *queue = 1; blocked(); *queue = 0;
+        assert(resetOpeningRequests == 1);
+    }
+    cardIdle = false; blocked(); cardIdle = true;
+    peek = true; blocked(); peek = false;
+    doing = true; blocked(); doing = false;
+    assert(resetOpeningRequests == 1);
+    // A fresh opening has a different ID and must never be reset a second time.
+    opening.id = 10; blocked(); opening.id = 1;
+    assert(resetOpeningRequests == 1);
+    mDoRst::offReset();''')
 
 with tempfile.TemporaryDirectory(prefix="tpr-733-tests-") as temp:
     work = Path(temp)

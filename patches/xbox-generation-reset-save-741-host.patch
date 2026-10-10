@@ -1,0 +1,156 @@
+diff --git a/src/d/d_com_inf_game.cpp b/src/d/d_com_inf_game.cpp
+index 8b3f0bde1d..2b1261d8c5 100644
+--- a/src/d/d_com_inf_game.cpp
++++ b/src/d/d_com_inf_game.cpp
+@@ -1227,7 +1227,18 @@ int dComIfG_changeOpeningScene(scene_class* i_scene, s16 i_procName) {
+         mDoGph_gInf_c::setFadeColor(*(JUtility::TColor*)&g_blackColor);
+     }
+ 
+-    fopScnM_ChangeReq(i_scene, i_procName, 0, 30);
++#if defined(_UWP)
++    if (tpr_xbox_reset_to_launcher_pending()) {
++        // The launcher owns presentation after this native scene transaction.
++        // A second overlap/fade can wait forever on an already black renderer.
++        if (!fopScnM_ChangeReq(i_scene, i_procName, 0x7FFF, 0)) {
++            return 0;
++        }
++    } else
++#endif
++    {
++        fopScnM_ChangeReq(i_scene, i_procName, 0, 30);
++    }
+     fopScnM_ReRequest(i_procName, 0);
+ 
+     return 1;
+@@ -1236,12 +1247,20 @@ int dComIfG_changeOpeningScene(scene_class* i_scene, s16 i_procName) {
+ DUSK_GAME_DATA dComIfG_inf_c g_dComIfG_gameInfo;
+ 
+ BOOL dComIfG_resetToOpening(scene_class* i_scene) {
++    bool waitingForFade = mDoGph_gInf_c::getFader()->getStatus() == 2;
++#if defined(_UWP)
++    // This reset deliberately uses a no-fade scene request. Fader::Wait is
++    // already black and must not prevent the teardown from being requested.
++    if (tpr_xbox_reset_to_launcher_pending()) {
++        waitingForFade = false;
++    }
++#endif
+     #if PLATFORM_WII || VERSION == VERSION_SHIELD_DEBUG
+-    if (mDoRst::isShutdown() || mDoRst::isReturnToMenu() || !mDoRst::isReset() || mDoGph_gInf_c::getFader()->getStatus() == 2) {
++    if (mDoRst::isShutdown() || mDoRst::isReturnToMenu() || !mDoRst::isReset() || waitingForFade) {
+         return 0;
+     }
+     #else
+-    if (mDoRst::isReturnToMenu() || !mDoRst::isReset() || mDoGph_gInf_c::getFader()->getStatus() == 2) {
++    if (mDoRst::isReturnToMenu() || !mDoRst::isReset() || waitingForFade) {
+         return 0;
+     }
+     #endif
+@@ -1253,7 +1272,9 @@ BOOL dComIfG_resetToOpening(scene_class* i_scene) {
+     g_mDoMemCd_control.SaveSync();
+ #endif
+ 
+-    dComIfG_changeOpeningScene(i_scene, fpcNm_OPENING_SCENE_e);
++    if (!dComIfG_changeOpeningScene(i_scene, fpcNm_OPENING_SCENE_e)) {
++        return 0;
++    }
+     mDoAud_bgmStop(30);
+     mDoAud_resetProcess();
+     #if PLATFORM_WII || VERSION == VERSION_SHIELD_DEBUG
+diff --git a/src/dusk/ui/saves_window.cpp b/src/dusk/ui/saves_window.cpp
+index be75d8c69b..fff47e2f72 100644
+--- a/src/dusk/ui/saves_window.cpp
++++ b/src/dusk/ui/saves_window.cpp
+@@ -111,9 +111,15 @@ save_manager::ValueResult<Context> context_for_save(const std::string& saveName)
+     if (!state.configuredDiscCanLaunch || !identity) {
+         return {{.message = "A disc must be configured before managing saves."}, {}};
+     }
++#if defined(_UWP)
++    // Xbox gameplay always uses the writable GCI Slot A. Match it before CARD
++    // initialization too, so launcher save management finds vanilla saves.
++    const auto preferredKind = save_manager::StorageKind::GciDirectory;
++#else
+     const auto preferredKind = getSettings().backend.cardFileType.getValue() == 0 ?
+                                    save_manager::StorageKind::RawImage :
+                                    save_manager::StorageKind::GciDirectory;
++#endif
+     auto storage = save_manager::resolve_storage(identity->game, preferredKind);
+     if (!storage) {
+         return {storage.result, {}};
+diff --git a/src/m_Do/m_Do_MemCard.cpp b/src/m_Do/m_Do_MemCard.cpp
+index f8c51b837e..851a4558fc 100644
+--- a/src/m_Do/m_Do_MemCard.cpp
++++ b/src/m_Do/m_Do_MemCard.cpp
+@@ -219,8 +219,8 @@ void mDoMemCd_Ctrl_c::ThdInit() {
+     // Preserve the working vanilla Xbox card root. Randomizer isolation is handled
+     // with its own save_name below, not by moving the whole virtual memory card.
+     CARDSetLoadType(CARD_GCIFOLDER);
+-    const auto xboxCardBasePath = dusk::ConfigPath.string();
+-    CARDSetBasePath(xboxCardBasePath.c_str(), -1);
++    const auto xboxCardBasePath = dusk::ConfigPath.u8string();
++    CARDSetBasePath(reinterpret_cast<const char*>(xboxCardBasePath.c_str()), -1);
+ #else
+     CARDSetLoadType((CARDFileType)dusk::getSettings().backend.cardFileType.getValue());
+ #endif
+diff --git a/src/m_Do/m_Do_Reset.cpp b/src/m_Do/m_Do_Reset.cpp
+index 3ed92772d1..6a31d2ade6 100644
+--- a/src/m_Do/m_Do_Reset.cpp
++++ b/src/m_Do/m_Do_Reset.cpp
+@@ -30,6 +30,7 @@
+ #include "f_op/f_op_overlap_mng.h"
+ #include "f_pc/f_pc_manager.h"
+ #include "f_pc/f_pc_name.h"
++#include "d/d_com_inf_game.h"
+ #endif
+ #endif
+ 
+@@ -120,6 +121,7 @@ void checkDiskCallback(s32 result, DVDCommandBlock* block) {
+ #if defined(_UWP)
+ namespace {
+ bool s_xboxResetToLauncherPending = false;
++fpc_ProcID s_xboxResetSourceSceneId = fpcM_ERROR_PROCESS_ID_e;
+ }
+ 
+ extern "C" int tpr_xbox_scene_change_present() noexcept;
+@@ -137,6 +139,21 @@ void tpr_xbox_complete_reset_to_launcher() {
+         return;
+     }
+     if (mDoRst::isReset()) {
++        // Request from the end of the frame too: old scene rendering may be
++        // paused/black and never call its normal reset-to-opening draw path.
++        // Retain the old scene/mod/save until native queues have drained.
++        if (tpr_xbox_scene_change_present() == 0 &&
++            tpr_xbox_create_queue_size() == 0 && tpr_xbox_delete_queue_size() == 0 &&
++            !fopOvlpM_IsPeek() && !fopOvlpM_IsDoingReq() && mDoMemCd_isCardCommNone())
++        {
++            auto* sourceScene = fpcM_SearchByName(fpcNm_PLAY_SCENE_e);
++            if (sourceScene == nullptr) {
++                sourceScene = fpcM_SearchByName(fpcNm_OPENING_SCENE_e);
++            }
++            if (sourceScene != nullptr && fpcM_GetID(sourceScene) == s_xboxResetSourceSceneId) {
++                dComIfG_resetToOpening(reinterpret_cast<scene_class*>(sourceScene));
++            }
++        }
+         dusk::startup_guard::stage("reset.wait-opening");
+         return;
+     }
+@@ -179,6 +196,7 @@ void tpr_xbox_complete_reset_to_launcher() {
+     dusk::ui::return_to_prelaunch();
+     dusk::ui::prelaunch_state().returnToPrelaunchOnReset = false;
+     s_xboxResetToLauncherPending = false;
++    s_xboxResetSourceSceneId = fpcM_ERROR_PROCESS_ID_e;
+ 
+     // A reset crash must retain the active-session marker until the launcher exists.
+     std::error_code ec;
+@@ -204,6 +222,12 @@ void mDoRst_resetCallBack(int port, void*) {
+     cAPICPad_recalibrate();
+     // Latch before calling mod code: recursive/duplicate reset events are ignored.
+     s_xboxResetToLauncherPending = true;
++    auto* sourceScene = fpcM_SearchByName(fpcNm_PLAY_SCENE_e);
++    if (sourceScene == nullptr) {
++        sourceScene = fpcM_SearchByName(fpcNm_OPENING_SCENE_e);
++    }
++    s_xboxResetSourceSceneId = sourceScene != nullptr ? fpcM_GetID(sourceScene) :
++        fpcM_ERROR_PROCESS_ID_e;
+     mDoRst::onReset();
+     dusk::ui::prelaunch_state().returnToPrelaunchOnReset = true;
+     dusk::startup_guard::begin_activity("reset.requested");

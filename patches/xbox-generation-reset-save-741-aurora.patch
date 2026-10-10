@@ -1,0 +1,41 @@
+diff --git a/lib/dolphin/card.cpp b/lib/dolphin/card.cpp
+index c76ef2a..5057385 100644
+--- a/lib/dolphin/card.cpp
++++ b/lib/dolphin/card.cpp
+@@ -271,7 +271,7 @@ void CARDSetBasePath(const char* path, const s32 chan) {
+     Log.fatal("CARDSetBasePath() called after CARDInit()!");
+   }
+ 
+-  std::filesystem::path filePath(path);
++  auto filePath = aurora::io::fs_path_from_string(path);
+ 
+   if (filePath.has_filename() && !std::filesystem::is_directory(filePath)) {
+     filePath = filePath.remove_filename();
+@@ -316,8 +316,6 @@ void CARDInit(const char* game, const char* maker) {
+   else
+     cardWorkingDir = std::filesystem::current_path();
+ 
+-  bool loadedCard = false;
+-
+   for (int i = 0; i < 2; ++i) {
+     // use default working directory if no path was supplied for card
+     if (cardPaths[i].empty()) {
+@@ -329,7 +327,6 @@ void CARDInit(const char* game, const char* maker) {
+ 
+     std::error_code ec;
+     if (std::filesystem::exists(curPath, ec) && CardChannels[i]->open(curPath)) {
+-      loadedCard = true;
+       Log.info("Loaded GC Card Image: {}", aurora::io::fs_path_to_string(curPath));
+     } else if (ec) {
+       Log.warn("Failed to inspect GC Card path '{}': {}", aurora::io::fs_path_to_string(curPath), ec.message());
+@@ -339,7 +336,9 @@ void CARDInit(const char* game, const char* maker) {
+   }
+ 
+   std::error_code createError;
+-  if (!loadedCard && !std::filesystem::exists(cardPaths[0], createError) && !createError) {
++  // Slot B existing does not supply the game's required Slot A. Create only
++  // a missing A; retain every existing card, including a card reporting errors.
++  if (!std::filesystem::exists(cardPaths[0], createError) && !createError) {
+     CardChannels[0]->open(cardPaths[0]);
+     CardChannels[0]->format(aurora::card::ECardSlot::SlotA);
+     CardChannels[0]->close();
