@@ -131,7 +131,7 @@ bool SDL_CloseIO(SDL_IOStream* f) {
     bool ok = f->interface.close(f->userdata); delete f; --streams; return ok;
 }
 HANDLE testCreateFile2(const std::filesystem::path::value_type* path, DWORD access, DWORD share,
-    DWORD disposition, const CREATEFILE2_EXTENDED_PARAMETERS* parameters) {
+    DWORD disposition, CREATEFILE2_EXTENDED_PARAMETERS* parameters) {
     if (openFailure) { SetLastError(openFailure); return INVALID_HANDLE_VALUE; }
 #ifdef _WIN32
     HANDLE handle = ::CreateFile2(path, access, share, disposition, parameters);
