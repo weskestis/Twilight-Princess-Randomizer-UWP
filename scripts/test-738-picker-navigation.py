@@ -30,7 +30,7 @@ else:
     found = {}
     for folder in search_roots:
         for lib in folder.rglob('*.lib'):
-            if re.fullmatch(r'(freetype|freetype2|zlib|zlibstatic|zlib-ng|zlib1)\.lib', lib.name, re.I):
+            if re.fullmatch(r'(freetype|freetype2|z|zlib|zlibstatic|zlib-ng|zlib1)\.lib', lib.name, re.I):
                 found.setdefault(lib.name.lower(), lib)
     assert any('freetype' in name for name in found), 'Freetype link library missing'
     libs.extend(found.values())
@@ -157,7 +157,7 @@ inline std::filesystem::path cache_path() { return configured.parent_path()/"Loc
                    str(work/'main.cpp'), *sources, '/Fe:'+str(exe), '/link', *map(str, libs)]
         for folder in [args.feed, Path(os.environ.get('TPR_UWP_DEP', args.feed))]:
             for dll in folder.rglob('*.dll'):
-                if re.match(r'(freetype|zlib|zlib1)', dll.name, re.I):
+                if re.fullmatch(r'(freetype|freetype2|z|zlib|zlib1)\.dll', dll.name, re.I):
                     shutil.copyfile(dll, work/dll.name)
     else:
         command = ['g++', '-std=c++20', '-pthread', '-D_UWP=1', '-DRMLUI_STATIC_LIB',
