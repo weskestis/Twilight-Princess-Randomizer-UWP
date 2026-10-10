@@ -24,7 +24,7 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
              # Xbox cannot reliably activate an app that later introduces a second
              # native image for the bundled Randomizer. Build it into the signed
              # game image instead. Other platforms retain the normal module path.
-@@ -184,6 +185,29 @@
+@@ -184,9 +185,33 @@
              add_library(${target_name} STATIC ${ARG_SOURCES})
              target_compile_definitions(${target_name} PRIVATE
                      DUSK_STATIC_BUILTIN_MOD=1)
@@ -54,6 +54,10 @@ diff --git a/cmake/ModSDK.cmake b/cmake/ModSDK.cmake
              if (target_name STREQUAL "cosmetics")
                  target_compile_definitions(${target_name} PRIVATE
                          DUSK_STATIC_COSMETICS=1
++                        mods=cosmetics_sdk
+                         mod_ctx=cosmetics_mod_ctx
+                         mod_meta=cosmetics_mod_meta
+                         mod_meta_bounds_begin=cosmetics_mod_meta_bounds_begin
 diff --git a/mods/controller_ui/CMakeLists.txt b/mods/controller_ui/CMakeLists.txt
 new file mode 100644
 --- /dev/null

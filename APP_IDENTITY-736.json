@@ -14,7 +14,8 @@
     "Guard out-of-range shelf and message indices, and clear every deferred shop selection at scene teardown",
     "Signed static ports of controller UI 1.3.2 and Luau runtime 1.0.0, with separate SDK contexts, hook state and metadata sections",
     "Bundle 22 hash-pinned catalog mods as optional resources; preserve existing user mod defaults and saved enable preferences",
-    "Install matching known native mod versions by immediately binding resources to the signed implementation; never execute downloaded desktop DLLs"
+    "Install matching known native mod versions by immediately binding resources to the signed implementation; never execute downloaded desktop DLLs",
+    "Separate the existing Cosmetics C++ SDK hook state from Randomizer so shared target metadata, dispatch contexts and reset/shutdown state cannot coalesce"
   ],
   "preserved": [
     "All green .734 Enemy/Boss Soul check types, wide IDs, native FIFO and normal Poe isolation",
@@ -41,7 +42,7 @@
     "online-mod-compatibility-735-host.patch": "536091ea819dc5c39e89b5e3abd4160a9728318ccdb6b2976ba1366539421449",
     "shop-idle-735-host.patch": "092ba9894c7afbb1696d902ea52401f7a28ac3861fa1054661ffa3e592be591e",
     "shop-idle-735-randomizer.patch": "100e1a97f06d3b5bc91488495fbdba40ca7b9a8f63e7415382cd97a85165b6c6",
-    "optional-mod-ports-736-host.patch": "420c3c960f64699689306154c7f49c86541500b5a62c2cbf4947844b8e516f6c"
+    "optional-mod-ports-736-host.patch": "b4eec9ba6c7d2d8ec46eab46b545e7576d5b5f0df596a5e1e178932867626bfc"
   },
   "bundledCatalogMods": 22,
   "catalogInventoryCount": 62

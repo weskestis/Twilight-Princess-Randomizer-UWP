@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +19,22 @@ source = args.source.resolve()
 control = Path(__file__).resolve().parents[1]
 cache = args.cache or source / '.uwp-mod-downloads-736'
 lock = json.loads((control / 'BUNDLED_MODS-736.json').read_text())
+
+# Compile the SDK with the production definitions, so removing a core mod's
+# isolation reproduces the bug in this harness rather than leaving a hard-coded
+# test namespace unaffected. The same target hook appears in both core mods.
+sdk_cmake = (source/'cmake/ModSDK.cmake').read_text()
+definition_blocks = re.findall(
+    r'target_compile_definitions\(\$\{target_name\} PRIVATE\s+([^)]*)\)', sdk_cmake)
+def static_definitions(target):
+    common = next(block for block in definition_blocks if block.strip() == 'DUSK_STATIC_BUILTIN_MOD=1')
+    definitions = common.split()
+    if target == 'cosmetics':
+        definitions += next(block for block in definition_blocks if 'DUSK_STATIC_COSMETICS=1' in block).split()
+    elif target in ('controller_ui', 'luau_runtime'):
+        definitions += next(block for block in definition_blocks if 'mod_ctx=${target_name}_mod_ctx' in block).split()
+        definitions.append('DUSK_STATIC_CONTROLLER_UI=1' if target == 'controller_ui' else 'DUSK_STATIC_LUAU_RUNTIME=1')
+    return [item.replace('${target_name}', target) for item in definitions] + ['DUSK_MOD_FEATURE_GAME=1']
 
 module_source = r'''
 #include <mods/service.hpp>
@@ -134,45 +151,47 @@ with tempfile.TemporaryDirectory(prefix='tpr-736-ports-') as temporary:
     compiler = shutil.which('cl' if os.name == 'nt' else 'g++')
     if not compiler:
         raise RuntimeError('C++ compiler unavailable')
-    objects = []
-    for name, flag in [('alpha', 'DUSK_STATIC_CONTROLLER_UI'), ('beta', 'DUSK_STATIC_LUAU_RUNTIME')]:
-        path = work / (name + '.cpp')
-        path.write_text(module_source, encoding='utf-8')
-        defines = [flag+'=1', 'DUSK_STATIC_BUILTIN_MOD=1', 'DUSK_MOD_FEATURE_GAME=1',
-                   'mod_ctx='+name+'_mod_ctx', 'mod_meta='+name+'_mod_meta',
-                   'mod_meta_bounds_begin='+name+'_mod_meta_bounds_begin',
-                   'mod_meta_bounds_end='+name+'_mod_meta_bounds_end',
-                   'MODULE_SETUP='+name+'_setup', 'MODULE_RUN='+name+'_run',
-                   'MODULE_RESET='+name+'_reset', 'MODULE_RECORD='+name+'_record']
-        if not args.shared_namespace_negative_control:
-            defines.append('mods='+name+'_sdk')
-        obj = work / (name + ('.obj' if os.name == 'nt' else '.o'))
+    for targets in [('randomizer', 'cosmetics'), ('controller_ui', 'luau_runtime')]:
+        objects = []
+        test_main = main_source
+        for name, target in zip(('alpha', 'beta'), targets):
+            path = work / (name + '.cpp')
+            path.write_text(module_source, encoding='utf-8')
+            defines = static_definitions(target)
+            meta_name = next((item.split('=', 1)[1] for item in defines if item.startswith('mod_meta=')), 'mod_meta')
+            test_main = test_main.replace(name+'_mod_meta', meta_name)
+            defines += ['MODULE_SETUP='+name+'_setup', 'MODULE_RUN='+name+'_run',
+                        'MODULE_RESET='+name+'_reset', 'MODULE_RECORD='+name+'_record']
+            if args.shared_namespace_negative_control:
+                defines = [item for item in defines if not item.startswith('mods=')]
+            obj = work / (name + ('.obj' if os.name == 'nt' else '.o'))
+            if os.name == 'nt':
+                command = [compiler, '/nologo', '/std:c++20', '/EHsc', '/utf-8', '/c',
+                           '/I'+str(source/'sdk/include'), '/Fo:'+str(obj), str(path)]
+                command += ['/D'+value for value in defines]
+            else:
+                command = [compiler, '-std=c++20', '-O1', '-w', '-c', '-I'+str(source/'sdk/include'),
+                           '-o', str(obj), str(path)] + ['-D'+value for value in defines]
+            subprocess.run(command, check=True, cwd=work)
+            objects.append(str(obj))
+        main = work/'main.cpp'; main.write_text(test_main, encoding='utf-8')
+        exe = work/('ports.exe' if os.name == 'nt' else 'ports')
         if os.name == 'nt':
-            command = [compiler, '/nologo', '/std:c++20', '/EHsc', '/utf-8', '/c',
-                       '/I'+str(source/'sdk/include'), '/Fo:'+str(obj), str(path)]
-            command += ['/D'+value for value in defines]
+            command = [compiler, '/nologo', '/std:c++20', '/EHsc', '/utf-8',
+                       '/I'+str(source/'sdk/include'), str(main), *objects, '/Fe:'+str(exe)]
         else:
-            command = [compiler, '-std=c++20', '-O1', '-w', '-c', '-I'+str(source/'sdk/include'),
-                       '-o', str(obj), str(path)] + ['-D'+value for value in defines]
+            command = [compiler, '-std=c++20', '-O1', '-I'+str(source/'sdk/include'),
+                       str(main), *objects, '-o', str(exe)]
         subprocess.run(command, check=True, cwd=work)
-        objects.append(str(obj))
-    main = work/'main.cpp'; main.write_text(main_source, encoding='utf-8')
-    exe = work/('ports.exe' if os.name == 'nt' else 'ports')
-    if os.name == 'nt':
-        command = [compiler, '/nologo', '/std:c++20', '/EHsc', '/utf-8',
-                   '/I'+str(source/'sdk/include'), str(main), *objects, '/Fe:'+str(exe)]
-    else:
-        command = [compiler, '-std=c++20', '-O1', '-I'+str(source/'sdk/include'),
-                   str(main), *objects, '-o', str(exe)]
-    subprocess.run(command, check=True, cwd=work)
-    result = subprocess.run([str(exe)], cwd=work)
-    if args.shared_namespace_negative_control:
-        if result.returncode == 0:
-            raise RuntimeError('Negative control unexpectedly kept shared hook contexts separate')
-        print('PASS .736 negative control: shared SDK namespaces reproduce cross-mod hook state corruption')
-        raise SystemExit(0)
-    if result.returncode:
-        raise RuntimeError('Signed module state isolation failed')
+        result = subprocess.run([str(exe)], cwd=work)
+        if args.shared_namespace_negative_control:
+            if result.returncode == 0:
+                raise RuntimeError('Negative control unexpectedly kept shared hook contexts separate')
+            print('PASS .736 negative control: shared core SDK namespaces reproduce cross-mod hook state corruption')
+            raise SystemExit(0)
+        if result.returncode:
+            raise RuntimeError('Signed module state isolation failed: '+str(targets))
+        print('PASS .736 production SDK definitions:', ', '.join(targets))
     policy = work/'policy.cpp'; policy.write_text(policy_source, encoding='utf-8')
     exe = work/('policy.exe' if os.name == 'nt' else 'policy')
     command = ([compiler, '/nologo', '/std:c++20', '/EHsc', '/utf-8',

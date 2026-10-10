@@ -2,7 +2,7 @@
 
 Install `TwilightPrincessRandomizer_1.4.1.736_x64.msix` over the current app. The package identity and publisher remain unchanged, retaining LocalState saves, seeds, mods and preferences.
 
-This build retains the .735 online download writer and idle-shop fixes, the .733 reset/transition lifecycle, and all .734 Enemy/Boss Soul and pot/pumpkin persistence work. Full shop randomization and all existing Randomizer settings remain available. The 62 generator scenarios retain up to 50 distinct certification attempts and strict final logic validation.
+This build retains the .735 online download writer and idle-shop fixes, the .733 reset/transition lifecycle, and all .734 Enemy/Boss Soul and pot/pumpkin persistence work. Full shop randomization and all existing Randomizer settings remain available. The existing Cosmetics SDK hook state is also separated from Randomizer: their shared hook targets can no longer merge metadata, dispatch contexts or reset/shutdown pointers. The 62 generator scenarios retain up to 50 distinct certification attempts and strict final logic validation.
 
 The app includes 22 optional catalog mods, with exact published versions and hashes recorded in `BUNDLED_MODS-736.json`. New bundled mods start disabled. Enable the mod you want from the installed Mods list; existing user mod defaults and saved preferences are preserved.
 
