@@ -1,0 +1,63 @@
+--- a/src/shop_items.cpp
++++ b/src/shop_items.cpp
+@@ -583,7 +583,7 @@
+         s_tagKeys.clear();
+         s_childKeys.clear();
+         s_activeKey.reset();
+-        s_pendingTextKey.reset();
++        s_pendingTextKeys.clear();
+         s_suppressVanillaAward = false;
+         s_purchaseAttempt = {};
+     } catch (const std::exception& error) {
+@@ -918,4 +918,8 @@
+     return nullptr;
+ }
+ 
++size_t text_override_size() noexcept {
++    return s_messageBuffer.size();
++}
++
+ }  // namespace randomizer::shops
+--- a/src/shop_items.hpp
++++ b/src/shop_items.hpp
+@@ -3,6 +3,7 @@
+ #include "f_pc/f_pc_base.h"
+ 
+ #include <cstdint>
++#include <cstddef>
+ 
+ class daTag_ShopItem_c;
+ class fopAc_ac_c;
+@@ -81,5 +82,6 @@
+ // Returns a stable encoded message buffer when an expanded shelf is active,
+ // or nullptr when the game's current message should remain unchanged.
+ const char* text_override(const char* originalText, uint8_t language) noexcept;
++size_t text_override_size() noexcept;
+ 
+ }  // namespace randomizer::shops
+--- a/src/hooks.cpp
++++ b/src/hooks.cpp
+@@ -13,6 +13,10 @@
+ #include "item_ids.h"
+ #include "verify_item_functions.h"
+ #include "../generator/utility/text.hpp"
++
++#if defined(_UWP)
++extern "C" const char* tpr_xbox_retain_shop_text(void*, const char*, size_t) noexcept;
++#endif
+ 
+ #include <mods/svc/hook.hpp>
+ #include <mods/svc/log.hpp>
+@@ -1111,6 +1115,12 @@
+             shops::text_override(control->pMessageText_begin_,
+                                  dComIfGs_getPalLanguage()))
+     {
++#if defined(_UWP)
++        text = tpr_xbox_retain_shop_text(control, text, shops::text_override_size());
++        if (text == nullptr) {
++            return;
++        }
++#endif
+         control->pMessageText_begin_ = text;
+         control->pMessageText_current_ = text;
+     }

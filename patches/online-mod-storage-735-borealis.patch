@@ -1,0 +1,239 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -250,6 +250,10 @@
+     add_library(borealis_io STATIC src/io.cpp)
+     add_library(borealis::io ALIAS borealis_io)
+     target_link_libraries(borealis_io PUBLIC borealis_core PRIVATE borealis_sdl_dep)
++    if (DUSK_UWP)
++        # Game compile definitions are PRIVATE and never reach this dependency.
++        target_compile_definitions(borealis_io PRIVATE _UWP=1)
++    endif ()
+     if (IOS OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
+         find_library(BOREALIS_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+         target_sources(borealis_io PRIVATE src/io_apple.mm)
+--- a/src/io.cpp
++++ b/src/io.cpp
+@@ -31,6 +31,10 @@
+ #include <fcntl.h>
+ #include <sys/stat.h>
+ #include <unistd.h>
++#endif
++
++#if defined(_UWP) && defined(_WIN32)
++#include "io_uwp.hpp"
+ #endif
+ 
+ namespace borealis::io {
+@@ -425,30 +429,20 @@
+ 
+ #if defined(_UWP) && defined(_WIN32)
+     if (mode != File::Mode::Read) {
+-        // SDL's UWP datastream backend can report ERROR_DISK_FULL for valid LocalState paths.
+-        // These paths are ordinary app-local filesystem paths, so bind an allowed CRT FILE handle
+-        // to SDL_IOStream instead and keep the existing Borealis downloader API unchanged.
+-        FILE* stdioFile = nullptr;
++        // Bypass the packaged SDL's UWP datastream writer. SDL_OpenIO uses our
++        // supported Win32 callbacks without sharing a CRT FILE across DLLs.
+         const auto nativePath = fs_path_from_utf8(resolved);
+-        const wchar_t* nativeMode = mode == File::Mode::Append ? L"ab" : L"wb";
+-        const errno_t openError = _wfopen_s(&stdioFile, nativePath.c_str(), nativeMode);
+-        if (openError != 0 || stdioFile == nullptr) {
+-            detail::release_access(access);
+-            return failed_open(Status::Failed,
+-                "Failed to open writable UWP file: " +
+-                    std::generic_category().message(static_cast<int>(openError)));
+-        }
+         SDL_ClearError();
+-        SDL_IOStream* stdioHandle = SDL_IOFromFP(stdioFile, true);
+-        if (stdioHandle == nullptr) {
++        SDL_IOStream* nativeHandle =
++            detail::open_uwp_write_stream(nativePath, mode == File::Mode::Append);
++        if (nativeHandle == nullptr) {
+             const std::string message =
+                 SDL_GetError() != nullptr && SDL_GetError()[0] != '\0' ?
+                     SDL_GetError() : "Failed to bind writable UWP file";
+-            std::fclose(stdioFile);
+             detail::release_access(access);
+             return failed_open(Status::Failed, message);
+         }
+-        return {.status = Status::Ok, .file = File{stdioHandle, access, true}};
++        return {.status = Status::Ok, .file = File{nativeHandle, access, true}};
+     }
+ #endif
+ 
+--- /dev/null
++++ b/src/io_uwp.hpp
+@@ -0,0 +1,173 @@
++#pragma once
++
++// Keep the OS handle inside Borealis. The packaged UWP SDL build's filesystem
++// backend uses WinRT datastreams, and it exports no SDL_IOFromFP entry point.
++// SDL_OpenIO only owns this callback interface; no CRT FILE crosses DLLs.
++namespace borealis::io::detail {
++
++inline bool uwp_io_error(const char* action, DWORD code) noexcept {
++    try {
++        const auto message = std::system_category().message(static_cast<int>(code));
++        return SDL_SetError("%s (Windows error %lu): %s", action,
++            static_cast<unsigned long>(code), message.c_str());
++    } catch (...) {
++        return SDL_SetError("%s (Windows error %lu)", action,
++            static_cast<unsigned long>(code));
++    }
++}
++
++struct UwpFileStream {
++    HANDLE handle = INVALID_HANDLE_VALUE;
++    bool append = false;
++    bool dirty = false;
++
++    ~UwpFileStream() {
++        if (handle != INVALID_HANDLE_VALUE) {
++            CloseHandle(handle);
++        }
++    }
++};
++
++inline Sint64 SDLCALL uwp_io_size(void* userdata) {
++    const auto* file = static_cast<UwpFileStream*>(userdata);
++    LARGE_INTEGER size{};
++    if (!GetFileSizeEx(file->handle, &size)) {
++        uwp_io_error("Failed to get UWP file size", GetLastError());
++        return -1;
++    }
++    return size.QuadPart;
++}
++
++inline Sint64 SDLCALL uwp_io_seek(void* userdata, Sint64 offset, SDL_IOWhence whence) {
++    const auto* file = static_cast<UwpFileStream*>(userdata);
++    DWORD origin = 0;
++    switch (whence) {
++    case SDL_IO_SEEK_SET: origin = FILE_BEGIN; break;
++    case SDL_IO_SEEK_CUR: origin = FILE_CURRENT; break;
++    case SDL_IO_SEEK_END: origin = FILE_END; break;
++    default:
++        SDL_SetError("Invalid UWP file seek origin");
++        return -1;
++    }
++    LARGE_INTEGER distance{};
++    distance.QuadPart = offset;
++    LARGE_INTEGER position{};
++    if (!SetFilePointerEx(file->handle, distance, &position, origin)) {
++        uwp_io_error("Failed to seek UWP file", GetLastError());
++        return -1;
++    }
++    return position.QuadPart;
++}
++
++inline size_t SDLCALL uwp_io_read(
++    void* userdata, void* data, size_t length, SDL_IOStatus* status) {
++    const auto* file = static_cast<UwpFileStream*>(userdata);
++    size_t completed = 0;
++    while (completed < length) {
++        const auto request = static_cast<DWORD>(
++            std::min<size_t>(length - completed, std::numeric_limits<DWORD>::max()));
++        DWORD count = 0;
++        if (!ReadFile(file->handle, static_cast<std::byte*>(data) + completed,
++                request, &count, nullptr)) {
++            const auto code = GetLastError();
++            *status = SDL_IO_STATUS_ERROR;
++            uwp_io_error("Failed to read UWP file", code);
++            return completed;
++        }
++        if (count == 0) {
++            *status = SDL_IO_STATUS_EOF;
++            break;
++        }
++        completed += count;
++    }
++    return completed;
++}
++
++inline size_t SDLCALL uwp_io_write(
++    void* userdata, const void* data, size_t length, SDL_IOStatus* status) {
++    auto* file = static_cast<UwpFileStream*>(userdata);
++    if (file->append && uwp_io_seek(userdata, 0, SDL_IO_SEEK_END) < 0) {
++        *status = SDL_IO_STATUS_ERROR;
++        return 0;
++    }
++    size_t completed = 0;
++    while (completed < length) {
++        const auto request = static_cast<DWORD>(
++            std::min<size_t>(length - completed, std::numeric_limits<DWORD>::max()));
++        DWORD count = 0;
++        if (!WriteFile(file->handle, static_cast<const std::byte*>(data) + completed,
++                request, &count, nullptr)) {
++            const auto code = GetLastError();
++            *status = SDL_IO_STATUS_ERROR;
++            uwp_io_error("Failed to write UWP file", code);
++            return completed;
++        }
++        if (count == 0) {
++            *status = SDL_IO_STATUS_ERROR;
++            SDL_SetError("UWP file writer made no progress");
++            return completed;
++        }
++        completed += count;
++        file->dirty = true;
++    }
++    return completed;
++}
++
++inline bool SDLCALL uwp_io_flush(void* userdata, SDL_IOStatus* status) {
++    auto* file = static_cast<UwpFileStream*>(userdata);
++    if (!file->dirty) {
++        return true;
++    }
++    if (!FlushFileBuffers(file->handle)) {
++        const auto code = GetLastError();
++        *status = SDL_IO_STATUS_ERROR;
++        return uwp_io_error("Failed to flush UWP file", code);
++    }
++    file->dirty = false;
++    return true;
++}
++
++inline bool SDLCALL uwp_io_close(void* userdata) {
++    std::unique_ptr<UwpFileStream> file{static_cast<UwpFileStream*>(userdata)};
++    SDL_IOStatus status = SDL_IO_STATUS_READY;
++    const bool flushed = uwp_io_flush(file.get(), &status);
++    const HANDLE handle = std::exchange(file->handle, INVALID_HANDLE_VALUE);
++    const bool closed = CloseHandle(handle) != FALSE;
++    if (!closed && flushed) {
++        uwp_io_error("Failed to close UWP file", GetLastError());
++    }
++    return flushed && closed;
++}
++
++inline SDL_IOStream* open_uwp_write_stream(const std::filesystem::path& path, bool append) {
++    auto file = std::make_unique<UwpFileStream>();
++    CREATEFILE2_EXTENDED_PARAMETERS parameters{};
++    parameters.dwSize = static_cast<DWORD>(sizeof(parameters));
++    parameters.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
++    parameters.dwFileFlags = FILE_FLAG_SEQUENTIAL_SCAN;
++    file->handle = CreateFile2(path.c_str(), GENERIC_READ | GENERIC_WRITE,
++        FILE_SHARE_READ | FILE_SHARE_DELETE, append ? OPEN_ALWAYS : CREATE_ALWAYS, &parameters);
++    if (file->handle == INVALID_HANDLE_VALUE) {
++        uwp_io_error("Failed to open writable UWP file", GetLastError());
++        return nullptr;
++    }
++    file->append = append;
++    if (append && uwp_io_seek(file.get(), 0, SDL_IO_SEEK_END) < 0) {
++        return nullptr;
++    }
++    SDL_IOStreamInterface interface{};
++    SDL_INIT_INTERFACE(&interface);
++    interface.size = uwp_io_size;
++    interface.seek = uwp_io_seek;
++    interface.read = uwp_io_read;
++    interface.write = uwp_io_write;
++    interface.flush = uwp_io_flush;
++    interface.close = uwp_io_close;
++    SDL_IOStream* stream = SDL_OpenIO(&interface, file.get());
++    if (stream != nullptr) {
++        file.release();
++    }
++    return stream;
++}
++
++} // namespace borealis::io::detail

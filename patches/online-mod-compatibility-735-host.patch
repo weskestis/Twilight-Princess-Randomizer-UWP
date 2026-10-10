@@ -1,0 +1,31 @@
+--- a/src/dusk/mods/catalog.cpp
++++ b/src/dusk/mods/catalog.cpp
+@@ -460,7 +460,11 @@
+ }
+ 
+ bool supports_native_installs() noexcept {
+-#if defined(__APPLE__) && (TARGET_OS_IOS || TARGET_OS_TV)
++#if defined(_UWP)
++    // Downloaded desktop DLLs cannot join the Xbox signed package graph.
++    // Built-in UWP ports are deployed with the app, not as online native installs.
++    return false;
++#elif defined(__APPLE__) && (TARGET_OS_IOS || TARGET_OS_TV)
+     // Native libraries must be bundled and signed with the app.
+     return false;
+ #else
+--- a/src/dusk/ui/mod_browser.cpp
++++ b/src/dusk/ui/mod_browser.cpp
+@@ -580,8 +580,13 @@
+                 mAction == Action::RetryDownload || mAction == Action::CheckUpdates);
+         if (requiresBundling) {
+             icon = "block";
++#if defined(_UWP)
++            label = "UWP port required";
++            caption = "This mod contains native code and needs an Xbox/UWP build bundled with the app.";
++#else
+             label = "Requires bundling";
+             caption = "Contains native code; requires bundling.";
++#endif
+             state = "idle";
+             progress = 0.0f;
+             disabled = true;

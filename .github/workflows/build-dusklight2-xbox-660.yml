@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 734
+name: Build Dusklight 2.0.1 Xbox 735
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-734-release-${{ github.ref }}
+  group: xbox-735-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 734 identity
+      - name: Apply reviewed source layers and advance 735 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6128,8 +6128,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.734 native Soul/breakable regression tests failed.' }
           python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.733 reset/transition preservation tests failed after .734.' }
+          # .735 fixes the real UWP dependency writer and idle shop array/text lifetimes.
+          python "$env:TPR_CONTROL\scripts\apply-735-online-mod-storage.py"
+          if ($LASTEXITCODE -ne 0) { throw '.735 online-mod source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-735-online-mod-storage.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.735 native UWP file regression tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-735-shop-idle.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.735 idle-shop and message-lifetime tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-734-souls-breakables.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.734 Soul/breakable preservation tests failed after .735.' }
+          python "$env:TPR_CONTROL\scripts\test-733-reset-transition.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.733 reset/transition preservation tests failed after .735.' }
           git -C "$env:TPR_SRC" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
+          git -C "$env:TPR_SRC\extern\borealis" diff --check
 
       - name: Restore verified UWP artwork and pipeline cache
         shell: powershell
@@ -6263,6 +6275,28 @@ jobs:
             throw 'The UWP feed was not configured with the WinHTTP backend.'
           }
           $ninjaLines = @(Get-Content "$env:TPR_FEED\build.ninja")
+          $borealisIoDefinitions735 = @()
+          for ($i = 0; $i -lt $ninjaLines.Count; $i++) {
+            if ($ninjaLines[$i] -match '^build .*borealis_io\.dir.*io\.cpp\.obj:') {
+              for ($j = $i + 1; $j -lt [Math]::Min($i + 12, $ninjaLines.Count); $j++) {
+                if ($ninjaLines[$j] -match '^  DEFINES = ') {
+                  $borealisIoDefinitions735 += $ninjaLines[$j]
+                  break
+                }
+              }
+            }
+          }
+          if ($borealisIoDefinitions735.Count -ne 1) {
+            throw 'Could not inspect the actual Borealis file writer compile target.'
+          }
+          if (-not $borealisIoDefinitions735[0].Contains('_UWP=1')) {
+            throw 'Borealis writer would use the wrong SDL backend: _UWP=1 is missing.'
+          }
+          Write-Host ('.735 Borealis file writer definitions: ' + $borealisIoDefinitions735[0])
+          $sdlExports735 = & dumpbin /nologo /exports "$env:TPR_UWP_DEP\x64\bin\SDL3.dll" | Out-String
+          if ($LASTEXITCODE -ne 0 -or $sdlExports735 -notmatch '\bSDL_OpenIO\b') {
+            throw 'Pinned UWP SDL3.dll does not export the custom stream entry point SDL_OpenIO.'
+          }
           $randomizerDefinitions = @()
           for ($i = 0; $i -lt $ninjaLines.Count; $i++) {
             if ($ninjaLines[$i] -match '^build .*randomizer\.dir.*\.(c|cc|cpp)\.obj:') {
@@ -6491,17 +6525,17 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-      - name: Verify and collect full 734 package
+      - name: Verify and collect full 735 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-734"
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735"
           New-Item -ItemType Directory -Force $out | Out-Null
           $sourcePackage = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.734_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.735_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6513,7 +6547,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.734"',
+            'Version="1.4.1.735"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6651,7 +6685,7 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-734.txt',
+            'xbox-startup-stage-735.txt',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
             'mod.initialize:',
@@ -6812,15 +6846,15 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-734.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-734.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-735.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-735.json" $out -Force
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.734'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.735'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
-            borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec + 732 UWP writable-file bridge for online mod downloads'
+            borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec + 735 explicitly enabled UWP SDL_OpenIO/Win32 writer replacing the inactive 732 bridge'
             randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration + 678 alternate new-save gate + 679 restored settings UI/schema checks + 731 direct-save seed handoff + 732 Ordon text FIFO/soul identity guard'
             xboxLoaderHotfix = 'Randomizer linked into the signed executable; Funchook uses AppContainer JIT allocation/protection APIs and write-or-execute transitions'
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
@@ -6865,7 +6899,7 @@ jobs:
             enemySouls = $true
             xboxAutoCutsceneSkip = '.706 keeps the normal skip timer handshake and suppresses only the automatic Xbox skip fade; forced post-skip fade reset removed to protect loading-zone transitions'
             xboxMemoryCard = '.731 keeps vanilla gczelda2 on Aurora/GCI, keeps Xbox Randomizer gameplay in direct checksummed LocalState randomizer-xbox.sav, and stores Randomizer mod blobs in LocalState randomizer-xbox-mods so seed association no longer depends on CARD/GCI availability'
-            xboxModDownloads = '.732 keeps user mods in LocalState/mods and stages online downloads in LocalState/mods/.downloads while bypassing SDL UWP datastream writes for writable filesystem paths'
+            xboxModDownloads = '.735 explicitly compiles borealis_io with _UWP=1; SDL_OpenIO callbacks write to LocalState/mods/.downloads through CreateFile2/WriteFile and preserve append/resume/metadata'
             xboxResetGame = '.733 completes native scene/audio/save reset before deactivation and launcher presentation; repeated requests latch once'
             xboxTransitionRecovery = '.733 requires stable room/layer/scene identity and refuses cancellation during scene/create/delete/event/reset work'
             xboxTransitionTrace = '.733 traces scene requests and renews the crash journal throughout pending transactions'
@@ -6873,19 +6907,27 @@ jobs:
             soulPlacement = '.734 allows Enemy/Boss Souls at every enabled randomized item check under existing logic; extended IDs retained through serialization, grants, text and tracker'
             breakableSaveIdentity = '.734 preserves live pot/pumpkin, drop and shelf bindings across save callbacks; native scene/actor cleanup owns retirement'
             nativeSoulBreakableTests = 'PASS: compiled production award/resolver/sidecar functions; late callbacks, all 85 Soul IDs, native FIFO completion, Poe isolation and dedicated pickup text'
+            nativeOnlineMods = 'Asset packages install normally; native DLL downloads require a source port bundled in the signed UWP package'
+            nativeDownloadTests = 'PASS: binary/Unicode paths, partial/resume/metadata/staging, disk-full and no-progress failures, move ownership and handle cleanup'
+            xboxShopIdle = '.735 bounds shelf sorting and stock indices, refuses duplicate/partial shelves, and retains each encoded shelf message through its message-control lifetime'
+            nativeShopIdleTests = 'PASS: every 1-7 shelf permutation, 10000 idle updates, duplicate/partial stock, invalid indices, independent encoded-message ownership and control release'
+            shopIdleHostPatchSha256 = '092ba9894c7afbb1696d902ea52401f7a28ac3861fa1054661ffa3e592be591e'
+            shopIdleRandomizerPatchSha256 = '100e1a97f06d3b5bc91488495fbdba40ca7b9a8f63e7415382cd97a85165b6c6'
+            onlineModWriterPatchSha256 = '1e514aaeb0228cfc5b5b48a7e45d1bc969f3194e373467032ac165342d9688b7'
+            onlineModCompatibilityPatchSha256 = '536091ea819dc5c39e89b5e3abd4160a9728318ccdb6b2976ba1366539421449'
             generatorScenarios = 62
             generatorScenarioAttempts = 50
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-734.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-735.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.734-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.735-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -6894,7 +6936,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.734-Xbox
-          path: TPR-Xbox-Package-734/*
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.735-Xbox
+          path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30

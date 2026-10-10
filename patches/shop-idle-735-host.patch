@@ -1,0 +1,144 @@
+--- a/src/d/d_shop_system.cpp
++++ b/src/d/d_shop_system.cpp
+@@ -43,6 +43,13 @@
+             dShopSystem_item_count < dShopSystem_sellItemMax)
+         {
+             u8 i_posID = (fopAcM_GetParam(i_actor) >> 0x18) & 0xF;
++            if (i_posID > dShopSystem_c::ITEM_MAX_e ||
++                dShopSystem_sellItemMax == 0 ||
++                dShopSystem_sellItemMax > dShopSystem_c::ITEM_MAX_e ||
++                dShopSystem_item_count < 0 ||
++                dShopSystem_item_count >= dShopSystem_c::ITEM_MAX_e) {
++                return 0;
++            }
+             JUT_ASSERT(0, i_posID <= dShopSystem_c::ITEM_MAX_e);
+ 
+             if (dShopSystem_itemActor[0] != i_actor && dShopSystem_itemActor[1] != i_actor &&
+@@ -61,13 +68,25 @@
+                         dComIfGs_onSaveSwitch(sw);
+                     } else {
+                         if (i_posID == 0) {
++                            int slot = 0;
++                            while (slot < dShopSystem_sellItemMax &&
++                                   dShopSystem_itemActor[slot] != NULL) {
++                                ++slot;
++                            }
++                            if (slot >= dShopSystem_sellItemMax ||
++                                slot >= dShopSystem_c::ITEM_MAX_e) {
++                                return 0;
++                            }
+                             data_80451060 = 1;
+-                            dShopSystem_itemActor[dShopSystem_item_count] =
++                            dShopSystem_itemActor[slot] =
+                                 (daTag_ShopItem_c*)i_actor;
+-                            dShopSystem_itemNo[dShopSystem_item_count] = item_no;
++                            dShopSystem_itemNo[slot] = item_no;
+                         } else if (dShopSystem_itemActor[i_posID - 1] == NULL) {
+                             dShopSystem_itemActor[i_posID - 1] = (daTag_ShopItem_c*)i_actor;
+                             dShopSystem_itemNo[i_posID - 1] = item_no;
++                        } else {
++                            // Story-layer duplicates must not count as a filled shelf.
++                            return 0;
+                         }
+ 
+                         dShopSystem_item_count++;
+@@ -1447,6 +1466,9 @@
+ }
+ 
+ bool dShopSystem_c::searchItemActor() {
++    if (dShopSystem_sellItemMax == 0 || dShopSystem_sellItemMax > ITEM_MAX_e) {
++        return false;
++    }
+     u8 temp_data;
+     if ((dShopSystem_item_count != -1 &&
+          ((dShopSystem_item_count < (temp_data = dShopSystem_sellItemMax)) ||
+@@ -1462,6 +1484,16 @@
+     }
+ 
+     if (dShopSystem_item_count >= dShopSystem_sellItemMax && dShopSystem_camera_count >= 2) {
++        // A count alone cannot prove that every authored shelf and camera exists.
++        // Refuse partial stock instead of dereferencing a missing scene actor.
++        for (int i = 0; i < dShopSystem_sellItemMax; ++i) {
++            if (dShopSystem_itemActor[i] == NULL) {
++                return false;
++            }
++        }
++        if (dShopSystem_cameraActor[0] == NULL || dShopSystem_cameraActor[1] == NULL) {
++            return false;
++        }
+         mSoldOutFlag = -1;
+ 
+         if (data_80451060) {
+@@ -1484,7 +1516,7 @@
+                 arr3[i] = i;
+ 
+                 if (i > 0) {
+-                    for (int j = i; j >= 0; j--) {
++                    for (int j = i; j > 0; j--) {
+                         if (arr2[j] < arr2[j - 1]) {
+                             f32 temp = arr2[j];
+                             arr2[j] = arr2[j - 1];
+--- a/src/d/d_shop_item_ctrl.cpp
++++ b/src/d/d_shop_item_ctrl.cpp
+@@ -19,6 +19,10 @@
+ 
+ cXyz dShopItemCtrl_c::getCurrentPos(int i_itemIdx) {
+     cXyz item_pos(0.0f, 0.0f, 0.0f);
++
++    if (i_itemIdx < 0 || i_itemIdx >= 7) {
++        return item_pos;
++    }
+ 
+     if (mItemIndex[i_itemIdx] != -1) {
+         fopAc_ac_c* item = fopAcM_SearchByID(mItemIndex[i_itemIdx]);
+--- a/include/d/d_shop_item_ctrl.h
++++ b/include/d/d_shop_item_ctrl.h
+@@ -13,10 +13,14 @@
+ 
+     virtual ~dShopItemCtrl_c();
+ 
+-    void setItemIndex(int i, u32 index) { mItemIndex[i] = index; }
+-    u32 getItemIndex(int i) { return mItemIndex[i]; }
+-    void setMessageIndex(int i, u16 messageIndex) { mMessageIndex[i] = messageIndex; }
+-    u16 getMessageIndex(int i) { return mMessageIndex[i]; }
++    void setItemIndex(int i, u32 index) {
++        if (i >= 0 && i < 7) mItemIndex[i] = index;
++    }
++    u32 getItemIndex(int i) { return i >= 0 && i < 7 ? mItemIndex[i] : static_cast<u32>(-1); }
++    void setMessageIndex(int i, u16 messageIndex) {
++        if (i >= 0 && i < 7) mMessageIndex[i] = messageIndex;
++    }
++    u16 getMessageIndex(int i) { return i >= 0 && i < 7 ? mMessageIndex[i] : 0; }
+ 
+     /* 0x04 */ u32 mItemIndex[7];
+     /* 0x20 */ u16 mMessageIndex[7];
+--- a/src/dusk/mods/svc/flow.cpp
++++ b/src/dusk/mods/svc/flow.cpp
+@@ -1033,6 +1033,27 @@
+         nativeEntry, nativeText, outEntry, outText);
+ }
+ 
++#if defined(_UWP)
++// Private static-feed bridge. Keep the public FlowService ABI unchanged.
++// A message control owns this immutable copy until its normal reset/destructor
++// releases the binding; another shelf's string cannot invalidate its pointers.
++extern "C" const char* tpr_xbox_retain_shop_text(
++    void* owner, const char* text, size_t size) noexcept {
++    if (owner == nullptr || text == nullptr || size == 0 || size > 8192) {
++        return nullptr;
++    }
++    try {
++        auto owned = std::make_shared<std::vector<uint8_t>>(text, text + size);
++        owned->push_back(0);
++        const auto* result = reinterpret_cast<const char*>(owned->data());
++        retain_binding(static_cast<JMessage::TControl*>(owner), nullptr, nullptr, owned);
++        return result;
++    } catch (...) {
++        return nullptr;
++    }
++}
++#endif
++
+ void release_message_control(const JMessage::TControl* control) {
+     s_bindings.erase(control);
+ }

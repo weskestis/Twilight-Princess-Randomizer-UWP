@@ -1,0 +1,41 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.735",
+  "architecture": "x64",
+  "base": "1.4.1.734 green commit df77b287d8f8893dc0b119cdcfafbb17d1f0155c",
+  "fixes": [
+    "Enable the UWP file writer on the actual borealis_io compile target",
+    "Replace the inactive SDL_IOFromFP bridge with SDL_OpenIO callbacks using CreateFile2 and WriteFile",
+    "Preserve append/resume, metadata writes, staged install bytes and ownership through partial/error writes",
+    "Report real Windows file errors and release native handles after failed bind, seek, flush and close operations",
+    "Online catalog filters downloaded native DLLs on UWP and explains when a source port is required",
+    "Bound the idle shelf sort and reject duplicate, invalid, or partial shop stock before actor dereferences",
+    "Keep randomized shop text owned by its message control through the existing reset/destructor bindings",
+    "Guard out-of-range shelf and message indices, and clear every deferred shop selection at scene teardown"
+  ],
+  "preserved": [
+    "All green .734 Enemy/Boss Soul check types, wide IDs, native FIFO and normal Poe isolation",
+    "Persistent gold pot/green pumpkin markers and collected reward state",
+    "Ordon shelf text FIFO, first-defeat checks, tracker, cosmetics, input overlays and cursor",
+    "XAudio2 playback, checksummed Xbox saves, seed handoff, transition/crash diagnostics and .733 reset lifecycle",
+    "62 generator scenarios with up to 50 distinct attempts and strict final logic validation"
+  ],
+  "startupJournal": "xbox-startup-stage-735.txt",
+  "previousStartupJournals": [
+    "xbox-startup-stage-734.txt",
+    "xbox-startup-stage-733.txt",
+    "xbox-startup-stage-732.txt"
+  ],
+  "randomizerDirectSave": "randomizer-xbox.sav",
+  "randomizerModSidecarDirectory": "randomizer-xbox-mods",
+  "userModsDirectory": "LocalState/mods",
+  "downloadStagingDirectory": "LocalState/mods/.downloads",
+  "nativeOnlineMods": "Require a source port bundled into the signed Xbox app; do not load desktop DLLs from LocalState",
+  "hardwareValidation": "pending Xbox testing",
+  "sourcePatches": {
+    "online-mod-storage-735-borealis.patch": "1e514aaeb0228cfc5b5b48a7e45d1bc969f3194e373467032ac165342d9688b7",
+    "online-mod-compatibility-735-host.patch": "536091ea819dc5c39e89b5e3abd4160a9728318ccdb6b2976ba1366539421449",
+    "shop-idle-735-host.patch": "092ba9894c7afbb1696d902ea52401f7a28ac3861fa1054661ffa3e592be591e",
+    "shop-idle-735-randomizer.patch": "100e1a97f06d3b5bc91488495fbdba40ca7b9a8f63e7415382cd97a85165b6c6"
+  }
+}
