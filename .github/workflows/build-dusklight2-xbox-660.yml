@@ -6970,7 +6970,7 @@ jobs:
             nativeSoulBreakableTests = 'PASS: compiled production award/resolver/sidecar functions; late callbacks, all 85 Soul IDs, native FIFO completion, Poe isolation and dedicated pickup text'
             nativeOnlineMods = '.736 immediately binds controller UI 1.3.2 resources to its signed source port after installation; unknown native versions require a port'
             xboxFilePicker = '.737 controller browser for files, folders and exports; asynchronous directory reads, once-only main-thread callbacks and visible errors'
-            xboxPickerHostPatchSha256 = '48e930922e51a58135442a0132bbf08b05e1cff28c2eb8f7c7957ab0938937fd'
+            xboxPickerHostPatchSha256 = '307d580da7af383c72f614cf582312308aae1f844374730ff54e8da46f62fd0a'
             xboxPickerBorealisPatchSha256 = '2dcf8a727455c6e184a81fe0530a23a0b1fcee0a111cc2e94e13fa0e6645b9c8'
             nativePickerTests = 'PASS: production UWP dispatch under queue/backend/callback faults, repeated/canceled requests, export guards, Unicode paths, filtering and missing folders'
             bundledCatalogMods = 22

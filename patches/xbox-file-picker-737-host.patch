@@ -210,10 +210,10 @@ index 37f21ef..81e322d 100644
          if (!pending.inspection.ready()) {
 diff --git a/src/dusk/ui/xbox_file_picker.cpp b/src/dusk/ui/xbox_file_picker.cpp
 new file mode 100644
-index 0000000..48e48a6
+index 0000000..d4da565
 --- /dev/null
 +++ b/src/dusk/ui/xbox_file_picker.cpp
-@@ -0,0 +1,352 @@
+@@ -0,0 +1,359 @@
 +#include "xbox_file_picker.hpp"
 +#include "xbox_file_picker_model.hpp"
 +
@@ -292,6 +292,7 @@ index 0000000..48e48a6
 +    }
 +    void update() override {
 +        try {
++            const bool focusAfterUpdate = std::exchange(mFocusPending, false);
 +            if (mListingJob) {
 +                std::optional<model::Listing> result;
 +                {
@@ -320,6 +321,7 @@ index 0000000..48e48a6
 +            }
 +            if (auto key = std::exchange(mPendingKey, {})) activate(*key);
 +            Modal::update();
++            if (focusAfterUpdate && !mRequest->terminal && top_document() == this) focus();
 +        } catch (const std::exception& exception) {
 +            finish({.status = select::Status::Failed, .message = exception.what()});
 +        } catch (...) {
@@ -372,6 +374,7 @@ index 0000000..48e48a6
 +        mLocation = std::move(location);
 +        ++mGeneration;
 +        mPendingKey.reset();
++        mFocusPending = false;
 +        mPage = 0;
 +        mListing = {};
 +        mList->set_items({});
@@ -395,8 +398,10 @@ index 0000000..48e48a6
 +        size_t last = std::min(first + pageSize, mListing.entries.size());
 +        for (size_t index = first; index < last; ++index) {
 +            const auto& entry = mListing.entries[index];
++            const auto label = mLocation.empty() && !mRequest->roots.empty() && entry.location == mRequest->roots.front()
++                ? "App Data: " + entry.label : entry.label;
 +            items.push_back({(uint64_t{mGeneration} << 32) | (index + 1),
-+                (entry.directory ? "[Folder] " : "") + entry.label});
++                (entry.directory ? "[Folder] " : "") + label});
 +        }
 +        mList->set_items(std::move(items));
 +        auto body = mLocation.empty() ? std::string{"Available locations (app storage and accessible drives)"} : mLocation;
@@ -407,7 +412,8 @@ index 0000000..48e48a6
 +        if (mListing.entries.size() > pageSize) body += "\nPage " + std::to_string(mPage + 1) + " of " +
 +            std::to_string((mListing.entries.size() + pageSize - 1) / pageSize);
 +        set_body_text(body);
-+        if (top_document() == this) focus();
++        // List::set_items is deferred. Focus after its next update applies the rows.
++        mFocusPending = true;
 +    }
 +    void activate(uint64_t key) {
 +        if (blocked() || mListingJob || (key >> 32) != mGeneration) return;
@@ -491,6 +497,7 @@ index 0000000..48e48a6
 +    model::Listing mListing;
 +    std::string mLocation;
 +    std::optional<uint64_t> mPendingKey;
++    bool mFocusPending = false;
 +    uint32_t mGeneration = 0;
 +    size_t mPage = 0;
 +    size_t mFilter = 0;
@@ -581,10 +588,10 @@ index 0000000..46aec7c
 +}
 diff --git a/src/dusk/ui/xbox_file_picker_model.hpp b/src/dusk/ui/xbox_file_picker_model.hpp
 new file mode 100644
-index 0000000..72b08d8
+index 0000000..91ae326
 --- /dev/null
 +++ b/src/dusk/ui/xbox_file_picker_model.hpp
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,115 @@
 +#pragma once
 +
 +#include <algorithm>
@@ -688,7 +695,8 @@ index 0000000..72b08d8
 +            }
 +            if (error) listing.error = "Some entries could not be read: " + error.message();
 +        }
-+        sort(listing);
++        // Keep the configured app-data location first, followed by accessible drives.
++        if (!location.empty()) sort(listing);
 +    } catch (const std::exception& exception) {
 +        listing.usable = false;
 +        listing.error = exception.what();

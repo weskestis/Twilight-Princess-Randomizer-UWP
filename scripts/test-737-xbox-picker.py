@@ -159,7 +159,7 @@ int main() {
     auto notDirectory = model::scan(model::utf8(base/"game.iso"), {}, "*", false, canceled);
     assert(!notDirectory.usable && !notDirectory.error.empty());
     auto roots = model::scan({}, {model::utf8(base),model::utf8(base),model::utf8(base/"missing")}, "*", false, canceled);
-    assert(roots.usable && std::count_if(roots.entries.begin(),roots.entries.end(),[&](auto& e){return e.location==model::utf8(base);})==1);
+    assert(roots.usable && roots.entries.front().location==model::utf8(base) && std::count_if(roots.entries.begin(),roots.entries.end(),[&](auto& e){return e.location==model::utf8(base);})==1);
     canceled = true; auto abandoned = model::scan(model::utf8(base), {}, "*", false, canceled); assert(abandoned.entries.empty());
     std::filesystem::remove_all(base);
     std::cout << "PASS .737 production UWP picker: no desktop dialog calls; main-thread completion under queue failure; once-only, busy, cancel, exceptions, export guards; Unicode, filtering, 409-entry paging source and folder errors\n";
