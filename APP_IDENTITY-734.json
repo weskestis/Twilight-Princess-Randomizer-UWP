@@ -38,6 +38,6 @@
   ],
   "sourcePatches": {
     "souls-all-checks-734-host.patch": "129d79a517898b93cba35f1ac46cb1366c7b835f51001c51b26a60d8bf244c7d",
-    "souls-all-checks-734-randomizer.patch": "2e1b89ab6a370bdfab0309894dad734c8d0e3ff00761976634597ce3a7715362"
+    "souls-all-checks-734-randomizer.patch": "95fd5c11be402f978e5133f2024ebee28dee63d356e3ab6820a742090d32e635"
   }
 }

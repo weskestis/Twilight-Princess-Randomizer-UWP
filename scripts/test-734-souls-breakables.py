@@ -99,8 +99,8 @@ struct daAlink_c {
     u16 field_0x32cc = 0;
     struct { u8 field_0x300c = dItemNo_Randomizer_POU_SPIRIT_e; } mProcVar2;
 };
-daItemBase_c* partner = nullptr;
-fopAc_ac_c* fopAcM_getItemEventPartner(daAlink_c*) { return partner; }
+daItemBase_c* testItemEventPartner = nullptr;
+fopAc_ac_c* fopAcM_getItemEventPartner(daAlink_c*) { return testItemEventPartner; }
 u32 fopAcM_GetID(const fopAc_ac_c* actor) { return actor->id; }
 u32 fpcM_GetID(const fopAc_ac_c* actor) { return actor->id; }
 bool fpcM_IsCreating(u32) { return false; }
@@ -371,13 +371,13 @@ int main() {
     assert(!enemy_souls::mask_test(enemy_souls::s_owned,0x2054));
 
     // Dedicated text wins before normal Poe milestone text; ordinary Poes still count.
-    daItemBase_c demo; demo.id=500; partner=&demo;
+    daItemBase_c demo; demo.id=500; testItemEventPartner=&demo;
     enemy_souls::associate_item(demo.id,0x202E,std::nullopt);
     daAlink_c link; normalPoes=19;
     hookPreProcCoGetItem(nullptr,&link,nullptr,nullptr);
     assert(link.field_0x32cc==ENEMY_SOUL_MESSAGE_BASE+0x2E);
     assert(normalPoes==19);
-    enemy_souls::associate_item(demo.id,0x2054,0x2000);
+    enemy_souls::associate_item(demo.id,0x2054,u16{0x2000});
     enemy_souls::associate_item(demo.id,0x2054,std::nullopt);
     assert(enemy_souls::collect_extended_item(&demo));
     assert(enemy_souls::mask_test(enemy_souls::s_completed,0x2000));

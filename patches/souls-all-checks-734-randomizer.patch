@@ -501,7 +501,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
 -    }
 -
 +    if (link->mProcVar2.field_0x300c == dItemNo_Randomizer_POU_SPIRIT_e) {
-+        const u8 nextPoeCount = dComIfGs_getPohSpiritNum() + 1;
++        const int nextPoeCount = dComIfGs_getPohSpiritNum() + 1;
 +        if (nextPoeCount == 20 || nextPoeCount == 60)
 +            link->field_0x32cc = link->mProcVar2.field_0x300c + 0x65;
 +    }
@@ -859,6 +859,15 @@ diff --git "a/src/session.cpp" "b/src/session.cpp"
  }
  
  void clearSaveSlot() {
+@@ -771,7 +774,7 @@
+         return std::nullopt;
+     }
+     const std::string roomStr{room_begin, room_end};
+-    u8 roomNo = std::atoi(roomStr.c_str());
++    const u8 roomNo = static_cast<u8>(std::atoi(roomStr.c_str()));
+     const int itemNo = std::atoi(room_end + 1);
+     return static_cast<u32>((stage_id << 16) | (roomNo << 8) | (itemNo & 0xFF));
+ }
 @@ -789,75 +792,67 @@
      return static_cast<u16>(flag);
  }
@@ -886,7 +895,7 @@ diff --git "a/src/session.cpp" "b/src/session.cpp"
 +    if (auto key = parse_derived(name, ITEM_CHECK_FREESTANDING_PREFIX)) {
 +        if (key->stage_id == Ook) {
 +            const auto found = ctx.mItemLocations.find("Forest Temple Gale Boomerang");
-+            return found == ctx.mItemLocations.end() ? std::nullopt : std::optional<u16>(found->second.itemId);
++            return found == ctx.mItemLocations.end() ? std::nullopt : std::optional<u16>(static_cast<u16>(found->second.itemId));
 +        }
 +        if (auto soul = logical_override(ctx.mFreestandingEnemySoulOverrides, key->key)) return soul;
 +        return logical_override(ctx.mFreestandingItemOverrides, key->key);
@@ -1090,6 +1099,15 @@ diff --git "a/src/shop_items.hpp" "b/src/shop_items.hpp"
 diff --git "a/src/tools.cpp" "b/src/tools.cpp"
 --- "a/src/tools.cpp"
 +++ "b/src/tools.cpp"
+@@ -138,7 +138,7 @@
+ u16 getItemMessageID(u8 itemId) {
+     // If heart piece, choose from the different heart piece messages
+     if (itemId == dItemNo_Randomizer_KAKERA_HEART_e) {
+-        static u32 const heartPieceMessage[5] = {0x86, 0x9C, 0x9D, 0x9E, 0x9F};
++        static u16 const heartPieceMessage[5] = {0x86, 0x9C, 0x9D, 0x9E, 0x9F};
+         return heartPieceMessage[dComIfGs_getMaxLife() % 5];
+     }
+ 
 @@ -779,6 +779,8 @@
          auto tboxId = chestNode[0]["Tbox Id"].as<u8>();
          auto stage = chestNode[0]["Stage"].as<u8>();
