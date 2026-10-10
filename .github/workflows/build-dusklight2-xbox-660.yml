@@ -6517,6 +6517,12 @@ jobs:
             throw 'Built-in cosmetics.lib was not produced.'
           }
 
+      - name: Report C++ compiler cache statistics
+        if: always() && steps.compiler-cache.outcome == 'success'
+        shell: powershell
+        run: |
+          & $env:SCCACHE_PATH --show-stats
+
       - name: Certify Randomizer generator scenarios
         shell: powershell
         run: |
@@ -6532,12 +6538,6 @@ jobs:
             Write-Host 'PASS: generator inputs match certified .688 inputs.'
             Write-Host 'Reused all-58-scenarios PASS from run 36657213524 (certification step succeeded).'
           }
-
-      - name: Report C++ compiler cache statistics
-        if: always() && steps.compiler-cache.outcome == 'success'
-        shell: powershell
-        run: |
-          & $env:SCCACHE_PATH --show-stats
 
       - name: Inspect built-in Randomizer
         shell: powershell
