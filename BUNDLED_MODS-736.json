@@ -10,7 +10,8 @@
     "repository": "XandasL/TP-CM-Controller-UI",
     "commit": "1be064813e40962ad443b96a2aee7ed494a94222",
     "path": "src/mod.cpp",
-    "sha256": "11cab25b1794e3d0007ecd9291bb0f7ec27d5dc73bb9e31d58c28ace926adf4b"
+    "sha256": "5076afc2573d529c7ad1d6bd4b51c80a62535102bfa3afa941b69353a8b4a436",
+    "gitBlobSha": "c1bf015839ae4654c6ac1a23496390210a267a2b"
   },
   "mods": [
     {
