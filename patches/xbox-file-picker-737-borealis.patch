@@ -1,0 +1,201 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9bad1ad..600348a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -337,6 +337,9 @@ if (BOREALIS_ENABLE_FILE_SELECT)
+     set(_borealis_sdl_needed ON)
+     add_library(borealis_file_select STATIC src/file_select/file_select.cpp)
+     add_library(borealis::file_select ALIAS borealis_file_select)
++    if (DUSK_UWP)
++        target_compile_definitions(borealis_file_select PRIVATE _UWP=1)
++    endif ()
+     target_link_libraries(borealis_file_select
+             PUBLIC borealis_core
+             PRIVATE borealis_io borealis_sdl_dep)
+diff --git a/include/borealis/file_select.hpp b/include/borealis/file_select.hpp
+index 666e476..684e8ed 100644
+--- a/include/borealis/file_select.hpp
++++ b/include/borealis/file_select.hpp
+@@ -62,6 +62,18 @@ struct Capabilities {
+ 
+ using Callback = std::function<void(Result)>;
+ 
++#if defined(_UWP)
++/** Installed by the host UI. UWP must never fall through to desktop SDL dialogs. */
++struct PlatformBackend {
++    void (*openFile)(FileOptions, Callback) = nullptr;
++    void (*openFolder)(FolderOptions, Callback) = nullptr;
++    void (*exportFile)(ExportOptions, Callback) = nullptr;
++};
++void install_platform_backend(PlatformBackend backend) noexcept;
++/** Drain completions whose SDL main-thread dispatch failed. Call on the UI thread. */
++void pump_completions();
++#endif
++
+ /** Returns backend support. Runtime failures do not change these values. */
+ Capabilities capabilities() noexcept;
+ 
+diff --git a/src/file_select/file_select.cpp b/src/file_select/file_select.cpp
+index 227eda7..5e1d735 100644
+--- a/src/file_select/file_select.cpp
++++ b/src/file_select/file_select.cpp
+@@ -8,6 +8,11 @@
+ #include <SDL3/SDL_dialog.h>
+ #include <SDL3/SDL_error.h>
+ #include <SDL3/SDL_init.h>
++#if defined(_UWP)
++#include <SDL3/SDL_log.h>
++#include <deque>
++#include <mutex>
++#endif
+ 
+ #include <array>
+ #include <atomic>
+@@ -44,9 +49,25 @@ struct CompletionState {
+ 
+ std::atomic_bool g_dialogBusy = false;
+ 
++#if defined(_UWP)
++PlatformBackend g_platformBackend;
++std::mutex g_completionMutex;
++std::deque<std::unique_ptr<CompletionState>> g_pendingCompletions;
++#endif
++
+ void invoke_completion(void* userdata) {
+     std::unique_ptr<CompletionState> state{static_cast<CompletionState*>(userdata)};
++#if defined(_UWP)
++    try {
++        state->callback(std::move(state->result));
++    } catch (const std::exception& exception) {
++        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "File selection callback failed: %s", exception.what());
++    } catch (...) {
++        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "File selection callback failed");
++    }
++#else
+     state->callback(std::move(state->result));
++#endif
+ }
+ 
+ }  // namespace
+@@ -63,7 +84,15 @@ void dispatch_completion(Callback callback, Result result) {
+         return;
+     }
+ 
+-    // Run inline if SDL cannot queue the callback.
++#if defined(_UWP)
++    if (!SDL_IsMainThread()) {
++        // Never mutate RmlUi from an SDL dialog worker, even when SDL's queue fails.
++        std::lock_guard lock(g_completionMutex);
++        g_pendingCompletions.push_back(std::move(state));
++        return;
++    }
++#endif
++    // Running inline is safe only on the UI thread on UWP.
+     invoke_completion(state.release());
+ }
+ 
+@@ -81,6 +110,30 @@ bool acquire_dialog() {
+     return g_dialogBusy.compare_exchange_strong(expected, true, std::memory_order_acq_rel);
+ }
+ 
++#if defined(_UWP)
++template <typename Options>
++void open_platform(void (*open)(Options, Callback), Options options, Callback callback) {
++    struct Once {
++        std::atomic_bool finished = false;
++        Callback callback;
++    };
++    auto state = std::make_shared<Once>();
++    state->callback = std::move(callback);
++    Callback finish = [state](Result result) {
++        if (!state->finished.exchange(true, std::memory_order_acq_rel)) {
++            complete(std::move(state->callback), std::move(result));
++        }
++    };
++    try {
++        open(std::move(options), finish);
++    } catch (const std::exception& exception) {
++        finish({.status = Status::Failed, .message = exception.what()});
++    } catch (...) {
++        finish({.status = Status::Failed, .message = "Unable to open the Xbox file browser"});
++    }
++}
++#endif
++
+ Result result_from_file_list(const char* const* fileList, const char* error) {
+     if (fileList == nullptr) {
+         return {
+@@ -257,13 +310,39 @@ void fail_wrong_thread(Callback callback) {
+ }  // namespace detail
+ 
+ Capabilities capabilities() noexcept {
+-#if defined(__APPLE__) && TARGET_OS_TV
++#if defined(_UWP)
++    return {.canOpenFile = detail::g_platformBackend.openFile != nullptr,
++        .canOpenFolder = detail::g_platformBackend.openFolder != nullptr,
++        .canExportFile = detail::g_platformBackend.exportFile != nullptr};
++#elif defined(__APPLE__) && TARGET_OS_TV
+     return {};
+ #else
+     return {.canOpenFile = true, .canOpenFolder = true, .canExportFile = true};
+ #endif
+ }
+ 
++#if defined(_UWP)
++void install_platform_backend(PlatformBackend backend) noexcept {
++    if (SDL_IsMainThread()) {
++        detail::g_platformBackend = backend;
++    }
++}
++
++void pump_completions() {
++    if (!SDL_IsMainThread()) {
++        return;
++    }
++    std::deque<std::unique_ptr<detail::CompletionState>> pending;
++    {
++        std::lock_guard lock(detail::g_completionMutex);
++        pending.swap(detail::g_pendingCompletions);
++    }
++    for (auto& state : pending) {
++        detail::invoke_completion(state.release());
++    }
++}
++#endif
++
+ bool busy() noexcept {
+     return detail::g_dialogBusy.load(std::memory_order_acquire);
+ }
+@@ -292,7 +371,9 @@ void open_file(FileOptions options, Callback callback) {
+         return;
+     }
+ 
+-#if BOREALIS_USE_IOS_FILE_DIALOG
++#if defined(_UWP)
++    detail::open_platform(detail::g_platformBackend.openFile, std::move(options), std::move(callback));
++#elif BOREALIS_USE_IOS_FILE_DIALOG
+     detail::open_ios_file(std::move(options), std::move(callback));
+ #else
+     const int filterCount = static_cast<int>(options.filters.size());
+@@ -330,7 +411,9 @@ void open_folder(FolderOptions options, Callback callback) {
+         return;
+     }
+ 
+-#if BOREALIS_USE_IOS_FILE_DIALOG
++#if defined(_UWP)
++    detail::open_platform(detail::g_platformBackend.openFolder, std::move(options), std::move(callback));
++#elif BOREALIS_USE_IOS_FILE_DIALOG
+     detail::open_ios_folder(std::move(options), std::move(callback));
+ #elif BOREALIS_USE_MACOS_FOLDER_DIALOG
+     detail::open_macos_folder(std::move(options), std::move(callback));
+@@ -385,7 +468,9 @@ void export_file(ExportOptions options, Callback callback) {
+         return;
+     }
+ 
+-#if BOREALIS_USE_IOS_FILE_DIALOG
++#if defined(_UWP)
++    detail::open_platform(detail::g_platformBackend.exportFile, std::move(options), std::move(callback));
++#elif BOREALIS_USE_IOS_FILE_DIALOG
+     detail::export_ios_file(std::move(options), std::move(callback));
+ #elif defined(__ANDROID__) || defined(ANDROID)
+     detail::export_android_file(std::move(options), std::move(callback));

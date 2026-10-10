@@ -1,0 +1,701 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4b21c7c..f3991be 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -359,6 +359,9 @@ set(GAME_FILES ${_dusklight_all_files})
+ list(FILTER GAME_FILES EXCLUDE REGEX "^src/dusk/")
+ 
+ add_library(dusk_internal OBJECT ${DUSK_INTERNAL_FILES})
++if (DUSK_UWP)
++    target_sources(dusk_internal PRIVATE src/dusk/ui/xbox_file_picker.cpp)
++endif ()
+ if (ENABLE_ASAN)
+     target_sources(dusk_internal PRIVATE src/dusk/asan_options.c)
+ endif ()
+diff --git a/src/dusk/ui/prelaunch.cpp b/src/dusk/ui/prelaunch.cpp
+index cadb742..d38e3d7 100644
+--- a/src/dusk/ui/prelaunch.cpp
++++ b/src/dusk/ui/prelaunch.cpp
+@@ -469,6 +469,28 @@ private:
+ };
+ 
+ void file_dialog_callback(borealis::file_select::Result result) {
++#if defined(_UWP)
++    if (result.status == borealis::file_select::Status::Canceled) return;
++    try {
++        if (result.status != borealis::file_select::Status::Selected || result.locations.empty()) {
++            auto message = result.message.empty() ? "The disc image could not be selected." : result.message;
++            prelaunch_state().errorString = message;
++            PrelaunchLog.warn("File selection failed: {}", message);
++            push_toast({.type = "warning", .title = "Disc Selection Failed", .content = message,
++                .duration = std::chrono::seconds{10}});
++            return;
++        }
++        begin_disc_verification(result.locations.front());
++    } catch (const std::exception& exception) {
++        prelaunch_state().errorString = exception.what();
++        push_toast({.type = "warning", .title = "Disc Selection Failed", .content = exception.what(),
++            .duration = std::chrono::seconds{10}});
++    } catch (...) {
++        prelaunch_state().errorString = "Unable to start disc verification.";
++        push_toast({.type = "warning", .title = "Disc Selection Failed",
++            .content = "Unable to start disc verification.", .duration = std::chrono::seconds{10}});
++    }
++#else
+     if (result.status != borealis::file_select::Status::Selected || result.locations.empty()) {
+         if (result.status == borealis::file_select::Status::Failed) {
+             PrelaunchLog.warn("File selection failed: {}", result.message);
+@@ -477,6 +499,7 @@ void file_dialog_callback(borealis::file_select::Result result) {
+     }
+ 
+     begin_disc_verification(result.locations.front());
++#endif
+ }
+ 
+ std::vector<const gamemode::GameMode*> carousel_game_modes() {
+@@ -791,6 +814,21 @@ void ensure_initialized() noexcept {
+ }
+ 
+ void open_iso_picker() noexcept {
++#if defined(_UWP)
++    try {
++        ensure_initialized();
++        borealis::file_select::open_file({
++            .parentWindow = aurora::window::get_sdl_window(),
++            .filters = kDiscFileFilters,
++            .defaultLocation = prelaunch_state().configuredDiscPath,
++        }, &file_dialog_callback);
++    } catch (const std::exception& exception) {
++        file_dialog_callback({.status = borealis::file_select::Status::Failed, .message = exception.what()});
++    } catch (...) {
++        file_dialog_callback({.status = borealis::file_select::Status::Failed,
++            .message = "Unable to open the Xbox disc browser."});
++    }
++#else
+     ensure_initialized();
+     borealis::file_select::open_file(
+         {
+@@ -798,6 +836,7 @@ void open_iso_picker() noexcept {
+             .filters = kDiscFileFilters,
+         },
+         &file_dialog_callback);
++#endif
+ }
+ 
+ bool is_restart_pending() noexcept {
+diff --git a/src/dusk/ui/settings.cpp b/src/dusk/ui/settings.cpp
+index 0d31277..30e4150 100644
+--- a/src/dusk/ui/settings.cpp
++++ b/src/dusk/ui/settings.cpp
+@@ -36,6 +36,7 @@
+ #include <SDL3/SDL_filesystem.h>
+ 
+ #include <algorithm>
++#include <exception>
+ #include <filesystem>
+ 
+ #if defined(__APPLE__)
+@@ -279,6 +280,10 @@ private:
+ };
+ 
+ void show_data_folder_error_modal(std::string_view message) {
++#if defined(_UWP)
++    push_toast({.type = "warning", .title = "Data Folder Not Changed",
++        .content = Rml::String{message}, .duration = std::chrono::seconds{10}});
++#else
+     auto dismiss = [](Modal& modal) {
+         mDoAud_seStartMenu(kSoundWindowClose);
+         modal.pop();
+@@ -299,9 +304,29 @@ void show_data_folder_error_modal(std::string_view message) {
+     if (auto* doc = top_document()) {
+         doc->focus();
+     }
++#endif
+ }
+ 
+ void data_folder_dialog_callback(borealis::file_select::Result result) {
++#if defined(_UWP)
++    if (result.status == borealis::file_select::Status::Canceled) return;
++    try {
++        if (result.status != borealis::file_select::Status::Selected || result.locations.empty()) {
++            show_data_folder_error_modal(result.message.empty() ? "Dusklight could not open the folder browser." : result.message);
++            return;
++        }
++        std::string error;
++        if (data::set_custom_data_path(borealis::io::fs_path_from_utf8(result.locations.front()), &error)) {
++            mDoAud_seStartMenu(kSoundItemChange);
++            return;
++        }
++        show_data_folder_error_modal(error.empty() ? "Dusklight could not use the selected data folder." : error);
++    } catch (const std::exception& exception) {
++        show_data_folder_error_modal(exception.what());
++    } catch (...) {
++        show_data_folder_error_modal("The selected folder could not be used. Your current data folder is unchanged.");
++    }
++#else
+     if (result.status == borealis::file_select::Status::Canceled) {
+         return;
+     }
+@@ -321,6 +346,7 @@ void data_folder_dialog_callback(borealis::file_select::Result result) {
+             fmt::format("{} could not use the selected folder as its data folder.", AppName);
+     }
+     show_data_folder_error_modal(dataPathError);
++#endif
+ }
+ 
+ const Rml::String kInternalResolutionHelpText =
+@@ -545,6 +571,9 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
+                         });
+ #endif
+                         pane.add_button("Change Data Folder").on_pressed([] {
++#if defined(_UWP)
++                            try {
++#endif
+                             const auto defaultLocation =
+                                 borealis::io::fs_path_to_string(data::configured_data_path());
+                             borealis::file_select::open_folder(
+@@ -554,6 +583,13 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
+                                     .requireRealPath = true,
+                                 },
+                                 &data_folder_dialog_callback);
++#if defined(_UWP)
++                            } catch (const std::exception& exception) {
++                                show_data_folder_error_modal(exception.what());
++                            } catch (...) {
++                                show_data_folder_error_modal("Unable to open the Xbox folder browser.");
++                            }
++#endif
+                         });
+ #if defined(_WIN32)
+                         pane.add_button("Portable Mode").on_pressed([] {
+diff --git a/src/dusk/ui/ui.cpp b/src/dusk/ui/ui.cpp
+index 88f19a5..352c5b8 100644
+--- a/src/dusk/ui/ui.cpp
++++ b/src/dusk/ui/ui.cpp
+@@ -1,4 +1,7 @@
+ #include "ui.hpp"
++#if defined(_UWP)
++#include "xbox_file_picker.hpp"
++#endif
+ 
+ #include "command_console.hpp"
+ #include "drop_install_modal.hpp"
+@@ -119,11 +122,17 @@ bool initialize() noexcept {
+         .AddParser("color");
+     Rml::StyleSheetSpecification::RegisterProperty("mod-icon-background", "transparent", false)
+         .AddParser("color");
++#if defined(_UWP)
++    xbox_file_picker::initialize();
++#endif
+     sInitialized = true;
+     return true;
+ }
+ 
+ void shutdown() noexcept {
++#if defined(_UWP)
++    xbox_file_picker::shutdown();
++#endif
+     mods::updates::shutdown();
+     mods::queue::shutdown();
+     for (auto& drop : sPendingDrops) {
+@@ -474,6 +483,9 @@ void update() noexcept {
+     }
+ 
+     update_remote_texture_provider();
++#if defined(_UWP)
++    xbox_file_picker::update();
++#endif
+     for (size_t index = 0; index < sPendingDrops.size();) {
+         auto& pending = sPendingDrops[index];
+         if (!pending.inspection.ready()) {
+diff --git a/src/dusk/ui/xbox_file_picker.cpp b/src/dusk/ui/xbox_file_picker.cpp
+new file mode 100644
+index 0000000..48e48a6
+--- /dev/null
++++ b/src/dusk/ui/xbox_file_picker.cpp
+@@ -0,0 +1,352 @@
++#include "xbox_file_picker.hpp"
++#include "xbox_file_picker_model.hpp"
++
++#include "dusk/data.hpp"
++#include "list.hpp"
++#include "modal.hpp"
++#include "ui.hpp"
++
++#include <borealis/file_select.hpp>
++#include <borealis/io.hpp>
++#include <SDL3/SDL_log.h>
++
++#include <memory>
++#include <mutex>
++#include <optional>
++#include <stdexcept>
++#include <thread>
++#include <utility>
++
++// Use the same checked, staged writer as the other Borealis export backends.
++namespace borealis::file_select::detail {
++Result copy_export_file(std::string_view, std::string_view, bool);
++}
++
++namespace dusk::ui::xbox_file_picker {
++namespace {
++namespace select = borealis::file_select;
++enum class Kind { File, Folder, Export };
++struct Request {
++    Kind kind = Kind::File;
++    select::Callback callback;
++    std::vector<select::Filter> filters;
++    std::vector<std::string> roots;
++    std::string initialLocation;
++    std::string source;
++    std::string suggestedName;
++    std::string exportDestination;
++    std::optional<select::Result> terminal;
++    bool shown = false;
++    bool closed = false;
++    bool confirming = false;
++};
++std::shared_ptr<Request> g_request;
++
++struct ListingJob {
++    std::mutex mutex;
++    std::atomic_bool canceled = false;
++    std::optional<model::Listing> result;
++};
++struct ExportJob {
++    std::mutex mutex;
++    std::optional<select::Result> result;
++};
++
++class Browser final : public Modal {
++public:
++    explicit Browser(std::shared_ptr<Request> request)
++        : Modal(props(request)), mRequest(std::move(request)) {
++        mDialog->SetProperty("width", "90vw");
++        mDialog->SetProperty("max-width", "90vw");
++        mDialog->SetProperty("max-height", "90vh");
++        mDialog->QuerySelector("modal-body")->SetProperty("white-space", "pre-wrap");
++        auto& pane = content_pane();
++        mList = &pane.add_child<List>(List::Props{
++            .onPressed = [this](uint64_t key) { mPendingKey = key; },
++            .isDisabled = [this](uint64_t) { return blocked(); },
++        });
++        mList->root()->SetProperty("height", "48vh");
++        mList->root()->SetProperty("overflow-y", "auto");
++        navigate(mRequest->initialLocation);
++    }
++    ~Browser() override {
++        if (mListingJob) mListingJob->canceled.store(true);
++        if (!mRequest->terminal) mRequest->terminal = select::Result{.status = select::Status::Canceled};
++        mRequest->closed = true;
++    }
++    void update() override {
++        try {
++            if (mListingJob) {
++                std::optional<model::Listing> result;
++                {
++                    std::lock_guard lock(mListingJob->mutex);
++                    result.swap(mListingJob->result);
++                }
++                if (result) {
++                    mListingJob.reset();
++                    mListing = std::move(*result);
++                    display_page();
++                }
++            }
++            if (mExportJob) {
++                std::optional<select::Result> result;
++                {
++                    std::lock_guard lock(mExportJob->mutex);
++                    result.swap(mExportJob->result);
++                }
++                if (result) {
++                    mExportJob.reset();
++                    finish(std::move(*result));
++                }
++            }
++            if (!mRequest->exportDestination.empty() && !mExportJob) {
++                start_export(std::exchange(mRequest->exportDestination, {}));
++            }
++            if (auto key = std::exchange(mPendingKey, {})) activate(*key);
++            Modal::update();
++        } catch (const std::exception& exception) {
++            finish({.status = select::Status::Failed, .message = exception.what()});
++        } catch (...) {
++            finish({.status = select::Status::Failed, .message = "The Xbox file browser could not complete this action."});
++        }
++    }
++protected:
++    bool handle_nav_command(Rml::Event& event, NavCommand command) override {
++        if (mExportJob && (command == NavCommand::Cancel || command == NavCommand::Menu)) return true;
++        return Modal::handle_nav_command(event, command);
++    }
++private:
++    static Browser& browser(Modal& modal) { return static_cast<Browser&>(modal); }
++    static Props props(const std::shared_ptr<Request>& request) {
++        Props props;
++        props.title = request->kind == Kind::File ? "Select File" :
++                      request->kind == Kind::Folder ? "Select Data Folder" : "Export File";
++        props.bodyText = "Reading folders...";
++        props.actions = {
++            {.label = "Locations", .onPressed = [](Modal& m) { browser(m).navigate({}); },
++                .isDisabled = [] { return g_request && (g_request->terminal || g_request->confirming); }},
++            {.label = "Parent", .onPressed = [](Modal& m) { browser(m).parent(); }},
++            {.label = "Previous", .onPressed = [](Modal& m) { browser(m).page(-1); }},
++            {.label = "Next", .onPressed = [](Modal& m) { browser(m).page(1); }},
++        };
++        if (request->kind == Kind::File && request->filters.size() > 1) {
++            props.actions.push_back({.label = "File Type", .onPressed = [](Modal& m) { browser(m).next_filter(); }});
++        }
++        if (request->kind != Kind::File) {
++            props.actions.push_back({.label = request->kind == Kind::Folder ? "Choose Folder" : "Export Here",
++                .onPressed = [](Modal& m) { browser(m).choose_folder(); }});
++        }
++        props.actions.push_back({.label = "Cancel", .onPressed = [](Modal& m) { browser(m).cancel(); }});
++        props.onDismiss = [](Modal& m) { browser(m).cancel(); };
++        return props;
++    }
++    bool blocked() const { return mRequest->terminal.has_value() || mExportJob || mRequest->confirming; }
++    void finish(select::Result result) {
++        if (mRequest->terminal) return;
++        mRequest->terminal = std::move(result);
++        if (mListingJob) mListingJob->canceled.store(true);
++        pop();
++    }
++    void cancel() {
++        if (!mExportJob) finish({.status = select::Status::Canceled});
++    }
++    void navigate(std::string location) {
++        if (blocked()) return;
++        if (mListingJob) mListingJob->canceled.store(true);
++        mLocation = std::move(location);
++        ++mGeneration;
++        mPendingKey.reset();
++        mPage = 0;
++        mListing = {};
++        mList->set_items({});
++        set_body_text((mLocation.empty() ? "Available locations" : mLocation) + "\nReading folders...");
++        auto job = std::make_shared<ListingJob>();
++        mListingJob = job;
++        std::string pattern = mRequest->filters.empty() ? "*" : mRequest->filters[mFilter].pattern;
++        // The worker owns its result, never a document, element, or callback.
++        std::thread([job, location = mLocation, roots = mRequest->roots,
++                        pattern = std::move(pattern), foldersOnly = mRequest->kind != Kind::File] {
++            auto listing = model::scan(location, roots, pattern, foldersOnly, job->canceled);
++            if (job->canceled.load()) return;
++            std::lock_guard lock(job->mutex);
++            job->result = std::move(listing);
++        }).detach();
++    }
++    void display_page() {
++        constexpr size_t pageSize = 200;
++        std::vector<List::Item> items;
++        size_t first = mPage * pageSize;
++        size_t last = std::min(first + pageSize, mListing.entries.size());
++        for (size_t index = first; index < last; ++index) {
++            const auto& entry = mListing.entries[index];
++            items.push_back({(uint64_t{mGeneration} << 32) | (index + 1),
++                (entry.directory ? "[Folder] " : "") + entry.label});
++        }
++        mList->set_items(std::move(items));
++        auto body = mLocation.empty() ? std::string{"Available locations (app storage and accessible drives)"} : mLocation;
++        if (mRequest->kind == Kind::File && !mRequest->filters.empty()) body += "\n" + mRequest->filters[mFilter].name;
++        if (mRequest->kind == Kind::Export) body += "\nExport: " + mRequest->suggestedName;
++        if (!mListing.error.empty()) body += "\n" + mListing.error;
++        else if (mListing.entries.empty()) body += "\nNo matching entries. Use Locations, Parent, or File Type.";
++        if (mListing.entries.size() > pageSize) body += "\nPage " + std::to_string(mPage + 1) + " of " +
++            std::to_string((mListing.entries.size() + pageSize - 1) / pageSize);
++        set_body_text(body);
++        if (top_document() == this) focus();
++    }
++    void activate(uint64_t key) {
++        if (blocked() || mListingJob || (key >> 32) != mGeneration) return;
++        auto index = static_cast<uint32_t>(key) - 1;
++        if (index >= mListing.entries.size()) return;
++        const auto entry = mListing.entries[index];
++        if (entry.directory) navigate(entry.location);
++        else finish({.status = select::Status::Selected, .locations = {entry.location}});
++    }
++    void parent() {
++        if (blocked() || mLocation.empty()) return;
++        auto parent = model::path(mLocation).parent_path();
++        navigate(parent == model::path(mLocation) ? std::string{} : model::utf8(parent));
++    }
++    void page(int direction) {
++        if (blocked() || mListingJob) return;
++        if (direction < 0 && mPage > 0) --mPage;
++        else if (direction > 0 && (mPage + 1) * 200 < mListing.entries.size()) ++mPage;
++        else return;
++        ++mGeneration;
++        mPendingKey.reset();
++        display_page();
++    }
++    void next_filter() {
++        if (blocked() || mRequest->filters.empty()) return;
++        mFilter = (mFilter + 1) % mRequest->filters.size();
++        navigate(mLocation);
++    }
++    void choose_folder() {
++        if (blocked() || mListingJob || mLocation.empty() || !mListing.usable) return;
++        if (mRequest->kind == Kind::Folder) {
++            finish({.status = select::Status::Selected, .locations = {mLocation}});
++            return;
++        }
++        auto destination = model::path(mLocation) / model::path(mRequest->suggestedName);
++        std::error_code error;
++        const bool exists = std::filesystem::exists(destination, error);
++        if (error) {
++            set_body_text(mLocation + "\nCannot check the destination: " + error.message());
++            return;
++        }
++        if (!exists) {
++            start_export(model::utf8(destination));
++            return;
++        }
++        mRequest->confirming = true;
++        std::weak_ptr<Request> weak = mRequest;
++        auto cancelConfirmation = [weak](Modal& modal) {
++            if (auto request = weak.lock()) request->confirming = false;
++            modal.pop();
++        };
++        push_document(std::make_unique<Modal>(Modal::Props{
++            .title = "Replace Existing File?", .bodyText = model::utf8(destination),
++            .actions = {
++                {.label = "Replace", .onPressed = [weak, destination = model::utf8(destination)](Modal& modal) {
++                    if (auto request = weak.lock(); request && !request->terminal) {
++                        request->confirming = false;
++                        request->exportDestination = destination;
++                    }
++                    modal.pop();
++                }},
++                {.label = "Cancel", .onPressed = cancelConfirmation},
++            }, .onDismiss = cancelConfirmation,
++        }));
++    }
++    void start_export(std::string destination) {
++        if (blocked()) return;
++        set_body_text("Exporting " + mRequest->suggestedName + "...");
++        auto job = std::make_shared<ExportJob>();
++        mExportJob = job;
++        std::thread([job, source = mRequest->source, destination = std::move(destination)] {
++            auto result = select::detail::copy_export_file(source, destination, true);
++            std::lock_guard lock(job->mutex);
++            job->result = std::move(result);
++        }).detach();
++    }
++    std::shared_ptr<Request> mRequest;
++    List* mList = nullptr;
++    std::shared_ptr<ListingJob> mListingJob;
++    std::shared_ptr<ExportJob> mExportJob;
++    model::Listing mListing;
++    std::string mLocation;
++    std::optional<uint64_t> mPendingKey;
++    uint32_t mGeneration = 0;
++    size_t mPage = 0;
++    size_t mFilter = 0;
++};
++
++void start(std::shared_ptr<Request> request, std::string defaultLocation) {
++    if (g_request) throw std::runtime_error("Another Xbox file browser is already open.");
++    const auto configured = borealis::io::fs_path_to_string(data::configured_data_path());
++    request->roots.push_back(configured);
++    if (!defaultLocation.empty()) {
++        // File defaults become their parent folder. No disk access on the UI thread.
++        auto candidate = model::path(defaultLocation);
++        if (request->kind == Kind::File && candidate.has_extension()) candidate = candidate.parent_path();
++        request->initialLocation = model::utf8(candidate);
++        request->roots.push_back(request->initialLocation);
++    }
++    g_request = std::move(request);
++}
++void open_file(select::FileOptions options, select::Callback callback) {
++    auto request = std::make_shared<Request>();
++    request->callback = std::move(callback);
++    request->filters = std::move(options.filters);
++    start(std::move(request), std::move(options.defaultLocation));
++}
++void open_folder(select::FolderOptions options, select::Callback callback) {
++    auto request = std::make_shared<Request>();
++    request->kind = Kind::Folder;
++    request->callback = std::move(callback);
++    start(std::move(request), std::move(options.defaultLocation));
++}
++void export_file(select::ExportOptions options, select::Callback callback) {
++    auto request = std::make_shared<Request>();
++    request->kind = Kind::Export;
++    request->callback = std::move(callback);
++    request->source = std::move(options.sourceLocation);
++    request->suggestedName = std::move(options.suggestedName);
++    const auto configured = borealis::io::fs_path_to_string(data::configured_data_path());
++    start(std::move(request), configured);
++}
++}  // namespace
++
++void initialize() noexcept {
++    select::install_platform_backend({&open_file, &open_folder, &export_file});
++}
++void update() noexcept {
++    try {
++        select::pump_completions();
++        if (!g_request) return;
++        if (g_request->closed) {
++            // Deliver after the browser has been removed, outside document iteration.
++            auto request = std::exchange(g_request, {});
++            request->callback(request->terminal.value_or(select::Result{.status = select::Status::Canceled}));
++        } else if (!g_request->shown) {
++            auto browser = std::make_unique<Browser>(g_request);
++            g_request->shown = true;
++            push_document(std::move(browser));
++        }
++    } catch (const std::exception& exception) {
++        auto request = std::exchange(g_request, {});
++        if (request) request->callback({.status = select::Status::Failed, .message = exception.what()});
++    } catch (...) {
++        auto request = std::exchange(g_request, {});
++        if (request) request->callback({.status = select::Status::Failed, .message = "Unable to open the Xbox file browser."});
++    }
++}
++void shutdown() noexcept {
++    auto request = std::exchange(g_request, {});
++    if (request && request->callback) {
++        request->terminal = select::Result{.status = select::Status::Canceled};
++        request->callback(*request->terminal);
++    }
++    select::pump_completions();
++    select::install_platform_backend({});
++}
++}  // namespace dusk::ui::xbox_file_picker
+diff --git a/src/dusk/ui/xbox_file_picker.hpp b/src/dusk/ui/xbox_file_picker.hpp
+new file mode 100644
+index 0000000..46aec7c
+--- /dev/null
++++ b/src/dusk/ui/xbox_file_picker.hpp
+@@ -0,0 +1,7 @@
++#pragma once
++
++namespace dusk::ui::xbox_file_picker {
++void initialize() noexcept;
++void update() noexcept;
++void shutdown() noexcept;
++}
+diff --git a/src/dusk/ui/xbox_file_picker_model.hpp b/src/dusk/ui/xbox_file_picker_model.hpp
+new file mode 100644
+index 0000000..72b08d8
+--- /dev/null
++++ b/src/dusk/ui/xbox_file_picker_model.hpp
+@@ -0,0 +1,114 @@
++#pragma once
++
++#include <algorithm>
++#include <atomic>
++#include <exception>
++#include <filesystem>
++#include <string>
++#include <string_view>
++#include <vector>
++
++namespace dusk::ui::xbox_file_picker::model {
++namespace fs = std::filesystem;
++
++struct Entry {
++    std::string location;
++    std::string label;
++    bool directory = false;
++};
++struct Listing {
++    std::vector<Entry> entries;
++    std::string error;
++    bool usable = false;
++};
++
++inline std::string utf8(const fs::path& path) {
++    auto value = path.u8string();
++    return {reinterpret_cast<const char*>(value.data()), value.size()};
++}
++inline fs::path path(std::string_view value) {
++    return fs::u8path(value.begin(), value.end());
++}
++inline std::string lower(std::string value) {
++    for (auto& c : value) {
++        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
++    }
++    return value;
++}
++inline bool matches(const fs::path& filename, std::string_view pattern) {
++    if (pattern.empty() || pattern == "*") return true;
++    auto extension = lower(utf8(filename.extension()));
++    if (!extension.empty() && extension.front() == '.') extension.erase(0, 1);
++    while (!pattern.empty()) {
++        auto separator = pattern.find(';');
++        auto token = pattern.substr(0, separator);
++        if (token == "*" || lower(std::string{token}) == extension) return true;
++        if (separator == std::string_view::npos) break;
++        pattern.remove_prefix(separator + 1);
++    }
++    return false;
++}
++inline void sort(Listing& listing) {
++    std::sort(listing.entries.begin(), listing.entries.end(), [](const Entry& a, const Entry& b) {
++        if (a.directory != b.directory) return a.directory;
++        auto al = lower(a.label), bl = lower(b.label);
++        return al == bl ? a.location < b.location : al < bl;
++    });
++}
++inline Listing scan(const std::string& location, const std::vector<std::string>& roots,
++    std::string_view pattern, bool foldersOnly, const std::atomic_bool& canceled) {
++    Listing listing;
++    try {
++        if (location.empty()) {
++            auto add = [&](const fs::path& candidate) {
++                std::error_code error;
++                if (canceled.load() || !fs::is_directory(candidate, error) || error) return;
++                auto name = utf8(candidate.lexically_normal());
++                if (std::any_of(listing.entries.begin(), listing.entries.end(), [&](const Entry& entry) {
++                    return lower(entry.location) == lower(name);
++                })) return;
++                listing.entries.push_back({name, name, true});
++            };
++            for (const auto& root : roots) add(path(root));
++#if defined(_WIN32)
++            // Xbox mounts and USB drive letters are probed off the UI thread.
++            for (char drive = 'C'; drive <= 'Z' && !canceled.load(); ++drive) {
++                add(path(std::string(1, drive) + ":\\"));
++            }
++#endif
++            listing.usable = true;
++        } else {
++            std::error_code error;
++            fs::directory_iterator iterator(path(location), fs::directory_options::none, error);
++            if (error) {
++                listing.error = "Cannot read this folder: " + error.message();
++                return listing;
++            }
++            listing.usable = true;
++            for (const fs::directory_iterator end; iterator != end && !canceled.load(); iterator.increment(error)) {
++                if (error) break;
++                const auto& entry = *iterator;
++                std::error_code statusError;
++                const bool directory = entry.is_directory(statusError);
++                if (statusError) continue;
++                if (!directory && (foldersOnly || !entry.is_regular_file(statusError) || statusError ||
++                                      !matches(entry.path().filename(), pattern))) continue;
++                listing.entries.push_back({utf8(entry.path()), utf8(entry.path().filename()), directory});
++                if (listing.entries.size() >= 65536) {
++                    listing.error = "This folder has too many entries. Move the desired file to a smaller folder.";
++                    break;
++                }
++            }
++            if (error) listing.error = "Some entries could not be read: " + error.message();
++        }
++        sort(listing);
++    } catch (const std::exception& exception) {
++        listing.usable = false;
++        listing.error = exception.what();
++    } catch (...) {
++        listing.usable = false;
++        listing.error = "Unable to read this folder.";
++    }
++    return listing;
++}
++}  // namespace dusk::ui::xbox_file_picker::model
