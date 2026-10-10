@@ -48,22 +48,38 @@ with tempfile.TemporaryDirectory(prefix='tpr-736-makeappx-') as temp:
  Square150x150Logo="square150.png" Square44x44Logo="square44.png"/></Application></Applications>
  <Capabilities><rescap:Capability Name="runFullTrust"/></Capabilities>
 </Package>''',encoding='utf-8')
-    subprocess.run(['python',str(control/'scripts/complete-736-packaged-resources.py'),str(root),str(args.cache)],check=True)
+    for mod in lock['mods']:
+        if not mod['bundle']:continue
+        bundle=args.cache/(mod['id']+'_'+mod['version']+'.dusk')
+        with bundle.open('rb') as stream:
+            assert hashlib.file_digest(stream,'sha256').hexdigest()==mod['download']['sha256'].lower()
+        assert bundle.stat().st_size==mod['download']['size']
+        folder='controller_ui' if mod['id']=='org.dusklight.tp_classic_buttons' else mod['id']
+        with zipfile.ZipFile(bundle) as original:
+            for entry in original.infolist():
+                if entry.is_dir() or entry.filename.lower().endswith(('.dll','.so','.dylib')):continue
+                path=root/'mods'/folder/entry.filename
+                path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes(original.read(entry))
     protected = hashlib.sha256((root/'Probe.exe').read_bytes()).hexdigest()
     dollar_files = [path for path in root.rglob('*') if path.is_file() and '$' in path.name]
     assert len(dollar_files)==2
-    for path in dollar_files:path.unlink()
-    subprocess.run(['python',str(control/'scripts/complete-736-packaged-resources.py'),str(root),str(args.cache)],check=True)
     assert hashlib.sha256((root/'Probe.exe').read_bytes()).hexdigest()==protected
     package = work/'probe.msix'
     subprocess.run([makeappx,'pack','/d',str(root),'/p',str(package),'/o','/h','SHA256','/l'],check=True)
+    decoded=work/'decoded'
+    subprocess.run([makeappx,'unpack','/p',str(package),'/d',str(decoded),'/o'],check=True)
+    assert (decoded/'Probe.exe').read_bytes()==(root/'Probe.exe').read_bytes()
+    for mod in lock['mods']:
+        if not mod['bundle']:continue
+        folder='controller_ui' if mod['id']=='org.dusklight.tp_classic_buttons' else mod['id']
+        with zipfile.ZipFile(args.cache/(mod['id']+'_'+mod['version']+'.dusk')) as original:
+            for entry in original.infolist():
+                if entry.is_dir() or entry.filename.lower().endswith(('.dll','.so','.dylib')):continue
+                assert (decoded/'mods'/folder/entry.filename).read_bytes()==original.read(entry)
     with zipfile.ZipFile(package) as packed:
-        assert packed.read('Probe.exe')==(root/'Probe.exe').read_bytes()
-        for mod in lock['mods']:
-            if not mod['bundle']:continue
-            folder='controller_ui' if mod['id']=='org.dusklight.tp_classic_buttons' else mod['id']
-            with zipfile.ZipFile(args.cache/(mod['id']+'_'+mod['version']+'.dusk')) as original:
-                for entry in original.infolist():
-                    if entry.is_dir() or entry.filename.lower().endswith(('.dll','.so','.dylib')):continue
-                    assert packed.read('mods/'+folder+'/'+entry.filename)==original.read(entry)
-    print('PASS Windows MakeAppx: all 22 byte-exact resource sets, two literal dollar texture paths, protected executable and SHA256 block map')
+        for path in dollar_files:
+            original_name=path.relative_to(root).as_posix()
+            assert original_name not in packed.namelist(), 'Raw ZIP negative control unexpectedly decoded an OPC name'
+            assert original_name.replace('$','%24') in packed.namelist()
+    print('PASS Windows MakeAppx: 22 byte-exact resource sets and literal dollar names after SDK decoding; raw ZIP negative control reproduces verifier failure')

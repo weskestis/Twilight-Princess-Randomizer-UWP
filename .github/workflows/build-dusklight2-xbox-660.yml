@@ -6547,28 +6547,6 @@ jobs:
             /p:GenerateAppxPackageOnBuild=true
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
-          # Preserve literal catalog resource paths independently of VS/MSBuild's
-          # content/PRI filename transformations. MakeAppx regenerates the block
-          # map and the completed package is signed again with the same key.
-          $resourcePackage736 = Get-ChildItem "$env:TPR_PKG" -Recurse -File -Filter '*.msix' |
-            Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
-            Sort-Object Length -Descending | Select-Object -First 1
-          if (-not $resourcePackage736) { throw 'No compiled MSIX for literal resource completion.' }
-          $resourceRoot736 = Join-Path $env:RUNNER_TEMP 'tpr-736-complete-resources'
-          $completedPackage736 = Join-Path $env:RUNNER_TEMP 'tpr-736-completed.msix'
-          makeappx unpack /p $resourcePackage736.FullName /d $resourceRoot736 /o
-          if ($LASTEXITCODE -ne 0) { throw 'Could not unpack compiled MSIX for resource completion.' }
-          python "$env:TPR_CONTROL\scripts\complete-736-packaged-resources.py" $resourceRoot736 "$env:TPR_SRC\.uwp-mod-downloads-736"
-          if ($LASTEXITCODE -ne 0) { throw 'Literal catalog resource completion failed.' }
-          foreach ($footprint736 in @('AppxSignature.p7x','AppxBlockMap.xml','[Content_Types].xml')) {
-            $footprintPath736 = Join-Path $resourceRoot736 $footprint736
-            if (Test-Path -LiteralPath $footprintPath736) { Remove-Item -LiteralPath $footprintPath736 -Force }
-          }
-          makeappx pack /d $resourceRoot736 /p $completedPackage736 /o /h SHA256 /l
-          if ($LASTEXITCODE -ne 0) { throw 'Could not regenerate the completed MSIX block map.' }
-          signtool sign /fd SHA256 /f "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" /p "${{ steps.cert.outputs.password }}" $completedPackage736
-          if ($LASTEXITCODE -ne 0) { throw 'Completed MSIX signing failed.' }
-          Copy-Item -LiteralPath $completedPackage736 -Destination $resourcePackage736.FullName -Force
 
       - name: Verify and collect full 736 package
         shell: powershell
@@ -6584,8 +6562,10 @@ jobs:
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [IO.Compression.ZipFile]::ExtractToDirectory($package, "$env:TPR_MSIX_INSPECT")
+          # MSIX uses OPC-encoded ZIP names. The SDK extracts their installed
+          # names (including '$'); generic ZIP extraction leaves %24 literals.
+          makeappx unpack /p $package /d "$env:TPR_MSIX_INSPECT" /o
+          if ($LASTEXITCODE -ne 0) { throw 'Windows SDK MSIX payload extraction failed.' }
           $manifestPath = "$env:TPR_MSIX_INSPECT\AppxManifest.xml"
           if (-not (Test-Path $manifestPath)) { throw 'MSIX has no AppxManifest.xml.' }
           $manifest = Get-Content $manifestPath -Raw
@@ -6959,7 +6939,7 @@ jobs:
             bundledCatalogMods = 22
             catalogPackagesDownloadedAndVerified = 62
             additionalSignedPorts = 'controller_ui 1.3.2; luau_runtime 1.0.0'
-            literalModResourcePaths = 'Completed from hash-pinned catalog bytes before regenerating the block map and re-signing; original dollar-sign texture filenames retained'
+            literalModResourcePaths = 'Windows SDK unpack decodes OPC-encoded ZIP names before byte-exact catalog checks; original dollar-sign texture filenames verified'
             signedPortSdkIsolation = 'Core Randomizer/Cosmetics and new controller/Luau pairs have independent C++ SDK hook state, contexts and PE metadata; production-definition dispatch/reset/re-enable regression proof'
             optionalModDefaults = 'New packaged catalog mods disabled; existing LocalState asset defaults and saved preferences preserved'
             bundledModLockSha256 = 'c8f2cc5c71a605c0aeabfe2cf5f4d6d0e68980c827a84d0a9066b0bac6fd0b24'

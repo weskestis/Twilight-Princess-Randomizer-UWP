@@ -16,7 +16,7 @@
     "Bundle 22 hash-pinned catalog mods as optional resources; preserve existing user mod defaults and saved enable preferences",
     "Install matching known native mod versions by immediately binding resources to the signed implementation; never execute downloaded desktop DLLs",
     "Separate the existing Cosmetics C++ SDK hook state from Randomizer so shared target metadata, dispatch contexts and reset/shutdown state cannot coalesce",
-    "Preserve every original catalog resource filename, including dollar-sign Linkle palettes, before rebuilding and signing the final MSIX"
+    "Verify all original catalog resource names and bytes using SDK-decoded MSIX paths, including Linkle dollar-sign palette filenames"
   ],
   "preserved": [
     "All green .734 Enemy/Boss Soul check types, wide IDs, native FIFO and normal Poe isolation",
