@@ -428,7 +428,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
      if (reward == 0xFF) {
          return;
      }
-@@ -1637,6 +1643,24 @@
+@@ -1637,6 +1643,26 @@
      hookLureHeart_isSkipGetItem = false;
  }
  
@@ -436,11 +436,13 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
 +    const u8 physical = mods::arg<u8>(args, 0);
 +    const u32 tag = mods::arg<u32>(args, 1);
 +    auto* giver = mods::arg<fopAc_ac_c*>(args, 2);
-+    auto logical = enemy_souls::logical_item_for_actor(giver);
-+    if (!logical && tag != 0) {
++    std::optional<u16> logical;
++    if (tag != 0) {
 +        const char* name = session::svc_mng.item->check_name(session::svc_mng.mod_ctx, tag);
 +        logical = session::logicalItemForCheck(name);
 +    }
++    // The active check outranks preview metadata on a reused NPC/shop actor.
++    if (!logical) logical = enemy_souls::logical_item_for_actor(giver);
 +    if (!logical || !enemy_souls::is_enemy_soul(*logical)) return HOOK_CONTINUE;
 +    enemy_souls::grant_soul(*logical);
 +    enemy_souls::commit_item_pickup(giver);
@@ -453,7 +455,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
  HookAction hookPreGetItemFunc(ModContext*, void* args, void*, void*) {
      const u8 item = mods::arg<u8>(args, 0);
  
-@@ -1746,14 +1770,17 @@
+@@ -1746,14 +1772,17 @@
          }
  
          if (i_this->mItemPartnerId == fpcM_ERROR_PROCESS_ID_e) {
@@ -473,7 +475,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
          }
  
          if (fpcEx_IsExist(i_this->mItemPartnerId)) {
-@@ -2834,22 +2861,20 @@
+@@ -2834,22 +2863,20 @@
  }
  
  HookAction hookPreProcCoGetItem(ModContext*, void* args, void*, void*) {
@@ -508,7 +510,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
      return HOOK_CONTINUE;
  }
  
-@@ -4079,11 +4104,13 @@
+@@ -4079,11 +4106,13 @@
      {
          mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
          item::exec_item_get(*breakableItem);
@@ -522,7 +524,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
          mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
          breakables::collect_spawned_item(i_this);
          return HOOK_SKIP_ORIGINAL;
-@@ -4459,6 +4486,7 @@
+@@ -4459,6 +4488,7 @@
      }
  
      // Xbox .728: defer Enemy Soul gating until execute; actor create must finish.
@@ -530,7 +532,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
      ADD_HOOK_PRE(fpcMtd_IsDelete_EnemySouls, hookPreActorSubmethodIsDelete);
      ADD_HOOK_PRE(fpcMtd_Delete_EnemySouls, hookPreActorSubmethodDelete);
      ADD_HOOK_POST(fopAc_Create_EnemySouls, hookPostActorCreate);
-@@ -4756,6 +4784,7 @@
+@@ -4756,6 +4786,7 @@
  ModResult uninstall() {
      auto svc_hook = session::svc_mng.hook;
  
@@ -868,7 +870,7 @@ diff --git "a/src/session.cpp" "b/src/session.cpp"
      const int itemNo = std::atoi(room_end + 1);
      return static_cast<u32>((stage_id << 16) | (roomNo << 8) | (itemNo & 0xFF));
  }
-@@ -789,75 +792,67 @@
+@@ -789,75 +792,69 @@
      return static_cast<u16>(flag);
  }
  
@@ -923,8 +925,10 @@ diff --git "a/src/session.cpp" "b/src/session.cpp"
 +    const auto logical = logicalItemForCheck(info->name);
 +    if (!logical) return false;
 +    outResult->item = enemy_souls::physical_item(static_cast<u16>(verifyProgressiveItem(*logical)));
-+    if (enemy_souls::is_enemy_soul(*logical) && info->giver_actor != nullptr) {
++    if (info->giver_actor != nullptr) {
 +        // Actor-local presentation metadata only: previews never grant inventory.
++        // Rebind normal and Boss rewards too: NPCs can give several different
++        // checks during one visit and must not retain a prior Enemy Soul.
 +        const auto* actor = static_cast<const fopAc_ac_c*>(info->giver_actor);
 +        enemy_souls::associate_item(fopAcM_GetID(actor), *logical);
 +    }
@@ -1001,7 +1005,7 @@ diff --git "a/src/session.cpp" "b/src/session.cpp"
  }
  
  void observe_give(ModContext*, const ItemGiveInfo* info, void*) {
-@@ -1179,11 +1174,11 @@
+@@ -1179,11 +1176,11 @@
  }
  
  void onObservedNewSave(ModContext*, const uint32_t slot, void*) {
@@ -1108,7 +1112,26 @@ diff --git "a/src/tools.cpp" "b/src/tools.cpp"
          return heartPieceMessage[dComIfGs_getMaxLife() % 5];
      }
  
-@@ -779,6 +779,8 @@
+@@ -172,10 +172,14 @@
+ u16 getSoulItemMessageID(const u8 physicalItemId,
+                          const fopAc_ac_c* itemActor) {
+     std::uint16_t logicalItemId = physicalItemId;
+-    if (const auto associated =
+-            randomizer::enemy_souls::logical_item_for_actor(itemActor)) {
+-        logicalItemId = *associated;
+-    }
++    std::optional<u16> logical;
++    if (itemActor != nullptr && itemActor->mItemGiveTag != 0) {
++        const char* name = randomizer::session::svc_mng.item->check_name(
++            randomizer::session::svc_mng.mod_ctx, itemActor->mItemGiveTag);
++        logical = randomizer::session::logicalItemForCheck(name);
++    }
++    if (!logical) logical = randomizer::enemy_souls::logical_item_for_actor(itemActor);
++    if (logical) logicalItemId = *logical;
+ 
+     if (randomizer::enemy_souls::is_enemy_soul(logicalItemId)) {
+         return ENEMY_SOUL_MESSAGE_BASE +
+@@ -779,6 +783,8 @@
          auto tboxId = chestNode[0]["Tbox Id"].as<u8>();
          auto stage = chestNode[0]["Stage"].as<u8>();
          auto key = (stage << 8) | tboxId;
@@ -1117,7 +1140,7 @@ diff --git "a/src/tools.cpp" "b/src/tools.cpp"
          return context.mTreasureChestOverrides[key];
      }
      if (auto& poeNode = locationMeta["Poe"]) {
-@@ -791,6 +793,8 @@
+@@ -791,6 +797,8 @@
          auto flag = freeStandingItemNode[0]["Flag"].as<u8>();
          auto stage = freeStandingItemNode[0]["Stage"].as<u8>();
          auto key = (stage << 8) | flag;

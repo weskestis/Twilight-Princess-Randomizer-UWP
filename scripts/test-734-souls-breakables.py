@@ -347,6 +347,41 @@ int main() {
     assert(nativeCompletions==static_cast<int>(categoryNames.size()));
     assert(!session::logicalItemForCheck("missing"));
 
+    // An NPC may award several checks without leaving the room. Resolving a
+    // normal reward must replace its previous Soul identity; the current tag
+    // also wins if another shelf/gift preview overwrites the actor metadata.
+    daItemBase_c repeatedGiver; repeatedGiver.id=400; repeatedGiver.mItemGiveTag=110;
+    names[110]="repeated-soul"; names[111]="repeated-poe";
+    testContext.mItemLocations["repeated-soul"]={0x202E};
+    testContext.mItemLocations["repeated-poe"]={0xE0};
+    ItemCheckInfo repeatedInfo{};
+    repeatedInfo.name=names[110].c_str(); repeatedInfo.giver_actor=&repeatedGiver;
+    ItemCheckResolution repeatedResolution{0xFF,0xFF,false};
+    assert(session::resolve_check(nullptr,&repeatedInfo,&repeatedResolution,nullptr));
+    HookArgs repeatedSoul{repeatedResolution.item,110,&repeatedGiver};
+    assert(hookPreExecItemGetLogicalSoul(nullptr,&repeatedSoul,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+    assert(normalPoes==0);
+    repeatedGiver.mItemGiveTag=111; repeatedInfo.name=names[111].c_str();
+    assert(session::resolve_check(nullptr,&repeatedInfo,&repeatedResolution,nullptr));
+    assert(enemy_souls::logical_item_for_actor(&repeatedGiver)==0xE0);
+    HookArgs repeatedPoe{repeatedResolution.item,111,&repeatedGiver};
+    assert(hookPreExecItemGetLogicalSoul(nullptr,&repeatedPoe,nullptr,nullptr)==HOOK_CONTINUE);
+    enemy_souls::associate_item(repeatedGiver.id,0x202E,std::nullopt);
+    assert(hookPreExecItemGetLogicalSoul(nullptr,&repeatedPoe,nullptr,nullptr)==HOOK_CONTINUE);
+    testItemEventPartner=&repeatedGiver;
+    daAlink_c repeatedLink; normalPoes=19;
+    hookPreProcCoGetItem(nullptr,&repeatedLink,nullptr,nullptr);
+    assert(repeatedLink.field_0x32cc==0xE0+0x65);
+    item::exec_item_get(repeatedResolution.item); assert(normalPoes==20);
+    repeatedGiver.mItemGiveTag=110; repeatedInfo.name=names[110].c_str();
+    assert(session::resolve_check(nullptr,&repeatedInfo,&repeatedResolution,nullptr));
+    enemy_souls::associate_item(repeatedGiver.id,0xE0,std::nullopt);
+    assert(hookPreExecItemGetLogicalSoul(nullptr,&repeatedSoul,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+    repeatedLink.field_0x32cc=0;
+    hookPreProcCoGetItem(nullptr,&repeatedLink,nullptr,nullptr);
+    assert(repeatedLink.field_0x32cc==ENEMY_SOUL_MESSAGE_BASE+0x2E && normalPoes==20);
+    normalPoes=0;
+
     // Silent/native grants can recover identity using the check tag without an actor.
     testContext.mItemLocations["silent_gift"]={0x2001}; names[100]="silent_gift";
     HookArgs silent{0xE0,100,nullptr};
@@ -397,7 +432,7 @@ int main() {
         assert(!enemy_souls::boss_soul_owned(static_cast<u16>(id)));
         const std::string name="boss-soul-gift-"+std::to_string(index);
         testContext.mItemLocations[name]={id};
-        fopAc_ac_c giver{static_cast<u32>(600+index),static_cast<u32>(200+index)};
+        fopAc_ac_c giver{600,static_cast<u32>(200+index)};
         names[giver.mItemGiveTag]=name;
         ItemCheckInfo info{}; info.name=name.c_str(); info.giver_actor=&giver;
         ItemCheckResolution resolution{0xFF,0xFF,false};
