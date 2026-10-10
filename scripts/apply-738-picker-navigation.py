@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 
 root = Path(os.environ['TPR_SRC'])
 control = Path(os.environ['TPR_CONTROL'])
@@ -14,11 +15,12 @@ for name in identity_files:
         raise RuntimeError('.738 requires the complete green .737 source: '+name)
 patch_name = 'xbox-picker-navigation-738-host.patch'
 patch = control/'patches'/patch_name
+payload = patch.read_bytes().replace(b'\r\n', b'\n')
 lock = json.loads((control/'APP_IDENTITY-738.json').read_text())['sourcePatches']
-if hashlib.sha256(patch.read_bytes()).hexdigest() != lock[patch_name]:
+if hashlib.sha256(payload).hexdigest() != lock[patch_name]:
     raise RuntimeError('.738 picker patch hash mismatch')
 originals = {}
-for line in patch.read_text().splitlines():
+for line in payload.decode('utf-8').splitlines():
     if not line.startswith('--- a/'):
         continue
     name = line[6:]
@@ -30,13 +32,16 @@ for line in patch.read_text().splitlines():
     if payload != normalized:
         originals[path] = payload
         path.write_bytes(normalized)
-try:
-    subprocess.run(['git', '-C', str(root), 'apply', '--check', str(patch)], check=True)
-except Exception:
-    for path, payload in originals.items():
-        path.write_bytes(payload)
-    raise
-subprocess.run(['git', '-C', str(root), 'apply', str(patch)], check=True)
+with tempfile.TemporaryDirectory(prefix='tpr-738-patch-') as directory:
+    normalized_patch = Path(directory)/patch_name
+    normalized_patch.write_bytes(payload)
+    try:
+        subprocess.run(['git', '-C', str(root), 'apply', '--check', str(normalized_patch)], check=True)
+    except Exception:
+        for path, original in originals.items():
+            path.write_bytes(original)
+        raise
+    subprocess.run(['git', '-C', str(root), 'apply', str(normalized_patch)], check=True)
 for name in identity_files:
     text = (root/name).read_text(encoding='utf-8').replace('1.4.1.737', '1.4.1.738')
     if name == 'src/dusk/startup_guard.hpp':
