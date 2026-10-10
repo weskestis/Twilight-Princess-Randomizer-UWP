@@ -6451,8 +6451,11 @@ jobs:
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/settings.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/prelaunch.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/ui.cpp.obj' `
-            'extern/borealis/CMakeFiles/borealis_file_select.dir/src/file_select/file_select.cpp.obj' --parallel
+            'extern/borealis/CMakeFiles/borealis_file_select.dir/src/file_select/file_select.cpp.obj' `
+            'rmlui_core' --parallel
           if ($LASTEXITCODE -ne 0) { throw '.737 UWP controller picker/UI compilation failed.' }
+          python "$env:TPR_CONTROL\scripts\test-738-picker-navigation.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
+          if ($LASTEXITCODE -ne 0) { throw '.738 production RmlUi picker navigation/layout tests failed.' }
           $targets = @('dusklight', 'randomizer_package', 'cosmetics_package', 'controller_ui_package', 'luau_runtime_package')
           if ($env:RUN_GENERATOR_SUITE -eq 'true') {
             $targets += 'randomizer_generator_tests'
@@ -6476,13 +6479,6 @@ jobs:
           if (-not (Test-Path "$env:TPR_FEED\mods\cosmetics\cosmetics.lib" -PathType Leaf)) {
             throw 'Built-in cosmetics.lib was not produced.'
           }
-
-      - name: Verify controller picker layout and navigation with production RmlUi
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\test-738-picker-navigation.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
-          if ($LASTEXITCODE -ne 0) { throw '.738 production RmlUi picker navigation/layout tests failed.' }
 
       - name: Certify Randomizer generator scenarios
         shell: powershell

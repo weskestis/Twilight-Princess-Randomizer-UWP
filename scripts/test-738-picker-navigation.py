@@ -154,7 +154,7 @@ inline std::filesystem::path cache_path() { return configured.parent_path()/"Loc
     if os.name == 'nt':
         command = ['cl', '/nologo', '/std:c++20', '/EHsc', '/MD', '/utf-8', '/D_UWP=1', '/DRMLUI_STATIC_LIB',
                    '/I'+str(include), '/I'+str(fixture_ui), '/I'+str(rml/'Include'),
-                   str(work/'main.cpp'), *sources, '/Fe:'+str(exe), '/link', *map(str, libs)]
+                   str(work/'main.cpp'), *sources, '/Fe:'+str(exe), '/link', *map(str, libs), 'user32.lib']
         for folder in [args.feed, Path(os.environ.get('TPR_UWP_DEP', args.feed))]:
             for dll in folder.rglob('*.dll'):
                 if re.fullmatch(r'(freetype|freetype2|z|zlib|zlib1)\.dll', dll.name, re.I):
