@@ -7029,7 +7029,7 @@ jobs:
             xboxPickerBorealisPatchSha256 = '2dcf8a727455c6e184a81fe0530a23a0b1fcee0a111cc2e94e13fa0e6645b9c8'
             nativePickerTests = 'PASS: production UWP dispatch under queue/backend/callback faults, repeated/canceled requests, export guards, Unicode paths, filtering and missing folders'
             xboxPickerNavigationPatchSha256 = '75573a4399c9c9a619c0595ab771c7dac890f4dd19fe0771109893f94393819b'
-            xboxPackageStartupPatchSha256 = '2ce61888497c9fb5eceb6bc1184c77d2281c24d7cb07ad02134d8d9110c0e5d6'
+            xboxPackageStartupPatchSha256 = '1e1bd86d5aea75ad0e0fdc521d93947757400a6c8a32cd35cb417964282a3456'
             nativePackageStartupTests = 'PASS: compiled production package preparation and native path binding under bundle, manifest, config, native, logging and conversion faults; no partial entries or stale contexts'
             xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-739.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
             xboxMemoryBudget = 'Pre-Play guard only for a measured Xbox App allowance; Game, desktop UWP and unavailable probes keep normal launch'

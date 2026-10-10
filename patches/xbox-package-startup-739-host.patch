@@ -1,13 +1,17 @@
 diff --git a/platforms/uwp/main.cpp b/platforms/uwp/main.cpp
-index 713a2e4..0bf73aa 100644
+index 713a2e4..f67c960 100644
 --- a/platforms/uwp/main.cpp
 +++ b/platforms/uwp/main.cpp
-@@ -1,9 +1,36 @@
+@@ -1,9 +1,66 @@
  #include <Windows.h>
  
 +#include <cstdint>
-+#include <winrt/Windows.System.h>
-+#include <winrt/Windows.System.Profile.h>
++#include <string_view>
++#include <roapi.h>
++#include <windows.system.h>
++#include <windows.system.profile.h>
++#include <wrl/client.h>
++#include <wrl/wrappers/corewrappers.h>
 +
  #define SDL_MAIN_HANDLED
  #include <SDL3/SDL.h>
@@ -22,14 +26,40 @@ index 713a2e4..0bf73aa 100644
 +    *limit = 0;
 +    *xbox = false;
 +    try {
-+        *usage = winrt::Windows::System::MemoryManager::AppMemoryUsage();
-+        *limit = winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();
++        // Use the SDK ABI directly: the projection's factory fallback imports
++        // LoadLibraryExW even though this probe never loads a mod library.
++        Microsoft::WRL::ComPtr<ABI::Windows::System::IMemoryManagerStatics> memory;
++        const Microsoft::WRL::Wrappers::HStringReference name(
++            RuntimeClass_Windows_System_MemoryManager);
++        if (FAILED(RoGetActivationFactory(name.Get(), IID_PPV_ARGS(memory.GetAddressOf()))) ||
++            !memory) {
++            return false;
++        }
++        UINT64 measuredUsage = 0, measuredLimit = 0;
++        if (FAILED(memory->get_AppMemoryUsage(&measuredUsage)) ||
++            FAILED(memory->get_AppMemoryUsageLimit(&measuredLimit))) {
++            return false;
++        }
++        *usage = measuredUsage;
++        *limit = measuredLimit;
 +    } catch (...) {
 +        return false;
 +    }
 +    try {
-+        *xbox = winrt::Windows::System::Profile::AnalyticsInfo::VersionInfo().DeviceFamily() ==
-+                L"Windows.Xbox";
++        Microsoft::WRL::ComPtr<ABI::Windows::System::Profile::IAnalyticsInfoStatics> analytics;
++        const Microsoft::WRL::Wrappers::HStringReference name(
++            RuntimeClass_Windows_System_Profile_AnalyticsInfo);
++        if (SUCCEEDED(RoGetActivationFactory(name.Get(), IID_PPV_ARGS(analytics.GetAddressOf()))) &&
++            analytics) {
++            Microsoft::WRL::ComPtr<ABI::Windows::System::Profile::IAnalyticsVersionInfo> version;
++            Microsoft::WRL::Wrappers::HString family;
++            if (SUCCEEDED(analytics->get_VersionInfo(version.GetAddressOf())) && version &&
++                SUCCEEDED(version->get_DeviceFamily(family.GetAddressOf()))) {
++                UINT32 length = 0;
++                const auto* value = WindowsGetStringRawBuffer(family.Get(), &length);
++                *xbox = value != nullptr && std::wstring_view(value, length) == L"Windows.Xbox";
++            }
++        }
 +    } catch (...) {
 +        // An unknown family must never be treated as an Xbox App installation.
 +    }

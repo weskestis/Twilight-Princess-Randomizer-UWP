@@ -29,7 +29,8 @@
     "Bind signed native contexts after path preparation succeeds",
     "Capture each package ID, version, operation and measured memory allowance before native metadata/config/source steps",
     "Show a launcher message before Play only for a measured Xbox App memory allowance; unknown probes and Game budgets retain normal launch",
-    "Cache C/C++ compilation with pinned sccache, embedded object debug information and fresh final PDB/symdb/signature validation"
+    "Cache C/C++ compilation with pinned sccache, embedded object debug information and fresh final PDB/symdb/signature validation",
+    "Query memory and device family through the direct Windows SDK ABI; reject desktop module-loader imports before compiling the full game"
   ],
   "preserved": [
     "All green .734 Enemy/Boss Soul check types, wide IDs, native FIFO and normal Poe isolation",
@@ -63,7 +64,7 @@
     "xbox-file-picker-737-host.patch": "307d580da7af383c72f614cf582312308aae1f844374730ff54e8da46f62fd0a",
     "xbox-file-picker-737-borealis.patch": "2dcf8a727455c6e184a81fe0530a23a0b1fcee0a111cc2e94e13fa0e6645b9c8",
     "xbox-picker-navigation-738-host.patch": "75573a4399c9c9a619c0595ab771c7dac890f4dd19fe0771109893f94393819b",
-    "xbox-package-startup-739-host.patch": "2ce61888497c9fb5eceb6bc1184c77d2281c24d7cb07ad02134d8d9110c0e5d6"
+    "xbox-package-startup-739-host.patch": "1e1bd86d5aea75ad0e0fdc521d93947757400a6c8a32cd35cb417964282a3456"
   },
   "bundledCatalogMods": 22,
   "catalogInventoryCount": 62,

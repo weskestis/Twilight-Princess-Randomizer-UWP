@@ -233,18 +233,22 @@ inline void stage(std::string_view value) { if(throwStage) throw std::runtime_er
     if os.name=='nt':
         wrapper = (root/'platforms/uwp/main.cpp').read_text()
         query = wrapper[wrapper.index('extern "C" bool dusk_query_memory_budget('):wrapper.index('int bootstrap(')]
-        cpp.write_text('''#include <Windows.h>
-#include <cstdint>
-#include <cassert>
-#include <winrt/Windows.System.h>
-#include <winrt/Windows.System.Profile.h>
-'''+query+'''
+        includes = wrapper[:wrapper.index('#define SDL_MAIN_HANDLED')]
+        cpp.write_text(includes+'\n#include <cassert>\n'+query+'''
 int main() {
     std::uint64_t usage=0,limit=0;bool xbox=false;
     assert(!dusk_query_memory_budget(nullptr,&limit,&xbox));
+    assert(!dusk_query_memory_budget(&usage,nullptr,&xbox));
+    assert(!dusk_query_memory_budget(&usage,&limit,nullptr));
     dusk_query_memory_budget(&usage,&limit,&xbox);
 }
 ''')
         subprocess.run([compiler,'/nologo','/std:c++20','/EHsc',str(cpp),'/Fe:'+str(exe),'/link','WindowsApp.lib'],cwd=work,check=True)
         subprocess.run([str(exe)],cwd=work,check=True)
+        imports = subprocess.run(['dumpbin','/nologo','/imports',str(exe)],check=True,
+            capture_output=True,text=True).stdout
+        for forbidden in ['LoadLibraryExW','GetModuleHandleExA','GetModuleHandleExW']:
+            assert forbidden.lower() not in imports.lower(), 'Budget probe imports '+forbidden
+        assert 'RoGetActivationFactory'.lower() in imports.lower(), 'Budget probe lost the direct SDK call'
         print('PASS .739 production WinRT budget probe compiles and contains unavailable-runtime/null-pointer failures')
+        print('PASS .739 direct SDK budget probe has no desktop module-loader imports')

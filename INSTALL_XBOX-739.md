@@ -6,6 +6,8 @@ In Xbox Dev Home, set Dusklight's type to **Game**, then fully close and reopen 
 
 .739 prepares each package outside the mod registry and commits it after preparation succeeds. A caught package preparation failure leaves no partial entry or dangling signed-native context. Native context binding happens after its filesystem paths are ready. These changes close verified exception-handling gaps; the cause of the user's .738 hard process termination remains unconfirmed, and the user still reproduced it after changing to Game.
 
+The budget probe uses the direct Windows SDK ABI, avoiding the projection helper's desktop DLL-loading fallback. An early compiled probe import check and the final packaged executable checks reject that fallback.
+
 The startup journal now records the package ID/version, exact operation and measured memory usage/limit. Keep `xbox-startup-stage-739.txt`, `xbox-mod-load.txt`, `xbox-mod-load-failure.txt` if present, and `xbox-runtime-failure.txt` when reporting another Play crash. Earlier .738–.732 journals remain available after upgrading. A hard process termination records the last checkpoint, without proving an exception or out-of-memory cause.
 
 The complete .738 source layers are retained, including Reset Game, transitions, audio, saves, shop text/idle guards, online installation/conversion, the full-size controller picker, Enemy/Boss Souls in reachable enabled checks, normal Poe isolation, first-defeat checks, persistent pots/pumpkins, tracker, cosmetics and the 22 optional catalog packages. No optional-mod defaults or saved preferences change.
