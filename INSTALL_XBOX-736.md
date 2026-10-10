@@ -4,7 +4,7 @@ Install `TwilightPrincessRandomizer_1.4.1.736_x64.msix` over the current app. Th
 
 This build retains the .735 online download writer and idle-shop fixes, the .733 reset/transition lifecycle, and all .734 Enemy/Boss Soul and pot/pumpkin persistence work. Full shop randomization and all existing Randomizer settings remain available. The existing Cosmetics SDK hook state is also separated from Randomizer: their shared hook targets can no longer merge metadata, dispatch contexts or reset/shutdown pointers. The 62 generator scenarios retain up to 50 distinct certification attempts and strict final logic validation.
 
-The app includes 22 optional catalog mods, with exact published versions and hashes recorded in `BUNDLED_MODS-736.json`. New bundled mods start disabled. Enable the mod you want from the installed Mods list; existing user mod defaults and saved preferences are preserved.
+The app includes 22 optional catalog mods, with exact published versions and hashes recorded in `BUNDLED_MODS-736.json`. The signed package preserves the original texture filenames and resource bytes, including Linkle palette textures with dollar signs. New bundled mods start disabled. Enable the mod you want from the installed Mods list; existing user mod defaults and saved preferences are preserved.
 
 - TP Classic Modern Controller UI 1.3.2 has a source port compiled into the signed Xbox app, with its original controller artwork and layout resources.
 - Luau Support 1.0.0 is compiled into the app. Linkle, Play as Dark Link and the Portuguese translation are included as optional script mods.
