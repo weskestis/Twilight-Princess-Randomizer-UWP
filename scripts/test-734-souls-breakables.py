@@ -380,6 +380,19 @@ int main() {
     repeatedLink.field_0x32cc=0;
     hookPreProcCoGetItem(nullptr,&repeatedLink,nullptr,nullptr);
     assert(repeatedLink.field_0x32cc==ENEMY_SOUL_MESSAGE_BASE+0x2E && normalPoes==20);
+    // A native call can still carry its original byte even with a resolved
+    // check tag. Complete the queue with the Soul's canonical physical proxy.
+    dusk::mods::s_inFlight = dusk::mods::s_inFlightSpawned = true;
+    dusk::mods::s_inFlightGive.tag=110; dusk::mods::s_inFlightItem=0xE0;
+    HookArgs unresolvedByte{1,110,&repeatedGiver};
+    assert(hookPreExecItemGetLogicalSoul(nullptr,&unresolvedByte,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+    assert(!dusk::mods::s_inFlight && !dusk::mods::s_inFlightSpawned);
+    // Untagged vanilla rewards must not inherit a prior Soul on the same NPC.
+    repeatedGiver.mItemGiveTag=0;
+    enemy_souls::associate_item(repeatedGiver.id,0x202E,std::nullopt);
+    HookArgs untaggedRupee{1,0,&repeatedGiver};
+    assert(hookPreExecItemGetLogicalSoul(nullptr,&untaggedRupee,nullptr,nullptr)==HOOK_CONTINUE);
+    assert(getSoulItemMessageID(1,&repeatedGiver)==0);
     normalPoes=0;
 
     // Silent/native grants can recover identity using the check tag without an actor.

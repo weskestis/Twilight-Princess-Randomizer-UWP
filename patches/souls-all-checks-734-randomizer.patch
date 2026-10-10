@@ -428,7 +428,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
      if (reward == 0xFF) {
          return;
      }
-@@ -1637,6 +1643,26 @@
+@@ -1637,6 +1643,31 @@
      hookLureHeart_isSkipGetItem = false;
  }
  
@@ -442,12 +442,17 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
 +        logical = session::logicalItemForCheck(name);
 +    }
 +    // The active check outranks preview metadata on a reused NPC/shop actor.
-+    if (!logical) logical = enemy_souls::logical_item_for_actor(giver);
++    if (!logical) {
++        const auto associated = enemy_souls::logical_item_for_actor(giver);
++        if (associated && enemy_souls::physical_item(*associated) == physical)
++            logical = associated;
++    }
 +    if (!logical || !enemy_souls::is_enemy_soul(*logical)) return HOOK_CONTINUE;
 +    enemy_souls::grant_soul(*logical);
 +    enemy_souls::commit_item_pickup(giver);
 +    if (tag != 0) {
-+        session::svc_mng.item->complete_check(session::svc_mng.mod_ctx, tag, physical, giver);
++        session::svc_mng.item->complete_check(session::svc_mng.mod_ctx, tag,
++            enemy_souls::physical_item(*logical), giver);
 +    }
 +    return HOOK_SKIP_ORIGINAL;
 +}
@@ -455,7 +460,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
  HookAction hookPreGetItemFunc(ModContext*, void* args, void*, void*) {
      const u8 item = mods::arg<u8>(args, 0);
  
-@@ -1746,14 +1772,17 @@
+@@ -1746,14 +1777,17 @@
          }
  
          if (i_this->mItemPartnerId == fpcM_ERROR_PROCESS_ID_e) {
@@ -475,7 +480,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
          }
  
          if (fpcEx_IsExist(i_this->mItemPartnerId)) {
-@@ -2834,22 +2863,20 @@
+@@ -2834,22 +2868,20 @@
  }
  
  HookAction hookPreProcCoGetItem(ModContext*, void* args, void*, void*) {
@@ -510,7 +515,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
      return HOOK_CONTINUE;
  }
  
-@@ -4079,11 +4106,13 @@
+@@ -4079,11 +4111,13 @@
      {
          mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
          item::exec_item_get(*breakableItem);
@@ -524,7 +529,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
          mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
          breakables::collect_spawned_item(i_this);
          return HOOK_SKIP_ORIGINAL;
-@@ -4459,6 +4488,7 @@
+@@ -4459,6 +4493,7 @@
      }
  
      // Xbox .728: defer Enemy Soul gating until execute; actor create must finish.
@@ -532,7 +537,7 @@ diff --git "a/src/hooks.cpp" "b/src/hooks.cpp"
      ADD_HOOK_PRE(fpcMtd_IsDelete_EnemySouls, hookPreActorSubmethodIsDelete);
      ADD_HOOK_PRE(fpcMtd_Delete_EnemySouls, hookPreActorSubmethodDelete);
      ADD_HOOK_POST(fopAc_Create_EnemySouls, hookPostActorCreate);
-@@ -4756,6 +4786,7 @@
+@@ -4756,6 +4791,7 @@
  ModResult uninstall() {
      auto svc_hook = session::svc_mng.hook;
  
@@ -1112,7 +1117,7 @@ diff --git "a/src/tools.cpp" "b/src/tools.cpp"
          return heartPieceMessage[dComIfGs_getMaxLife() % 5];
      }
  
-@@ -172,10 +172,14 @@
+@@ -172,10 +172,18 @@
  u16 getSoulItemMessageID(const u8 physicalItemId,
                           const fopAc_ac_c* itemActor) {
      std::uint16_t logicalItemId = physicalItemId;
@@ -1126,12 +1131,16 @@ diff --git "a/src/tools.cpp" "b/src/tools.cpp"
 +            randomizer::session::svc_mng.mod_ctx, itemActor->mItemGiveTag);
 +        logical = randomizer::session::logicalItemForCheck(name);
 +    }
-+    if (!logical) logical = randomizer::enemy_souls::logical_item_for_actor(itemActor);
++    if (!logical) {
++        const auto associated = randomizer::enemy_souls::logical_item_for_actor(itemActor);
++        if (associated && randomizer::enemy_souls::physical_item(*associated) == physicalItemId)
++            logical = associated;
++    }
 +    if (logical) logicalItemId = *logical;
  
      if (randomizer::enemy_souls::is_enemy_soul(logicalItemId)) {
          return ENEMY_SOUL_MESSAGE_BASE +
-@@ -779,6 +783,8 @@
+@@ -779,6 +787,8 @@
          auto tboxId = chestNode[0]["Tbox Id"].as<u8>();
          auto stage = chestNode[0]["Stage"].as<u8>();
          auto key = (stage << 8) | tboxId;
@@ -1140,7 +1149,7 @@ diff --git "a/src/tools.cpp" "b/src/tools.cpp"
          return context.mTreasureChestOverrides[key];
      }
      if (auto& poeNode = locationMeta["Poe"]) {
-@@ -791,6 +797,8 @@
+@@ -791,6 +801,8 @@
          auto flag = freeStandingItemNode[0]["Flag"].as<u8>();
          auto stage = freeStandingItemNode[0]["Stage"].as<u8>();
          auto key = (stage << 8) | flag;
