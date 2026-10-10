@@ -1,0 +1,378 @@
+diff --git a/src/dusk/mods/loader/bundle_disk.cpp b/src/dusk/mods/loader/bundle_disk.cpp
+index a94044e..5482956 100644
+--- a/src/dusk/mods/loader/bundle_disk.cpp
++++ b/src/dusk/mods/loader/bundle_disk.cpp
+@@ -1,8 +1,11 @@
+ #include <utility>
++#include <stdexcept>
+ 
+ #include "dusk/io.hpp"
+ #include <borealis/io.hpp>
+ #include "loader.hpp"
++#include "dusk/main.h"
++#include "dusk/xbox_memory_budget.hpp"
+ 
+ namespace fs = std::filesystem;
+ 
+@@ -14,41 +17,69 @@ std::vector<u8> ModBundleDisk::readFile(const std::string& fileName) {
+ }
+ 
+ std::vector<std::string> ModBundleDisk::getFileNames() {
+-    std::vector<std::string> files;
++    return getFileNamesUnder({});
++}
+ 
++std::vector<std::string> ModBundleDisk::getFileNamesUnder(std::string_view prefix) {
++    const fs::path subdirectory = prefix.empty() ? fs::path{} : fs::path{std::u8string{
++        reinterpret_cast<const char8_t*>(prefix.data()), prefix.size()}};
++    if (subdirectory.is_absolute()) {
++        throw std::invalid_argument("Mod bundle subtree must be relative");
++    }
++    for (const auto& part : subdirectory) {
++        if (part == "..") {
++            throw std::invalid_argument("Mod bundle subtree must stay inside its package");
++        }
++    }
++    const auto scanRoot = root_path / subdirectory;
++    xbox_memory::record_path(ConfigPath, "bundle.scan.directory", scanRoot);
++    std::vector<std::string> files;
+     std::error_code ec;
+-    for (fs::recursive_directory_iterator it(root_path,
+-             fs::directory_options::skip_permission_denied |
+-                 fs::directory_options::follow_directory_symlink,
+-             ec);
+-        it != fs::recursive_directory_iterator(); it.increment(ec))
+-    {
++    const bool exists = fs::is_directory(scanRoot, ec);
++    if (ec && ec != std::errc::no_such_file_or_directory && ec != std::errc::not_a_directory) {
++        throw fs::filesystem_error("Mod bundle directory status failed", scanRoot, ec);
++    }
++    if (!exists) {
++        return files;
++    }
++    ec.clear();
++    auto options = fs::directory_options::skip_permission_denied;
++#if !defined(_UWP)
++    options |= fs::directory_options::follow_directory_symlink;
++#endif
++    // Reparse-point cycles must not turn an Xbox asset scan into an unbounded walk.
++    fs::recursive_directory_iterator it(scanRoot, options, ec);
++    if (ec) {
++        throw fs::filesystem_error("Mod bundle directory enumeration failed", scanRoot, ec);
++    }
++    for (; it != fs::recursive_directory_iterator();) {
++        const bool regular = it->is_regular_file(ec);
+         if (ec) {
+-            break;
++            throw fs::filesystem_error("Mod bundle file status failed", it->path(), ec);
+         }
+-
+-        if (!it->is_regular_file()) {
+-            continue;
+-        }
+-
+-        const auto& path = it->path();
+-        const auto relPath = fs::relative(path, root_path);
+-        auto string = borealis::io::fs_path_to_string(relPath);
+-        if constexpr (fs::path::preferred_separator != '/') {
+-            // Convert \ to / on Windows
+-            for (auto& chr : string) {
+-                if (chr == fs::path::preferred_separator) {
+-                    chr = '/';
++        if (regular) {
++            // relative() weakly-canonicalizes both paths, which introduces another
++            // filesystem/handle query on Xbox. Iterator paths already share this root.
++            const auto relPath = it->path().lexically_relative(root_path);
++            files.emplace_back(borealis::io::fs_path_to_string(relPath));
++            if constexpr (fs::path::preferred_separator != '/') {
++                for (auto& chr : files.back()) {
++                    if (chr == fs::path::preferred_separator) chr = '/';
+                 }
+             }
+         }
+-
+-        files.emplace_back(std::move(string));
++        // Inspect increment errors even when the iterator becomes end: do not
++        // publish a partial list as a successful replacement scan.
++        it.increment(ec);
++        if (ec) {
++            throw fs::filesystem_error("Mod bundle directory increment failed", scanRoot, ec);
++        }
++        if (it == fs::recursive_directory_iterator()) break;
+     }
+-
+     return files;
+ }
+ 
++
+ size_t ModBundleDisk::getFileSize(const std::string& fileName) {
+     return std::filesystem::file_size(toRealPath(fileName));
+ }
+diff --git a/src/dusk/mods/loader/loader.hpp b/src/dusk/mods/loader/loader.hpp
+index 6fb1f13..93426d6 100644
+--- a/src/dusk/mods/loader/loader.hpp
++++ b/src/dusk/mods/loader/loader.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <filesystem>
+ #include <string_view>
++#include <vector>
+ 
+ #include "dusk/archive.hpp"
+ #include "dusk/mod_loader.hpp"
+@@ -22,6 +23,13 @@ public:
+ 
+     virtual std::vector<u8> readFile(const std::string& fileName) = 0;
+     virtual std::vector<std::string> getFileNames() = 0;
++    // Asset services need only their own subtree. Disk bundles override this
++    // to avoid walking unrelated native resources and script/runtime files.
++    virtual std::vector<std::string> getFileNamesUnder(std::string_view prefix) {
++        auto files = getFileNames();
++        std::erase_if(files, [prefix](const auto& file) { return !file.starts_with(prefix); });
++        return files;
++    }
+     virtual size_t getFileSize(const std::string& fileName) = 0;
+     virtual bool file_exists(std::string const& fileName) = 0;
+     virtual bool directory_exists(std::string const& fileName) = 0;
+@@ -47,6 +55,7 @@ public:
+     ~ModBundleDisk() override = default;
+     std::vector<u8> readFile(const std::string& fileName) override;
+     std::vector<std::string> getFileNames() override;
++    std::vector<std::string> getFileNamesUnder(std::string_view prefix) override;
+     size_t getFileSize(const std::string& fileName) override;
+     bool file_exists(const std::string& fileName) override;
+     bool directory_exists(const std::string& fileName) override;
+diff --git a/src/dusk/mods/svc/overlay.cpp b/src/dusk/mods/svc/overlay.cpp
+index 05e024b..e07a1e4 100644
+--- a/src/dusk/mods/svc/overlay.cpp
++++ b/src/dusk/mods/svc/overlay.cpp
+@@ -4,6 +4,7 @@
+ #include "dusk/mods/loader/loader.hpp"
+ #include "dusk/startup_guard.hpp"
+ #include "dusk/main.h"
++#include "dusk/xbox_memory_budget.hpp"
+ #include "dusk/utilities.hpp"
+ #include "mods/svc/overlay.h"
+ 
+@@ -14,6 +15,9 @@
+ 
+ #include <algorithm>
+ #include <cstdint>
++#include <cstdlib>
++#include <memory>
++#include <new>
+ #include <mutex>
+ #include <string_view>
+ #include <unordered_map>
+@@ -36,10 +40,27 @@ struct OverlayFileData {
+ // call cbOpen from a DVD thread while the game thread replaces the set in overlay_sync_files.
+ // The shared bundle/buffer pointer keeps a disabled/reloaded mod's data readable until the last
+ // open completes.
+-std::unordered_map<uintptr_t, OverlayFileData> s_overlayFiles;
++using OverlayFileMap = std::unordered_map<uintptr_t, OverlayFileData>;
++OverlayFileMap s_overlayFiles;
+ uintptr_t s_nextOverlayId = 1;
+ std::mutex s_overlayMutex;
+ 
++struct OverlayBatch {
++    std::vector<AuroraOverlayFile> files;
++    OverlayFileMap data;
++    ~OverlayBatch() {
++        for (const auto& file : files) std::free(const_cast<char*>(file.fileName));
++    }
++};
++
++void append_overlay_file(std::vector<AuroraOverlayFile>& files,
++    const std::string& path, uintptr_t id, size_t size) {
++    std::unique_ptr<char, decltype(&std::free)> name{strdup(path.c_str()), &std::free};
++    if (!name) throw std::bad_alloc{};
++    files.emplace_back(name.get(), reinterpret_cast<void*>(id), size);
++    name.release();
++}
++
+ struct RuntimeOverlaySlot {
+     std::string discPath;
+     std::string bundlePath;                         // bundle-backed if non-empty
+@@ -70,8 +91,9 @@ void claim_overlay_path(std::unordered_map<std::string, const LoadedMod*>& claim
+ }
+ 
+ void find_overlay_files(std::vector<AuroraOverlayFile>& files, LoadedMod& mod,
+-    std::unordered_map<std::string, const LoadedMod*>& claims) {
+-    for (const auto& file : mod.bundle->getFileNames()) {
++    std::unordered_map<std::string, const LoadedMod*>& claims, OverlayFileMap& data) {
++    xbox_memory::record(ConfigPath, "overlay.scan.names", mod.metadata.id, mod.metadata.version);
++    for (const auto& file : mod.bundle->getFileNamesUnder("overlay/")) {
+         if (!file.starts_with("overlay/")) {
+             continue;
+         }
+@@ -80,17 +102,18 @@ void find_overlay_files(std::vector<AuroraOverlayFile>& files, LoadedMod& mod,
+         assert(!overlayPath.starts_with('/'));
+         overlayPath.insert(0, "/");
+ 
++        startup_guard::stage(std::string{"overlay.scan.size:"} + file);
+         const auto size = mod.bundle->getFileSize(file);
+ 
+         const auto id = s_nextOverlayId++;
+-        s_overlayFiles.emplace(id, OverlayFileData{file, mod.bundle, nullptr});
++        data.emplace(id, OverlayFileData{file, mod.bundle, nullptr});
+         claim_overlay_path(claims, overlayPath, mod);
+-        files.emplace_back(strdup(overlayPath.c_str()), reinterpret_cast<void*>(id), size);
++        append_overlay_file(files, overlayPath, id, size);
+     }
+ }
+ 
+ void append_runtime_overlays(std::vector<AuroraOverlayFile>& files, LoadedMod& mod,
+-    std::unordered_map<std::string, const LoadedMod*>& claims) {
++    std::unordered_map<std::string, const LoadedMod*>& claims, OverlayFileMap& data) {
+     // Aurora resolves duplicate paths later-entry-wins, so emit in registration order (SlotMap
+     // iteration is index order, and freed indices are reused).
+     std::vector<const RuntimeOverlaySlot*> slots;
+@@ -105,12 +128,12 @@ void append_runtime_overlays(std::vector<AuroraOverlayFile>& files, LoadedMod& m
+         const auto id = s_nextOverlayId++;
+ 
+         if (slot->buffer != nullptr) {
+-            s_overlayFiles.emplace(id, OverlayFileData{{}, nullptr, slot->buffer});
++            data.emplace(id, OverlayFileData{{}, nullptr, slot->buffer});
+         } else {
+-            s_overlayFiles.emplace(id, OverlayFileData{slot->bundlePath, mod.bundle, nullptr});
++            data.emplace(id, OverlayFileData{slot->bundlePath, mod.bundle, nullptr});
+         }
+         claim_overlay_path(claims, slot->discPath, mod);
+-        files.emplace_back(strdup(slot->discPath.c_str()), reinterpret_cast<void*>(id), slot->size);
++        append_overlay_file(files, slot->discPath, id, slot->size);
+     }
+ }
+ 
+@@ -203,12 +226,16 @@ void overlay_sync_files() {
+     Log.info("Xbox runtime stable; applying deferred DVD overlays.");
+ #endif
+ 
+-    std::vector<AuroraOverlayFile> files;
++    // Clear the work flag once ready. Leaving it set rescanned all packages
++    // and re-notified archives every frame after the initial UWP defer.
++    s_overlaysDirty = false;
++    OverlayBatch batch;
++    auto& files = batch.files;
+     std::unordered_map<std::string, const LoadedMod*> claims;
+     startup_guard::stage("overlay.sync.scan");
+     {
+-        std::lock_guard lock{s_overlayMutex};
+-        s_overlayFiles.clear();
++        // Build outside the DVD callback mutex. Published IDs/bundles remain
++        // valid if any package's listing or size query fails.
+         for (auto& mod : ModLoader::instance().active_mods()) {
+             startup_guard::stage(std::string{"overlay.sync.mod:"} + mod.metadata.id);
+             if (mod.metadata.id == "dev.twilitrealm.cosmetics" ||
+@@ -221,8 +248,22 @@ void overlay_sync_files() {
+                 Log.warn("Skipping overlay scan for {}: no mod bundle", mod.metadata.id);
+                 continue;
+             }
+-            find_overlay_files(files, mod, claims);
+-            append_runtime_overlays(files, mod, claims);
++            try {
++                find_overlay_files(files, mod, claims, batch.data);
++                xbox_memory::record(ConfigPath, "overlay.scan.runtime", mod.metadata.id,
++                    mod.metadata.version);
++                append_runtime_overlays(files, mod, claims, batch.data);
++            } catch (const std::exception& e) {
++                xbox_memory::record(ConfigPath, "overlay.scan.failed", mod.metadata.id,
++                    mod.metadata.version, e.what());
++                Log.error("[{}] overlay scan failed; keeping active overlays: {}",
++                    mod.metadata.id, e.what());
++                return;
++            } catch (...) {
++                xbox_memory::record(ConfigPath, "overlay.scan.failed", mod.metadata.id,
++                    mod.metadata.version, "Unknown asset scan exception");
++                return;
++            }
+         }
+     }
+     startup_guard::stage("overlay.sync.scan-ready");
+@@ -242,6 +283,10 @@ void overlay_sync_files() {
+     }
+ 
+     Log.debug("Registering {} overlay file(s).", files.size());
++    {
++        std::lock_guard lock{s_overlayMutex};
++        s_overlayFiles.swap(batch.data);
++    }
+     startup_guard::stage("overlay.sync.aurora-files");
+     aurora_dvd_overlay_files(files.data(), files.size(), nullptr);
+     startup_guard::stage("overlay.sync.aurora-files-ready");
+@@ -249,9 +294,6 @@ void overlay_sync_files() {
+     JKRArchive::notifyOverlayFilesChanged();
+     startup_guard::stage("overlay.sync.ready");
+ 
+-    for (const auto& file : files) {
+-        std::free(const_cast<char*>(file.fileName));
+-    }
+ }
+ 
+ uint64_t overlay_add_file(
+diff --git a/src/dusk/mods/svc/texture.cpp b/src/dusk/mods/svc/texture.cpp
+index 70bdce9..5c3a7de 100644
+--- a/src/dusk/mods/svc/texture.cpp
++++ b/src/dusk/mods/svc/texture.cpp
+@@ -4,6 +4,7 @@
+ #include "dusk/mods/loader/loader.hpp"
+ #include "dusk/startup_guard.hpp"
+ #include "dusk/main.h"
++#include "dusk/xbox_memory_budget.hpp"
+ #include "dusk/utilities.hpp"
+ #include "mods/svc/texture.h"
+ 
+@@ -142,9 +143,10 @@ const LoadedMod* find_static_conflict(
+     return nullptr;
+ }
+ 
+-void register_static_textures(LoadedMod& mod, ModTextureRecord& record) {
++void register_static_textures(LoadedMod& mod, ModTextureRecord& record,
++    const std::vector<std::string>& files) {
+     std::vector<std::string> candidates;
+-    for (const auto& file : mod.bundle->getFileNames()) {
++    for (const auto& file : files) {
+         if (!file.starts_with("textures/") || !has_replacement_extension(file)) {
+             continue;
+         }
+@@ -265,6 +267,23 @@ void textures_sync_replacements() {
+             continue;
+         }
+ 
++        std::vector<std::string> files;
++        try {
++            xbox_memory::record(ConfigPath, "texture.scan.names", mod.metadata.id,
++                mod.metadata.version);
++            files = mod.bundle->getFileNamesUnder("textures/");
++        } catch (const std::exception& e) {
++            xbox_memory::record(ConfigPath, "texture.scan.failed", mod.metadata.id,
++                mod.metadata.version, e.what());
++            Log.error("[{}] texture scan failed; keeping active textures: {}",
++                mod.metadata.id, e.what());
++            continue;
++        } catch (...) {
++            xbox_memory::record(ConfigPath, "texture.scan.failed", mod.metadata.id,
++                mod.metadata.version, "Unknown asset scan exception");
++            continue;
++        }
++
+         if (record.staticRegistered) {
+             // A reload re-sorted m_mods and changed this mod's priority: re-register everything
+             // at the new priority. Cheap, since file-backed entries decode lazily.
+@@ -273,7 +292,7 @@ void textures_sync_replacements() {
+             record.staticKeepalives.clear();
+             record.appliedPriority = priority;
+             startup_guard::stage("texture.sync.register-static");
+-            register_static_textures(mod, record);
++            register_static_textures(mod, record, files);
+             startup_guard::stage("texture.sync.register-static-ready");
+             for (auto& entry : record.runtime) {
+                 aurora::texture::unregister_replacement(entry.registration);
+@@ -282,7 +301,7 @@ void textures_sync_replacements() {
+         } else {
+             record.appliedPriority = priority;
+             startup_guard::stage("texture.sync.register-static");
+-            register_static_textures(mod, record);
++            register_static_textures(mod, record, files);
+             startup_guard::stage("texture.sync.register-static-ready");
+         }
+     }

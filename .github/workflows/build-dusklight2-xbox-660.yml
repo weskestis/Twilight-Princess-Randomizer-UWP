@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 739
+name: Build Dusklight 2.0.1 Xbox 740
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-739-release-${{ github.ref }}
+  group: xbox-740-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -170,7 +170,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 739 identity
+      - name: Apply reviewed source layers and advance 740 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6203,6 +6203,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.739 atomic package startup layer failed.' }
           python "$env:TPR_CONTROL\scripts\test-739-package-startup.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.739 production package transaction/budget tests failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-740-asset-scan.py"
+          if ($LASTEXITCODE -ne 0) { throw '.740 scoped asset scan source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-740-asset-scan.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.740 production asset scan tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-740-asset-scan.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.740 shipped asset scan negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-739-package-startup.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.739 package preparation preservation failed after .740.' }
           python "$env:TPR_CONTROL\scripts\test-737-xbox-picker.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.737 native picker and filesystem tests failed.' }
           git -C "$env:TPR_SRC" diff --check
@@ -6574,7 +6582,7 @@ jobs:
             Write-Warning 'Compiler cache statistics could not be read; reuse is unverified.'
             exit 0
           }
-          $cacheStats739 | Set-Content "$env:TPR_CONTROL\compiler-cache-stats-739.json" -Encoding UTF8
+          $cacheStats739 | Set-Content "$env:TPR_CONTROL\compiler-cache-stats-740.json" -Encoding UTF8
           if ($env:TPR_CPP_CACHE_ENABLED -eq 'true' -and
               ($cacheStats739 | ConvertFrom-Json).stats.compile_requests -eq 0) {
             Write-Warning 'No compiler cache requests were recorded; no speed improvement can be credited to caching.'
@@ -6684,7 +6692,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
 
-      - name: Verify and collect full 739 package
+      - name: Verify and collect full 740 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6694,7 +6702,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.739_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.740_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6708,7 +6716,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.739"',
+            'Version="1.4.1.740"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -7016,8 +7024,8 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-739.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-739.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-740.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-740.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
@@ -7026,12 +7034,12 @@ jobs:
           if ($env:TPR_CPP_CACHE_ENABLED -eq 'true') {
             $cacheDescription739 = 'Pinned sccache v0.16.0; Windows executable path verified; embedded object debug information and native Ninja rules verified; fresh final PDB, symbol manifest, signature and 62-scenario certification'
           }
-          $cacheStatsPath739 = "$env:TPR_CONTROL\compiler-cache-stats-739.json"
+          $cacheStatsPath739 = "$env:TPR_CONTROL\compiler-cache-stats-740.json"
           if (Test-Path $cacheStatsPath739 -PathType Leaf) {
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.739'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.740'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -7096,7 +7104,9 @@ jobs:
             xboxPickerNavigationPatchSha256 = '75573a4399c9c9a619c0595ab771c7dac890f4dd19fe0771109893f94393819b'
             xboxPackageStartupPatchSha256 = '1e1bd86d5aea75ad0e0fdc521d93947757400a6c8a32cd35cb417964282a3456'
             nativePackageStartupTests = 'PASS: compiled production package preparation and native path binding under bundle, manifest, config, native, logging and conversion faults; no partial entries or stale contexts'
-            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-739.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
+            xboxAssetScanPatchSha256 = 'aca3b58253a9a6e4ed41f53a09eb29517e5346bb39aa96a65526f116527fc7fe'
+            nativeAssetScanTests = 'PASS: compiled production scoped lexical bundle scans, UWP idle dirty flag, runtime overlays, failed listing/size rollback, open handles, disable/retry and texture priority preservation; reverse-patch negative control reproduces shipped .739 defects'
+            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-740.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
             xboxMemoryBudget = 'Pre-Play guard only for a measured Xbox App allowance; Game, desktop UWP and unavailable probes keep normal launch'
             cppCompilerCacheEnabled = ($env:TPR_CPP_CACHE_ENABLED -eq 'true')
             cppCompilerCache = $cacheDescription739
@@ -7122,13 +7132,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-739.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-740.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.739-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.740-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7137,7 +7147,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.739-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.740-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
