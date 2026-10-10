@@ -21,6 +21,7 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+      SCCACHE_IDLE_TIMEOUT: "0"
 
     steps:
       - name: Check out build controls
@@ -42,6 +43,33 @@ jobs:
         env:
           SCCACHE_GHA_ENABLED: "true"
           SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+
+      - name: Resolve Windows compiler cache executable
+        if: steps.compiler-cache.outcome == 'success'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The pinned action exports an extensionless path on Windows.
+          $cacheExecutable739 = $env:SCCACHE_PATH
+          if ($cacheExecutable739 -and
+              -not (Test-Path $cacheExecutable739 -PathType Leaf) -and
+              (Test-Path ($cacheExecutable739 + '.exe') -PathType Leaf)) {
+            $cacheExecutable739 += '.exe'
+          }
+          if (-not $cacheExecutable739 -or
+              -not (Test-Path $cacheExecutable739 -PathType Leaf)) {
+            Write-Warning 'Compiler cache executable unavailable; ordinary compilation remains enabled.'
+            'SCCACHE_PATH=' >> $env:GITHUB_ENV
+            exit 0
+          }
+          & $cacheExecutable739 --version
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Installed compiler cache could not run; ordinary compilation remains enabled.'
+            'SCCACHE_PATH=' >> $env:GITHUB_ENV
+            exit 0
+          }
+          "SCCACHE_PATH=$cacheExecutable739" >> $env:GITHUB_ENV
+          Write-Host "Resolved Windows compiler cache executable: $cacheExecutable739"
 
       - name: Prepare short build paths
         shell: powershell
@@ -6298,12 +6326,14 @@ jobs:
           }
           Write-Host "Using MSVC UWP/Store import libraries: $storeLib"
           $compilerCacheArgs = @()
+          'TPR_CPP_CACHE_ENABLED=false' >> $env:GITHUB_ENV
           if ($env:SCCACHE_PATH -and (Test-Path $env:SCCACHE_PATH -PathType Leaf)) {
             $compilerCacheArgs = @(
               "-DCMAKE_C_COMPILER_LAUNCHER=$env:SCCACHE_PATH",
               "-DCMAKE_CXX_COMPILER_LAUNCHER=$env:SCCACHE_PATH",
               '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded',
               '-DCMAKE_POLICY_DEFAULT_CMP0141=NEW')
+            'TPR_CPP_CACHE_ENABLED=true' >> $env:GITHUB_ENV
             Write-Host 'C/C++ compilation uses the pinned sccache; final links and certification remain fresh.'
           } else {
             Write-Host 'Compiler cache setup unavailable; using the normal MSVC compile path.'
@@ -6335,7 +6365,19 @@ jobs:
           $ninjaLines = @(Get-Content "$env:TPR_FEED\build.ninja")
           if ($compilerCacheArgs.Count -gt 0) {
             $rules = Get-Content "$env:TPR_FEED\CMakeFiles\rules.ninja" -Raw
-            if ($rules -notmatch '(?i)sccache') { throw 'Ninja does not invoke the requested compiler cache.' }
+            $compileRuleBlocks = [regex]::Matches($rules,
+              '(?ms)^rule ([^\r\n]+)\r?\n(.*?)(?=^rule |\z)')
+            foreach ($cachedTarget739 in @('dusk_internal','dusklight','randomizer')) {
+              $targetRules739 = @($compileRuleBlocks | Where-Object {
+                $_.Groups[1].Value -match ('^CXX_COMPILER__' + [regex]::Escape($cachedTarget739) + '_')
+              })
+              if ($targetRules739.Count -eq 0) { throw "No native C++ rule found for $cachedTarget739." }
+              foreach ($targetRule739 in $targetRules739) {
+                if ($targetRule739.Groups[2].Value -notmatch '(?im)^\s*command = .*sccache[.]exe') {
+                  throw "Ninja bypasses the compiler cache for $cachedTarget739."
+                }
+              }
+            }
             $actualCompileFlags = @($ninjaLines | Where-Object { $_ -match '^  FLAGS = ' })
             if (-not ($actualCompileFlags -match '/Z7')) { throw 'Cacheable MSVC embedded debug information is missing.' }
             if ($actualCompileFlags -match '/Z[iI]\b') { throw 'Shared compiler PDB flags would defeat object caching.' }
@@ -6521,7 +6563,22 @@ jobs:
         if: always() && steps.compiler-cache.outcome == 'success'
         shell: powershell
         run: |
+          if (-not $env:SCCACHE_PATH -or
+              -not (Test-Path $env:SCCACHE_PATH -PathType Leaf)) {
+            Write-Warning 'Compiler cache unavailable; no cache statistics to report.'
+            exit 0
+          }
           & $env:SCCACHE_PATH --show-stats
+          $cacheStats739 = & $env:SCCACHE_PATH --show-stats --stats-format=json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Compiler cache statistics could not be read; reuse is unverified.'
+            exit 0
+          }
+          $cacheStats739 | Set-Content "$env:TPR_CONTROL\compiler-cache-stats-739.json" -Encoding UTF8
+          if ($env:TPR_CPP_CACHE_ENABLED -eq 'true' -and
+              ($cacheStats739 | ConvertFrom-Json).stats.compile_requests -eq 0) {
+            Write-Warning 'No compiler cache requests were recorded; no speed improvement can be credited to caching.'
+          }
 
       - name: Certify Randomizer generator scenarios
         shell: powershell
@@ -6959,12 +7016,20 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-738.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-738.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-739.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-739.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
 
+          $cacheDescription739 = 'Compiler cache unavailable; ordinary MSVC compilation with fresh final PDB, symbol manifest, signature and 62-scenario certification'
+          if ($env:TPR_CPP_CACHE_ENABLED -eq 'true') {
+            $cacheDescription739 = 'Pinned sccache v0.16.0; Windows executable path verified; embedded object debug information and native Ninja rules verified; fresh final PDB, symbol manifest, signature and 62-scenario certification'
+          }
+          $cacheStatsPath739 = "$env:TPR_CONTROL\compiler-cache-stats-739.json"
+          if (Test-Path $cacheStatsPath739 -PathType Leaf) {
+            Copy-Item $cacheStatsPath739 $out -Force
+          }
           $sourceManifest = [ordered]@{
             package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.739'
             upstreamRelease = 'Dusklight v2.0.1'
@@ -7033,7 +7098,8 @@ jobs:
             nativePackageStartupTests = 'PASS: compiled production package preparation and native path binding under bundle, manifest, config, native, logging and conversion faults; no partial entries or stale contexts'
             xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-739.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
             xboxMemoryBudget = 'Pre-Play guard only for a measured Xbox App allowance; Game, desktop UWP and unavailable probes keep normal launch'
-            cppCompilerCache = 'Pinned sccache v0.16.0; object debug information embedded; fresh final PDB, symbol manifest, signature and 62-scenario certification'
+            cppCompilerCacheEnabled = ($env:TPR_CPP_CACHE_ENABLED -eq 'true')
+            cppCompilerCache = $cacheDescription739
             nativePickerNavigationTests = 'PASS: production Browser, Modal, Pane, List, Component and RmlUi at 720p/1080p/4K; controller open/back/reselection, paging, filtering, folder/file selection, missing folders, cancel and overwrite/export UI'
             bundledCatalogMods = 22
             catalogPackagesDownloadedAndVerified = 62
