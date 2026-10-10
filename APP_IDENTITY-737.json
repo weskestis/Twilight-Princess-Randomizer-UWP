@@ -49,7 +49,7 @@
     "shop-idle-735-host.patch": "092ba9894c7afbb1696d902ea52401f7a28ac3861fa1054661ffa3e592be591e",
     "shop-idle-735-randomizer.patch": "100e1a97f06d3b5bc91488495fbdba40ca7b9a8f63e7415382cd97a85165b6c6",
     "optional-mod-ports-736-host.patch": "b4eec9ba6c7d2d8ec46eab46b545e7576d5b5f0df596a5e1e178932867626bfc",
-    "xbox-file-picker-737-host.patch": "63f11f024e0b5ec2085a1cfcfd984afeeb14bf7daf38a73dccf307be3003e30a",
+    "xbox-file-picker-737-host.patch": "48e930922e51a58135442a0132bbf08b05e1cff28c2eb8f7c7957ab0938937fd",
     "xbox-file-picker-737-borealis.patch": "2dcf8a727455c6e184a81fe0530a23a0b1fcee0a111cc2e94e13fa0e6645b9c8"
   },
   "bundledCatalogMods": 22,

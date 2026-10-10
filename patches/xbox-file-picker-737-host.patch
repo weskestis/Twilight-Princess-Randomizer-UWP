@@ -169,7 +169,7 @@ index 0d31277..30e4150 100644
  #if defined(_WIN32)
                          pane.add_button("Portable Mode").on_pressed([] {
 diff --git a/src/dusk/ui/ui.cpp b/src/dusk/ui/ui.cpp
-index 88f19a5..352c5b8 100644
+index 37f21ef..81e322d 100644
 --- a/src/dusk/ui/ui.cpp
 +++ b/src/dusk/ui/ui.cpp
 @@ -1,4 +1,7 @@
@@ -180,10 +180,10 @@ index 88f19a5..352c5b8 100644
  
  #include "command_console.hpp"
  #include "drop_install_modal.hpp"
-@@ -119,11 +122,17 @@ bool initialize() noexcept {
-         .AddParser("color");
+@@ -121,11 +124,17 @@ bool initialize() noexcept {
      Rml::StyleSheetSpecification::RegisterProperty("mod-icon-background", "transparent", false)
          .AddParser("color");
+     initialize_menu_colors();
 +#if defined(_UWP)
 +    xbox_file_picker::initialize();
 +#endif
@@ -198,10 +198,10 @@ index 88f19a5..352c5b8 100644
      mods::updates::shutdown();
      mods::queue::shutdown();
      for (auto& drop : sPendingDrops) {
-@@ -474,6 +483,9 @@ void update() noexcept {
-     }
+@@ -477,6 +486,9 @@ void update() noexcept {
  
      update_remote_texture_provider();
+     update_menu_colors();
 +#if defined(_UWP)
 +    xbox_file_picker::update();
 +#endif
