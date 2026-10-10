@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 738
+name: Build Dusklight 2.0.1 Xbox 739
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-738-release-${{ github.ref }}
+  group: xbox-739-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -18,6 +18,9 @@ jobs:
     name: Xbox UWP x64 package
     runs-on: windows-2022
     timeout-minutes: 240
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
 
     steps:
       - name: Check out build controls
@@ -29,6 +32,16 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+
+      - name: Enable pinned C++ compiler cache
+        id: compiler-cache
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+        with:
+          version: v0.16.0
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
 
       - name: Prepare short build paths
         shell: powershell
@@ -129,7 +142,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 738 identity
+      - name: Apply reviewed source layers and advance 739 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6158,6 +6171,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.737 controller picker source layer failed.' }
           python "$env:TPR_CONTROL\scripts\apply-738-picker-navigation.py"
           if ($LASTEXITCODE -ne 0) { throw '.738 picker navigation source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-739-package-startup.py"
+          if ($LASTEXITCODE -ne 0) { throw '.739 atomic package startup layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-739-package-startup.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.739 production package transaction/budget tests failed.' }
           python "$env:TPR_CONTROL\scripts\test-737-xbox-picker.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.737 native picker and filesystem tests failed.' }
           git -C "$env:TPR_SRC" diff --check
@@ -6280,7 +6297,19 @@ jobs:
             }
           }
           Write-Host "Using MSVC UWP/Store import libraries: $storeLib"
+          $compilerCacheArgs = @()
+          if ($env:SCCACHE_PATH -and (Test-Path $env:SCCACHE_PATH -PathType Leaf)) {
+            $compilerCacheArgs = @(
+              "-DCMAKE_C_COMPILER_LAUNCHER=$env:SCCACHE_PATH",
+              "-DCMAKE_CXX_COMPILER_LAUNCHER=$env:SCCACHE_PATH",
+              '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded',
+              '-DCMAKE_POLICY_DEFAULT_CMP0141=NEW')
+            Write-Host 'C/C++ compilation uses the pinned sccache; final links and certification remain fresh.'
+          } else {
+            Write-Host 'Compiler cache setup unavailable; using the normal MSVC compile path.'
+          }
           cmake -S "$env:TPR_SRC" -B "$env:TPR_FEED" -G Ninja `
+            @compilerCacheArgs `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_C_COMPILER=cl `
             -DCMAKE_CXX_COMPILER=cl `
@@ -6304,6 +6333,14 @@ jobs:
             throw 'The UWP feed was not configured with the WinHTTP backend.'
           }
           $ninjaLines = @(Get-Content "$env:TPR_FEED\build.ninja")
+          if ($compilerCacheArgs.Count -gt 0) {
+            $rules = Get-Content "$env:TPR_FEED\CMakeFiles\rules.ninja" -Raw
+            if ($rules -notmatch '(?i)sccache') { throw 'Ninja does not invoke the requested compiler cache.' }
+            $actualCompileFlags = @($ninjaLines | Where-Object { $_ -match '^  FLAGS = ' })
+            if (-not ($actualCompileFlags -match '/Z7')) { throw 'Cacheable MSVC embedded debug information is missing.' }
+            if ($actualCompileFlags -match '/Z[iI]\b') { throw 'Shared compiler PDB flags would defeat object caching.' }
+            Write-Host 'PASS .739 actual Ninja compiler launcher and embedded debug information verified.'
+          }
           $borealisIoDefinitions735 = @()
           for ($i = 0; $i -lt $ninjaLines.Count; $i++) {
             if ($ninjaLines[$i] -match '^build .*borealis_io\.dir.*io\.cpp\.obj:') {
@@ -6417,7 +6454,7 @@ jobs:
           })
 
           $workflowText = Get-Content "$env:TPR_CONTROL\$workflowPath" -Raw
-          # Every .738 release retains full 62-scenario certification.
+          # Every .739 release retains full 62-scenario certification.
           $runSuite = $true
           if (-not $workflowText.Contains('d0ceae8f18bbef4a40287a72a2791a3c06c9aca5')) {
             $runSuite = $true
@@ -6495,6 +6532,12 @@ jobs:
             Write-Host 'PASS: generator inputs match certified .688 inputs.'
             Write-Host 'Reused all-58-scenarios PASS from run 36657213524 (certification step succeeded).'
           }
+
+      - name: Report C++ compiler cache statistics
+        if: always() && steps.compiler-cache.outcome == 'success'
+        shell: powershell
+        run: |
+          & $env:SCCACHE_PATH --show-stats
 
       - name: Inspect built-in Randomizer
         shell: powershell
@@ -6584,7 +6627,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
 
-      - name: Verify and collect full 738 package
+      - name: Verify and collect full 739 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6594,7 +6637,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.738_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.739_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6608,12 +6651,14 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.738"',
+            'Version="1.4.1.739"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
           $exe = "$env:TPR_MSIX_INSPECT\TwilightPrincessRandomizer.exe"
+          python "$env:TPR_CONTROL\scripts\verify-739-native-metadata.py" $exe
+          if ($LASTEXITCODE -ne 0) { throw '.739 final signed mod metadata verification failed.' }
           $packagedModRoot = "$env:TPR_MSIX_INSPECT\mods\randomizer"
           $packagedCosmeticsRoot = "$env:TPR_MSIX_INSPECT\mods\cosmetics"
           foreach ($required in @(
@@ -6921,7 +6966,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.738'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.739'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -6984,6 +7029,11 @@ jobs:
             xboxPickerBorealisPatchSha256 = '2dcf8a727455c6e184a81fe0530a23a0b1fcee0a111cc2e94e13fa0e6645b9c8'
             nativePickerTests = 'PASS: production UWP dispatch under queue/backend/callback faults, repeated/canceled requests, export guards, Unicode paths, filtering and missing folders'
             xboxPickerNavigationPatchSha256 = '75573a4399c9c9a619c0595ab771c7dac890f4dd19fe0771109893f94393819b'
+            xboxPackageStartupPatchSha256 = '2ce61888497c9fb5eceb6bc1184c77d2281c24d7cb07ad02134d8d9110c0e5d6'
+            nativePackageStartupTests = 'PASS: compiled production package preparation and native path binding under bundle, manifest, config, native, logging and conversion faults; no partial entries or stale contexts'
+            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-739.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
+            xboxMemoryBudget = 'Pre-Play guard only for a measured Xbox App allowance; Game, desktop UWP and unavailable probes keep normal launch'
+            cppCompilerCache = 'Pinned sccache v0.16.0; object debug information embedded; fresh final PDB, symbol manifest, signature and 62-scenario certification'
             nativePickerNavigationTests = 'PASS: production Browser, Modal, Pane, List, Component and RmlUi at 720p/1080p/4K; controller open/back/reselection, paging, filtering, folder/file selection, missing folders, cancel and overwrite/export UI'
             bundledCatalogMods = 22
             catalogPackagesDownloadedAndVerified = 62
@@ -7006,13 +7056,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-738.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-739.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.738-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.739-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7021,7 +7071,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.738-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.739-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30

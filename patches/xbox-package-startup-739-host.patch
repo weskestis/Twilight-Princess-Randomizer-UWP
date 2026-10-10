@@ -1,0 +1,394 @@
+diff --git a/platforms/uwp/main.cpp b/platforms/uwp/main.cpp
+index 713a2e4..0bf73aa 100644
+--- a/platforms/uwp/main.cpp
++++ b/platforms/uwp/main.cpp
+@@ -1,9 +1,36 @@
+ #include <Windows.h>
+ 
++#include <cstdint>
++#include <winrt/Windows.System.h>
++#include <winrt/Windows.System.Profile.h>
++
+ #define SDL_MAIN_HANDLED
+ #include <SDL3/SDL.h>
+ #include <SDL3/SDL_main.h>
+ 
++extern "C" bool dusk_query_memory_budget(
++    std::uint64_t* usage, std::uint64_t* limit, bool* xbox) noexcept {
++    if (usage == nullptr || limit == nullptr || xbox == nullptr) {
++        return false;
++    }
++    *usage = 0;
++    *limit = 0;
++    *xbox = false;
++    try {
++        *usage = winrt::Windows::System::MemoryManager::AppMemoryUsage();
++        *limit = winrt::Windows::System::MemoryManager::AppMemoryUsageLimit();
++    } catch (...) {
++        return false;
++    }
++    try {
++        *xbox = winrt::Windows::System::Profile::AnalyticsInfo::VersionInfo().DeviceFamily() ==
++                L"Windows.Xbox";
++    } catch (...) {
++        // An unknown family must never be treated as an Xbox App installation.
++    }
++    return true;
++}
++
+ int bootstrap(int argc, char** argv) {
+     SDL_SetHint(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "true");
+     SDL_SetHint(SDL_HINT_JOYSTICK_WGI, "true");
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+index 3f21284..f4dd401 100644
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -22,6 +22,8 @@
+ #include "dusk/mods/updates.hpp"
+ #include "dusk/mods/uwp_ports.hpp"
+ #include "dusk/startup_guard.hpp"
++#include "dusk/xbox_memory_budget.hpp"
++#include "dusk/main.h"
+ #include "dusk/ui/mod_texture_provider.hpp"
+ #include "dusk/ui/mods_window.hpp"
+ #include "dusk/ui/ui.hpp"
+@@ -137,6 +139,7 @@ static void warn_unpublished_deferred_exports(const LoadedMod& mod) {
+ 
+ LoadedMod* ModLoader::try_load_mod(const fs::path& modPath, bool fromDir, uint32_t searchDirIndex,
+     std::unique_ptr<ModBundle> bundle) {
++    xbox_memory::record_path(ConfigPath, "mods.package-open", modPath);
+     if (bundle == nullptr) {
+         try {
+             bundle = load_bundle(modPath, fromDir);
+@@ -149,6 +152,7 @@ LoadedMod* ModLoader::try_load_mod(const fs::path& modPath, bool fromDir, uint32
+ 
+     LoadedManifest manifest;
+     try {
++        xbox_memory::record_path(ConfigPath, "mods.package-manifest", modPath);
+         manifest = load_manifest(modPath, *bundle);
+     } catch (const std::exception& e) {
+         Log.error("bad mod.json in {}: {}", data::abbreviated_path_string(modPath), e.what());
+@@ -168,49 +172,75 @@ LoadedMod* ModLoader::try_load_mod(const fs::path& modPath, bool fromDir, uint32
+         return nullptr;
+     }
+ 
+-    const auto& inserted = m_mods.emplace_back(std::make_unique<LoadedMod>());
+-    auto& mod = *inserted;
+-    mod.active = true;
+-    mod.modPath = fs::absolute(modPath);
+-    mod.searchDirIndex = searchDirIndex;
+-    mod.fromDirectory = fromDir;
+-    mod.nativeInPlace = m_searchDirs[searchDirIndex].inPlaceNative && fromDir;
+-    mod.fileIdentity = file_identity(modPath);
+-    mod.metadata = std::move(manifest.metadata);
+-    mod.runtime = std::move(manifest.runtime);
+-    mod.bundle = std::move(bundle);
+-    mod.context = std::make_unique<ModContext>();
+-    mod.context->mod = &mod;
+-    bool enabledByDefault = true;
+-#if defined(_UWP)
+-    enabledByDefault = uwp_ports::enabled_by_default(
+-        mod.metadata.id, m_searchDirs[searchDirIndex].inPlaceNative);
+-#endif
+-    mod.cvarIsEnabled = std::make_unique<ConfigVar<bool>>(
+-        mod_enabled_cvar_name(mod.metadata.id), enabledByDefault);
+-    if (mod.runtime.has_value()) {
+-        const auto& runtime = *mod.runtime;
+-        mod.manifestInfo.imports.push_back({runtime.id, runtime.major, runtime.minMinor, true});
++    // Prepare off-registry. Filesystem/native enumeration can throw; a failed
++    // package must never leave a partial entry for the later config/lifecycle pass.
++    std::unique_ptr<LoadedMod> candidate;
++    try {
++        xbox_memory::record(ConfigPath, "mods.package-context", manifest.metadata.id, manifest.metadata.version);
++        candidate = std::make_unique<LoadedMod>();
++        auto& mod = *candidate;
++        mod.active = true;
++        mod.modPath = fs::absolute(modPath);
++        mod.searchDirIndex = searchDirIndex;
++        mod.fromDirectory = fromDir;
++        mod.nativeInPlace = m_searchDirs.at(searchDirIndex).inPlaceNative && fromDir;
++        mod.fileIdentity = file_identity(modPath);
++        mod.metadata = std::move(manifest.metadata);
++        mod.runtime = std::move(manifest.runtime);
++        mod.bundle = std::move(bundle);
++        mod.context = std::make_unique<ModContext>();
++        mod.context->mod = &mod;
++        xbox_memory::record(ConfigPath, "mods.package-config", mod.metadata.id, mod.metadata.version);
++        bool enabledByDefault = true;
++    #if defined(_UWP)
++        enabledByDefault = uwp_ports::enabled_by_default(
++            mod.metadata.id, m_searchDirs[searchDirIndex].inPlaceNative);
++    #endif
++        mod.cvarIsEnabled = std::make_unique<ConfigVar<bool>>(
++            mod_enabled_cvar_name(mod.metadata.id), enabledByDefault);
++        if (mod.runtime.has_value()) {
++            xbox_memory::record(ConfigPath, "mods.package-scratch", mod.metadata.id, mod.metadata.version);
++            const auto& runtime = *mod.runtime;
++            mod.manifestInfo.imports.push_back({runtime.id, runtime.major, runtime.minMinor, true});
++
++            std::error_code ec;
++            mod.dir = fs::absolute(m_cacheDir / mod.metadata.id / "data", ec);
++            if (!ec) {
++                fs::create_directories(mod.dir, ec);
++            }
++            if (ec) {
++                fail_mod(mod, MOD_ERROR,
++                    fmt::format("Failed to create script scratch directory: {}", ec.message()));
++            } else {
++                mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);
++            }
++        }
++        xbox_memory::record(ConfigPath, "mods.package-native", mod.metadata.id, mod.metadata.version);
++        if (load_native_if_present(mod) && mod.native) {
++            xbox_memory::record(ConfigPath, "mods.package-native-manifest", mod.metadata.id, mod.metadata.version);
++            mod.manifestInfo = build_manifest_info(mod.native->parsed);
++        }
+ 
+-        std::error_code ec;
+-        mod.dir = fs::absolute(m_cacheDir / mod.metadata.id / "data", ec);
+-        if (!ec) {
+-            fs::create_directories(mod.dir, ec);
++        log::write(mod.metadata.id, LOG_LEVEL_INFO, "found '{}' v{} by {} ({})", mod.metadata.name,
++            mod.metadata.version, mod.metadata.author, data::abbreviated_path_string(modPath));
++        xbox_memory::record(ConfigPath, "mods.package-commit", mod.metadata.id, mod.metadata.version);
++        m_mods.push_back(std::move(candidate));
++        xbox_memory::record(ConfigPath, "mods.package-ready", mod.metadata.id, mod.metadata.version);
++        return &mod;
++    } catch (const std::exception& e) {
++        if (candidate && candidate->native && candidate->native->contextSymbol &&
++            *candidate->native->contextSymbol == candidate->context.get()) {
++            *candidate->native->contextSymbol = nullptr;
+         }
+-        if (ec) {
+-            fail_mod(mod, MOD_ERROR,
+-                fmt::format("Failed to create script scratch directory: {}", ec.message()));
+-        } else {
+-            mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);
++        const auto id = candidate ? std::string_view(candidate->metadata.id) :
++                                   std::string_view(manifest.metadata.id);
++        xbox_memory::record(ConfigPath, "mods.package-failed", id, {}, e.what());
++        try {
++            Log.error("Failed to prepare mod package: {}", e.what());
++        } catch (...) {
+         }
++        return nullptr;
+     }
+-    if (load_native_if_present(mod) && mod.native) {
+-        mod.manifestInfo = build_manifest_info(mod.native->parsed);
+-    }
+-
+-    log::write(mod.metadata.id, LOG_LEVEL_INFO, "found '{}' v{} by {} ({})", mod.metadata.name,
+-        mod.metadata.version, mod.metadata.author, data::abbreviated_path_string(modPath));
+-    return &mod;
+ }
+ 
+ bool ModLoader::activate_mod(LoadedMod& mod) {
+@@ -384,8 +414,9 @@ void ModLoader::init() {
+                 data::abbreviated_path_string(selected->path), selected->metadata.version);
+             continue;
+         }
+-        startup_guard::stage("mods.package-load");
++        xbox_memory::record(ConfigPath, "mods.package-load", package.metadata.id, package.metadata.version);
+         if (auto* mod = try_load_mod(package.path, package.fromDirectory, package.searchDirIndex)) {
++            xbox_memory::record(ConfigPath, "mods.package-sources", mod->metadata.id, mod->metadata.version);
+             record_package_sources(*mod, packages);
+         }
+     }
+diff --git a/src/dusk/mods/loader/natives.cpp b/src/dusk/mods/loader/natives.cpp
+index b782571..87aff1e 100644
+--- a/src/dusk/mods/loader/natives.cpp
++++ b/src/dusk/mods/loader/natives.cpp
+@@ -8,6 +8,8 @@
+ #include "dusk/mods/svc/registry.hpp"
+ #include "dusk/mods/uwp_ports.hpp"
+ #include "dusk/startup_guard.hpp"
++#include "dusk/xbox_memory_budget.hpp"
++#include "dusk/main.h"
+ #include "dusk/utilities.hpp"
+ 
+ #include <borealis/io.hpp>
+@@ -175,7 +177,12 @@ NativeLocateResult locate_native_runtime(ModBundle& bundle) {
+ }
+ 
+ bool parse_meta(NativeMod& native, LoadedMod& mod) {
++    xbox_memory::record(ConfigPath, "native.metadata-parse", mod.metadata.id, mod.metadata.version);
+     const ModMeta* meta = native.meta;
++    if (meta == nullptr) {
++        mod.nativeStatus = NativeModStatus::InvalidMetadata;
++        return false;
++    }
+     if (meta->struct_size < sizeof(ModMeta)) {
+         log::write(mod.metadata.id, LOG_LEVEL_ERROR, "mod_meta descriptor has invalid size {}",
+             meta->struct_size);
+@@ -338,6 +345,7 @@ bool parse_meta(NativeMod& native, LoadedMod& mod) {
+     }
+ 
+     native.parsed = std::move(parsed);
++    xbox_memory::record(ConfigPath, "native.metadata-ready", mod.metadata.id, mod.metadata.version);
+     return true;
+ }
+ 
+@@ -364,6 +372,7 @@ ModResult luau_runtime_mod_shutdown(ModError*);
+ }
+ 
+ bool load_builtin_randomizer(LoadedMod& mod, const fs::path& cacheDir) {
++    xbox_memory::record(ConfigPath, "native.built-in-scratch", mod.metadata.id, mod.metadata.version);
+     const fs::path scratchDir = cacheDir / mod.metadata.id / "data";
+     std::error_code ec;
+     fs::create_directories(scratchDir, ec);
+@@ -384,12 +393,11 @@ bool load_builtin_randomizer(LoadedMod& mod, const fs::path& cacheDir) {
+     if (!parse_meta(*native, mod)) {
+         return false;
+     }
+-    *native->contextSymbol = mod.context.get();
+-
+     mod.dir = fs::absolute(scratchDir);
+     mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);
+     mod.nativeDir = fs::absolute(mod.modPath);
+     mod.nativeDirUtf8 = borealis::io::fs_path_to_string(mod.nativeDir);
++    *native->contextSymbol = mod.context.get();
+     mod.native = std::move(native);
+     mod.nativeStatus = NativeModStatus::Loaded;
+     startup_guard::stage("native.ready:dev.twilitrealm.randomizer:built-in");
+@@ -397,6 +405,7 @@ bool load_builtin_randomizer(LoadedMod& mod, const fs::path& cacheDir) {
+ }
+ 
+ bool load_builtin_cosmetics(LoadedMod& mod, const fs::path& cacheDir) {
++    xbox_memory::record(ConfigPath, "native.built-in-scratch", mod.metadata.id, mod.metadata.version);
+     const fs::path scratchDir = cacheDir / mod.metadata.id / "data";
+     std::error_code ec;
+     fs::create_directories(scratchDir, ec);
+@@ -416,11 +425,11 @@ bool load_builtin_cosmetics(LoadedMod& mod, const fs::path& cacheDir) {
+     if (!parse_meta(*native, mod)) {
+         return false;
+     }
+-    *native->contextSymbol = mod.context.get();
+     mod.dir = fs::absolute(scratchDir);
+     mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);
+     mod.nativeDir = fs::absolute(mod.modPath);
+     mod.nativeDirUtf8 = borealis::io::fs_path_to_string(mod.nativeDir);
++    *native->contextSymbol = mod.context.get();
+     mod.native = std::move(native);
+     mod.nativeStatus = NativeModStatus::Loaded;
+     startup_guard::stage("native.ready:dev.twilitrealm.cosmetics:built-in");
+@@ -428,6 +437,7 @@ bool load_builtin_cosmetics(LoadedMod& mod, const fs::path& cacheDir) {
+ }
+ 
+ bool load_builtin_port(LoadedMod& mod, const fs::path& cacheDir) {
++    xbox_memory::record(ConfigPath, "native.built-in-scratch", mod.metadata.id, mod.metadata.version);
+     if (!uwp_ports::available(mod.metadata.id, mod.metadata.version)) {
+         return false;
+     }
+@@ -455,11 +465,11 @@ bool load_builtin_port(LoadedMod& mod, const fs::path& cacheDir) {
+     if (!parse_meta(*native, mod)) {
+         return false;
+     }
+-    *native->contextSymbol = mod.context.get();
+     mod.dir = fs::absolute(scratchDir);
+     mod.dirUtf8 = borealis::io::fs_path_to_string(mod.dir);
+     mod.nativeDir = fs::absolute(mod.modPath);
+     mod.nativeDirUtf8 = borealis::io::fs_path_to_string(mod.nativeDir);
++    *native->contextSymbol = mod.context.get();
+     mod.native = std::move(native);
+     mod.nativeStatus = NativeModStatus::Loaded;
+     startup_guard::stage(fmt::format("native.ready:{}:built-in-port", mod.metadata.id));
+diff --git a/src/dusk/xbox_memory_budget.hpp b/src/dusk/xbox_memory_budget.hpp
+new file mode 100644
+index 0000000..6a381e8
+--- /dev/null
++++ b/src/dusk/xbox_memory_budget.hpp
+@@ -0,0 +1,94 @@
++#pragma once
++
++#include "dusk/startup_guard.hpp"
++
++#include <algorithm>
++#include <cstdint>
++#include <cstdio>
++#include <filesystem>
++#include <fstream>
++#include <string_view>
++
++#if defined(_UWP)
++// The Windows Store wrapper owns the WinRT calls; the portable feed never
++// guesses a memory limit or device family when the APIs are unavailable.
++extern "C" bool dusk_query_memory_budget(
++    std::uint64_t* usage, std::uint64_t* limit, bool* xbox) noexcept;
++#endif
++
++namespace dusk::xbox_memory {
++struct Budget {
++    std::uint64_t usage = 0;
++    std::uint64_t limit = 0;
++    bool xbox = false;
++    bool available = false;
++};
++
++inline Budget query() noexcept {
++    Budget result;
++#if defined(_UWP)
++    result.available = dusk_query_memory_budget(&result.usage, &result.limit, &result.xbox);
++#endif
++    return result;
++}
++
++inline bool needs_game_allowance(const Budget& budget) noexcept {
++    // Only the measured, documented Xbox App allowance blocks Play. An
++    // unavailable query, desktop UWP, and the Game allowance keep the old path.
++    return budget.available && budget.xbox && budget.limit != 0 &&
++           budget.limit <= (std::uint64_t{1} << 30);
++}
++
++inline void record(const std::filesystem::path& configPath, std::string_view operation,
++    std::string_view id, std::string_view version = {}, std::string_view error = {}) noexcept {
++#if defined(_UWP)
++    try {
++        const auto budget = query();
++        char line[768]{};
++        const auto clipped = [](std::string_view value, int maximum) {
++            return static_cast<int>(std::min(value.size(), static_cast<std::size_t>(maximum)));
++        };
++        std::snprintf(line, sizeof(line),
++            "%.*s | id=%.*s | version=%.*s | memory=%llu/%llu | xbox=%d | query=%d | error=%.*s",
++            clipped(operation, 80), operation.empty() ? "" : operation.data(),
++            clipped(id, 180), id.empty() ? "" : id.data(),
++            clipped(version, 40), version.empty() ? "" : version.data(),
++            static_cast<unsigned long long>(budget.usage),
++            static_cast<unsigned long long>(budget.limit), budget.xbox, budget.available,
++            clipped(error, 240), error.empty() ? "" : error.data());
++        for (char& ch : line) {
++            if (ch == '\r' || ch == '\n') {
++                ch = ' ';
++            }
++        }
++        startup_guard::stage(line);
++        // Keep one detailed record outside the rotating startup journal. A
++        // diagnostic write can fail without affecting the package transaction.
++        if (!configPath.empty()) {
++            std::ofstream output(configPath / "xbox-mod-load.txt", std::ios::binary | std::ios::trunc);
++            output << "build=1.4.1.739\n" << line << '\n';
++            output.flush();
++            if (!error.empty()) {
++                std::ofstream failure(configPath / "xbox-mod-load-failure.txt",
++                    std::ios::binary | std::ios::trunc);
++                failure << "build=1.4.1.739\n" << line << '\n';
++                failure.flush();
++            }
++        }
++    } catch (...) {
++    }
++#else
++    (void)configPath; (void)operation; (void)id; (void)version; (void)error;
++#endif
++}
++
++inline void record_path(const std::filesystem::path& configPath, std::string_view operation,
++    const std::filesystem::path& packagePath) noexcept {
++    try {
++        const auto utf8 = packagePath.u8string();
++        record(configPath, operation,
++            {reinterpret_cast<const char*>(utf8.data()), utf8.size()});
++    } catch (...) {
++    }
++}
++}  // namespace dusk::xbox_memory
