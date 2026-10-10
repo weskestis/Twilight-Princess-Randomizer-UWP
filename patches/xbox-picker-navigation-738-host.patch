@@ -1,0 +1,378 @@
+diff --git a/src/dusk/ui/list.cpp b/src/dusk/ui/list.cpp
+index fc8d233..696dd34 100644
+--- a/src/dusk/ui/list.cpp
++++ b/src/dusk/ui/list.cpp
+@@ -111,6 +111,10 @@ bool List::focus_from(NavCommand direction) {
+     return false;
+ }
+ 
++bool List::focus_item(uint64_t key) {
++    return focus_row(row_index(key), true);
++}
++
+ List::Row* List::row_from_element(Rml::Element* element) const {
+     for (const auto& row : mRows) {
+         if (row->button->contains(element)) {
+diff --git a/src/dusk/ui/list.hpp b/src/dusk/ui/list.hpp
+index 11a9dab..8977e24 100644
+--- a/src/dusk/ui/list.hpp
++++ b/src/dusk/ui/list.hpp
+@@ -30,6 +30,7 @@ public:
+     void set_items(std::vector<Item> items);
+     void update() override;
+     bool focus() override;
++    bool focus_item(uint64_t key);
+     bool focus_from(NavCommand direction) override;
+ 
+ private:
+diff --git a/src/dusk/ui/xbox_file_picker.cpp b/src/dusk/ui/xbox_file_picker.cpp
+index d4da565..8865505 100644
+--- a/src/dusk/ui/xbox_file_picker.cpp
++++ b/src/dusk/ui/xbox_file_picker.cpp
+@@ -9,6 +9,7 @@
+ #include <borealis/file_select.hpp>
+ #include <borealis/io.hpp>
+ #include <SDL3/SDL_log.h>
++#include <SDL3/SDL_filesystem.h>
+ 
+ #include <memory>
+ #include <mutex>
+@@ -31,6 +32,7 @@ struct Request {
+     select::Callback callback;
+     std::vector<select::Filter> filters;
+     std::vector<std::string> roots;
++    std::vector<model::Entry> shortcuts;
+     std::string initialLocation;
+     std::string source;
+     std::string suggestedName;
+@@ -56,17 +58,47 @@ class Browser final : public Modal {
+ public:
+     explicit Browser(std::shared_ptr<Request> request)
+         : Modal(props(request)), mRequest(std::move(request)) {
+-        mDialog->SetProperty("width", "90vw");
+-        mDialog->SetProperty("max-width", "90vw");
+-        mDialog->SetProperty("max-height", "90vh");
+-        mDialog->QuerySelector("modal-body")->SetProperty("white-space", "pre-wrap");
++        mRoot->SetClass("xbox-file-browser", true);
++        if (!set_document_styles(R"RCSS(
++window.modal.xbox-file-browser {
++    width: 100%; height: 100%; max-width: 100%; max-height: 100%;
++}
++window.xbox-file-browser modal-dialog {
++    width: 100%; height: 100%; flex: 1 1 auto; box-sizing: border-box;
++}
++window.xbox-file-browser modal-title { font-size: 28dp; }
++window.xbox-file-browser modal-body {
++    font-size: 20dp; white-space: pre-wrap; overflow: hidden;
++}
++window.xbox-file-browser modal-content { flex: 1 1 0; min-height: 0; }
++window.xbox-file-browser modal-content pane { overflow: hidden; }
++window.xbox-file-browser ui-list { flex: 1 1 0; min-height: 0; }
++window.xbox-file-browser button.ui-list-row {
++    font-size: 28dp; min-height: 44dp; text-align: left;
++    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
++}
++window.xbox-file-browser modal-actions {
++    flex-direction: row; flex-wrap: nowrap;
++}
++window.xbox-file-browser button.modal-btn {
++    font-size: 24dp; flex: 1 1 0; min-width: 0; width: auto;
++}
++)RCSS")) throw std::runtime_error("Unable to lay out the Xbox file browser.");
++        auto* body = mDialog->QuerySelector("modal-body");
++        mPath = append(mDialog, "picker-path");
++        mDialog->InsertBefore(mDialog->RemoveChild(mPath), body);
++        mPath->SetProperty("display", "block");
++        mPath->SetProperty("font-size", "20dp");
++        mPath->SetProperty("width", "100%");
++        mPath->SetProperty("white-space", "nowrap");
++        mPath->SetProperty("overflow", "hidden");
++        mPath->SetProperty("text-overflow", "ellipsis");
++        mPath->SetProperty("flex", "0 0 auto");
+         auto& pane = content_pane();
+         mList = &pane.add_child<List>(List::Props{
+             .onPressed = [this](uint64_t key) { mPendingKey = key; },
+             .isDisabled = [this](uint64_t) { return blocked(); },
+         });
+-        mList->root()->SetProperty("height", "48vh");
+-        mList->root()->SetProperty("overflow-y", "auto");
+         navigate(mRequest->initialLocation);
+     }
+     ~Browser() override {
+@@ -76,7 +108,6 @@ public:
+     }
+     void update() override {
+         try {
+-            const bool focusAfterUpdate = std::exchange(mFocusPending, false);
+             if (mListingJob) {
+                 std::optional<model::Listing> result;
+                 {
+@@ -105,16 +136,33 @@ public:
+             }
+             if (auto key = std::exchange(mPendingKey, {})) activate(*key);
+             Modal::update();
+-            if (focusAfterUpdate && !mRequest->terminal && top_document() == this) focus();
++            // The rows have now been applied by List::update. Never refocus an old view.
++            if (mFocusPending && !mRequest->terminal && top_document() == this) {
++                mFocusPending = false;
++                focus();
++            }
+         } catch (const std::exception& exception) {
+             finish({.status = select::Status::Failed, .message = exception.what()});
+         } catch (...) {
+             finish({.status = select::Status::Failed, .message = "The Xbox file browser could not complete this action."});
+         }
+     }
++    bool focus() override {
++        if (auto key = std::exchange(mFocusKey, {}); key && mList->focus_item(*key)) return true;
++        return Modal::focus();
++    }
+ protected:
+     bool handle_nav_command(Rml::Event& event, NavCommand command) override {
+         if (mExportJob && (command == NavCommand::Cancel || command == NavCommand::Menu)) return true;
++        if (command == NavCommand::Cancel) {
++            if (mLocation.empty()) cancel();
++            else parent();
++            return true;
++        }
++        if (command == NavCommand::Next || command == NavCommand::Previous) {
++            page(command == NavCommand::Next ? 1 : -1);
++            return true;
++        }
+         return Modal::handle_nav_command(event, command);
+     }
+ private:
+@@ -122,22 +170,12 @@ private:
+     static Props props(const std::shared_ptr<Request>& request) {
+         Props props;
+         props.title = request->kind == Kind::File ? "Select File" :
+-                      request->kind == Kind::Folder ? "Select Data Folder" : "Export File";
++                      request->kind == Kind::Folder ? "Select Folder" : "Export File";
+         props.bodyText = "Reading folders...";
+         props.actions = {
+-            {.label = "Locations", .onPressed = [](Modal& m) { browser(m).navigate({}); },
++            {.label = "All Locations", .onPressed = [](Modal& m) { browser(m).navigate({}); },
+                 .isDisabled = [] { return g_request && (g_request->terminal || g_request->confirming); }},
+-            {.label = "Parent", .onPressed = [](Modal& m) { browser(m).parent(); }},
+-            {.label = "Previous", .onPressed = [](Modal& m) { browser(m).page(-1); }},
+-            {.label = "Next", .onPressed = [](Modal& m) { browser(m).page(1); }},
+         };
+-        if (request->kind == Kind::File && request->filters.size() > 1) {
+-            props.actions.push_back({.label = "File Type", .onPressed = [](Modal& m) { browser(m).next_filter(); }});
+-        }
+-        if (request->kind != Kind::File) {
+-            props.actions.push_back({.label = request->kind == Kind::Folder ? "Choose Folder" : "Export Here",
+-                .onPressed = [](Modal& m) { browser(m).choose_folder(); }});
+-        }
+         props.actions.push_back({.label = "Cancel", .onPressed = [](Modal& m) { browser(m).cancel(); }});
+         props.onDismiss = [](Modal& m) { browser(m).cancel(); };
+         return props;
+@@ -152,24 +190,37 @@ private:
+     void cancel() {
+         if (!mExportJob) finish({.status = select::Status::Canceled});
+     }
+-    void navigate(std::string location) {
++    void navigate(std::string location, std::string reselect = {}) {
+         if (blocked()) return;
+         if (mListingJob) mListingJob->canceled.store(true);
+         mLocation = std::move(location);
+         ++mGeneration;
+         mPendingKey.reset();
+         mFocusPending = false;
++        mFocusKey.reset();
++        mReselectLocation = std::move(reselect);
+         mPage = 0;
+         mListing = {};
+         mList->set_items({});
+-        set_body_text((mLocation.empty() ? "Available locations" : mLocation) + "\nReading folders...");
++        set_text_content(mPath, mLocation.empty() ? "Choose a location" : mLocation);
++        set_body_text("Reading folders...\nB: Back to parent folder");
+         auto job = std::make_shared<ListingJob>();
+         mListingJob = job;
+         std::string pattern = mRequest->filters.empty() ? "*" : mRequest->filters[mFilter].pattern;
+         // The worker owns its result, never a document, element, or callback.
+         std::thread([job, location = mLocation, roots = mRequest->roots,
+-                        pattern = std::move(pattern), foldersOnly = mRequest->kind != Kind::File] {
++                        shortcuts = mRequest->shortcuts, pattern = std::move(pattern),
++                        foldersOnly = mRequest->kind != Kind::File] {
+             auto listing = model::scan(location, roots, pattern, foldersOnly, job->canceled);
++            try {
++                if (location.empty()) model::add_shortcuts(listing, shortcuts);
++            } catch (const std::exception& exception) {
++                listing.usable = false;
++                listing.error = exception.what();
++            } catch (...) {
++                listing.usable = false;
++                listing.error = "Unable to read available locations.";
++            }
+             if (job->canceled.load()) return;
+             std::lock_guard lock(job->mutex);
+             job->result = std::move(listing);
+@@ -178,22 +229,39 @@ private:
+     void display_page() {
+         constexpr size_t pageSize = 200;
+         std::vector<List::Item> items;
++        const auto rowKey = [this](uint32_t row) { return (uint64_t{mGeneration} << 32) | row; };
++        if (!mReselectLocation.empty()) {
++            for (size_t i = 0; i < mListing.entries.size(); ++i) {
++                    if (model::same_location(mListing.entries[i].location, mReselectLocation)) {
++                    mPage = i / pageSize;
++                    mFocusKey = rowKey(static_cast<uint32_t>(i + 1));
++                    break;
++                }
++            }
++            mReselectLocation.clear();
++        }
++        if (mRequest->kind != Kind::File && !mLocation.empty() && mListing.usable) {
++            items.push_back({rowKey(kChooseFolder), mRequest->kind == Kind::Folder
++                ? "Choose This Folder" : "Export Here: " + mRequest->suggestedName});
++        }
+         size_t first = mPage * pageSize;
+         size_t last = std::min(first + pageSize, mListing.entries.size());
+         for (size_t index = first; index < last; ++index) {
+             const auto& entry = mListing.entries[index];
+-            const auto label = mLocation.empty() && !mRequest->roots.empty() && entry.location == mRequest->roots.front()
+-                ? "App Data: " + entry.label : entry.label;
+-            items.push_back({(uint64_t{mGeneration} << 32) | (index + 1),
+-                (entry.directory ? "[Folder] " : "") + label});
++            items.push_back({rowKey(static_cast<uint32_t>(index + 1)),
++                (entry.directory && !mLocation.empty() ? "[Folder] " : "") + entry.label});
++        }
++        if (mPage > 0) items.push_back({rowKey(kPreviousPage), "Previous Page (LB)"});
++        if (last < mListing.entries.size()) items.push_back({rowKey(kNextPage), "Next Page (RB)"});
++        if (mRequest->kind == Kind::File && mRequest->filters.size() > 1) {
++            items.push_back({rowKey(kFileType), "File Type: " + mRequest->filters[mFilter].name});
+         }
+         mList->set_items(std::move(items));
+-        auto body = mLocation.empty() ? std::string{"Available locations (app storage and accessible drives)"} : mLocation;
+-        if (mRequest->kind == Kind::File && !mRequest->filters.empty()) body += "\n" + mRequest->filters[mFilter].name;
+-        if (mRequest->kind == Kind::Export) body += "\nExport: " + mRequest->suggestedName;
++        auto body = std::string{"D-pad: Move   A: Open / Select   B: "} +
++            (mLocation.empty() ? "Cancel" : "Parent folder");
+         if (!mListing.error.empty()) body += "\n" + mListing.error;
+-        else if (mListing.entries.empty()) body += "\nNo matching entries. Use Locations, Parent, or File Type.";
+-        if (mListing.entries.size() > pageSize) body += "\nPage " + std::to_string(mPage + 1) + " of " +
++        else if (mListing.entries.empty()) body += "\nNo matching entries. Press B to go back or choose All Locations.";
++        if (mListing.entries.size() > pageSize) body += "\nLB / RB: Page " + std::to_string(mPage + 1) + " of " +
+             std::to_string((mListing.entries.size() + pageSize - 1) / pageSize);
+         set_body_text(body);
+         // List::set_items is deferred. Focus after its next update applies the rows.
+@@ -201,7 +269,12 @@ private:
+     }
+     void activate(uint64_t key) {
+         if (blocked() || mListingJob || (key >> 32) != mGeneration) return;
+-        auto index = static_cast<uint32_t>(key) - 1;
++        const auto row = static_cast<uint32_t>(key);
++        if (row == kChooseFolder) { choose_folder(); return; }
++        if (row == kFileType) { next_filter(); return; }
++        if (row == kPreviousPage) { page(-1); return; }
++        if (row == kNextPage) { page(1); return; }
++        auto index = row - 1;
+         if (index >= mListing.entries.size()) return;
+         const auto entry = mListing.entries[index];
+         if (entry.directory) navigate(entry.location);
+@@ -209,8 +282,14 @@ private:
+     }
+     void parent() {
+         if (blocked() || mLocation.empty()) return;
++        if (std::any_of(mRequest->shortcuts.begin(), mRequest->shortcuts.end(), [&](const model::Entry& entry) {
++            return model::same_location(entry.location, mLocation);
++        })) {
++            navigate({}, mLocation);
++            return;
++        }
+         auto parent = model::path(mLocation).parent_path();
+-        navigate(parent == model::path(mLocation) ? std::string{} : model::utf8(parent));
++        navigate(parent == model::path(mLocation) ? std::string{} : model::utf8(parent), mLocation);
+     }
+     void page(int direction) {
+         if (blocked() || mListingJob) return;
+@@ -236,7 +315,7 @@ private:
+         std::error_code error;
+         const bool exists = std::filesystem::exists(destination, error);
+         if (error) {
+-            set_body_text(mLocation + "\nCannot check the destination: " + error.message());
++            set_body_text("Cannot check the destination: " + error.message());
+             return;
+         }
+         if (!exists) {
+@@ -276,21 +355,35 @@ private:
+     }
+     std::shared_ptr<Request> mRequest;
+     List* mList = nullptr;
++    Rml::Element* mPath = nullptr;
+     std::shared_ptr<ListingJob> mListingJob;
+     std::shared_ptr<ExportJob> mExportJob;
+     model::Listing mListing;
+     std::string mLocation;
+     std::optional<uint64_t> mPendingKey;
++    std::optional<uint64_t> mFocusKey;
++    std::string mReselectLocation;
+     bool mFocusPending = false;
+     uint32_t mGeneration = 0;
+     size_t mPage = 0;
+     size_t mFilter = 0;
++    static constexpr uint32_t kChooseFolder = 0xfffffff1;
++    static constexpr uint32_t kFileType = 0xfffffff2;
++    static constexpr uint32_t kPreviousPage = 0xfffffff3;
++    static constexpr uint32_t kNextPage = 0xfffffff4;
+ };
+ 
+ void start(std::shared_ptr<Request> request, std::string defaultLocation) {
+     if (g_request) throw std::runtime_error("Another Xbox file browser is already open.");
+     const auto configured = borealis::io::fs_path_to_string(data::configured_data_path());
+     request->roots.push_back(configured);
++    // DevelopmentFiles is not the drive root. Do not hide it when D:\\ cannot be listed.
++    request->shortcuts.push_back({"D:\\DevelopmentFiles", "Development Files", true});
++    if (const char* base = SDL_GetBasePath(); base && *base) {
++        request->shortcuts.push_back({base, "App Folder (installed game files)", true});
++    }
++    request->shortcuts.push_back({configured, "App Data (saves, seeds and mods)", true});
++    request->shortcuts.push_back({model::utf8(data::cache_path()), "App Cache", true});
+     if (!defaultLocation.empty()) {
+         // File defaults become their parent folder. No disk access on the UI thread.
+         auto candidate = model::path(defaultLocation);
+diff --git a/src/dusk/ui/xbox_file_picker_model.hpp b/src/dusk/ui/xbox_file_picker_model.hpp
+index 91ae326..92bdc5b 100644
+--- a/src/dusk/ui/xbox_file_picker_model.hpp
++++ b/src/dusk/ui/xbox_file_picker_model.hpp
+@@ -35,6 +35,16 @@ inline std::string lower(std::string value) {
+     }
+     return value;
+ }
++inline bool same_location(std::string_view a, std::string_view b) {
++    auto key = [](std::string_view value) {
++        auto normalized = utf8(path(value).lexically_normal());
++        while (normalized.size() > 1 && (normalized.back() == '/' || normalized.back() == '\\')) {
++            normalized.pop_back();
++        }
++        return lower(std::move(normalized));
++    };
++    return key(a) == key(b);
++}
+ inline bool matches(const fs::path& filename, std::string_view pattern) {
+     if (pattern.empty() || pattern == "*") return true;
+     auto extension = lower(utf8(filename.extension()));
+@@ -55,6 +65,22 @@ inline void sort(Listing& listing) {
+         return al == bl ? a.location < b.location : al < bl;
+     });
+ }
++inline void add_shortcuts(Listing& listing, const std::vector<Entry>& shortcuts) {
++    // A child folder can be accessible even when its drive root cannot be listed.
++    // Keep named entry points visible and report access errors when opened.
++    std::vector<Entry> entries;
++    auto add = [&](Entry entry) {
++        if (entry.location.empty()) return;
++        entry.location = utf8(path(entry.location).lexically_normal());
++        if (std::any_of(entries.begin(), entries.end(), [&](const Entry& existing) {
++            return same_location(existing.location, entry.location);
++        })) return;
++        entries.push_back(std::move(entry));
++    };
++    for (const auto& entry : shortcuts) add(entry);
++    for (auto& entry : listing.entries) add(std::move(entry));
++    listing.entries = std::move(entries);
++}
+ inline Listing scan(const std::string& location, const std::vector<std::string>& roots,
+     std::string_view pattern, bool foldersOnly, const std::atomic_bool& canceled) {
+     Listing listing;

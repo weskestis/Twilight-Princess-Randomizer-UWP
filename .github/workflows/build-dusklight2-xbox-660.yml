@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 737
+name: Build Dusklight 2.0.1 Xbox 738
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-737-release-${{ github.ref }}
+  group: xbox-738-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +129,7 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 737 identity
+      - name: Apply reviewed source layers and advance 738 identity
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6156,6 +6156,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.733 lifecycle preservation tests failed after .736.' }
           python "$env:TPR_CONTROL\scripts\apply-737-xbox-picker.py"
           if ($LASTEXITCODE -ne 0) { throw '.737 controller picker source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-738-picker-navigation.py"
+          if ($LASTEXITCODE -ne 0) { throw '.738 picker navigation source layer failed.' }
           python "$env:TPR_CONTROL\scripts\test-737-xbox-picker.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.737 native picker and filesystem tests failed.' }
           git -C "$env:TPR_SRC" diff --check
@@ -6415,7 +6417,7 @@ jobs:
           })
 
           $workflowText = Get-Content "$env:TPR_CONTROL\$workflowPath" -Raw
-          # Every .737 release retains full 62-scenario certification.
+          # Every .738 release retains full 62-scenario certification.
           $runSuite = $true
           if (-not $workflowText.Contains('d0ceae8f18bbef4a40287a72a2791a3c06c9aca5')) {
             $runSuite = $true
@@ -6445,6 +6447,7 @@ jobs:
           # Compile the repaired picker/UI first so platform integration failures surface promptly.
           cmake --build "$env:TPR_FEED" --target `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/xbox_file_picker.cpp.obj' `
+            'CMakeFiles/dusk_internal.dir/src/dusk/ui/list.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/settings.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/prelaunch.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/ui.cpp.obj' `
@@ -6473,6 +6476,13 @@ jobs:
           if (-not (Test-Path "$env:TPR_FEED\mods\cosmetics\cosmetics.lib" -PathType Leaf)) {
             throw 'Built-in cosmetics.lib was not produced.'
           }
+
+      - name: Verify controller picker layout and navigation with production RmlUi
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\test-738-picker-navigation.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
+          if ($LASTEXITCODE -ne 0) { throw '.738 production RmlUi picker navigation/layout tests failed.' }
 
       - name: Certify Randomizer generator scenarios
         shell: powershell
@@ -6578,7 +6588,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
 
-      - name: Verify and collect full 737 package
+      - name: Verify and collect full 738 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6588,7 +6598,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.737_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.738_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6602,7 +6612,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.737"',
+            'Version="1.4.1.738"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6740,9 +6750,13 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($startupMarker in @(
-            'xbox-startup-stage-737.txt',
+            'xbox-startup-stage-738.txt',
             'The Xbox file browser could not complete this action.',
-            'Available locations (app storage and accessible drives)',
+            'Development Files',
+            'App Folder (installed game files)',
+            'All Locations',
+            'Choose This Folder',
+            'D-pad: Move   A: Open / Select   B: ',
             'Data Folder Not Changed',
             'continuing without recovery UI',
             'native.ready:dev.twilitrealm.randomizer:built-in',
@@ -6904,14 +6918,14 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-737.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-737.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-738.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-738.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
 
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.737'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.738'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -6969,10 +6983,12 @@ jobs:
             breakableSaveIdentity = '.734 preserves live pot/pumpkin, drop and shelf bindings across save callbacks; native scene/actor cleanup owns retirement'
             nativeSoulBreakableTests = 'PASS: compiled production award/resolver/sidecar functions; late callbacks, all 85 Soul IDs, native FIFO completion, Poe isolation and dedicated pickup text'
             nativeOnlineMods = '.736 immediately binds controller UI 1.3.2 resources to its signed source port after installation; unknown native versions require a port'
-            xboxFilePicker = '.737 controller browser for files, folders and exports; asynchronous directory reads, once-only main-thread callbacks and visible errors'
+            xboxFilePicker = '.738 full-size controller browser; named Development Files and app folder entries, visible footer, B parent navigation, LB/RB pages and focus restoration; .737 main-thread callback and export lifecycle preserved'
             xboxPickerHostPatchSha256 = '307d580da7af383c72f614cf582312308aae1f844374730ff54e8da46f62fd0a'
             xboxPickerBorealisPatchSha256 = '2dcf8a727455c6e184a81fe0530a23a0b1fcee0a111cc2e94e13fa0e6645b9c8'
             nativePickerTests = 'PASS: production UWP dispatch under queue/backend/callback faults, repeated/canceled requests, export guards, Unicode paths, filtering and missing folders'
+            xboxPickerNavigationPatchSha256 = '75573a4399c9c9a619c0595ab771c7dac890f4dd19fe0771109893f94393819b'
+            nativePickerNavigationTests = 'PASS: production Browser, Modal, Pane, List, Component and RmlUi at 720p/1080p/4K; controller open/back/reselection, paging, filtering, folder/file selection, missing folders, cancel and overwrite/export UI'
             bundledCatalogMods = 22
             catalogPackagesDownloadedAndVerified = 62
             additionalSignedPorts = 'controller_ui 1.3.2; luau_runtime 1.0.0'
@@ -6994,13 +7010,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-737.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-738.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.737-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.738-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7009,7 +7025,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.737-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.738-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
