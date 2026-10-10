@@ -243,12 +243,30 @@ int main() {
     dusk_query_memory_budget(&usage,&limit,&xbox);
 }
 ''')
-        subprocess.run([compiler,'/nologo','/std:c++20','/EHsc',str(cpp),'/Fe:'+str(exe),'/link','WindowsApp.lib'],cwd=work,check=True)
+        # Match the package's DLL runtime linkage. Desktop /MT brings its own
+        # system DLL loader into the test image and obscures probe imports.
+        probe_cmd=[compiler,'/nologo','/std:c++20','/EHsc','/MD',str(cpp),'/Fe:'+str(exe),'/link','WindowsApp.lib']
+        subprocess.run(probe_cmd,cwd=work,check=True)
         subprocess.run([str(exe)],cwd=work,check=True)
         imports = subprocess.run(['dumpbin','/nologo','/imports',str(exe)],check=True,
             capture_output=True,text=True).stdout
+        if 'loadlibraryexw' in imports.lower():
+            print(imports)
         for forbidden in ['LoadLibraryExW','GetModuleHandleExA','GetModuleHandleExW']:
             assert forbidden.lower() not in imports.lower(), 'Budget probe imports '+forbidden
         assert 'RoGetActivationFactory'.lower() in imports.lower(), 'Budget probe lost the direct SDK call'
         print('PASS .739 production WinRT budget probe compiles and contains unavailable-runtime/null-pointer failures')
         print('PASS .739 direct SDK budget probe has no desktop module-loader imports')
+        # The prior projection call must fail the same import gate with the
+        # same CRT linkage, proving that /MD did not hide the original issue.
+        cpp.write_text('''#include <winrt/Windows.System.h>
+int main() {
+    try { return winrt::Windows::System::MemoryManager::AppMemoryUsage() == 0 ? 0 : 1; }
+    catch (...) { return 0; }
+}
+''')
+        subprocess.run(probe_cmd,cwd=work,check=True)
+        rejected = subprocess.run(['dumpbin','/nologo','/imports',str(exe)],check=True,
+            capture_output=True,text=True).stdout
+        assert 'loadlibraryexw' in rejected.lower(), 'Former projection no longer reproduces the rejected import'
+        print('PASS .739 negative control rejects the former projection under identical DLL runtime linkage')
