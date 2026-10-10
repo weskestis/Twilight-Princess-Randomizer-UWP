@@ -27,10 +27,10 @@ for line in payload.decode('utf-8').splitlines():
     if name.startswith('/') or '..' in Path(name).parts:
         raise RuntimeError('.738 unsafe source patch path')
     path = root/name
-    payload = path.read_bytes()
-    normalized = payload.replace(b'\r\n', b'\n')
-    if payload != normalized:
-        originals[path] = payload
+    source_payload = path.read_bytes()
+    normalized = source_payload.replace(b'\r\n', b'\n')
+    if source_payload != normalized:
+        originals[path] = source_payload
         path.write_bytes(normalized)
 with tempfile.TemporaryDirectory(prefix='tpr-738-patch-') as directory:
     normalized_patch = Path(directory)/patch_name
