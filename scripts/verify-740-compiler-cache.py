@@ -2,7 +2,6 @@
 import argparse
 from pathlib import Path
 import re
-import tempfile
 
 TARGETS=('dusk_internal','dusklight','randomizer')
 
@@ -27,6 +26,11 @@ def verify(rules, builds):
             binding=re.search(r'(?im)^\s*LAUNCHER = .*sccache[.]exe',body)
             if not direct and not (variable and binding):
                 raise RuntimeError('Ninja bypasses the compiler cache for '+header)
+            flags=re.search(r'(?m)^\s*FLAGS = (.*)$',body)
+            if not flags or not re.search(r'(?:^|\s)[/-]Z7(?:\s|$)',flags[1]):
+                raise RuntimeError('Missing embedded MSVC debug flag for '+header)
+            if re.search(r'(?:^|\s)[/-]Z[iI](?:\s|$)',flags[1]):
+                raise RuntimeError('Shared compiler PDB flag defeats caching for '+header)
         counts[target]=len(matching)
     return counts
 
@@ -41,6 +45,11 @@ def self_test():
             if mode=='variable':builds+='  LAUNCHER = C:/cache/sccache.exe \n'
             builds+='\n'
         assert verify(rules,builds)==dict.fromkeys(TARGETS,1)
+        assert verify(rules,builds.replace('/Z7','-Z7'))==dict.fromkeys(TARGETS,1)
+        for flag in ('-Zi','/Zi','-ZI','/ZI',''):
+            try:verify(rules,builds.replace('/Z7',flag))
+            except RuntimeError:pass
+            else:raise RuntimeError('Noncacheable debug flag negative control passed')
         if mode=='variable':
             broken=builds.replace('  LAUNCHER = C:/cache/sccache.exe \n','',1)
         else:

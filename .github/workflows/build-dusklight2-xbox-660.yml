@@ -6377,8 +6377,8 @@ jobs:
             python "$env:TPR_CONTROL\scripts\verify-740-compiler-cache.py" "$env:TPR_FEED"
             if ($LASTEXITCODE -ne 0) { throw 'Native C++ Ninja cache binding verification failed.' }
             $actualCompileFlags = @($ninjaLines | Where-Object { $_ -match '^  FLAGS = ' })
-            if (-not ($actualCompileFlags -match '/Z7')) { throw 'Cacheable MSVC embedded debug information is missing.' }
-            if ($actualCompileFlags -match '/Z[iI]\b') { throw 'Shared compiler PDB flags would defeat object caching.' }
+            if (-not ($actualCompileFlags -match '(?:^|\s)[/-]Z7(?:\s|$)')) { throw 'Cacheable MSVC embedded debug information is missing.' }
+            if ($actualCompileFlags -match '(?:^|\s)[/-]Z[iI](?:\s|$)') { throw 'Shared compiler PDB flags would defeat object caching.' }
             Write-Host 'PASS .739 actual Ninja compiler launcher and embedded debug information verified.'
           }
           $borealisIoDefinitions735 = @()
