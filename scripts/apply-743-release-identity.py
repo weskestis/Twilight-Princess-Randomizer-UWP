@@ -27,6 +27,9 @@ required_sources = {
     'src/dusk/xbox_vanilla_save.hpp': ['gczelda2', '.bak'],
     'src/d/actor/d_a_title.cpp': ['Xbox title scene request accepted (743)'],
     'src/dusk/mods/loader/natives.cpp': ['port_twilit_essentials_mod_initialize', 'uwp_ports::native_id_known'],
+    'sdk/include/mods/svc/gfx.h': ['GFX_SERVICE_MINOR 4u', 'WGPUTexture colorTexture'],
+    'src/dusk/mods/svc/gfx.cpp': ['out.colorTexture = resolved.colorTexture.Get()', 'offsetof(GfxResolvedTargets, colorTexture)'],
+    'extern/aurora/lib/gfx/recording.cpp': ['out.colorTexture = entry.color.texture', 'TextureUsage::CopySrc | wgpu::TextureUsage::TextureBinding'],
 }
 for name, markers in required_sources.items():
     text = (root / name).read_text(encoding='utf-8')

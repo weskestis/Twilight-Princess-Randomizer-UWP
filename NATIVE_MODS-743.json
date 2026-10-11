@@ -770,7 +770,13 @@
       "privateNamespaces": [],
       "metadataSection": "p16meta",
       "metadataDefine": "DUSK_STATIC_PORT_16",
-      "cmakeDefines": []
+      "cmakeDefines": [],
+      "sourcePatches": [
+        {
+          "name": "xbox-interlacing-lifecycle-743.patch",
+          "sha256": "4752ac43cf334e8aa0579fc03a778e3a7344b47da4cd3d54a9e69c3889b149c2"
+        }
+      ]
     },
     {
       "id": "com.jdflyer.betaquest",
@@ -813,7 +819,13 @@
       "privateNamespaces": [],
       "metadataSection": "p17meta",
       "metadataDefine": "DUSK_STATIC_PORT_17",
-      "cmakeDefines": []
+      "cmakeDefines": [],
+      "sourcePatches": [
+        {
+          "name": "xbox-betaquest-cxx20-743.patch",
+          "sha256": "e2338f2ae5d8efb275ddf3866833376b6a474ae095701243362d769f963e07cd"
+        }
+      ]
     },
     {
       "id": "io.github.noaseto.english_names",

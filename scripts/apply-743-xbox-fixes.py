@@ -2,7 +2,7 @@
 import hashlib,json,os,subprocess,tempfile
 from pathlib import Path
 root=Path(os.environ['TPR_SRC']);control=Path(os.environ.get('TPR_CONTROL',Path(__file__).resolve().parents[1]));identity=json.loads((control/'APP_IDENTITY-743.json').read_text())
-names=['xbox-controller-ui-selection-743.patch','xbox-mod-install-paths-743-host.patch','custom-mod-groups-743-host.patch','xbox-mod-menu-budget-743-host.patch','xbox-vanilla-direct-gci-743-host.patch','xbox-title-transition-743-host.patch']
+names=['xbox-controller-ui-selection-743.patch','xbox-mod-install-paths-743-host.patch','custom-mod-groups-743-host.patch','xbox-mod-menu-budget-743-host.patch','xbox-vanilla-direct-gci-743-host.patch','xbox-title-transition-743-host.patch','xbox-gfx-snapshot-textures-743-host.patch']
 originals={}
 with tempfile.TemporaryDirectory(prefix='xbox-fixes-743-') as temp:
     patches=[]

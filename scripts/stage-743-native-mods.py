@@ -1,5 +1,5 @@
 """Stage pinned native sources and their matching resource-only release bundles."""
-import argparse,hashlib,json,re,shutil,stat,urllib.request,zipfile
+import argparse,hashlib,json,re,shutil,stat,subprocess,tempfile,urllib.request,zipfile
 from pathlib import Path,PurePosixPath
 p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('--cache',type=Path);a=p.parse_args();root=a.source.resolve();control=Path(__file__).resolve().parents[1];lock=json.loads((control/'NATIVE_MODS-743.json').read_text());cache=(a.cache or root/'.uwp-native-downloads-743').resolve();cache.mkdir(parents=True,exist_ok=True)
 def verified(entry):
@@ -23,6 +23,21 @@ for mod in lock['mods']:
             info=package.getinfo(top+name)
             if stat.S_ISLNK(info.external_attr>>16) or info.file_size>128*1024**2:raise RuntimeError('Unsafe source entry')
             f=directory/name;f.parent.mkdir(parents=True,exist_ok=True);f.write_bytes(package.read(info))
+    for spec in mod.get('sourcePatches',[]):
+        patch_name=spec['name']
+        if not safe(patch_name) or '/' in patch_name:raise RuntimeError('Unsafe native patch name')
+        payload=(control/'patches'/patch_name).read_bytes().replace(b'\r\n',b'\n')
+        if hashlib.sha256(payload).hexdigest()!=spec['sha256']:raise RuntimeError('Native source patch hash mismatch: '+patch_name)
+        for line in payload.decode('utf-8').splitlines():
+            if not line.startswith('+++ b/'):continue
+            name=line[6:]
+            if not safe(name) or name not in mod['sourceFiles']:raise RuntimeError('Native patch changes an unpinned source path')
+            file=directory/name;file.write_bytes(file.read_bytes().replace(b'\r\n',b'\n'))
+        with tempfile.TemporaryDirectory(prefix='native-patch-743-') as temp:
+            patch=Path(temp)/patch_name;patch.write_bytes(payload)
+            args=['git','-C',str(root),'apply','--directory=mods/uwp_ports/'+target]
+            subprocess.run([*args,'--check',str(patch)],check=True)
+            subprocess.run([*args,str(patch)],check=True)
     if mod.get('resourceSource')=='sourceArchive':
         with zipfile.ZipFile(verified(mod['sourceArchive'])) as package:
             top=package.namelist()[0].split('/')[0]+'/'

@@ -1,0 +1,108 @@
+--- a/sdk/include/mods/svc/gfx.h
++++ b/sdk/include/mods/svc/gfx.h
+@@ -33,7 +33,7 @@
+ 
+ #define GFX_SERVICE_ID DUSKLIGHT_SERVICE_ID_PREFIX "gfx"
+ #define GFX_SERVICE_MAJOR 1u
+-#define GFX_SERVICE_MINOR 3u
++#define GFX_SERVICE_MINOR 4u
+ 
+ /* Maximum size for push_draw payload */
+ #define GFX_INLINE_DRAW_PAYLOAD_SIZE 128u
+@@ -212,10 +212,14 @@
+     uint32_t height;
+     /* Minor version 3 */
+     WGPUTextureView normal; /* view-space normal snapshot, RGB10A2Unorm when available */
++    /* Minor version 4: borrowed snapshots, valid for this frame; support CopySrc. */
++    WGPUTexture colorTexture;
++    WGPUTexture depthTexture;
++    WGPUTexture normalTexture;
+ } GfxResolvedTargets;
+ 
+ #define GFX_RESOLVED_TARGETS_INIT                                                                  \
+-    {sizeof(GfxResolvedTargets), NULL, NULL, WGPUTextureFormat_Undefined, 0u, 0u, NULL}
++    {sizeof(GfxResolvedTargets), NULL, NULL, WGPUTextureFormat_Undefined, 0u, 0u, NULL, NULL, NULL, NULL}
+ 
+ /*
+  * Passed to GfxComputeFn on the render worker thread; valid only during the call. The encoder is
+--- a/src/dusk/mods/svc/gfx.cpp
++++ b/src/dusk/mods/svc/gfx.cpp
+@@ -696,6 +696,9 @@
+     out.width = resolved.width;
+     out.height = resolved.height;
+     out.normal = resolved.normal.Get();
++    out.colorTexture = resolved.colorTexture.Get();
++    out.depthTexture = resolved.depthTexture.Get();
++    out.normalTexture = resolved.normalTexture.Get();
+     return MOD_OK;
+ }
+ 
+@@ -1357,7 +1360,7 @@
+     request.depth = desc->depth;
+     request.normal = desc->struct_size >= sizeof(GfxResolveDesc) ? desc->normal : 0;
+     if ((!request.color && !request.depth && !request.normal) ||
+-        (request.normal && outputSize < sizeof(GfxResolvedTargets)))
++        (request.normal && outputSize < offsetof(GfxResolvedTargets, colorTexture)))
+     {
+         return MOD_INVALID_ARGUMENT;
+     }
+--- a/extern/aurora/include/aurora/gfx.hpp
++++ b/extern/aurora/include/aurora/gfx.hpp
+@@ -154,6 +154,9 @@
+   wgpu::TextureFormat colorFormat = wgpu::TextureFormat::Undefined;
+   uint32_t width = 0;
+   uint32_t height = 0;
++  wgpu::Texture colorTexture;  // borrowed pooled snapshot, valid for this frame
++  wgpu::Texture depthTexture;
++  wgpu::Texture normalTexture;
+ };
+ 
+ /// Snapshots the current pass targets into pooled textures (valid for the
+--- a/extern/aurora/lib/gfx/recording.cpp
++++ b/extern/aurora/lib/gfx/recording.cpp
+@@ -169,7 +169,7 @@
+     const auto format = webgpu::g_graphicsConfig.surfaceConfiguration.format;
+     const wgpu::TextureDescriptor desc{
+         .label = "Pass Snapshot Color",
+-        .usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding,
++        .usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::TextureBinding,
+         .dimension = wgpu::TextureDimension::e2D,
+         .size = size,
+         .format = format,
+@@ -188,7 +188,7 @@
+   if (wantDepth && (!entry.depth.texture || entry.depth.size.width != width || entry.depth.size.height != height)) {
+     const wgpu::TextureDescriptor desc{
+         .label = "Pass Snapshot Depth",
+-        .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding,
++        .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::TextureBinding,
+         .dimension = wgpu::TextureDimension::e2D,
+         .size = size,
+         .format = wgpu::TextureFormat::R32Float,
+@@ -207,7 +207,7 @@
+   if (wantNormal && (!entry.normal.texture || entry.normal.size.width != width || entry.normal.size.height != height)) {
+     const wgpu::TextureDescriptor desc{
+         .label = "Pass Snapshot Normal",
+-        .usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding,
++        .usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::TextureBinding,
+         .dimension = wgpu::TextureDimension::e2D,
+         .size = size,
+         .format = webgpu::NormalBufferFormat,
+@@ -1036,15 +1036,18 @@
+     if (desc.color) {
+       prevPass.snapshotColorDst = entry.color.texture;
+       out.color = entry.color.view;
++      out.colorTexture = entry.color.texture;
+       out.colorFormat = entry.color.format;
+     }
+     if (wantDepth) {
+       prevPass.snapshotDepthDst = entry.depth.view;
+       out.depth = entry.depth.view;
++      out.depthTexture = entry.depth.texture;
+     }
+     if (wantNormal) {
+       prevPass.snapshotNormalDst = entry.normal.texture;
+       out.normal = entry.normal.view;
++      out.normalTexture = entry.normal.texture;
+     }
+   }
+   out.width = width;

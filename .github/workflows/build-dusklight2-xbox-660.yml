@@ -97,6 +97,20 @@ jobs:
           ninja --version
           Get-Command cl | Select-Object -ExpandProperty Source
 
+      - name: Restore hash-verified mod download cache
+        id: mod-download-cache
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ${{ env.TPR_SRC }}/.uwp-custom-downloads-743/*.zip
+            ${{ env.TPR_SRC }}/.uwp-custom-downloads-743/*.rar
+            ${{ env.TPR_SRC }}/.uwp-native-downloads-743/*.zip
+            ${{ env.TPR_SRC }}/.uwp-native-downloads-743/*.dusk
+            ${{ env.TPR_SRC }}/.uwp-mod-downloads-736/*.dusk
+          key: xbox-mod-downloads-743-${{ hashFiles('_control/CUSTOM_MODS-743.json', '_control/NATIVE_MODS-743.json', '_control/BUNDLED_MODS-736.json') }}
+          restore-keys: xbox-mod-downloads-743-
+
       - name: Fetch exact source and UWP dependency revisions
         shell: powershell
         run: |
@@ -6276,6 +6290,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Production title-transition regression failed.' }
           python "$env:TPR_CONTROL\scripts\test-743-title-transition.py" "$env:TPR_SRC" --negative-control
           if ($LASTEXITCODE -ne 0) { throw 'Production title-transition negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-gfx-snapshots.py" "$env:TPR_SRC" "$env:TPR_UWP_DEP\x64\include"
+          if ($LASTEXITCODE -ne 0) { throw 'Graphics snapshot ABI preservation failed.' }
           python "$env:TPR_CONTROL\scripts\test-743-native-ports.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw 'Additional native SDK isolation/version tests failed.' }
           python "$env:TPR_CONTROL\scripts\test-743-native-ports.py" "$env:TPR_SRC" --shared-namespace-negative-control
@@ -6286,6 +6302,19 @@ jobs:
           git -C "$env:TPR_SRC\extern\borealis" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
+
+      - name: Save reusable hash-verified mod downloads
+        if: always() && steps.mod-download-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ${{ env.TPR_SRC }}/.uwp-custom-downloads-743/*.zip
+            ${{ env.TPR_SRC }}/.uwp-custom-downloads-743/*.rar
+            ${{ env.TPR_SRC }}/.uwp-native-downloads-743/*.zip
+            ${{ env.TPR_SRC }}/.uwp-native-downloads-743/*.dusk
+            ${{ env.TPR_SRC }}/.uwp-mod-downloads-736/*.dusk
+          key: ${{ steps.mod-download-cache.outputs.cache-primary-key }}
 
       - name: Verify literal mod resource paths with the Windows SDK
         shell: powershell
@@ -6373,7 +6402,7 @@ jobs:
           $conflicts = Get-ChildItem "$env:TPR_SRC" -Recurse -File `
             -Include *.c,*.cc,*.cpp,*.h,*.hpp,*.cmake,*.json,*.txt,*.yaml,*.yml |
             Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' } |
-            Select-String -Pattern '^(<<<<<<<|=======|>>>>>>>)' -List
+            Select-String -Pattern '^(<<<<<<<(?: |$)|=======$|>>>>>>>(?: |$))' -List
           if ($conflicts) { throw "Unresolved conflict markers remain: $($conflicts.Path -join ', ')" }
 
       - name: Configure Dusklight 2 UWP feed

@@ -58,7 +58,10 @@
     "Read and atomically write ordinary vanilla GCI saves with the real game checksums, regional identities, redundant quest data and backup recovery when virtual CARD is unavailable",
     "Latch a successfully accepted title scene request, retry failed requests and retain reset/overlap guards",
     "Build 28 additional source ports against the pinned 2.0.1 SDK with independent contexts, exports, imports, C++ hook state, metadata ranges and exact version gates",
-    "Recover Twilit Essentials 2.5.0 source and bundled collection library from a public fork; replace its desktop ShellExecute call with the packaged SDL UWP URL path"
+    "Recover Twilit Essentials 2.5.0 source and bundled collection library from a public fork; replace its desktop ShellExecute call with the packaged SDL UWP URL path",
+    "Backport frame-scoped graphics snapshot texture handles with CopySrc usage and preserve older GfxService output sizes",
+    "Keep Evil Interlacing frame parity in its queued payload, reuse previous-field textures, rebuild pipelines for live multi-attachment layouts and release owned GPU objects on shutdown",
+    "Remove the invalid C++20 constexpr qualifier from Beta Quest runtime random generation"
   ],
   "preserved": [
     "All green .734 Enemy/Boss Soul check types, wide IDs, native FIFO and normal Poe isolation",
@@ -109,7 +112,8 @@
     "xbox-controller-ui-selection-743.patch": "2f64fb87b5bd399f74fdc5ca718cafd9f1a2b74dc8974b218ff5d317939000bf",
     "xbox-mod-menu-budget-743-host.patch": "2aa419b78c5a66e9f2b7522308817e991d43d75fa00d0b6a563e475bf0429bbd",
     "custom-mod-groups-743-host.patch": "52d22622bfc4f9ff62ba0617666433abe260b9a70b7d89d6d5995bb5cc0e52b5",
-    "xbox-title-transition-743-host.patch": "f1615db780c0e04719efac671a81eefacc7781003a06e26a04fa1e9985091720"
+    "xbox-title-transition-743-host.patch": "f1615db780c0e04719efac671a81eefacc7781003a06e26a04fa1e9985091720",
+    "xbox-gfx-snapshot-textures-743-host.patch": "d42973e8ee5c41407f680ac3e94c7b4a76737b2e92e9b8c6c0a7ef88bbfd6481"
   },
   "bundledCatalogMods": 49,
   "catalogInventoryCount": 62,
@@ -133,11 +137,11 @@
   "totalPackagedModEntries": 88,
   "essentialsSourcePort": "Twilit Essentials 2.5.0 recovered from BeZide93/dawnlight-twilit-essentials 7682060c20e2e3757b2888a27bbd958506ccb4f7; matching code and assets; stock 2.7.1 source is unavailable",
   "sourceControls": {
-    "NATIVE_MODS-743.json": "834645307592f95b338d4739d487acd09a4145c32e277420af363a270e708d2f",
+    "NATIVE_MODS-743.json": "a9e35744159ee85a3598f866b7b02e29997f6b3b143f05ba9d26c7373e57d480",
     "CUSTOM_MODS-743.json": "90565a5c4e606e9baea48e9f9f9b4add3dc5e31722ae3787ea80b800f10a4bef",
-    "scripts/apply-743-xbox-fixes.py": "4dea0b2cfd73db9c3386deac317f7b397273abc24de73172a0bc4d5b472ec9ee",
+    "scripts/apply-743-xbox-fixes.py": "f01cd2222b2ba6cf5d0aeb24a767377feade75685841753f028ea9a5c5d7c7e9",
     "scripts/apply-743-native-ports.py": "ebc74f6ab4cc56eebec358f35fdb3293c1e4bb2628767249bd3e78662fc72dc1",
-    "scripts/stage-743-native-mods.py": "2f93cbb03a264e5d54414fa5a7d8b2c3bd776caf45e3f9b255353b1e6688793d",
+    "scripts/stage-743-native-mods.py": "229bc6b59f7cfccdf92989a13ff4cc8c3e1593468fd36281a13f245daf5f57de",
     "scripts/stage-743-custom-mods.py": "9a2369de6bb7afe3c52a03e1ea0dd23866954cf5a2714883ad6eae9db69cf9f5"
   }
 }

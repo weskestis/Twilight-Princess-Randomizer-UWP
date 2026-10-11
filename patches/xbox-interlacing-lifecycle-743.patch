@@ -1,0 +1,185 @@
+--- a/src/mod.cpp
++++ b/src/mod.cpp
+@@ -105,7 +105,7 @@
+     std::unique_ptr<DrawPayload const> const payloadData(
+         *static_cast<DrawPayload const *const *>(payload));
+ 
+-    if (draw_ctx->layout.sample_count != 1 || draw_ctx->layout.color_attachment_count != 1) {
++    if (draw_ctx->layout.sample_count != 1 || draw_ctx->layout.color_attachment_count == 0) {
+         return;
+     }
+ 
+@@ -120,8 +120,8 @@
+         even = gLastFieldView;
+         odd = gLastFieldView;
+     } else {
+-        even = gIsEvenField ? payloadData->color : gLastFieldView;
+-        odd = gIsEvenField ? gLastFieldView : payloadData->color;
++        even = payloadData->evenField ? payloadData->color : gLastFieldView;
++        odd = payloadData->evenField ? gLastFieldView : payloadData->color;
+     }
+ 
+     wgpu::BindGroupEntry const bindGroupEntries[]{
+@@ -154,10 +154,7 @@
+     auto const bindGroup = gDevice.CreateBindGroup(&bindGroupDesc);
+ 
+     wgpu::RenderPassEncoder const encoder(draw_ctx->pass);
+-    encoder.SetPipeline(pipelines::InterlacePipelineFor(
+-        static_cast<wgpu::TextureFormat>(
+-            draw_ctx->layout.color_attachments[GFX_SCENE_COLOR_ATTACHMENT_INDEX].format),
+-        static_cast<wgpu::TextureFormat>(draw_ctx->layout.depth_stencil_format)));
++    encoder.SetPipeline(pipelines::InterlacePipelineFor(draw_ctx->layout));
+ 
+     encoder.SetBindGroup(0, bindGroup);
+     encoder.Draw(pipelines::kVertexDrawCount);
+@@ -183,6 +180,9 @@
+ 
+         gLastField = gDevice.CreateTexture(&descriptor);
+         gLastFieldView = gLastField.CreateView();
++        gLastWidth = payloadData->width;
++        gLastHeight = payloadData->height;
++        gLastFormat = payloadData->color.GetFormat();
+     }
+ 
+     wgpu::CommandEncoder const encoder(compute_ctx->encoder);
+@@ -267,7 +267,16 @@
+ 
+ MOD_EXPORT ModResult mod_update(ModError *) { return MOD_OK; }
+ 
+-MOD_EXPORT ModResult mod_shutdown(ModError *) { return MOD_OK; }
++MOD_EXPORT ModResult mod_shutdown(ModError *) {
++    gLastFieldView = nullptr;
++    gLastField = nullptr;
++    gLastWidth = gLastHeight = 0;
++    gLastFormat = wgpu::TextureFormat::Undefined;
++    gIsEvenField = false;
++    pipelines::Shutdown();
++    gDevice = nullptr;
++    return MOD_OK;
++}
+ }
+ 
+ } // namespace slugcat::interlace
+--- a/src/pipelines.hpp
++++ b/src/pipelines.hpp
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include "webgpu/webgpu_cpp.h"
++#include "mods/svc/gfx.h"
+ 
+ namespace slugcat::interlace::pipelines {
+ 
+@@ -9,8 +10,9 @@
+ extern wgpu::Sampler gSampler;
+ extern wgpu::BindGroupLayout gBindGroupLayout;
+ 
+-wgpu::RenderPipeline const& InterlacePipelineFor(wgpu::TextureFormat colorFormat, wgpu::TextureFormat depthFormat);
++wgpu::RenderPipeline const& InterlacePipelineFor(const GfxRenderTargetLayout& layout);
+ 
+ void Init();
++void Shutdown();
+ 
+ } // namespace slugcat::interlace::pipelines
+--- a/src/pipelines.cpp
++++ b/src/pipelines.cpp
+@@ -6,6 +6,8 @@
+ #include "mods/svc/resource.h"
+ 
+ #include <stdexcept>
++#include <array>
++#include <algorithm>
+ #include <string>
+ 
+ namespace slugcat::interlace::pipelines {
+@@ -21,8 +23,7 @@
+ wgpu::ShaderModule gInterlaceModule;
+ wgpu::PipelineLayout gPipelineLayout;
+ 
+-wgpu::TextureFormat gLastColorFormat;
+-wgpu::TextureFormat gLastDepthFormat;
++uint64_t gLastLayoutKey = 0;
+ wgpu::RenderPipeline gCachedPipeline;
+ 
+ std::string LoadShaderSource(char const *path) {
+@@ -54,24 +55,24 @@
+     return gDevice.CreateShaderModule(&shaderModuleDesc);
+ }
+ 
+-wgpu::RenderPipeline MakeInterlacePipeline(wgpu::TextureFormat const colorFormat,
+-                                           wgpu::TextureFormat const depthFormat) {
++wgpu::RenderPipeline MakeInterlacePipeline(const GfxRenderTargetLayout& layout) {
+     wgpu::DepthStencilState const depthStencilState{
+-        .format = depthFormat,
++        .format = static_cast<wgpu::TextureFormat>(layout.depth_stencil_format),
+         .depthWriteEnabled = false,
+         .depthCompare = wgpu::CompareFunction::Always,
+     };
+ 
+-    wgpu::ColorTargetState const colorTargets[]{
+-        {
+-            .format = colorFormat,
+-        },
+-    };
++    std::array<wgpu::ColorTargetState, GFX_MAX_COLOR_ATTACHMENTS> colorTargets{};
++    const auto count = std::min(layout.color_attachment_count, GFX_MAX_COLOR_ATTACHMENTS);
++    for (uint32_t i = 0; i < count; ++i) {
++        colorTargets[i].format = static_cast<wgpu::TextureFormat>(layout.color_attachments[i].format);
++        colorTargets[i].writeMask = i == GFX_SCENE_COLOR_ATTACHMENT_INDEX ? wgpu::ColorWriteMask::All : wgpu::ColorWriteMask::None;
++    }
+ 
+     wgpu::FragmentState const fragmentState{
+         .module = gInterlaceModule,
+-        .targetCount = std::size(colorTargets),
+-        .targets = colorTargets,
++        .targetCount = count,
++        .targets = colorTargets.data(),
+     };
+ 
+     wgpu::RenderPipelineDescriptor const desc{
+@@ -86,7 +87,8 @@
+             {
+                 .topology = wgpu::PrimitiveTopology::TriangleList,
+             },
+-        .depthStencil = &depthStencilState,
++        .depthStencil = layout.depth_stencil_format == WGPUTextureFormat_Undefined ? nullptr : &depthStencilState,
++        .multisample = {.count = layout.sample_count},
+         .fragment = &fragmentState,
+     };
+ 
+@@ -95,15 +97,13 @@
+ 
+ } // namespace
+ 
+-wgpu::RenderPipeline const &InterlacePipelineFor(wgpu::TextureFormat const colorFormat,
+-                                                 wgpu::TextureFormat const depthFormat) {
+-    if (gLastColorFormat == colorFormat && gLastDepthFormat == depthFormat) {
++wgpu::RenderPipeline const &InterlacePipelineFor(const GfxRenderTargetLayout& layout) {
++    if (gCachedPipeline && gLastLayoutKey == layout.key) {
+         return gCachedPipeline;
+     }
+ 
+-    gCachedPipeline = MakeInterlacePipeline(colorFormat, depthFormat);
+-    gLastColorFormat = colorFormat;
+-    gLastDepthFormat = depthFormat;
++    gCachedPipeline = MakeInterlacePipeline(layout);
++    gLastLayoutKey = layout.key;
+ 
+     return gCachedPipeline;
+ }
+@@ -174,3 +174,15 @@
+ }
+ 
+ } // namespace slugcat::interlace::pipelines
++
++namespace slugcat::interlace::pipelines {
++void Shutdown() {
++    gCachedPipeline = nullptr;
++    gLastLayoutKey = 0;
++    gSampler = nullptr;
++    gBindGroupLayout = nullptr;
++    gPipelineLayout = nullptr;
++    gVertexModule = nullptr;
++    gInterlaceModule = nullptr;
++}
++}

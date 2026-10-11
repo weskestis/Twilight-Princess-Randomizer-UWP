@@ -1,0 +1,11 @@
+--- a/src/mod.cpp
++++ b/src/mod.cpp
+@@ -90,7 +90,7 @@
+     EntranceEntry entries[];
+ };
+ 
+-constexpr u32 getRandomIndex(std::mt19937 &gen, int size) {
++u32 getRandomIndex(std::mt19937 &gen, int size) {
+     std::uniform_int_distribution<int> dist(0, size - 1);
+     return dist(gen);
+ }
