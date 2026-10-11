@@ -1,6 +1,6 @@
-This batch is staged for the next Xbox update. The installed package remains
-1.4.1.741. No next package has been built or dispatched; additional console
-reports are being collected before the release identity advances.
+This batch is included in the 1.4.1.742 Xbox update. The release advances the
+complete green .741 source and retains every earlier source layer and all
+67 strict generator scenarios.
 
 The reports from .741 are:
 
@@ -47,7 +47,7 @@ Filesystem/SDL adapters are fault-injection fixtures; this is not an Xbox
 runtime result. These regressions are wired into the next build workflow.
 
 The exact console crash and remaining Slot A cause have not been established
-from console logs. Full Windows compilation, visual menu verification, signed
-packaging, the retained 67 generator scenarios and Xbox retesting remain pending
-while the next build is on hold. Do not describe either console issue as confirmed
-resolved yet.
+from console logs. Release packaging requires full Windows compilation, all
+67 generator scenarios and signed-package verification. Visual menu verification
+and Xbox retesting remain separate checks. Do not describe either console issue
+as confirmed resolved from native fixtures or build results alone.
