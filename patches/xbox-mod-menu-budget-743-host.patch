@@ -1,0 +1,48 @@
+diff --git a/src/dusk/ui/mod_texture_provider.cpp b/src/dusk/ui/mod_texture_provider.cpp
+--- a/src/dusk/ui/mod_texture_provider.cpp
++++ b/src/dusk/ui/mod_texture_provider.cpp
+@@ -41,10 +41,30 @@
+ constexpr std::string_view kScheme = "mod";
+ constexpr std::string_view kSourcePrefix = "mod://";
+ constexpr size_t kMaxCachedImages = 64;
+-constexpr size_t kMaxCachedImageBytes = 64 * 1024 * 1024;
++constexpr size_t kMaxCachedImageBytes = 16 * 1024 * 1024;
+ constexpr size_t kMaxImageFileSize = 16 * 1024 * 1024;
+-constexpr uint32_t kMaxModIconDimension = 512;
+-constexpr uint32_t kMaxModPreviewDimension = 1024;
++constexpr uint32_t kMaxModIconDimension = 256;
++constexpr uint32_t kMaxModPreviewDimension = 768;
++
++// Bound the temporary decoded image before libpng allocates the full RGBA buffer.
++// The author's 2941px icons fit, while a 4096px preview cannot consume 64 MiB
++// in addition to cached CPU images and the renderer's GPU textures.
++constexpr uint64_t kMaxDecodedModImageBytes = 36ull * 1024 * 1024;
++bool bounded_mod_png(std::span<const u8> data) noexcept {
++    constexpr uint8_t signature[] = {137,80,78,71,13,10,26,10};
++    if (data.size() < 33 || !std::equal(std::begin(signature), std::end(signature), data.begin()) ||
++        data[8] != 0 || data[9] != 0 || data[10] != 0 || data[11] != 13 ||
++        data[12] != 'I' || data[13] != 'H' || data[14] != 'D' || data[15] != 'R') {
++        return false;
++    }
++    const auto read32 = [&](size_t offset) {
++        return (uint32_t(data[offset]) << 24) | (uint32_t(data[offset+1]) << 16) |
++               (uint32_t(data[offset+2]) << 8) | uint32_t(data[offset+3]);
++    };
++    const uint32_t width = read32(16), height = read32(20);
++    return width != 0 && height != 0 && width <= 4096 && height <= 4096 &&
++           uint64_t(width) * height * 4 <= kMaxDecodedModImageBytes;
++}
+ 
+ void fit_mod_image(DecodedImage& image, uint32_t limit) {
+     const uint32_t largest = std::max(image.width, image.height);
+@@ -132,6 +152,10 @@
+             return std::nullopt;
+         }
+         data = bundle->readFile(path);
++        if (!bounded_mod_png(std::span<const u8>{data.data(), data.size()})) {
++            Log.warn("Mod menu image '{}' exceeds the temporary decode budget or has an invalid PNG header", source);
++            return std::nullopt;
++        }
+         auto image = decode_png(std::span{data.data(), data.size()}, source);
+         if (image) {
+             // These are UI previews. Keep original gameplay textures and bundle

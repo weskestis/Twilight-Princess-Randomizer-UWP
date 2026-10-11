@@ -1,0 +1,51 @@
+{
+  "checkpoint": {
+    "name": "Twilight-Princess-Randomizer-UWP-Checkpoint-20.zip",
+    "sha256": "79dd0351ba3f473175e60e96ac8b4d60fb19ee503adc0c462e8c1b9b4ef46d89",
+    "size": 41784040
+  },
+  "release": "tpr-cp20-build-assets",
+  "external": [
+    {
+      "name": "bark_76c8a.zip",
+      "url": "https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-build-assets/bark_76c8a.zip",
+      "size": 10856832,
+      "sha256": "8d04a044a2e588c2143e651be027ef18b23e735166e13fba5de5fe80ca717c5a"
+    },
+    {
+      "name": "epona_of_time_for_tp.zip",
+      "url": "https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-build-assets/epona_of_time_for_tp.zip",
+      "size": 9107719,
+      "sha256": "a34a2cb19293c78fa7bbff605c775bc1ac1cbf5c6b43d642c59f6425ced8ff5c"
+    },
+    {
+      "name": "hd_hylian_shield_-_hero_shield.rar",
+      "url": "https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-build-assets/hd_hylian_shield_-_hero_shield.rar",
+      "size": 4077961,
+      "sha256": "84cad3585f6574151dd8bb42a2b14a9d0bf375973427a9349a32ce2009913b39"
+    },
+    {
+      "name": "HourOfTwilight.-.Patron.Build.v1.GC.zip",
+      "url": "https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-build-assets/HourOfTwilight.-.Patron.Build.v1.GC.zip",
+      "size": 507978796,
+      "sha256": "3cbb2a4c1437bead88db7448026c7dbf69ee90465c90883ef902984fb553dd4f"
+    },
+    {
+      "name": "tunic.packs.zip",
+      "url": "https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-build-assets/tunic.packs.zip",
+      "size": 212682382,
+      "sha256": "e5ae70899354c45ed22629c37e17346668b64051859eed34c9a80d8039f52ba7"
+    },
+    {
+      "name": "woof_woof.1.zip",
+      "url": "https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/releases/download/tpr-cp20-build-assets/woof_woof.1.zip",
+      "size": 17750718,
+      "sha256": "dc0f6b6d9e521cfc266f6cfdaa1947ee6afa644ec20ed55788d9c09b2d0d6d0a"
+    }
+  ],
+  "expectedSelectableMods": 35,
+  "expectedTextureFiles": 335,
+  "expectedOverlayFiles": 421,
+  "activationDefault": "disabled",
+  "storage": "directory"
+}

@@ -4,7 +4,7 @@ from pathlib import Path
 import struct
 
 
-def verify(path):
+def verify(path, descriptors=None):
     data = path.read_bytes()
     def unpack(fmt, offset):
         return struct.unpack_from(fmt, data, offset)
@@ -41,7 +41,8 @@ def verify(path):
     names = struct.unpack('<'+'I'*names_count,read(names_rva,4*names_count))
     ordinals = struct.unpack('<'+'H'*names_count,read(ordinals_rva,2*names_count))
     exports = {cstring(name):functions[ordinal] for name,ordinal in zip(names,ordinals)}
-    descriptors = [('','modmeta'),('cosmetics_','cosmeta'),('controller_ui_','cuimeta'),('luau_runtime_','luumeta')]
+    if descriptors is None:
+        descriptors = [('','modmeta'),('cosmetics_','cosmeta'),('controller_ui_','cuimeta'),('luau_runtime_','luumeta')]
     ranges,contexts = [],[]
     for prefix,expected_section in descriptors:
         label = prefix+'mod_meta'

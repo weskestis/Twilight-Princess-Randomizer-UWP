@@ -1,0 +1,355 @@
+diff --git a/src/dusk/xbox_vanilla_save.hpp b/src/dusk/xbox_vanilla_save.hpp
+new file mode 100644
+--- /dev/null
++++ b/src/dusk/xbox_vanilla_save.hpp
+@@ -0,0 +1,92 @@
++#pragma once
++#include <array>
++#include <cstring>
++#include <filesystem>
++#include <fstream>
++#include <span>
++#include <string_view>
++#include <vector>
++
++namespace dusk::xbox_vanilla_save {
++constexpr size_t kGciHeaderSize=64, kPayloadSize=0x8000, kQuestSize=0xA94;
++enum class Status { Missing, Valid, Invalid };
++
++inline bool read_gci(const std::filesystem::path& path,std::string_view game,
++                     std::string_view maker,std::span<uint8_t> output,
++                     bool (*questValid)(void*)) {
++    if(game.size()!=4||maker.size()!=2||output.size()!=kQuestSize*3)return false;
++    std::error_code ec;const auto status=std::filesystem::symlink_status(path,ec);
++    if(ec||!std::filesystem::is_regular_file(status))return false;
++    if(std::filesystem::file_size(path,ec)!=kGciHeaderSize+kPayloadSize||ec)return false;
++    std::array<uint8_t,kGciHeaderSize+kPayloadSize> packet{};
++    std::ifstream in(path,std::ios::binary);
++    if(!in.read(reinterpret_cast<char*>(packet.data()),packet.size()))return false;
++    if(std::memcmp(packet.data(),game.data(),4)||std::memcmp(packet.data()+4,maker.data(),2)||
++       std::memcmp(packet.data()+8,"gczelda2\0",8)||packet[56]!=0||packet[57]!=4)return false;
++    const auto versionValid=[&](size_t n){
++        // PC GCI metadata is little-endian; Dolphin/original-console GCI uses big-endian.
++        return (packet[n]==6&&packet[n+1]==0&&packet[n+2]==0&&packet[n+3]==0)||
++               (packet[n]==0&&packet[n+1]==0&&packet[n+2]==0&&packet[n+3]==6);
++    };
++    const size_t primary=kGciHeaderSize+0x4000,backup=kGciHeaderSize+0x6000;
++    const bool primaryVersion=versionValid(primary+4),backupVersion=versionValid(backup+4);
++    if(!primaryVersion&&!backupVersion)return false;
++    bool anyValid=false;
++    std::array<uint8_t,kQuestSize*3> recovered{};
++    for(size_t i=0;i<3;++i){
++        auto* original=packet.data()+primary+8+i*kQuestSize;
++        auto* alternate=packet.data()+backup+8+i*kQuestSize;
++        const bool originalValid=primaryVersion&&questValid(original);
++        const bool alternateValid=backupVersion&&questValid(alternate);
++        anyValid=anyValid||originalValid||alternateValid;
++        std::memcpy(recovered.data()+i*kQuestSize,
++                    !originalValid&&alternateValid?alternate:original,kQuestSize);
++    }
++    if(anyValid)std::memcpy(output.data(),recovered.data(),recovered.size());
++    return anyValid;
++}
++
++inline Status inspect(const std::filesystem::path& path,std::string_view game,
++                      std::string_view maker,bool (*questValid)(void*)) {
++    std::array<uint8_t,kQuestSize*3> data{};
++    std::error_code ec;
++    if(!std::filesystem::exists(path,ec)){
++        if(ec)return Status::Invalid;
++        auto backup=path;backup+=".bak";
++        if(!std::filesystem::exists(backup,ec))return ec?Status::Invalid:Status::Missing;
++        if(!read_gci(backup,game,maker,data,questValid))return Status::Invalid;
++        std::filesystem::rename(backup,path,ec);
++        if(ec)return Status::Invalid;
++    }
++    return read_gci(path,game,maker,data,questValid)?Status::Valid:Status::Invalid;
++}
++
++inline bool write_atomic(const std::filesystem::path& path,std::span<const uint8_t> packet) {
++    if(packet.size()!=kGciHeaderSize+kPayloadSize)return false;
++    std::error_code ec;std::filesystem::create_directories(path.parent_path(),ec);
++    if(ec)return false;
++    const auto status=std::filesystem::symlink_status(path,ec);
++    if(ec&&ec!=std::errc::no_such_file_or_directory)return false;
++    if(std::filesystem::exists(status)&&!std::filesystem::is_regular_file(status))return false;
++    auto temporary=path;temporary+=".tmp";auto backup=path;backup+=".bak";
++    for(const auto& candidate:{temporary,backup}){
++        ec.clear();const auto candidateStatus=std::filesystem::symlink_status(candidate,ec);
++        if((ec&&ec!=std::errc::no_such_file_or_directory)||
++           (std::filesystem::exists(candidateStatus)&&!std::filesystem::is_regular_file(candidateStatus)))return false;
++    }
++    {
++        std::ofstream out(temporary,std::ios::binary|std::ios::trunc);
++        if(!out.write(reinterpret_cast<const char*>(packet.data()),packet.size()))return false;
++        out.flush();if(!out.good())return false;out.close();if(!out.good())return false;
++    }
++    const bool existed=std::filesystem::exists(status);
++    if(existed){
++        ec.clear();std::filesystem::remove(backup,ec);if(ec)return false;
++        std::filesystem::rename(path,backup,ec);if(ec)return false;
++    }
++    ec.clear();std::filesystem::rename(temporary,path,ec);
++    if(ec){if(existed){std::error_code restore;std::filesystem::rename(backup,path,restore);}return false;}
++    // Keep the preceding complete GCI for recovery; never delete a legacy save during inspection.
++    return true;
++}
++} // namespace dusk::xbox_vanilla_save
+diff --git a/include/m_Do/m_Do_MemCardRWmng.h b/include/m_Do/m_Do_MemCardRWmng.h
+--- a/include/m_Do/m_Do_MemCardRWmng.h
++++ b/include/m_Do/m_Do_MemCardRWmng.h
+@@ -3,6 +3,10 @@
+ 
+ #include "global.h"
+ #include <card.h>
++#if defined(_UWP)
++#include <vector>
++void mDoMemCdRWm_BuildXboxGci(const u8* data, std::vector<u8>& packet);
++#endif
+ 
+ #if PLATFORM_WII || PLATFORM_SHIELD
+ #include <revolution/nand.h>
+diff --git a/src/m_Do/m_Do_MemCardRWmng.cpp b/src/m_Do/m_Do_MemCardRWmng.cpp
+--- a/src/m_Do/m_Do_MemCardRWmng.cpp
++++ b/src/m_Do/m_Do_MemCardRWmng.cpp
+@@ -10,6 +10,9 @@
+ #include "d/d_save.h"
+ #include <cstdio>
+ #include <cstring>
++#if defined(_UWP)
++#include <array>
++#endif
+ 
+ #include "dusk/version.hpp"
+ 
+@@ -503,3 +506,29 @@
+     u64 checksum = mDoMemCdRWm_CalcCheckSumGameData(file_ptr, (SAVEDATA_SIZE - sizeof(u64)));
+     *(BE(u64)*)(file_ptr + (SAVEDATA_SIZE - sizeof(u64))) = checksum;
+ }
++
++#if defined(_UWP)
++// Build the same standard GCI payload as mDoMemCdRWm_Store, using its real
++// banner/icon construction, quest bytes and sector checksum implementation.
++void mDoMemCdRWm_BuildXboxGci(const u8* data, std::vector<u8>& packet) {
++    packet.assign(64 + CARD_FILE_SIZE, 0);
++    const auto& disc = dusk::version::getDiskID();
++    std::memcpy(packet.data(), disc.gameName, 4);
++    std::memcpy(packet.data()+4, disc.company, 2);
++    packet[7] = 5; // C8 banner and bounce icon animation.
++    std::memcpy(packet.data()+8, "gczelda2", 8);
++    packet[48] = 1; packet[49] = 0x55; // Five C8 icons.
++    packet[50] = 1; packet[51] = 0x55; // Five fast animation frames.
++    packet[52] = 4; packet[54] = 0xff; packet[55] = 0xff;
++    packet[56] = 0; packet[57] = 4; // Four 8192-byte blocks.
++    packet[62] = 0x24; // Comment at 0x2400 in the payload.
++    mDoMemCdRWm_BuildHeader(reinterpret_cast<mDoMemCdRWm_HeaderData*>(packet.data()+64));
++    alignas(data_s) std::array<u8, SECTOR_SIZE> sector{};
++    auto* saves = reinterpret_cast<data_s*>(sector.data());
++    saves->data_version = SAVEDATA_VERSION;
++    std::memcpy(saves->data, data, SAVEFILE_SIZE);
++    saves->checksum = mDoMemCdRWm_CalcCheckSum(saves, sizeof(data_s)-4);
++    std::memcpy(packet.data()+64+0x4000, sector.data(), sector.size());
++    std::memcpy(packet.data()+64+0x6000, sector.data(), sector.size());
++}
++#endif
+diff --git a/src/m_Do/m_Do_MemCard.cpp b/src/m_Do/m_Do_MemCard.cpp
+--- a/src/m_Do/m_Do_MemCard.cpp
++++ b/src/m_Do/m_Do_MemCard.cpp
+@@ -6,6 +6,7 @@
+ #include "m_Do/m_Do_MemCard.h"
+ #if defined(_UWP)
+ #include "dusk/startup_guard.hpp"
++#include "dusk/xbox_vanilla_save.hpp"
+ #include <fmt/format.h>
+ #endif
+ #include <card.h>
+@@ -54,6 +55,19 @@
+ 
+ enum class XboxRandomizerSaveStatus { Missing, Valid, Invalid };
+ 
++bool xboxDirectSaveName(std::string_view name) {
++    return name == kXboxRandomizerSaveName || name == "gczelda2";
++}
++std::filesystem::path xboxVanillaSavePath() {
++    const auto& disc = dusk::version::getDiskID();
++    const std::string game(disc.gameName, 4), maker(disc.company, 2);
++    const char* region = game[3] == 'P' ? "EUR" : game[3] == 'J' ? "JAP" : "USA";
++    return dusk::ConfigPath / region / "Card A" / (maker + "-" + game + "-gczelda2.gci");
++}
++bool xboxVanillaQuestValid(void* data) {
++    return mDoMemCdRWm_TestCheckSumGameData(data) != FALSE;
++}
++
+ std::filesystem::path xboxRandomizerSavePath() {
+     return dusk::ConfigPath / "randomizer-xbox.sav";
+ }
+@@ -67,7 +81,15 @@
+     return hash;
+ }
+ 
+-XboxRandomizerSaveStatus inspectXboxRandomizerSave() {
++XboxRandomizerSaveStatus inspectXboxRandomizerSave(std::string_view fileName = kXboxRandomizerSaveName) {
++    if (fileName == "gczelda2") {
++        const auto& disc = dusk::version::getDiskID();
++        const auto result = dusk::xbox_vanilla_save::inspect(xboxVanillaSavePath(),
++            std::string_view(disc.gameName,4), std::string_view(disc.company,2), xboxVanillaQuestValid);
++        using Status = dusk::xbox_vanilla_save::Status;
++        return result == Status::Valid ? XboxRandomizerSaveStatus::Valid :
++            result == Status::Missing ? XboxRandomizerSaveStatus::Missing : XboxRandomizerSaveStatus::Invalid;
++    }
+     const auto path = xboxRandomizerSavePath();
+     std::error_code ec;
+     if (!std::filesystem::exists(path, ec)) {
+@@ -92,7 +114,13 @@
+         XboxRandomizerSaveStatus::Valid : XboxRandomizerSaveStatus::Invalid;
+ }
+ 
+-bool readXboxRandomizerSave(u8* outData) {
++bool readXboxRandomizerSave(u8* outData, std::string_view fileName = kXboxRandomizerSaveName) {
++    if (fileName == "gczelda2") {
++        const auto& disc = dusk::version::getDiskID();
++        return dusk::xbox_vanilla_save::read_gci(xboxVanillaSavePath(),
++            std::string_view(disc.gameName,4), std::string_view(disc.company,2),
++            std::span<u8>(outData,SAVEFILE_SIZE), xboxVanillaQuestValid);
++    }
+     const auto path = xboxRandomizerSavePath();
+     std::ifstream in(path, std::ios::binary);
+     XboxRandomizerSaveHeader header{};
+@@ -112,7 +140,12 @@
+     return true;
+ }
+ 
+-bool writeXboxRandomizerSave(const u8* data) {
++bool writeXboxRandomizerSave(const u8* data, std::string_view fileName = kXboxRandomizerSaveName) {
++    if (fileName == "gczelda2") {
++        std::vector<u8> packet;
++        mDoMemCdRWm_BuildXboxGci(data, packet);
++        return dusk::xbox_vanilla_save::write_atomic(xboxVanillaSavePath(), packet);
++    }
+     const auto path = xboxRandomizerSavePath();
+     auto tempPath = path;
+     tempPath += ".tmp";
+@@ -263,6 +296,17 @@
+ 
+     OSInitMutex(&mMutex);
+     OSInitCond(&mCond);
++#if defined(_UWP)
++    if (xboxDirectSaveName(getFileName())) {
++        const auto directStatus = inspectXboxRandomizerSave(getFileName());
++        mProbeStat = 0;
++        mCardState = directStatus == XboxRandomizerSaveStatus::Valid ? CARD_STATE_READY_e :
++            directStatus == XboxRandomizerSaveStatus::Missing ? CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;
++        field_0x1fc8 = 1;
++        mCardCommand = COMM_NONE_e;
++        dusk::startup_guard::stage("card.direct-gci-and-randomizer-743");
++    }
++#endif
+     OSCreateThread(&MemCardThread, (void* (*)(void*))mDoMemCd_main, NULL,
+         MemCardStack + sizeof(MemCardStack), sizeof(MemCardStack),
+         OSGetThreadPriority(OSGetCurrentThread()) + 1, 1);
+@@ -351,6 +395,12 @@
+ }
+ 
+ void mDoMemCd_Ctrl_c::update() {
++#if defined(_UWP)
++    // A virtual-card probe must not replace a valid direct save state with NOCARD.
++    if (xboxDirectSaveName(getFileName())) {
++        return;
++    }
++#endif
+     if (mDoRst::isReset()) {
+         OSLockMutex(&mMutex);
+         mCardCommand = COMM_DETACH_e;
+@@ -381,14 +431,14 @@
+ void mDoMemCd_Ctrl_c::load() {
+ #if defined(_UWP)
+     const std::string currentFileName = getFileName();
+-    if (currentFileName == kXboxRandomizerSaveName) {
++    if (xboxDirectSaveName(currentFileName)) {
+         if (OSTryLockMutex(&mMutex)) {
+             field_0x1fc8 = 0;
+-            if (readXboxRandomizerSave(mData)) {
++            if (readXboxRandomizerSave(mData, currentFileName)) {
+                 mDataVersion = SAVEDATA_VERSION;
+                 mCardState = CARD_STATE_READ_e;
+             } else {
+-                const auto directStatus = inspectXboxRandomizerSave();
++                const auto directStatus = inspectXboxRandomizerSave(currentFileName);
+                 mCardState = directStatus == XboxRandomizerSaveStatus::Missing ?
+                     CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;
+             }
+@@ -481,11 +531,11 @@
+ void mDoMemCd_Ctrl_c::save(void* i_buffer, u32 i_size, u32 i_position) {
+ #if defined(_UWP)
+     const std::string currentFileName = getFileName();
+-    if (currentFileName == kXboxRandomizerSaveName) {
++    if (xboxDirectSaveName(currentFileName)) {
+         if (OSTryLockMutex(&mMutex)) {
+             memcpy(&mData[i_position], i_buffer, i_size);
+             field_0x1fc8 = 0;
+-            mCardState = writeXboxRandomizerSave(mData) ? CARD_STATE_WRITE_e : CARD_STATE_FATAL_ERROR_e;
++            mCardState = writeXboxRandomizerSave(mData, currentFileName) ? CARD_STATE_WRITE_e : CARD_STATE_FATAL_ERROR_e;
+             field_0x1fc8 = 1;
+             OSUnlockMutex(&mMutex);
+         }
+@@ -729,6 +779,21 @@
+ }
+ 
+ void mDoMemCd_Ctrl_c::command_attach() {
++#if defined(_UWP)
++    const std::string currentFileName = getFileName();
++    if (xboxDirectSaveName(currentFileName)) {
++        if (OSTryLockMutex(&mMutex)) {
++            const auto directStatus = inspectXboxRandomizerSave(currentFileName);
++            mProbeStat = 0;
++            mCardState = directStatus == XboxRandomizerSaveStatus::Valid ? CARD_STATE_READY_e :
++                directStatus == XboxRandomizerSaveStatus::Missing ? CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;
++            field_0x1fc8 = 1;
++            mCardCommand = COMM_NONE_e;
++            OSUnlockMutex(&mMutex);
++        }
++        return;
++    }
++#endif
+     if (OSTryLockMutex(&mMutex)) {
+         mCardState = CARD_STATE_13_e;
+         mCardCommand = COMM_ATTACH_e;
+@@ -1159,16 +1224,12 @@
+     while (mCardCommand != COMM_NONE_e) {
+         OSWaitCond(&mCond, &mMutex);
+     }
+-    if (mFileName == fileName) {
+-        OSUnlockMutex(&mMutex);
+-        return;
+-    }
+ 
+     mFileName = fileName;
+     mProbeStat = 0;
+ #if defined(_UWP)
+-    if (fileName == kXboxRandomizerSaveName) {
+-        const auto directStatus = inspectXboxRandomizerSave();
++    if (xboxDirectSaveName(fileName)) {
++        const auto directStatus = inspectXboxRandomizerSave(fileName);
+         mCardState = directStatus == XboxRandomizerSaveStatus::Valid ? CARD_STATE_READY_e :
+             directStatus == XboxRandomizerSaveStatus::Missing ? CARD_STATE_NO_FILE_e : CARD_STATE_FATAL_ERROR_e;
+         field_0x1fc8 = 1;
+diff --git a/src/dusk/save_manager.cpp b/src/dusk/save_manager.cpp
+--- a/src/dusk/save_manager.cpp
++++ b/src/dusk/save_manager.cpp
+@@ -599,7 +599,16 @@
+ }
+ 
+ Result finish_write(const Storage& storage, std::span<const SaveIdentity> identities) {
++#if defined(_UWP)
++    const bool directVanilla = storage.kind == StorageKind::GciDirectory && !identities.empty() &&
++        std::ranges::all_of(identities, [](const auto& identity) { return identity.saveName == "gczelda2"; });
++    const bool remounted = !storage.mounted || directVanilla || aurora_card_remount(storage.channel);
++    if (directVanilla && std::string_view(mDoMemCd_getFileName()) == "gczelda2") {
++        g_mDoMemCd_control.command_attach();
++    }
++#else
+     const bool remounted = !storage.mounted || aurora_card_remount(storage.channel);
++#endif
+     for (const auto& identity : identities) {
+         mods::svc::invalidate_save(identity.saveName);
+     }

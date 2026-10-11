@@ -1,0 +1,90 @@
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -5,6 +5,7 @@
+ #include "native_module.hpp"
+ #include "natives.hpp"
+ #include "packages.hpp"
++#include "dusk/mods/install_paths.hpp"
+ #if DUSK_HAS_PREPATCH
+ #include "prepatch.hpp"
+ #endif
+@@ -991,7 +992,7 @@
+         };
+     }
+     std::error_code error;
+-    const auto userDir = fs::weakly_canonical(m_searchDirs.front().path, error);
++    const auto userDir = install_paths::resolve(m_searchDirs.front().path, error);
+     if (error) {
+         return {
+             .success = false,
+@@ -1000,9 +1001,10 @@
+         };
+     }
+     const auto stagingDir = userDir / ".staging";
+-    const auto path = fs::weakly_canonical(requestedPath, error);
++    const auto path = install_paths::resolve(requestedPath, error);
+     const bool stagedName = path.extension() == ".part" && path.stem().extension() == ".dusk";
+-    if (error || path.parent_path() != stagingDir || !stagedName ||
++    if (error || !install_paths::staging_directory_valid(stagingDir, error) ||
++        path.parent_path() != stagingDir || !stagedName ||
+         !fs::is_regular_file(path, error))
+     {
+         Log.error("refusing staged install from {}", data::abbreviated_path_string(requestedPath));
+@@ -1138,10 +1140,12 @@
+             if (!result.success && !m_searchDirs.empty()) {
+                 // request_install owns only files under the configured staging directory.
+                 std::error_code error;
+-                const auto userDir = fs::weakly_canonical(m_searchDirs.front().path, error);
++                const auto userDir = install_paths::resolve(m_searchDirs.front().path, error);
+                 if (!error) {
+-                    const auto stagedPath = fs::weakly_canonical(install->stagedPath, error);
+-                    if (!error && stagedPath.parent_path() == userDir / ".staging") {
++                    const auto stagedPath = install_paths::resolve(install->stagedPath, error);
++                    if (!error && install_paths::staging_directory_valid(userDir / ".staging", error) &&
++                        stagedPath.parent_path() == userDir / ".staging" &&
++                        fs::is_regular_file(stagedPath, error) && !error) {
+                         fs::remove(stagedPath, error);
+                     }
+                 }
+diff --git a/src/dusk/mods/install_paths.hpp b/src/dusk/mods/install_paths.hpp
+new file mode 100644
+--- /dev/null
++++ b/src/dusk/mods/install_paths.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++#include <filesystem>
++#include <system_error>
++
++namespace dusk::mods::install_paths {
++// Xbox permits access to LocalState descendants, but canonicalization can try
++// to inspect inaccessible volume ancestors. Only the app-owned absolute paths
++// used by the installer take this route; reject links rather than resolving them.
++inline std::filesystem::path resolve(const std::filesystem::path& value,
++                                     std::error_code& error) {
++#if defined(_UWP)
++    error.clear();
++    if (!value.is_absolute()) {
++        error=std::make_error_code(std::errc::invalid_argument); return {};
++    }
++    const auto path=value.lexically_normal();
++    const auto status=std::filesystem::symlink_status(path,error);
++    if (error) return {};
++    if (std::filesystem::is_symlink(status)) {
++        error=std::make_error_code(std::errc::too_many_symbolic_link_levels); return {};
++    }
++    if (!std::filesystem::exists(status)) {
++        error=std::make_error_code(std::errc::no_such_file_or_directory); return {};
++    }
++    return path;
++#else
++    return std::filesystem::weakly_canonical(value,error);
++#endif
++}
++
++inline bool staging_directory_valid(const std::filesystem::path& path,
++                                    std::error_code& error) {
++    const auto resolved=resolve(path,error);
++    return !error && std::filesystem::is_directory(resolved,error) && !error;
++}
++}

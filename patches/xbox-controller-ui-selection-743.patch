@@ -1,0 +1,50 @@
+diff --git a/mods/controller_ui/src/mod.cpp b/mods/controller_ui/src/mod.cpp
+--- a/mods/controller_ui/src/mod.cpp
++++ b/mods/controller_ui/src/mod.cpp
+@@ -501,7 +501,11 @@
+     if (g_controllerStyle==0 || svc_config->get_int(mod_ctx,g_controllerStyle,&v)!=MOD_OK) return 0;
+     return v;
+ }
+-bool switch_controller_selected_now() { return raw_controller_style()==2; }
++bool switch_controller_selected_now() {
++    // A saved design change is pending until restart once textures are in use.
++    // Keep the active calibration paired with the latched texture pack.
++    return s_controllerStyleLocked ? s_useSwitch : raw_controller_style()==2;
++}
+ 
+ ConfigVarHandle switch_variant(ConfigVarHandle h) {
+     if (!switch_controller_selected_now()) return h;
+@@ -2512,18 +2516,17 @@
+     return MOD_OK;
+ }
+ 
+-bool controller_style_locked(ModContext*,void*) { return s_controllerStyleLocked; }
+ bool playstation_selected(ModContext*,void*) { return raw_controller_style()==0; }
+ bool xbox_selected(ModContext*,void*) { return raw_controller_style()==1; }
+ bool switch_selected(ModContext*,void*) { return raw_controller_style()==2; }
+ void select_playstation(ModContext*,void*) {
+-    if (!s_controllerStyleLocked) svc_config->set_int(mod_ctx,g_controllerStyle,0);
++    svc_config->set_int(mod_ctx,g_controllerStyle,0);
+ }
+ void select_xbox(ModContext*,void*) {
+-    if (!s_controllerStyleLocked) svc_config->set_int(mod_ctx,g_controllerStyle,1);
++    svc_config->set_int(mod_ctx,g_controllerStyle,1);
+ }
+ void select_switch(ModContext*,void*) {
+-    if (!s_controllerStyleLocked) svc_config->set_int(mod_ctx,g_controllerStyle,2);
++    svc_config->set_int(mod_ctx,g_controllerStyle,2);
+ }
+ 
+ 
+@@ -2685,10 +2688,9 @@
+ ModResult build_layout_panel(ModContext*,UiElementHandle pane,void*,ModError*) {
+     svc_ui->pane_add_section(mod_ctx,pane,"TP Classic Modern Controller UI");
+     svc_ui->pane_add_section(mod_ctx,pane,"Controller Design");
+-    svc_ui->pane_add_text(mod_ctx,pane,"Choose before starting the game. Once the game starts, restart Dusklight to change the design.",nullptr);
++    svc_ui->pane_add_text(mod_ctx,pane,"Choose a design for the next launch. Restart Dusklight after changing it during play.",nullptr);
+     UiControlDesc style=UI_CONTROL_DESC_INIT;
+     style.kind=UI_CONTROL_BUTTON;
+-    style.is_disabled=controller_style_locked;
+     style.label="PlayStation"; style.on_pressed=select_playstation; style.is_selected=playstation_selected;
+     svc_ui->pane_add_control(mod_ctx,pane,&style,nullptr);
+     style.label="Xbox"; style.on_pressed=select_xbox; style.is_selected=xbox_selected;

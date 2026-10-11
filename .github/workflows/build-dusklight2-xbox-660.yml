@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 742
+name: Build Dusklight 2.0.1 Xbox 743
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-742-release-${{ github.ref }}
+  group: xbox-743-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -19,6 +19,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 240
     env:
+      PYTHONUTF8: "1"
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
       SCCACHE_IDLE_TIMEOUT: "0"
@@ -41,7 +42,8 @@ jobs:
         with:
           version: v0.16.0
         env:
-          SCCACHE_GHA_ENABLED: "true"
+          PYTHONUTF8: "1"
+      SCCACHE_GHA_ENABLED: "true"
           SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
 
       - name: Resolve Windows compiler cache executable
@@ -170,8 +172,10 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 742 identity
+      - name: Apply reviewed source layers and advance 743 identity
         shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           function Expand-ControlPatch {
@@ -6239,6 +6243,46 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.737 native picker and filesystem tests failed.' }
           python "$env:TPR_CONTROL\scripts\apply-742-release-identity.py"
           if ($LASTEXITCODE -ne 0) { throw '.742 release identity verification failed.' }
+
+          # Apply the complete .743 layer after the .742 preservation tests.
+          python "$env:TPR_CONTROL\scripts\stage-743-custom-mods.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Original supplied custom mod restoration failed.' }
+          python "$env:TPR_CONTROL\scripts\stage-743-native-mods.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned native source/resource staging failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-743-xbox-fixes.py"
+          if ($LASTEXITCODE -ne 0) { throw '.743 Xbox fix source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-743-native-ports.py"
+          if ($LASTEXITCODE -ne 0) { throw '.743 isolated native source registration failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-controller-ui-selection.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Production controller-ui-selection regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-controller-ui-selection.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Production controller-ui-selection negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-mod-install-paths.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Production mod-install-paths regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-mod-install-paths.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Production mod-install-paths negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-custom-mod-groups.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Production custom-mod-groups regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-custom-mod-groups.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Production custom-mod-groups negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-mod-menu-budget.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Production mod-menu-budget regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-mod-menu-budget.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Production mod-menu-budget negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-vanilla-gci.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Production vanilla-gci regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-vanilla-gci.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Production vanilla-gci negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-title-transition.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Production title-transition regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-title-transition.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Production title-transition negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-native-ports.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Additional native SDK isolation/version tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-native-ports.py" "$env:TPR_SRC" --shared-namespace-negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Shared native namespace corruption was not reproduced.' }
+          python "$env:TPR_CONTROL\scripts\apply-743-release-identity.py"
+          if ($LASTEXITCODE -ne 0) { throw '.743 source/identity verification failed.' }
           git -C "$env:TPR_SRC" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
@@ -6547,6 +6591,10 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $nativePorts743 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json
+          $nativeTargets743 = @($nativePorts743.mods | ForEach-Object { $_.target })
+          cmake --build "$env:TPR_FEED" --target $nativeTargets743 --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Source-built native UWP mods failed to compile.' }
           # Compile the repaired picker/UI first so platform integration failures surface promptly.
           cmake --build "$env:TPR_FEED" --target `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/xbox_file_picker.cpp.obj' `
@@ -6562,6 +6610,7 @@ jobs:
           python "$env:TPR_CONTROL\scripts\test-742-pure-tracker-position.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
           if ($LASTEXITCODE -ne 0) { throw "Pure Item tracker placement regression failed." }
           $targets = @('dusklight', 'randomizer_package', 'cosmetics_package', 'controller_ui_package', 'luau_runtime_package')
+          $targets += @($nativePorts743.mods | ForEach-Object { $_.target + '_package' })
           if ($env:RUN_GENERATOR_SUITE -eq 'true') {
             $targets += 'randomizer_generator_tests'
           }
@@ -6710,7 +6759,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
 
-      - name: Verify and collect full 742 package
+      - name: Verify and collect full 743 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6720,7 +6769,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.742_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.743_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6734,13 +6783,13 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.742"',
+            'Version="1.4.1.743"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
           $exe = "$env:TPR_MSIX_INSPECT\TwilightPrincessRandomizer.exe"
-          python "$env:TPR_CONTROL\scripts\verify-739-native-metadata.py" $exe
+          python "$env:TPR_CONTROL\scripts\verify-743-native-metadata.py" $exe
           if ($LASTEXITCODE -ne 0) { throw '.739 final signed mod metadata verification failed.' }
           $packagedModRoot = "$env:TPR_MSIX_INSPECT\mods\randomizer"
           $packagedCosmeticsRoot = "$env:TPR_MSIX_INSPECT\mods\cosmetics"
@@ -6874,14 +6923,17 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($releaseFixMarker742 in @(
-            '1.4.1.742',
-            'xbox-startup-stage-742.txt',
+            '1.4.1.743',
+            'xbox-startup-stage-743.txt',
             'Pure Tracker Horizontal Position',
             'Pure Tracker Vertical Position',
             'menu.mods.open.launcher',
             'menu.mods.open.game',
             'card.slot-a.probe:',
-            'Provisioned GCI card')) {
+            'Provisioned GCI card',
+            'card.direct-gci-and-randomizer-743',
+            'Xbox title scene request accepted (743)',
+            'Choose a design for the next launch. Restart Dusklight after changing it during play.')) {
             if (-not $exeText.Contains($releaseFixMarker742)) {
               throw "Packaged .742 code marker missing: $releaseFixMarker742"
             }
@@ -7005,11 +7057,12 @@ jobs:
             }
           }
           $exportRows = ([regex]::Matches($exports, '(?m)^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+')).Count
-          if ($exportRows -lt 5 -or $exportRows -gt 64) {
+          $expectedPortExports743 = 5 * (4 + (Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json).mods.Count)
+          if ($exportRows -lt $expectedPortExports743 -or $exportRows -gt ($expectedPortExports743 + 44)) {
             throw "Built-in Randomizer export surface is outside the expected range: $exportRows"
           }
 
-          if ((Get-Item $package).Length -gt 250MB) { throw 'MSIX exceeds the 250 MiB package guard.' }
+          if ((Get-Item $package).Length -gt 2GB) { throw 'Restored-mod MSIX exceeds the 2 GiB package guard.' }
 
           $signtoolOut = Join-Path $env:RUNNER_TEMP 'tpr-732-signtool.out'
           $signtoolErr = Join-Path $env:RUNNER_TEMP 'tpr-732-signtool.err'
@@ -7055,11 +7108,15 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-742.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-742.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-743.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-743.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
+          python "$env:TPR_CONTROL\scripts\verify-743-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Restored custom/native packaged resource proof failed.' }
+          Copy-Item "$env:TPR_CONTROL\NATIVE_MODS-743.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\CUSTOM_MODS-743.json" $out -Force
 
           $cacheDescription739 = 'Compiler cache unavailable; ordinary MSVC compilation with fresh final PDB, symbol manifest, signature and 67-scenario certification'
           if ($env:TPR_CPP_CACHE_ENABLED -eq 'true') {
@@ -7070,7 +7127,7 @@ jobs:
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.742'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.743'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -7140,14 +7197,19 @@ jobs:
             nativePackageStartupTests = 'PASS: compiled production package preparation and native path binding under bundle, manifest, config, native, logging and conversion faults; no partial entries or stale contexts'
             xboxAssetScanPatchSha256 = 'aca3b58253a9a6e4ed41f53a09eb29517e5346bb39aa96a65526f116527fc7fe'
             nativeAssetScanTests = 'PASS: compiled production scoped lexical bundle scans, UWP idle dirty flag, runtime overlays, failed listing/size rollback, open handles, disable/retry and texture priority preservation; reverse-patch negative control reproduces shipped .739 defects'
-            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-742.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
+            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-743.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
             xboxMemoryBudget = 'Pre-Play guard only for a measured Xbox App allowance; Game, desktop UWP and unavailable probes keep normal launch'
             cppCompilerCacheEnabled = ($env:TPR_CPP_CACHE_ENABLED -eq 'true')
             cppCompilerCache = $cacheDescription739
             nativePickerNavigationTests = 'PASS: production Browser, Modal, Pane, List, Component and RmlUi at 720p/1080p/4K; controller open/back/reselection, paging, filtering, folder/file selection, missing folders, cancel and overwrite/export UI'
-            bundledCatalogMods = 22
+            bundledCatalogMods = 45
+            bundledUserMods = 35
+            additionalNativeSourcePorts = 24
+            essentialsSourcePort = '2.5.0 from recovered BeZide93 fork; matching source and assets; newer 2.7.1 source unavailable'
+            xbox743HardwareValidation = 'Pending console retest; full native fixtures and signed package checks do not confirm Xbox gameplay behavior'
+            xbox743SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-743.json" -Raw | ConvertFrom-Json).sourceControls
             catalogPackagesDownloadedAndVerified = 62
-            additionalSignedPorts = 'controller_ui 1.3.2; luau_runtime 1.0.0'
+            additionalSignedPorts = @('controller_ui 1.3.2','luau_runtime 1.0.0') + @((Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json).mods | ForEach-Object { $_.target + ' ' + $_.version })
             literalModResourcePaths = 'Windows SDK unpack decodes OPC-encoded ZIP names before byte-exact catalog checks; original dollar-sign texture filenames verified'
             signedPortSdkIsolation = 'Core Randomizer/Cosmetics and new controller/Luau pairs have independent C++ SDK hook state, contexts and PE metadata; production-definition dispatch/reset/re-enable regression proof'
             optionalModDefaults = 'New packaged catalog mods disabled; existing LocalState asset defaults and saved preferences preserved'
@@ -7179,14 +7241,14 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-742.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-743.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.742-Xbox-Support.zip'
-          $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) }
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.743-Xbox-Support.zip'
+          $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) -and $_.Extension -ne '.msix' }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
           Get-Content (Join-Path $out 'SHA256SUMS.txt') | Out-Host
@@ -7194,7 +7256,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.742-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.743-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30

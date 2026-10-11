@@ -1,0 +1,61 @@
+diff --git a/src/d/actor/d_a_title.cpp b/src/d/actor/d_a_title.cpp
+--- a/src/d/actor/d_a_title.cpp
++++ b/src/d/actor/d_a_title.cpp
+@@ -348,11 +348,29 @@
+     }
+ }
+ 
++#if defined(_UWP)
++namespace {
++const daTitle_c* s_xboxTitleTransitionOwner = nullptr;
++bool s_xboxTitleTransitionAccepted = false;
++}
++#endif
++
+ void daTitle_c::nextScene_init() {
+     mProcID = 4;
++#if defined(_UWP)
++    s_xboxTitleTransitionOwner = this;
++    s_xboxTitleTransitionAccepted = false;
++#endif
+ }
+ 
+ void daTitle_c::nextScene_proc() {
++#if defined(_UWP)
++    // The overlap process can become visible a frame after accepting the request.
++    // Keep the accepted request rather than recreating it on every title frame.
++    if (s_xboxTitleTransitionOwner == this && s_xboxTitleTransitionAccepted) {
++        return;
++    }
++#endif
+     scene_class* playScene;
+ 
+     if (!fopOvlpM_IsPeek() && !mDoRst::isReset()) {
+@@ -363,11 +381,27 @@
+         if (!dScnLogo_c::isOpeningCut())
+         #endif
+         {
++#if defined(_UWP)
++            if (fopScnM_ChangeReq(playScene, fpcNm_NAME_SCENE_e, 0, 5)) {
++                s_xboxTitleTransitionOwner = this;
++                s_xboxTitleTransitionAccepted = true;
++                OS_REPORT("Xbox title scene request accepted (743)\n");
++            }
++#else
+             fopScnM_ChangeReq(playScene, fpcNm_NAME_SCENE_e, 0, 5);
++#endif
+         }
+         #if DEBUG
+         else {
++#if defined(_UWP)
++            if (fopScnM_ChangeReq(playScene, fpcNm_MENU_SCENE_e, 0, 5)) {
++                s_xboxTitleTransitionOwner = this;
++                s_xboxTitleTransitionAccepted = true;
++                OS_REPORT("Xbox title scene request accepted (743)\n");
++            }
++#else
+             fopScnM_ChangeReq(playScene, fpcNm_MENU_SCENE_e, 0, 5);
++#endif
+             dComIfGs_init();
+             dComIfG_playerStatusD();
+         }

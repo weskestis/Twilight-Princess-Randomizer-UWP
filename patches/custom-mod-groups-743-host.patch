@@ -1,0 +1,55 @@
+diff --git a/src/dusk/mod_loader.hpp b/src/dusk/mod_loader.hpp
+--- a/src/dusk/mod_loader.hpp
++++ b/src/dusk/mod_loader.hpp
+@@ -74,6 +74,7 @@
+     std::string description;
+     std::string iconPath;
+     std::string bannerPath;
++    std::string exclusiveGroup;
+ };
+ 
+ struct ModSearchDir {
+diff --git a/src/dusk/mods/loader/manifest.cpp b/src/dusk/mods/loader/manifest.cpp
+--- a/src/dusk/mods/loader/manifest.cpp
++++ b/src/dusk/mods/loader/manifest.cpp
+@@ -115,6 +115,7 @@
+     std::string metaDescription = j.value("description", "");
+     std::string metaIcon = j.value("icon", "");
+     std::string metaBanner = j.value("banner", "");
++    std::string exclusiveGroup = j.value("exclusive_group", "");
+ 
+     if (!utils::is_valid_mod_id(metaId)) {
+         throw InvalidModDataException{fmt::format(
+@@ -147,6 +148,7 @@
+                 std::move(metaDescription),
+                 std::move(iconPath),
+                 std::move(bannerPath),
++                std::move(exclusiveGroup),
+             },
+         .runtime = parse_runtime(j),
+     };
+diff --git a/src/dusk/mods/loader/loader.cpp b/src/dusk/mods/loader/loader.cpp
+--- a/src/dusk/mods/loader/loader.cpp
++++ b/src/dusk/mods/loader/loader.cpp
+@@ -213,6 +213,21 @@
+ 
+     // Asset-only mods have no lifecycle beyond their overlay files.
+     if (!mod.native && !mod.runtime.has_value()) {
++        // A supplied outfit/shield/model group represents alternative payloads.
++        // Select one deterministically and persist the other variants as disabled.
++        if (!mod.metadata.exclusiveGroup.empty()) {
++            for (auto& candidate : m_mods) {
++                auto& other = *candidate;
++                if (&other == &mod || other.native || other.runtime.has_value() ||
++                    other.metadata.exclusiveGroup != mod.metadata.exclusiveGroup) {
++                    continue;
++                }
++                other.cvarIsEnabled->setValue(false);
++                if (other.active) {
++                    deactivate_mod(other);
++                }
++            }
++        }
+         mod.enabledApplied = true;
+         return true;
+     }
