@@ -25,6 +25,8 @@ with tempfile.TemporaryDirectory(prefix='ports-743-') as temp:
     if a.shared_namespace_negative_control:pairs=pairs[:1]
     for first,second in pairs:
         objects=[];main=fixtures['main_source'].replace('PASS .736','PASS .743')
+        if os.name=='nt':
+            main='#include <cstdlib>\n'+main.replace('int main() {','int main() {\n    _set_error_mode(_OUT_TO_STDERR);\n    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);')
         for name,mod in zip(['alpha','beta'],[first,second]):
             f=work/(name+'.cpp');f.write_text(fixtures['module_source']);defs=definitions(mod)
             meta=next(d.split('=',1)[1] for d in defs if d.startswith('mod_meta='));main=main.replace(name+'_mod_meta',meta)

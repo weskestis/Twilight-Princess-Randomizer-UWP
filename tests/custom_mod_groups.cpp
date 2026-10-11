@@ -4,11 +4,14 @@
 #include <string>
 #include <cstdio>
 #include <stdexcept>
+namespace dusk::mods {
 enum {LOG_LEVEL_INFO};namespace log {template<class...A>void write(A&&...) {}}
 struct Config {bool enabled=true;void setValue(bool v){enabled=v;}bool getValue(){return enabled;}};
 struct LoadedMod {struct{std::string id,exclusiveGroup;}metadata;bool active=false,enabledApplied=false;void* native=nullptr;std::optional<int>runtime;std::unique_ptr<Config>cvarIsEnabled=std::make_unique<Config>();};
 struct ModLoader {std::vector<std::unique_ptr<LoadedMod>>m_mods;int deactivations=0;bool activate_mod(LoadedMod&);void deactivate_mod(LoadedMod&m){m.active=false;m.enabledApplied=false;++deactivations;}};
 #include "production-group.inc"
+}
+using namespace dusk::mods;
 void require(bool v,const char*s){if(!v)throw std::runtime_error(s);}
 int main(int argc,char**) {try{
     ModLoader loader;
