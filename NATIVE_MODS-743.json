@@ -823,7 +823,7 @@
       "sourcePatches": [
         {
           "name": "xbox-betaquest-cxx20-743.patch",
-          "sha256": "e2338f2ae5d8efb275ddf3866833376b6a474ae095701243362d769f963e07cd"
+          "sha256": "117ef7c48bc9706f9787c455ae07c8eb83e0a2dc72e9b24fb8216bc681859dd8"
         }
       ]
     },

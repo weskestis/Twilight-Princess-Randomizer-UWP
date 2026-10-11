@@ -1,5 +1,21 @@
 --- a/src/mod.cpp
 +++ b/src/mod.cpp
+@@ -64,12 +64,12 @@
+     s16 mRoomNo;
+     s16 mPoint;
+ 
+-    constexpr EntranceEntry() : mStageName(""), mRoomNo(0), mPoint(0) {}
+-    constexpr EntranceEntry(std::string_view stageName, s16 roomNo, s16 point)
++    EntranceEntry() : mStageName{}, mRoomNo(0), mPoint(0) {}
++    EntranceEntry(std::string_view stageName, s16 roomNo, s16 point)
+         : mStageName{}, mRoomNo(roomNo), mPoint(point) {
+         stageName.copy(mStageName, sizeof(mStageName) - 1);
+     };
+-    constexpr bool operator==(const EntranceEntry &other) const {
++    bool operator==(const EntranceEntry &other) const {
+         return mRoomNo == other.mRoomNo && mPoint == other.mPoint && std::strcmp(mStageName, other.mStageName) == 0;
+     }
+ };
 @@ -90,7 +90,7 @@
      EntranceEntry entries[];
  };

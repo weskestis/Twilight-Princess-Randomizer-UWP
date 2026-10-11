@@ -61,7 +61,7 @@
     "Recover Twilit Essentials 2.5.0 source and bundled collection library from a public fork; replace its desktop ShellExecute call with the packaged SDL UWP URL path",
     "Backport frame-scoped graphics snapshot texture handles with CopySrc usage and preserve older GfxService output sizes",
     "Keep Evil Interlacing frame parity in its queued payload, reuse previous-field textures, rebuild pipelines for live multi-attachment layouts and release owned GPU objects on shutdown",
-    "Remove the invalid C++20 constexpr qualifier from Beta Quest runtime random generation"
+    "Remove invalid C++20 constexpr qualifiers from Beta Quest runtime random generation and entrance operations"
   ],
   "preserved": [
     "All green .734 Enemy/Boss Soul check types, wide IDs, native FIFO and normal Poe isolation",
@@ -137,7 +137,7 @@
   "totalPackagedModEntries": 88,
   "essentialsSourcePort": "Twilit Essentials 2.5.0 recovered from BeZide93/dawnlight-twilit-essentials 7682060c20e2e3757b2888a27bbd958506ccb4f7; matching code and assets; stock 2.7.1 source is unavailable",
   "sourceControls": {
-    "NATIVE_MODS-743.json": "eed4ac39fec85b56b27b3ec4fa2b671cbd6ce51e44e6999dfda5aac766d30fab",
+    "NATIVE_MODS-743.json": "0977796909342c6186bc4def70da583118f1395b71d15a11f9593dd663fc735d",
     "CUSTOM_MODS-743.json": "90565a5c4e606e9baea48e9f9f9b4add3dc5e31722ae3787ea80b800f10a4bef",
     "scripts/apply-743-xbox-fixes.py": "f01cd2222b2ba6cf5d0aeb24a767377feade75685841753f028ea9a5c5d7c7e9",
     "scripts/apply-743-native-ports.py": "ebc74f6ab4cc56eebec358f35fdb3293c1e4bb2628767249bd3e78662fc72dc1",
