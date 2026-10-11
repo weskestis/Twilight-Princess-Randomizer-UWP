@@ -6222,6 +6222,19 @@ jobs:
           python "$env:TPR_CONTROL\scripts\test-734-souls-breakables.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.734 souls/breakable preservation failed after .741.' }
 
+          python "$env:TPR_CONTROL\scripts\apply-742-mod-menu.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Pending Mods menu source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-742-mod-menu-images.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Mods menu image fault/thumbnail regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-742-mod-menu-images.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Shipped .741 Mods image allocation failure was not reproduced.' }
+          python "$env:TPR_CONTROL\scripts\apply-742-slot-a.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Slot A directory/probe source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-742-slot-a.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Actual Slot A directory/probe regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-742-slot-a.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Shipped .741 missing Slot A directory failure was not reproduced.' }
+
           python "$env:TPR_CONTROL\scripts\test-737-xbox-picker.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.737 native picker and filesystem tests failed.' }
           git -C "$env:TPR_SRC" diff --check
@@ -6544,6 +6557,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.737 UWP controller picker/UI compilation failed.' }
           python "$env:TPR_CONTROL\scripts\test-738-picker-navigation.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
           if ($LASTEXITCODE -ne 0) { throw '.738 production RmlUi picker navigation/layout tests failed.' }
+          python "$env:TPR_CONTROL\scripts\test-742-pure-tracker-position.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
+          if ($LASTEXITCODE -ne 0) { throw "Pure Item tracker placement regression failed." }
           $targets = @('dusklight', 'randomizer_package', 'cosmetics_package', 'controller_ui_package', 'luau_runtime_package')
           if ($env:RUN_GENERATOR_SUITE -eq 'true') {
             $targets += 'randomizer_generator_tests'
@@ -6856,6 +6871,17 @@ jobs:
             }
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
+          foreach ($pendingFixMarker742 in @(
+            'Pure Tracker Horizontal Position',
+            'Pure Tracker Vertical Position',
+            'menu.mods.open.launcher',
+            'menu.mods.open.game',
+            'card.slot-a.probe:',
+            'Provisioned GCI card')) {
+            if (-not $exeText.Contains($pendingFixMarker742)) {
+              throw "Packaged pending-fix code marker missing: $pendingFixMarker742"
+            }
+          }
           foreach ($startupMarker in @(
             'xbox-startup-stage-738.txt',
             'The Xbox file browser could not complete this action.',
@@ -7158,3 +7184,4 @@ jobs:
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
+

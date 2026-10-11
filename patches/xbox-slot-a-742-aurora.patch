@@ -1,0 +1,41 @@
+diff --git a/lib/card/CardGciFolder.cpp b/lib/card/CardGciFolder.cpp
+--- a/lib/card/CardGciFolder.cpp
++++ b/lib/card/CardGciFolder.cpp
+@@ -4,6 +4,7 @@
+ #include <cstring>
+ 
+ #include <SDL3/SDL_filesystem.h>
++#include <SDL3/SDL_error.h>
+ 
+ #include <filesystem>
+ #include "../io.hpp"
+@@ -485,8 +486,27 @@
+ 
+ ECardResult CardGciFolder::format(ECardSlot deviceId, ECardSize size, EEncoding encoding) {
+   m_encoding = encoding;
+-  if (m_folderPath.empty() || !io::create_directories(m_folderPath)) {
+-    return ECardResult::IOERROR;
++  if (m_folderPath.empty()) {
++    return m_error = ECardResult::IOERROR;
++  }
++  if (!io::create_directories(m_folderPath)) {
++#if defined(AURORA_WINDOWS_STORE)
++    // A GCI card is a directory, not a raw card to overwrite. If the packaged
++    // SDL filesystem cannot provision it, use the native LocalState filesystem
++    // also used by the Xbox direct-save path. Never replace existing files.
++    const std::string sdlError = SDL_GetError();
++    std::error_code ec;
++    std::filesystem::create_directories(m_folderPath, ec);
++    if (ec || !std::filesystem::is_directory(m_folderPath, ec) || ec) {
++      Log.error("Failed to provision GCI card '{}': SDL '{}', filesystem '{}'",
++                io::fs_path_to_string(m_folderPath), sdlError, ec.message());
++      return m_error = ECardResult::IOERROR;
++    }
++    Log.warn("Provisioned GCI card '{}' with native filesystem after SDL failure: {}",
++             io::fs_path_to_string(m_folderPath), sdlError);
++#else
++    return m_error = ECardResult::IOERROR;
++#endif
+   }
+   return m_error = ECardResult::READY;
+ }

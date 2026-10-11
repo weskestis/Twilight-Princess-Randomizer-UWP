@@ -1,0 +1,31 @@
+diff --git a/src/m_Do/m_Do_MemCard.cpp b/src/m_Do/m_Do_MemCard.cpp
+--- a/src/m_Do/m_Do_MemCard.cpp
++++ b/src/m_Do/m_Do_MemCard.cpp
+@@ -4,6 +4,10 @@
+  */
+ 
+ #include "m_Do/m_Do_MemCard.h"
++#if defined(_UWP)
++#include "dusk/startup_guard.hpp"
++#include <fmt/format.h>
++#endif
+ #include <card.h>
+ #include "JSystem/JKernel/JKRAssertHeap.h"
+ #include "dusk/main.h"
+@@ -90,6 +94,16 @@
+     std::memcpy(version, dusk::version::getDiskID().gameName, 4);
+     std::memcpy(maker, dusk::version::getDiskID().company, 2);
+     CARDInit(version, maker);
++#if defined(_UWP)
++    s32 slotAMemorySize = 0;
++    s32 slotASectorSize = 0;
++    const s32 slotAProbe = CARDProbeEx(SLOT_A, &slotAMemorySize, &slotASectorSize);
++    const s32 slotACheck = CARDGetResultCode(SLOT_A);
++    dusk::startup_guard::stage(fmt::format("card.slot-a.probe:{}:check:{}:size:{}:sector:{}",
++        slotAProbe, slotACheck, slotAMemorySize, slotASectorSize));
++    OS_REPORT("Xbox Slot A initialized: probe=%d check=%d size=%d sector=%d\n",
++        slotAProbe, slotACheck, slotAMemorySize, slotASectorSize);
++#endif
+ #endif
+ 
+     mCopyToPos = 0;

@@ -9,6 +9,7 @@
 #include <aurora/imgui.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -263,17 +264,14 @@ void draw_pure_item_tracker() {
     const ImVec2 trackerDefaultSize(
         std::min(trackerDesignSize.x, workSize.x * 0.92f),
         std::min(trackerDesignSize.y, workSize.y * 0.92f));
-    const ImVec2 trackerDefaultPosition(
-        workPosition.x + std::max(12.0f, workSize.x * 0.025f),
-        workPosition.y + std::max(12.0f, workSize.y * 0.025f));
-
-    if (trackerSettings.pureItemTrackerResetLayoutRequested.getValue()) {
+    const bool resetLayout = trackerSettings.pureItemTrackerResetLayoutRequested.getValue();
+    if (resetLayout) {
         trackerSettings.pureItemTrackerResetLayoutRequested.setValue(false);
-        ImGui::SetNextWindowPos(trackerDefaultPosition, ImGuiCond_Always);
+        trackerSettings.pureItemTrackerPositionX.setValue(0.03f);
+        trackerSettings.pureItemTrackerPositionY.setValue(0.03f);
         ImGui::SetNextWindowSize(trackerDefaultSize, ImGuiCond_Always);
         config::save();
     } else {
-        ImGui::SetNextWindowPos(trackerDefaultPosition, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(trackerDefaultSize, ImGuiCond_FirstUseEver);
     }
 
@@ -298,6 +296,71 @@ void draw_pure_item_tracker() {
         ImGui::PopStyleVar(3);
         return;
     }
+
+    // The controller settings use RmlUi, so placement must not depend on
+    // dragging this ImGui overlay with the controller's RmlUi cursor.
+    static ImGuiContext* placementContext = nullptr;
+    static int lastPlacementFrame = -1;
+    static ImVec2 lastRequestedPosition(-1.0f, -1.0f);
+    static ImVec2 lastWindowSize;
+    static ImVec2 lastWorkSize;
+    static ImVec2 lastWorkPosition;
+    static bool positionSavePending = false;
+    const auto boundedFraction = [](float value) {
+        return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.03f;
+    };
+    ImVec2 requestedPosition(
+        boundedFraction(trackerSettings.pureItemTrackerPositionX.getValue()),
+        boundedFraction(trackerSettings.pureItemTrackerPositionY.getValue()));
+    const ImVec2 windowSize = ImGui::GetWindowSize();
+    const ImVec2 travel(
+        std::max(0.0f, workSize.x - windowSize.x),
+        std::max(0.0f, workSize.y - windowSize.y));
+    const int frame = ImGui::GetFrameCount();
+    const bool newContext = placementContext != ImGui::GetCurrentContext() ||
+                            frame <= lastPlacementFrame;
+    const bool requestedChanged = newContext || resetLayout ||
+                                  requestedPosition.x != lastRequestedPosition.x ||
+                                  requestedPosition.y != lastRequestedPosition.y;
+    const bool geometryChanged = windowSize.x != lastWindowSize.x ||
+                                 windowSize.y != lastWindowSize.y ||
+                                 workSize.x != lastWorkSize.x || workSize.y != lastWorkSize.y ||
+                                 workPosition.x != lastWorkPosition.x ||
+                                 workPosition.y != lastWorkPosition.y;
+    ImVec2 position = ImGui::GetWindowPos();
+    if (requestedChanged || geometryChanged) {
+        position = ImVec2(workPosition.x + requestedPosition.x * travel.x,
+                          workPosition.y + requestedPosition.y * travel.y);
+    } else {
+        position.x = std::clamp(position.x, workPosition.x, workPosition.x + travel.x);
+        position.y = std::clamp(position.y, workPosition.y, workPosition.y + travel.y);
+        if (!trackerSettings.pureItemTrackerLock.getValue()) {
+            const ImVec2 draggedPosition(
+                travel.x > 0.0f ? (position.x - workPosition.x) / travel.x : requestedPosition.x,
+                travel.y > 0.0f ? (position.y - workPosition.y) / travel.y : requestedPosition.y);
+            if (std::abs(draggedPosition.x - requestedPosition.x) > 0.0001f ||
+                std::abs(draggedPosition.y - requestedPosition.y) > 0.0001f) {
+                requestedPosition = draggedPosition;
+                trackerSettings.pureItemTrackerPositionX.setValue(requestedPosition.x);
+                trackerSettings.pureItemTrackerPositionY.setValue(requestedPosition.y);
+                positionSavePending = true;
+            }
+        }
+    }
+    ImGui::SetWindowPos(position, ImGuiCond_Always);
+    if (newContext) {
+        positionSavePending = false;
+    } else if (positionSavePending && !ImGui::IsMouseDown(0)) {
+        // Persist a mouse placement once on release, never on every drag frame.
+        config::save();
+        positionSavePending = false;
+    }
+    placementContext = ImGui::GetCurrentContext();
+    lastPlacementFrame = frame;
+    lastRequestedPosition = requestedPosition;
+    lastWindowSize = windowSize;
+    lastWorkSize = workSize;
+    lastWorkPosition = workPosition;
 
     const float trackerScale =
         std::clamp(trackerSettings.pureItemTrackerScale.getValue(), 0.75f, 1.50f);
@@ -396,3 +459,4 @@ void draw_pure_item_tracker() {
 }
 
 }  // namespace dusk
+

@@ -122,6 +122,8 @@ $settingsHeaderNew = Join-Lines @(
   '        ConfigVar<float> pureItemTrackerScale;',
   '        ConfigVar<int> pureItemTrackerIconSize;',
   '        ConfigVar<int> pureItemTrackerColumns;',
+  '        ConfigVar<float> pureItemTrackerPositionX;',
+  '        ConfigVar<float> pureItemTrackerPositionY;',
   '        ConfigVar<bool> pureItemTrackerLock;',
   '        ConfigVar<bool> pureItemTrackerResetLayoutRequested;'
 )
@@ -142,6 +144,8 @@ $settingsInitNew = Join-Lines @(
   '        .pureItemTrackerScale {"game.pureItemTrackerScale", 1.0f},',
   '        .pureItemTrackerIconSize {"game.pureItemTrackerIconSize", 56},',
   '        .pureItemTrackerColumns {"game.pureItemTrackerColumns", 6},',
+  '        .pureItemTrackerPositionX {"game.pureItemTrackerPositionX", 0.03f},',
+  '        .pureItemTrackerPositionY {"game.pureItemTrackerPositionY", 0.03f},',
   '        .pureItemTrackerLock {"game.pureItemTrackerLock", false},',
   '        .pureItemTrackerResetLayoutRequested {"game.pureItemTrackerResetLayoutRequested", false},'
 )
@@ -158,6 +162,8 @@ $settingsRegisterNew = Join-Lines @(
   '    Register(g_userSettings.game.pureItemTrackerScale);',
   '    Register(g_userSettings.game.pureItemTrackerIconSize);',
   '    Register(g_userSettings.game.pureItemTrackerColumns);',
+  '    Register(g_userSettings.game.pureItemTrackerPositionX);',
+  '    Register(g_userSettings.game.pureItemTrackerPositionY);',
   '    Register(g_userSettings.game.pureItemTrackerLock);',
   '    Register(g_userSettings.game.pureItemTrackerResetLayoutRequested);'
 )
@@ -202,6 +208,14 @@ $settingsUiNew = Join-Lines @(
   '            "Pure Tracker Columns",',
   '            "Choose how many item columns the tracker uses.",',
   '            3, 9, 1);',
+  '        config_percent_select(leftPane, rightPane, getSettings().game.pureItemTrackerPositionX,',
+  '            "Pure Tracker Horizontal Position",',
+  '            "Move the tracker from the left edge (0%) to the right edge (100%). Unlock the tracker to change its position.",',
+  '            0, 100, 1, [] { return getSettings().game.pureItemTrackerLock.getValue(); });',
+  '        config_percent_select(leftPane, rightPane, getSettings().game.pureItemTrackerPositionY,',
+  '            "Pure Tracker Vertical Position",',
+  '            "Move the tracker from the top edge (0%) to the bottom edge (100%). Unlock the tracker to change its position.",',
+  '            0, 100, 1, [] { return getSettings().game.pureItemTrackerLock.getValue(); });',
   '        config_bool_select(leftPane, rightPane, getSettings().game.pureItemTrackerLock,',
   '            {',
   '                .key = "Lock Pure Tracker Position",',
@@ -216,12 +230,14 @@ $settingsUiNew = Join-Lines @(
   '                getSettings().game.pureItemTrackerIconSize.setValue(56);',
   '                getSettings().game.pureItemTrackerColumns.setValue(6);',
   '                getSettings().game.pureItemTrackerScale.setValue(1.0f);',
+  '                getSettings().game.pureItemTrackerPositionX.setValue(0.03f);',
+  '                getSettings().game.pureItemTrackerPositionY.setValue(0.03f);',
   '                getSettings().game.pureItemTrackerResetLayoutRequested.setValue(true);',
   '                config::save();',
   '            }),',
   '            rightPane, [](Pane& pane) {',
   '                pane.clear();',
-  '                pane.add_text("Restore the compact six-column transparent tracker layout and default icon size.");',
+  '                pane.add_text("Restore the compact six-column transparent tracker layout, default icon size, and top-left position.");',
   '            });',
   '',
   '        leftPane.add_section("Game");'
@@ -281,6 +297,8 @@ foreach ($marker in @(
   'game.showPureItemTracker',
   'Pure Tracker Icon Size',
   'Pure Tracker Columns',
+  'Pure Tracker Horizontal Position',
+  'Pure Tracker Vertical Position',
   'Lock Pure Tracker Position',
   'Reset Pure Tracker Layout',
   'render_item_icon_pixels',
@@ -290,3 +308,4 @@ foreach ($marker in @(
 }
 
 Write-Host 'Applied .714 Ship-style Pure Item Tracker port.'
+
