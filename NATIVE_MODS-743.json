@@ -1961,7 +1961,14 @@
         "SDL3::SDL3",
         "nlohmann_json::nlohmann_json"
       ],
-      "cmakeDefines": []
+      "cmakeDefines": [],
+      "sourcePatches": [
+        {
+          "name": "xbox-gz-private-implementations-743.patch",
+          "sha256": "ffef9b2d1b9bd8f6e1066f14e03a93fe401ddbb3b6eff74a042918b2b570a812"
+        }
+      ],
+      "hostCompatibilityNote": "Adapted movement and clawshot member implementations use distinct xbox_gz_ method names; literal hooks still target the original game symbols. Added nonvirtual declarations preserve actor and packet layouts and prevent disabled GZ from overriding vanilla methods."
     },
     {
       "id": "com.i12bp8.hyrule_hide_and_seek",

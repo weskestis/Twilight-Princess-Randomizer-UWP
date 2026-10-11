@@ -1,0 +1,257 @@
+--- a/src/link_movement.cpp
++++ b/src/link_movement.cpp
+@@ -10,7 +10,7 @@
+ #include "SSystem/SComponent/c_math.h"
+ #include "f_op/f_op_kankyo_mng.h"
+ 
+-int daAlink_c::setStartProcInit() {
++int daAlink_c::xbox_gz_setStartProcInit() {
+     BOOL sp10 = FALSE;
+     int start_mode = getStartMode();
+     u32 last_mode = getLastSceneMode();
+@@ -138,7 +138,7 @@
+                 }
+ 
+                 procHorseWaitInit();
+-            } else if (checkSwimAction(1)) {
++            } else if (xbox_gz_checkSwimAction(1)) {
+                 if (start_mode == 1) {
+                     if (checkWolf()) {
+                         mNormalSpeed = 0.5f * 50.0f;
+@@ -208,7 +208,7 @@
+     return sp10;
+ }
+ 
+-void daAlink_c::initGravity() {
++void daAlink_c::xbox_gz_initGravity() {
+     f32 gravity;
+     f32 max_fall_speed;
+ 
+@@ -226,7 +226,7 @@
+             max_fall_speed = mpHIO->mWolf.mWlAutoJump.m.mMaxFallSpeed;
+         }
+     } else if (checkModeFlg(MODE_SWIMMING) || checkNoResetFlg0(FLG0_WATER_IN_MOVE)) {
+-        max_fall_speed = getSwimMaxFallSpeed();
++        max_fall_speed = xbox_gz_getSwimMaxFallSpeed();
+         if (checkHeavyStateOn(TRUE, TRUE) && mProcID != PROC_OCTAIEAL_SPIT) {
+             gravity = -50.0f;
+         } else {
+@@ -240,7 +240,7 @@
+     setSpecialGravity(gravity, max_fall_speed, TRUE);
+ }
+ 
+-int daAlink_c::procFrontRollInit() {
++int daAlink_c::xbox_gz_procFrontRollInit() {
+     BOOL is_guard_anime = checkUpperGuardAnime();
+ #ifdef TARGET_PC    
+     const f32 fastRollMultiplier = gz::movementSetting(0) ? 2.0f : 1.0f;
+@@ -319,7 +319,7 @@
+     return 1;
+ }
+ 
+-f32 daAlink_c::getSwimFrontMaxSpeed() const {
++f32 daAlink_c::xbox_gz_getSwimFrontMaxSpeed() const {
+     if (checkBootsOrArmorHeavy()) {
+         return 50.0f;
+     } else if (checkZoraWearAbility()) {
+@@ -331,7 +331,7 @@
+     }
+ }
+ 
+-f32 daAlink_c::getSwimMaxFallSpeed() const {
++f32 daAlink_c::xbox_gz_getSwimMaxFallSpeed() const {
+     if (mProcID == PROC_DIVE_JUMP) {
+         return -50.0f;
+     } else if (checkBootsOrArmorHeavy()) {
+@@ -343,7 +343,7 @@
+     }
+ }
+ 
+-void daAlink_c::setSpeedAndAngleSwim() {
++void daAlink_c::xbox_gz_setSpeedAndAngleSwim() {
+     if (!checkBootsOrArmorHeavy() && dComIfGp_getDoStatus() == BUTTON_STATUS_NONE && (!checkHookshotAnime() || (checkHookshotItem(mEquipItem) && (mItemMode == 0 || mItemMode == 1)))) {
+         if (checkZoraWearAbility()) {
+             if (checkNoResetFlg0(FLG0_SWIM_UP)) {
+@@ -469,7 +469,7 @@
+     }
+ }
+ 
+-int daAlink_c::checkSwimAction(int param_0) {
++int daAlink_c::xbox_gz_checkSwimAction(int param_0) {
+     f32 var_f31;
+     if (checkWolf()) {
+         if (getMoveBGActorName(mLinkAcch.m_gnd, 0) == fpcNm_Obj_ITA_e) {
+@@ -501,8 +501,8 @@
+ 
+             var_f28 = mpHIO->mWolf.mWlSwim.m.mMaxFallSpeed;
+         } else {
+-            var_f29 = getSwimFrontMaxSpeed();
+-            var_f28 = getSwimMaxFallSpeed();
++            var_f29 = xbox_gz_getSwimFrontMaxSpeed();
++            var_f28 = xbox_gz_getSwimMaxFallSpeed();
+         }
+ 
+         if (dComIfGp_checkPlayerStatus1(0, 0x10000)) {
+@@ -618,7 +618,7 @@
+     return 0;
+ }
+ 
+-void daAlink_c::setSwimMoveAnime() {
++void daAlink_c::xbox_gz_setSwimMoveAnime() {
+     daPy_frameCtrl_c* framectrl_under0 = &mUnderFrameCtrl[0];
+     daPy_frameCtrl_c* framectrl_upper2 = &mUpperFrameCtrl[2];
+ 
+@@ -707,7 +707,7 @@
+         } else {
+             field_0x3478 = mpHIO->mSwim.m.mForwardMinAnmSpeed;
+             field_0x347c = mpHIO->mSwim.m.mForwardMaxAnmSpeed;
+-            mMaxSpeed = getSwimFrontMaxSpeed();
++            mMaxSpeed = xbox_gz_getSwimFrontMaxSpeed();
+         }
+ 
+         var_f31 = 1.0f / mMaxSpeed;
+@@ -809,7 +809,7 @@
+         }
+     }
+ 
+-    maxFallSpeed = getSwimMaxFallSpeed();
++    maxFallSpeed = xbox_gz_getSwimMaxFallSpeed();
+ 
+     if (anm == ANM_SWIM_C || anm == ANM_SWIM_ZORA_START) {
+         if (!checkZoraWearAbility()) {
+@@ -843,7 +843,7 @@
+     }
+ }
+ 
+-int daAlink_c::checkNextActionWolf(int param_0) {
++int daAlink_c::xbox_gz_checkNextActionWolf(int param_0) {
+     if (checkDeadAction(1)) {
+         return 1;
+     }
+@@ -964,7 +964,7 @@
+     return rt;
+ }
+ 
+-int daAlink_c::procWolfDashInit() {
++int daAlink_c::xbox_gz_procWolfDashInit() {
+     commonProcInit(PROC_WOLF_DASH);
+     setSingleAnimeWolfParam(WANM_DASH_START, &mpHIO->mWolf.mWlMove.m.mADashAnm);
+     setFootEffectProcType(3);
+@@ -1000,7 +1000,7 @@
+     return 1;
+ }
+ 
+-void daAlink_c::setSpeedAndAngleSwimWolf() {
++void daAlink_c::xbox_gz_setSpeedAndAngleSwimWolf() {
+     if (checkWolfDashMode()) {
+         mMaxSpeed = 50.0f;
+     } else {
+@@ -1060,17 +1060,17 @@
+  auto settingsResult=initMovementSettings();if(settingsResult!=MOD_OK)return settingsResult;
+  toggle("fast_movement","Tools","Fast movement","Original GZ roll, swimming, iron-boots gravity and wolf dash speeds.");
+  ModResult r=MOD_OK;
+- r=guardedPre<Fast_setStartProcInit>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->setStartProcInit();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_initGravity>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->initGravity();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_procFrontRollInit>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->procFrontRollInit();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_getSwimFrontMaxSpeed>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<f32*>(result)=mods::arg<daAlink_c*>(a,0)->getSwimFrontMaxSpeed();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_getSwimMaxFallSpeed>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<f32*>(result)=mods::arg<daAlink_c*>(a,0)->getSwimMaxFallSpeed();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_setSpeedAndAngleSwim>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->setSpeedAndAngleSwim();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_checkSwimAction>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->checkSwimAction(mods::arg<int>(a,1));return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_setSwimMoveAnime>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->setSwimMoveAnime();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_checkNextActionWolf>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->checkNextActionWolf(mods::arg<int>(a,1));return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_procWolfDashInit>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->procWolfDashInit();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+- r=guardedPre<Fast_setSpeedAndAngleSwimWolf>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->setSpeedAndAngleSwimWolf();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_setStartProcInit>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->xbox_gz_setStartProcInit();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_initGravity>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->xbox_gz_initGravity();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_procFrontRollInit>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->xbox_gz_procFrontRollInit();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_getSwimFrontMaxSpeed>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<f32*>(result)=mods::arg<daAlink_c*>(a,0)->xbox_gz_getSwimFrontMaxSpeed();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_getSwimMaxFallSpeed>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<f32*>(result)=mods::arg<daAlink_c*>(a,0)->xbox_gz_getSwimMaxFallSpeed();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_setSpeedAndAngleSwim>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->xbox_gz_setSpeedAndAngleSwim();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_checkSwimAction>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->xbox_gz_checkSwimAction(mods::arg<int>(a,1));return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_setSwimMoveAnime>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->xbox_gz_setSwimMoveAnime();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_checkNextActionWolf>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->xbox_gz_checkNextActionWolf(mods::arg<int>(a,1));return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_procWolfDashInit>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;*static_cast<int*>(result)=mods::arg<daAlink_c*>(a,0)->xbox_gz_procWolfDashInit();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
++ r=guardedPre<Fast_setSpeedAndAngleSwimWolf>([](ModContext*,void* a,void* result,void*){if(!on("fast_movement"))return HOOK_CONTINUE;mods::arg<daAlink_c*>(a,0)->xbox_gz_setSpeedAndAngleSwimWolf();return HOOK_SKIP_ORIGINAL;});if(r!=MOD_OK)return r;
+  return MOD_OK;
+ }
+ }
+--- a/src/clawshot.cpp
++++ b/src/clawshot.cpp
+@@ -21,7 +21,7 @@
+ #include "JSystem/J3DGraphBase/J3DMaterial.h"
+ enum { HS_MODE_NONE_e, HS_MODE_READY_e, HS_MODE_SHOOT_e=3, HS_MODE_FLY_e, HS_MODE_RETURN_e=6 };
+ static cXyz l_hookSnowSandHitScale(0.5f,0.5f,0.5f);
+-void daAlink_c::setHookshotSight() {
++void daAlink_c::xbox_gz_setHookshotSight() {
+     auto parameters = daAlinkHIO_hookshot_c0::m;
+     parameters.mShootSpeed = 2870.0f;
+     parameters.mMaxLength = 69420.0f;
+@@ -68,7 +68,7 @@
+ }
+ 
+ 
+-void daAlink_c::setHookshotPos() {
++void daAlink_c::xbox_gz_setHookshotPos() {
+     auto parameters = daAlinkHIO_hookshot_c0::m;
+     parameters.mShootSpeed = 2870.0f;
+     parameters.mMaxLength = 69420.0f;
+@@ -459,7 +459,7 @@
+ }
+ 
+ 
+-int daAlink_c::procHookshotFly() {
++int daAlink_c::xbox_gz_procHookshotFly() {
+     auto parameters = daAlinkHIO_hookshot_c0::m;
+     parameters.mShootSpeed = 2870.0f;
+     parameters.mMaxLength = 69420.0f;
+@@ -643,7 +643,7 @@
+ // Preserve the original chain presentation while respecting Dusklight's 600-draw
+ // budget. Extreme Super Clawshot spans use longer rendered segments instead of
+ // submitting thousands of links in one frame.
+-void daAlink_c::hsChainShape_c::draw() {
++void daAlink_c::hsChainShape_c::xbox_gz_draw() {
+     daAlink_c* alink = (daAlink_c*)getUserArea();
+     J3DModelData* modelData = alink->getItemModelData();
+     J3DMaterial* material = modelData->getMaterialNodePointer(0);
+@@ -779,7 +779,7 @@
+ }
+ 
+ // TPGZ's global mMaxLength write also reaches ceiling-hook movement.
+-void daAlink_c::hookshotRoofTurn() {
++void daAlink_c::xbox_gz_hookshotRoofTurn() {
+     BOOL is_play_sound = false;
+     if (!dComIfGp_checkPlayerStatus0(0, 0x2000)) {
+         f32 max_rise_y = (mIronBallBgChkPos.y + 15.0f) - 1.5f;
+@@ -891,7 +891,7 @@
+  });if(r!=MOD_OK)return r;
+  r=guardedPre<ClawRoofTurn>([](ModContext*,void* a,void*,void*){
+   if(!on("super_clawshot"))return HOOK_CONTINUE;
+-  mods::arg<daAlink_c*>(a,0)->hookshotRoofTurn();return HOOK_SKIP_ORIGINAL;
++  mods::arg<daAlink_c*>(a,0)->xbox_gz_hookshotRoofTurn();return HOOK_SKIP_ORIGINAL;
+  });if(r!=MOD_OK)return r; void* address=nullptr;HookSymbolFlags flags{};
+  auto resolved=svc_hook->resolve(mod_ctx,"dusk::interp::is_enabled",&address,&flags);
+  if(resolved!=MOD_OK||!address||!(flags&HOOK_SYMBOL_CODE))return MOD_UNAVAILABLE;
+@@ -932,19 +932,19 @@
+   auto* packet=mods::arg<daAlink_c::hsChainShape_c*>(a,0);
+   auto* link=reinterpret_cast<daAlink_c*>(packet->getUserArea());
+   if(!link||!link->checkHookshotItem(link->mEquipItem))return HOOK_CONTINUE;
+-  packet->daAlink_c::hsChainShape_c::draw();return HOOK_SKIP_ORIGINAL;
++  packet->daAlink_c::hsChainShape_c::xbox_gz_draw();return HOOK_SKIP_ORIGINAL;
+  });if(resolved!=MOD_OK)return resolved;
+  r=guardedPre<ClawSight>([](ModContext*,void* a,void*,void*){
+   if(!on("super_clawshot"))return HOOK_CONTINUE;
+-  mods::arg<daAlink_c*>(a,0)->setHookshotSight();return HOOK_SKIP_ORIGINAL;
++  mods::arg<daAlink_c*>(a,0)->xbox_gz_setHookshotSight();return HOOK_SKIP_ORIGINAL;
+  });if(r!=MOD_OK)return r;
+  r=guardedPre<ClawPos>([](ModContext*,void* a,void*,void*){
+   if(!on("super_clawshot"))return HOOK_CONTINUE;
+-  mods::arg<daAlink_c*>(a,0)->setHookshotPos();return HOOK_SKIP_ORIGINAL;
++  mods::arg<daAlink_c*>(a,0)->xbox_gz_setHookshotPos();return HOOK_SKIP_ORIGINAL;
+  });if(r!=MOD_OK)return r;
+  r=guardedPre<ClawFly>([](ModContext*,void* a,void* ret,void*){
+   if(!on("super_clawshot"))return HOOK_CONTINUE;
+-  *static_cast<int*>(ret)=mods::arg<daAlink_c*>(a,0)->procHookshotFly();return HOOK_SKIP_ORIGINAL;
++  *static_cast<int*>(ret)=mods::arg<daAlink_c*>(a,0)->xbox_gz_procHookshotFly();return HOOK_SKIP_ORIGINAL;
+  });if(r!=MOD_OK)return r;
+  return guardedPre<ClawStick>([](ModContext*,void*,void* ret,void*){
+   if(!on("super_clawshot"))return HOOK_CONTINUE;

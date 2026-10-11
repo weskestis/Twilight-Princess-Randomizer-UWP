@@ -19,6 +19,7 @@ for name in identity['sourcePatches']:
     if hashlib.sha256(payload).hexdigest() != identity['sourcePatches'][name]:
         raise RuntimeError('.743 source patch hash mismatch: ' + name)
 required_sources = {
+    'include/d/actor/d_a_alink.h': ['xbox_gz_setStartProcInit', 'void xbox_gz_draw();'],
     'mods/controller_ui/src/mod.cpp': ['s_controllerStyleLocked ? s_useSwitch', 'Restart'],
     'src/dusk/mods/install_paths.hpp': ['symlink_status', 'lexically_normal'],
     'src/dusk/mods/loader/loader.cpp': ['exclusiveGroup', 'install_paths'],

@@ -1,0 +1,113 @@
+--- a/include/d/actor/d_a_alink.h
++++ b/include/d/actor/d_a_alink.h
+@@ -1427,6 +1427,8 @@
+     public:
+         hsChainShape_c() {}
+         virtual void draw();
++        // Nonvirtual GZ implementation; the original draw slot is retained.
++        void xbox_gz_draw();
+         virtual ~hsChainShape_c() {}
+     };  // Size: 0x10
+ 
+@@ -1478,6 +1480,7 @@
+     void playerInit();
+     BOOL checkHorseStart(u32 i_lastMode, int i_startMode);
+     int setStartProcInit();
++    int xbox_gz_setStartProcInit();
+     int create();
+     int setRoomInfo();
+     void setShapeAngleOnGround();
+@@ -1683,6 +1686,7 @@
+     BOOL checkMagicArmorHeavy() const;
+     BOOL checkHeavyStateOn(BOOL, BOOL);
+     void initGravity();
++    void xbox_gz_initGravity();
+     void setSpecialGravity(f32 i_gravity, f32 i_speed, BOOL i_isOffFlag);
+     void transAnimeProc(cXyz*, f32, f32);
+     void setFootSpeed();
+@@ -1772,6 +1776,7 @@
+     int procSlideLandInit(int);
+     int procSlideLand();
+     int procFrontRollInit();
++    int xbox_gz_procFrontRollInit();
+     int procFrontRoll();
+     int procFrontRollCrashInit();
+     int procFrontRollCrash();
+@@ -2514,20 +2519,25 @@
+     void swimDeleteItem();
+     bool getZoraSwim() const;
+     f32 getSwimFrontMaxSpeed() const;
++    f32 xbox_gz_getSwimFrontMaxSpeed() const;
+     f32 getSwimMaxFallSpeed() const;
++    f32 xbox_gz_getSwimMaxFallSpeed() const;
+     void checkOxygenTimer();
+     void offOxygenTimer();
+     BOOL checkPossibleWaterInMode() const;
+     void setWaterInAnmRate(daPy_frameCtrl_c* i_frameCtrl, f32 i_rate);
+     void swimBgCheck(f32);
+     void setSpeedAndAngleSwim();
++    void xbox_gz_setSpeedAndAngleSwim();
+     int checkNextActionSwim();
+     int checkSwimAction(int);
++    int xbox_gz_checkSwimAction(int);
+     int checkSwimUpAction();
+     void swimOutAfter(int);
+     BOOL checkSwimFall();
+     int checkSwimOutAction();
+     void setSwimMoveAnime();
++    void xbox_gz_setSwimMoveAnime();
+     bool checkSwimButtonAccept();
+     bool checkUpSwimButtonAccept();
+     BOOL checkSwimButtonMove();
+@@ -2591,6 +2601,7 @@
+     void setHookshotCatchNow();
+     void setHookshotModel();
+     void setHookshotSight();
++    void xbox_gz_setHookshotSight();
+     void cancelHookshotShot();
+     bool cancelHookshotMove();
+     BOOL checkHookshotReadyMaterialOffMode() const;
+@@ -2604,9 +2615,11 @@
+     int setHookshotHangMoveBGCollect();
+     void setHookshotTopPosFly();
+     void setHookshotPos();
++    void xbox_gz_setHookshotPos();
+     void setHookshotRoofWaitAnime();
+     void setHookshotWallWaitAnime();
+     void hookshotRoofTurn();
++    void xbox_gz_hookshotRoofTurn();
+     void initHookshotRoofWaitActor(fopAc_ac_c* i_actor);
+     int checkNextHookPoint();
+     int checkLandHookshotHang();
+@@ -2618,6 +2631,7 @@
+     int procHookshotMove();
+     int procHookshotFlyInit();
+     int procHookshotFly();
++    int xbox_gz_procHookshotFly();
+     int procHookshotRoofWaitInit(int, fopAc_ac_c*, int);
+     int procHookshotRoofWait();
+     int procHookshotRoofShootInit(fopAc_ac_c*);
+@@ -2925,6 +2939,7 @@
+     void checkWolfUseAbility();
+     int checkWolfGroundSpecialMode();
+     int checkNextActionWolf(int);
++    int xbox_gz_checkNextActionWolf(int);
+     BOOL wolfSideBgCheck(s16);
+     BOOL checkWolfAttackReverse(int);
+     int checkWolfBarrierHitReverse();
+@@ -2949,6 +2964,7 @@
+     int procWolfMoveInit();
+     int procWolfMove();
+     int procWolfDashInit();
++    int xbox_gz_procWolfDashInit();
+     int procWolfDash();
+     int procWolfDashReverseInit(int);
+     int procWolfDashReverse();
+@@ -3053,6 +3069,7 @@
+     int procWolfLieAutoMoveInit(int, cXyz*);
+     int procWolfLieAutoMove();
+     void setSpeedAndAngleSwimWolf();
++    void xbox_gz_setSpeedAndAngleSwimWolf();
+     f32 getWolfSwimMoveAnmSpeed();
+     int decideDoStatusSwimWolf();
+     int procWolfSwimUpInit();
