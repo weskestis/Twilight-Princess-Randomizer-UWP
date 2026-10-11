@@ -6621,7 +6621,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $nativePorts743 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json
           $nativeTargets743 = @($nativePorts743.mods | ForEach-Object { $_.target })
-          cmake --build "$env:TPR_FEED" --target $nativeTargets743 --parallel
+          cmake --build "$env:TPR_FEED" --target $nativeTargets743 --parallel -- -k 0
           if ($LASTEXITCODE -ne 0) { throw 'Source-built native UWP mods failed to compile.' }
           # Compile the repaired picker/UI first so platform integration failures surface promptly.
           cmake --build "$env:TPR_FEED" --target `
