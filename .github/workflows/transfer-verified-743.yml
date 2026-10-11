@@ -1,0 +1,146 @@
+name: Transfer verified Xbox 743
+
+on:
+  push:
+    branches:
+      - codex/deliver-743-38183843368
+    paths:
+      - '.github/workflows/transfer-verified-743.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  transfer:
+    name: Transfer verified package in smaller pieces
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download the exact green build artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11719521935'
+          path: verified-artifact
+          run-id: '38183843368'
+          repository: weskestis/Twilight-Princess-Randomizer-UWP
+          github-token: ${{ github.token }}
+      - name: Verify original hashes and split transfer archive
+        id: split
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, zipfile
+          from pathlib import Path
+          
+          source = Path("verified-artifact")
+          out = Path("transfer")
+          parts_dir = out / "parts"
+          parts_dir.mkdir(parents=True, exist_ok=True)
+          msix_name = "TwilightPrincessRandomizer_1.4.1.743_x64.msix"
+          msix_sha = "647ef067ab070a1ff6569299d40c4b8c8149423e51e6f82fd923e6eafcd02d66"
+          def digest(path):
+              with path.open("rb") as stream:
+                  return hashlib.file_digest(stream, "sha256").hexdigest()
+          assert digest(source / msix_name) == msix_sha, "Verified MSIX bytes changed"
+          manifest = json.loads((source / "SOURCE-MANIFEST-743.json").read_text(encoding="utf-8-sig"))
+          assert manifest["sourceRevision"] == "8e9f155461208151b4b1e9fb565eba75ab19d1c4"
+          assert int(manifest["workflowRun"]) == 38183843368
+          assert manifest["generatorScenarios"] == 67
+          for line in (source / "SHA256SUMS.txt").read_text().splitlines():
+              sha, name = line.split("  ", 1)
+              assert Path(name).name == name, "Unsafe artifact filename"
+              assert digest(source / name) == sha, "Original artifact hash changed: " + name
+          archive = out / "Twilight-Princess-Randomizer-UWP-1.4.1.743-Transfer.zip"
+          with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as z:
+              for file in sorted(source.rglob("*")):
+                  if file.is_file():
+                      assert not file.is_symlink(), "Artifact symlink"
+                      z.write(file, file.relative_to(source).as_posix())
+          chunk_bytes = 384 * 1024**2
+          assert archive.stat().st_size <= 6 * chunk_bytes, "Transfer needs more than six pieces"
+          parts = []
+          with archive.open("rb") as stream:
+              for index in range(6):
+                  data = stream.read(chunk_bytes)
+                  if not data:
+                      break
+                  name = f"part-{index:03}.bin"
+                  (parts_dir / name).write_bytes(data)
+                  parts.append({"name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+          proof = {"sourceArtifact": 11719521935, "sourceRun": 38183843368,
+              "sourceRevision": manifest["sourceRevision"], "msixName": msix_name, "msixSha256": msix_sha,
+              "archiveName": archive.name, "archiveBytes": archive.stat().st_size,
+              "archiveSha256": digest(archive), "parts": parts}
+          (parts_dir / "TRANSFER-743.json").write_text(json.dumps(proof, indent=2) + "\n")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+              stream.write(f"count={len(parts)}\n")
+          print(f"Verified original signed MSIX and split {archive.stat().st_size} archive bytes into {len(parts)} pieces.")
+          PY
+      - name: Upload verified transfer piece 00
+        if: ${{ fromJSON(steps.split.outputs.count) > 0 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-743-transfer-00
+          path: |
+            transfer/parts/part-000.bin
+            transfer/parts/TRANSFER-743.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload verified transfer piece 01
+        if: ${{ fromJSON(steps.split.outputs.count) > 1 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-743-transfer-01
+          path: |
+            transfer/parts/part-001.bin
+            transfer/parts/TRANSFER-743.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload verified transfer piece 02
+        if: ${{ fromJSON(steps.split.outputs.count) > 2 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-743-transfer-02
+          path: |
+            transfer/parts/part-002.bin
+            transfer/parts/TRANSFER-743.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload verified transfer piece 03
+        if: ${{ fromJSON(steps.split.outputs.count) > 3 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-743-transfer-03
+          path: |
+            transfer/parts/part-003.bin
+            transfer/parts/TRANSFER-743.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload verified transfer piece 04
+        if: ${{ fromJSON(steps.split.outputs.count) > 4 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-743-transfer-04
+          path: |
+            transfer/parts/part-004.bin
+            transfer/parts/TRANSFER-743.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload verified transfer piece 05
+        if: ${{ fromJSON(steps.split.outputs.count) > 5 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-743-transfer-05
+          path: |
+            transfer/parts/part-005.bin
+            transfer/parts/TRANSFER-743.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
