@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 #include <stdexcept>
+#include <algorithm>
+#include <utility>
 #include "dusk/xbox_vanilla_save.hpp"
 using u8=uint8_t;using u16=uint16_t;using u32=uint32_t;using u64=uint64_t;using s32=int32_t;using BOOL=int;
 #define FALSE 0
@@ -42,6 +44,10 @@ struct mDoMemCd_Ctrl_c {
     void ThdInit();void update();void load();void save(void*,u32,u32);void command_attach();void setFileName(const std::string&);const char*getFileName();int getStatus(int){return mCardState;}
 };
 struct mDoMemCdRWm_HeaderData{u8 data[0x2440];};void mDoMemCdRWm_BuildHeader(mDoMemCdRWm_HeaderData*h){std::memset(h,0x66,sizeof(*h));}
+mDoMemCd_Ctrl_c g_mDoMemCd_control;
+int remountCalls=0;bool remountResult=false;
+bool aurora_card_remount(int){++remountCalls;return remountResult;}
+namespace dusk::mods::svc {std::vector<std::string> invalidated;void invalidate_save(std::string_view name){invalidated.emplace_back(name);}}
 #include "production-vanilla.inc"
 void require(bool v,const char*s){if(!v)throw std::runtime_error(s);}
 std::vector<u8> bytes(const std::filesystem::path&p){std::ifstream in(p,std::ios::binary);return {std::istreambuf_iterator<char>(in),{}};}
@@ -56,6 +62,19 @@ int main(int argc,char**argv) {try{
 #ifdef TPR_NEGATIVE_CONTROL
     return control.mCardState==CARD_STATE_NO_CARD_e&&control.mCardCommand==COMM_ATTACH_e?42:1;
 #else
+    using namespace dusk::save_manager;
+    g_mDoMemCd_control.ThdInit();g_mDoMemCd_control.mCardState=CARD_STATE_NO_CARD_e;
+    Storage mounted{.kind=StorageKind::GciDirectory,.channel=0,.mounted=true};
+    std::array<SaveIdentity,1> vanilla{{{"01","GZ2E","gczelda2"}}},rando{{{"01","GZ2E","randomizer-xbox"}}};
+    require(finish_write(mounted,vanilla).ok&&remountCalls==0&&g_mDoMemCd_control.mCardState==CARD_STATE_READY_e,"Mounted vanilla import still requires virtual CARD or fails to refresh active state");
+    require(dusk::mods::svc::invalidated==std::vector<std::string>{"gczelda2"},"Vanilla import did not invalidate cached save data");
+    g_mDoMemCd_control.setFileName("randomizer-xbox");
+    require(finish_write(mounted,vanilla).ok&&remountCalls==0&&g_mDoMemCd_control.mCardState==CARD_STATE_NO_FILE_e,"Inactive vanilla import changed the active Randomizer card");
+    require(!finish_write(mounted,rando).ok&&remountCalls==1,"Randomizer import bypassed its ordinary remount result");
+    mounted.kind=StorageKind::RawImage;
+    require(!finish_write(mounted,vanilla).ok&&remountCalls==2,"Raw card import bypassed the virtual card remount");
+    mounted.mounted=false;
+    require(finish_write(mounted,rando).ok&&remountCalls==2,"Unmounted import unexpectedly remounted a virtual card");
     require(control.mCardState==CARD_STATE_READY_e&&control.mCardCommand==COMM_NONE_e,"Vanilla initialization still depends on CARD worker");
     const auto probes=cardProbes;for(int i=0;i<180;++i)control.update();require(cardProbes==probes&&control.mCardState==CARD_STATE_READY_e,"CARD polling overwrote direct ready state");
     control.load();require(control.mCardState==CARD_STATE_READ_e&&std::memcmp(control.mData,quest.data(),quest.size())==0,"Existing vanilla GCI not read");
@@ -73,6 +92,6 @@ int main(int argc,char**argv) {try{
     write(path,vanillaBytes);std::filesystem::remove(path);reboot.command_attach();require(reboot.mCardState==CARD_STATE_READY_e&&std::filesystem::exists(path),"Interrupted atomic replace did not recover preserved GCI backup");
     const auto beforeFailure=bytes(path);std::filesystem::create_directory(path.string()+".tmp");reboot.save(quest.data(),quest.size(),0);require(reboot.mCardState==CARD_STATE_FATAL_ERROR_e&&bytes(path)==beforeFailure,"Failed write damaged existing GCI");
     std::filesystem::remove(path.string()+".tmp");std::filesystem::remove(path);std::filesystem::remove(path.string()+".bak");reboot.command_attach();require(reboot.mCardState==CARD_STATE_NO_FILE_e&&reboot.mProbeStat==0,"Fresh vanilla has no card instead of no save file");
-    puts("PASS: production vanilla initialization/load/save/restart, standard GCI backup recovery, corruption preservation and Randomizer isolation");return 0;
+    puts("PASS: production vanilla initialization/load/save/restart, mounted import refresh, standard GCI backup recovery, corruption preservation and Randomizer isolation");return 0;
 #endif
 }catch(const std::exception&e){fprintf(stderr,"%s\n",e.what());return 1;}}

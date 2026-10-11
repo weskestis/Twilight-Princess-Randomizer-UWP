@@ -110,7 +110,7 @@
     "xbox-slot-a-742-aurora.patch": "b0364e82e6e58d6312576b970c28ff1640cadbb268d272e5736ac9ff8ba95580",
     "xbox-slot-a-742-host.patch": "b802144df97122991eea293e1e90323e77d2cd94bfb0a5236589c3ecda4503e9",
     "xbox-mod-install-paths-743-host.patch": "205be72e16548d0f43c0d9915bfee256107dbb6cf1410dbea3aa84cf7321caf2",
-    "xbox-vanilla-direct-gci-743-host.patch": "4b64e4723a1cdf00fe4de13af64d1a0404306056a3e657fcb637a26fa5b48459",
+    "xbox-vanilla-direct-gci-743-host.patch": "0bb4765fbc44ff326d8aa0ab972edec0157668a0e1a92efffe9904b590cb11a6",
     "xbox-controller-ui-selection-743.patch": "2f64fb87b5bd399f74fdc5ca718cafd9f1a2b74dc8974b218ff5d317939000bf",
     "xbox-mod-menu-budget-743-host.patch": "2aa419b78c5a66e9f2b7522308817e991d43d75fa00d0b6a563e475bf0429bbd",
     "custom-mod-groups-743-host.patch": "52d22622bfc4f9ff62ba0617666433abe260b9a70b7d89d6d5995bb5cc0e52b5",

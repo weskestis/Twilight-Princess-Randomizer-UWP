@@ -344,7 +344,7 @@ diff --git a/src/dusk/save_manager.cpp b/src/dusk/save_manager.cpp
 +    const bool directVanilla = storage.kind == StorageKind::GciDirectory && !identities.empty() &&
 +        std::ranges::all_of(identities, [](const auto& identity) { return identity.saveName == "gczelda2"; });
 +    const bool remounted = !storage.mounted || directVanilla || aurora_card_remount(storage.channel);
-+    if (directVanilla && std::string_view(mDoMemCd_getFileName()) == "gczelda2") {
++    if (directVanilla && std::string_view(mDoMemCd_GetFileName()) == "gczelda2") {
 +        g_mDoMemCd_control.command_attach();
 +    }
 +#else

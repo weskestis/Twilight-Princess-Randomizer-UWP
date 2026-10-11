@@ -3,10 +3,12 @@ import argparse,os,re,shutil,subprocess,tempfile
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('--negative-control',action='store_true');a=p.parse_args();root=a.source.resolve();control=Path(__file__).resolve().parents[1]
 def function(source,signature):
-    start=source.index(signature);depth=0
-    for m in re.finditer(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//[^\n]*|/\*[\s\S]*?\*/|[{}]',source[start:]):
-        if m.group()=='{':depth+=1
-        elif m.group()=='}':
+    start=source.index(signature);depth=0;parentheses=0
+    for m in re.finditer(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//[^\n]*|/\*[\s\S]*?\*/|[(){}]',source[start:]):
+        if m.group()=='(':parentheses+=1
+        elif m.group()==')':parentheses-=1
+        elif m.group()=='{' and (depth or not parentheses):depth+=1
+        elif m.group()=='}' and depth:
             depth-=1
             if not depth:return source[start:start+m.end()]
     raise RuntimeError('Unclosed '+signature)
@@ -19,6 +21,16 @@ with tempfile.TemporaryDirectory(prefix='vanilla-gci-743-') as temp:
     for signature in ['static u32 mDoMemCdRWm_CalcCheckSum(','static u64 mDoMemCdRWm_CalcCheckSumGameData(','BOOL mDoMemCdRWm_TestCheckSumGameData(','void mDoMemCdRWm_SetCheckSumGameData(','void mDoMemCdRWm_BuildXboxGci(']:body+=function(rw,signature)+'\n'
     start=card.index('namespace {\nconstexpr char kXboxRandomizerSaveName');end=card.index('}  // namespace',start)+len('}  // namespace');body+=card[start:end]+'\n'
     for signature in ['void mDoMemCd_Ctrl_c::ThdInit(','void mDoMemCd_Ctrl_c::update(','void mDoMemCd_Ctrl_c::load(','void mDoMemCd_Ctrl_c::save(','void mDoMemCd_Ctrl_c::command_attach(','void mDoMemCd_Ctrl_c::setFileName(','const char* mDoMemCd_Ctrl_c::getFileName(']:body+=function(card,signature)+'\n'
+    # Use the real public getter and write-completion code, including mounted imports.
+    header=(root/'include/m_Do/m_Do_MemCard.h').read_text()
+    body+=function(header,'inline const char* mDoMemCd_GetFileName(')+'\n'
+    types=(root/'src/dusk/save_manager.hpp').read_text()
+    manager=(root/'src/dusk/save_manager.cpp').read_text()
+    body+='namespace dusk::save_manager {\n'
+    for signature in ['enum class StorageKind {','struct Result {','struct SaveIdentity {','struct Storage {']:
+        body+=function(types,signature)+';\n'
+    for signature in ['Result success(','Result failure(','Result finish_write(']:body+=function(manager,signature)+'\n'
+    body+='}\n'
     (work/'production-vanilla.inc').write_text(body)
     compiler=shutil.which('cl' if os.name=='nt' else 'c++');binary=work/('vanilla.exe' if os.name=='nt' else 'vanilla');fixture=control/'tests/vanilla_direct_gci.cpp';defs=['_UWP=1','TARGET_PC=1','PLATFORM_GCN=1','PLATFORM_WII=0','PLATFORM_SHIELD=0']+(['TPR_NEGATIVE_CONTROL=1'] if a.negative_control else [])
     if os.name=='nt':cmd=[compiler,'/nologo','/EHsc','/std:c++20','/MD',*['/D'+d for d in defs],'/I'+str(work),'/I'+str(root/'src'),str(fixture),'/Fe:'+str(binary)]

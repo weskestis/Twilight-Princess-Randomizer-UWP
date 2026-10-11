@@ -6625,6 +6625,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Source-built native UWP mods failed to compile.' }
           # Compile the repaired picker/UI first so platform integration failures surface promptly.
           cmake --build "$env:TPR_FEED" --target `
+            'CMakeFiles/dusk_internal.dir/src/dusk/save_manager.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/xbox_file_picker.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/list.cpp.obj' `
             'CMakeFiles/dusk_internal.dir/src/dusk/ui/settings.cpp.obj' `
@@ -6643,7 +6644,7 @@ jobs:
             $targets += 'randomizer_generator_tests'
           }
           Write-Host ('Building targets with all available runner cores: ' + ($targets -join ', '))
-          cmake --build "$env:TPR_FEED" --target $targets --parallel
+          cmake --build "$env:TPR_FEED" --target $targets --parallel -- -k 0
           if ($LASTEXITCODE -ne 0) { throw 'Dusklight/Randomizer release targets failed to build.' }
 
           if (-not (Test-Path "$env:TPR_FEED\dusklight.lib" -PathType Leaf)) {
