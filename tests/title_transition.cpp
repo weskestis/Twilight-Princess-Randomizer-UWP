@@ -1,6 +1,13 @@
 #include <cstdio>
+#include <cstring>
 #include <stdexcept>
 #define OS_REPORT(...) ((void)0)
+int transitionReports=0;
+void OSReport(const char* message, ...) {
+    if (std::strcmp(message,"Xbox title scene request accepted (743)\n") != 0)
+        throw std::runtime_error("Wrong release title diagnostic");
+    ++transitionReports;
+}
 #define JUT_ASSERT(line,value) do {if(!(value))throw std::runtime_error("missing play scene");}while(0)
 struct scene_class{};scene_class scene;bool peek=false,reset=false;int requests=0,accepted=0,failures=0;
 bool fopOvlpM_IsPeek(){return peek;}namespace mDoRst {bool isReset(){return reset;}}
@@ -17,10 +24,15 @@ int main(int argc,char**) {try{
     daTitle_c title;title.nextScene_init();for(int i=0;i<180;++i)title.nextScene_proc();
     if(argc>1)return accepted==180?42:1;
     require(title.mProcID==4&&requests==1&&accepted==1,"Accepted transition submitted repeatedly before overlap flag");
+    require(transitionReports==1,"Release transition diagnostic did not survive DEBUG=0");
     title.nextScene_init();requests=accepted=0;failures=2;
     for(int i=0;i<180;++i)title.nextScene_proc();require(requests==3&&accepted==1,"Failed scene request was latched or accepted request retried");
+    require(transitionReports==2,"Failed or repeated scene requests logged as accepted");
     title.nextScene_init();requests=accepted=0;peek=true;title.nextScene_proc();peek=false;reset=true;title.nextScene_proc();require(requests==0,"Overlap/reset gate ignored");
+    require(transitionReports==2,"Blocked title transition emitted an accepted diagnostic");
     reset=false;title.nextScene_proc();require(accepted==1,"Transition did not resume after gate");
+    require(transitionReports==3,"Resumed accepted transition diagnostic missing");
     daTitle_c next;next.nextScene_init();next.nextScene_proc();require(accepted==2,"New title actor inherited previous transition latch");
+    require(transitionReports==4,"New title accepted transition diagnostic missing");
     puts("PASS: production title accepts one request, retries failures and respects overlap/reset gates");return 0;
 }catch(const std::exception&e){fprintf(stderr,"%s\n",e.what());return 1;}}

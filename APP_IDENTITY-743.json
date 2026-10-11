@@ -115,7 +115,7 @@
     "xbox-controller-ui-selection-743.patch": "2f64fb87b5bd399f74fdc5ca718cafd9f1a2b74dc8974b218ff5d317939000bf",
     "xbox-mod-menu-budget-743-host.patch": "2aa419b78c5a66e9f2b7522308817e991d43d75fa00d0b6a563e475bf0429bbd",
     "custom-mod-groups-743-host.patch": "52d22622bfc4f9ff62ba0617666433abe260b9a70b7d89d6d5995bb5cc0e52b5",
-    "xbox-title-transition-743-host.patch": "f1615db780c0e04719efac671a81eefacc7781003a06e26a04fa1e9985091720",
+    "xbox-title-transition-743-host.patch": "b74b021bd75642455d3993c60080c1e2260554dd8a7c91bff0383f2835a7cb25",
     "xbox-gfx-snapshot-textures-743-host.patch": "d42973e8ee5c41407f680ac3e94c7b4a76737b2e92e9b8c6c0a7ef88bbfd6481",
     "xbox-gz-private-methods-743-host.patch": "fc98c783be2963d250ad1a1253342770350592610f752fbd9c64f8d0978fe3bf"
   },

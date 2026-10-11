@@ -39,7 +39,7 @@ diff --git a/src/d/actor/d_a_title.cpp b/src/d/actor/d_a_title.cpp
 +            if (fopScnM_ChangeReq(playScene, fpcNm_NAME_SCENE_e, 0, 5)) {
 +                s_xboxTitleTransitionOwner = this;
 +                s_xboxTitleTransitionAccepted = true;
-+                OS_REPORT("Xbox title scene request accepted (743)\n");
++                OSReport("Xbox title scene request accepted (743)\n");
 +            }
 +#else
              fopScnM_ChangeReq(playScene, fpcNm_NAME_SCENE_e, 0, 5);
@@ -51,7 +51,7 @@ diff --git a/src/d/actor/d_a_title.cpp b/src/d/actor/d_a_title.cpp
 +            if (fopScnM_ChangeReq(playScene, fpcNm_MENU_SCENE_e, 0, 5)) {
 +                s_xboxTitleTransitionOwner = this;
 +                s_xboxTitleTransitionAccepted = true;
-+                OS_REPORT("Xbox title scene request accepted (743)\n");
++                OSReport("Xbox title scene request accepted (743)\n");
 +            }
 +#else
              fopScnM_ChangeReq(playScene, fpcNm_MENU_SCENE_e, 0, 5);
