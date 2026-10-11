@@ -301,7 +301,9 @@
       "metadataSection": "p06meta",
       "metadataDefine": "DUSK_STATIC_PORT_06",
       "privateSymbols": [
-        "on_set_stick_data_post"
+        "on_set_stick_data_post",
+        "add_all_hooks",
+        "remove_all_hooks"
       ],
       "cmakeDefines": []
     },
