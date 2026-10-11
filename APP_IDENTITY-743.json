@@ -57,7 +57,7 @@
     "Reject oversized PNG headers before decoding; bound temporary decode to 36 MiB and cached images to 16 MiB, with 256px icons and 768px previews",
     "Read and atomically write ordinary vanilla GCI saves with the real game checksums, regional identities, redundant quest data and backup recovery when virtual CARD is unavailable",
     "Latch a successfully accepted title scene request, retry failed requests and retain reset/overlap guards",
-    "Build 24 additional source ports against the pinned 2.0.1 SDK with independent contexts, exports, imports, C++ hook state, metadata ranges and exact version gates",
+    "Build 28 additional source ports against the pinned 2.0.1 SDK with independent contexts, exports, imports, C++ hook state, metadata ranges and exact version gates",
     "Recover Twilit Essentials 2.5.0 source and bundled collection library from a public fork; replace its desktop ShellExecute call with the packaged SDL UWP URL path"
   ],
   "preserved": [
@@ -111,7 +111,7 @@
     "custom-mod-groups-743-host.patch": "52d22622bfc4f9ff62ba0617666433abe260b9a70b7d89d6d5995bb5cc0e52b5",
     "xbox-title-transition-743-host.patch": "f1615db780c0e04719efac671a81eefacc7781003a06e26a04fa1e9985091720"
   },
-  "bundledCatalogMods": 45,
+  "bundledCatalogMods": 49,
   "catalogInventoryCount": 62,
   "xboxFilePicker": "Full-size controller browser with named Development Files and installed app-folder entry points, B navigation, LB/RB pages, Unicode and restored focus; main-thread callback lifecycle retained",
   "modLoadingDiagnostics": [
@@ -129,11 +129,11 @@
   "reportedCheckpoint": "Controller design selection; online mod install access denied; missing supplied custom mods; delayed Mods crash; vanilla No Card; title movie scene transition; source-built Twilit Essentials",
   "vanillaSaveBackend": "Direct read/write of the standard regional Card A/<maker>-<game>-gczelda2.gci path, with original game checksums and .bak recovery; Randomizer direct format and sidecars unchanged",
   "bundledUserMods": 35,
-  "additionalNativeSourcePorts": 24,
-  "totalPackagedModEntries": 84,
+  "additionalNativeSourcePorts": 28,
+  "totalPackagedModEntries": 88,
   "essentialsSourcePort": "Twilit Essentials 2.5.0 recovered from BeZide93/dawnlight-twilit-essentials 7682060c20e2e3757b2888a27bbd958506ccb4f7; matching code and assets; stock 2.7.1 source is unavailable",
   "sourceControls": {
-    "NATIVE_MODS-743.json": "ebae0555d638c333001502660c6e3a5fe67aed33dfb101be540f6567bc0f2b72",
+    "NATIVE_MODS-743.json": "834645307592f95b338d4739d487acd09a4145c32e277420af363a270e708d2f",
     "CUSTOM_MODS-743.json": "90565a5c4e606e9baea48e9f9f9b4add3dc5e31722ae3787ea80b800f10a4bef",
     "scripts/apply-743-xbox-fixes.py": "4dea0b2cfd73db9c3386deac317f7b397273abc24de73172a0bc4d5b472ec9ee",
     "scripts/apply-743-native-ports.py": "ebc74f6ab4cc56eebec358f35fdb3293c1e4bb2628767249bd3e78662fc72dc1",

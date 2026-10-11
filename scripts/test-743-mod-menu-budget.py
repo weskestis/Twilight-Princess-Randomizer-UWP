@@ -20,7 +20,9 @@ with tempfile.TemporaryDirectory(prefix='mod-menu-743-') as name:
     production=source.read_bytes().replace(b'\r\n',b'\n')
     if a.negative_control:
         root=work/'reverse';f=root/'src/dusk/ui/mod_texture_provider.cpp';f.parent.mkdir(parents=True);f.write_bytes(production)
-        subprocess.run(['git','-C',str(root),'apply','--reverse',str(control/'patches/xbox-mod-menu-budget-743-host.patch')],check=True)
+        patch=work/'negative.patch'
+        patch.write_bytes((control/'patches/xbox-mod-menu-budget-743-host.patch').read_bytes().replace(b'\r\n',b'\n'))
+        subprocess.run(['git','-C',str(root),'apply','--reverse',str(patch)],check=True)
         production=f.read_bytes()
     (work/'production-provider.cpp').write_bytes(production)
     compiler=shutil.which('cl' if os.name=='nt' else 'c++');binary=work/('images.exe' if os.name=='nt' else 'images')

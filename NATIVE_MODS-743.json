@@ -2061,6 +2061,241 @@
         "HS_DEFAULT_SERVER=\"wss://hyrule-hide-and-seek.jhackerr.workers.dev\"",
         "HS_MOD_VERSION=\"0.4.1\""
       ]
+    },
+    {
+      "id": "dev.automata.deferred_fog",
+      "name": "Deferred Fog",
+      "version": "2.0.0",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.automata.deferred_fog/2.0.0",
+        "sha256": "da70c3c2bf37bcc721423d5de3c0dbb740e6877820481358b9959119579a4e8b",
+        "size": 945043
+      },
+      "source_url": "https://github.com/automata-rtx/dusklight-mods",
+      "target": "port_deferred_fog",
+      "sourceCommit": "df57a944af29fe9dfdaaa3a67ba127fdcd59dd9f",
+      "sourceArchive": {
+        "url": "https://codeload.github.com/automata-rtx/dusklight-mods/zip/df57a944af29fe9dfdaaa3a67ba127fdcd59dd9f",
+        "name": "automata-graphics.zip",
+        "sha256": "76e7e9a428215a883df8dfe6869fd646a53378c684e0e6c10166abdc3d1745d1",
+        "size": 1662867
+      },
+      "sourceFiles": [
+        "LICENSE",
+        "common/gfx_normal_compat.h",
+        "common/gfx_scene_pass.h",
+        "mods/deferred_fog/CMakeLists.txt",
+        "mods/deferred_fog/include/deferred_fog_service.h",
+        "mods/deferred_fog/src/fog_math.h",
+        "mods/deferred_fog/src/mod.cpp"
+      ],
+      "sources": [
+        "mods/deferred_fog/src/mod.cpp"
+      ],
+      "features": [
+        "game",
+        "webgpu"
+      ],
+      "originalTarget": "deferred_fog",
+      "serviceVariables": [
+        "svc_config",
+        "svc_gfx",
+        "svc_hook",
+        "svc_log",
+        "svc_resource",
+        "svc_ui"
+      ],
+      "privateNamespaces": [
+        "dusk_fog",
+        "gfx_compat"
+      ],
+      "metadataSection": "p24meta",
+      "metadataDefine": "DUSK_STATIC_PORT_24",
+      "cmakeDefines": [],
+      "includePaths": [
+        "common",
+        "mods/deferred_fog/include"
+      ]
+    },
+    {
+      "id": "dev.automata.vbao",
+      "name": "VBAO",
+      "version": "1.1.0",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.automata.vbao/1.1.0",
+        "sha256": "cab78472368a0142f1756431807002dd454127dd03094ece9a393fc4caeb5de7",
+        "size": 681850
+      },
+      "source_url": "https://github.com/automata-rtx/dusklight-mods",
+      "target": "port_vbao",
+      "sourceCommit": "df57a944af29fe9dfdaaa3a67ba127fdcd59dd9f",
+      "sourceArchive": {
+        "url": "https://codeload.github.com/automata-rtx/dusklight-mods/zip/df57a944af29fe9dfdaaa3a67ba127fdcd59dd9f",
+        "name": "automata-graphics.zip",
+        "sha256": "76e7e9a428215a883df8dfe6869fd646a53378c684e0e6c10166abdc3d1745d1",
+        "size": 1662867
+      },
+      "sourceFiles": [
+        "LICENSE",
+        "common/gfx_normal_compat.h",
+        "common/gfx_scene_pass.h",
+        "mods/vbao/CMakeLists.txt",
+        "mods/vbao/src/mod.cpp"
+      ],
+      "sources": [
+        "mods/vbao/src/mod.cpp"
+      ],
+      "features": [
+        "webgpu"
+      ],
+      "originalTarget": "vbao",
+      "serviceVariables": [
+        "svc_camera",
+        "svc_config",
+        "svc_gfx",
+        "svc_log",
+        "svc_resource",
+        "svc_ui"
+      ],
+      "privateNamespaces": [
+        "gfx_compat"
+      ],
+      "metadataSection": "p25meta",
+      "metadataDefine": "DUSK_STATIC_PORT_25",
+      "cmakeDefines": [],
+      "includePaths": [
+        "common",
+        "mods/vbao/include"
+      ]
+    },
+    {
+      "id": "com.nozzly.action_prompt_removal",
+      "name": "Nozzlys random QoL",
+      "version": "1.1.2",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/com.nozzly.action_prompt_removal/1.1.2",
+        "sha256": "9c2f46b1348f23c510fbd124c12b95ff301f0a4de88f21e44d7592aaf5514a21",
+        "size": 49390
+      },
+      "source_url": "https://github.com/NozomuR/Nozzlys-QoL-Mod",
+      "target": "port_action_prompt_removal",
+      "sourceCommit": "b5d550616d82c35d68b8f3dbfa091891ba252662",
+      "sourceArchive": {
+        "url": "https://codeload.github.com/NozomuR/Nozzlys-QoL-Mod/zip/b5d550616d82c35d68b8f3dbfa091891ba252662",
+        "name": "com.nozzly.action_prompt_removal.zip",
+        "sha256": "1b868727fecbccbbfea2b91ec74b0b3292a6e981adf5659539339965719a72bc",
+        "size": 17519
+      },
+      "sourceFiles": [
+        "CMakeLists.txt",
+        "src/action_prompt.cpp",
+        "src/action_prompt.hpp",
+        "src/common.cpp",
+        "src/common.hpp",
+        "src/link_voice.cpp",
+        "src/link_voice.hpp",
+        "src/lock_sounds.cpp",
+        "src/lock_sounds.hpp",
+        "src/mod.cpp",
+        "src/settings_window.cpp",
+        "src/settings_window.hpp"
+      ],
+      "sources": [
+        "src/mod.cpp",
+        "src/common.cpp",
+        "src/action_prompt.cpp",
+        "src/lock_sounds.cpp",
+        "src/link_voice.cpp",
+        "src/settings_window.cpp"
+      ],
+      "features": [
+        "game"
+      ],
+      "originalTarget": "nozzly_qol",
+      "serviceVariables": [
+        "svc_config",
+        "svc_hook",
+        "svc_log",
+        "svc_ui"
+      ],
+      "privateNamespaces": [
+        "qol"
+      ],
+      "metadataSection": "p26meta",
+      "metadataDefine": "DUSK_STATIC_PORT_26",
+      "cmakeDefines": []
+    },
+    {
+      "id": "io.github.aldeus_vip.dusklight_item_tracker",
+      "name": "Dusklight Item Tracker",
+      "version": "1.1.0",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/io.github.aldeus_vip.dusklight_item_tracker/1.1.0",
+        "sha256": "6ce47f86c9df7e7f5e549038627d5c98ee6bdf87f35a6506b0b3b9f325e37044",
+        "size": 2650786
+      },
+      "source_url": "https://github.com/Aldeus-Vip/Item_Tracker_Mod_for_Dusklight_Randomizer",
+      "target": "port_dusklight_item_tracker",
+      "sourceCommit": "754b7910009be69bc8280eb19a1f9cb5a6734b2b",
+      "sourceArchive": {
+        "url": "https://codeload.github.com/Aldeus-Vip/Item_Tracker_Mod_for_Dusklight_Randomizer/zip/754b7910009be69bc8280eb19a1f9cb5a6734b2b",
+        "name": "io.github.aldeus_vip.dusklight_item_tracker.zip",
+        "sha256": "26fbf69805bf72285ed4233add102e5b5cac6a1d49946cea86a3f73063e5c5c7",
+        "size": 1153027
+      },
+      "sourceFiles": [
+        "CMakeLists.txt",
+        "LICENSE",
+        "src/found_checks.cpp",
+        "src/found_checks.hpp",
+        "src/game_icons.cpp",
+        "src/game_icons.hpp",
+        "src/game_textures.cpp",
+        "src/game_textures.hpp",
+        "src/gx_texture.cpp",
+        "src/gx_texture.hpp",
+        "src/json_writer.hpp",
+        "src/mod.cpp",
+        "src/rando_data.cpp",
+        "src/rando_data.hpp",
+        "src/tracker_state.cpp",
+        "src/tracker_state.hpp",
+        "src/web_server.cpp",
+        "src/web_server.hpp"
+      ],
+      "sources": [
+        "src/found_checks.cpp",
+        "src/game_icons.cpp",
+        "src/game_textures.cpp",
+        "src/gx_texture.cpp",
+        "src/mod.cpp",
+        "src/rando_data.cpp",
+        "src/tracker_state.cpp",
+        "src/web_server.cpp"
+      ],
+      "features": [
+        "game",
+        "fmt"
+      ],
+      "originalTarget": "dusklight_item_tracker",
+      "serviceVariables": [
+        "svc_config",
+        "svc_hook",
+        "svc_host",
+        "svc_http",
+        "svc_item",
+        "svc_log",
+        "svc_net",
+        "svc_resource",
+        "svc_save",
+        "svc_ui"
+      ],
+      "privateNamespaces": [
+        "tracker"
+      ],
+      "metadataSection": "p27meta",
+      "metadataDefine": "DUSK_STATIC_PORT_27",
+      "cmakeDefines": []
     }
   ],
   "activationDefault": "disabled",
@@ -2073,23 +2308,9 @@
       "status": "Public source recovered; native networking and voice dependencies require a separate UWP port review."
     },
     {
-      "id": "dev.automata.deferred_fog",
-      "name": "Deferred Fog",
-      "version": "2.0.0",
-      "source_url": null,
-      "status": "no-published-source"
-    },
-    {
       "id": "com.blueflaregames.zora_swim",
       "name": "Zora Swim",
       "version": "1.2.1",
-      "source_url": null,
-      "status": "no-published-source"
-    },
-    {
-      "id": "dev.automata.vbao",
-      "name": "VBAO",
-      "version": "1.1.0",
       "source_url": null,
       "status": "no-published-source"
     },
@@ -2098,7 +2319,7 @@
       "name": "A Link Between Twilight",
       "version": "0.3.0",
       "source_url": "https://github.com/WadeWinningWilson/A-Link-Between-Twilight",
-      "status": "source-unavailable"
+      "status": "Public source recovered as a standalone host fork; requires a separate integration into the pinned Xbox host."
     },
     {
       "id": "hopex.dark_link",
@@ -2113,13 +2334,6 @@
       "version": "0.3.25",
       "source_url": null,
       "status": "no-published-source"
-    },
-    {
-      "id": "io.github.aldeus_vip.dusklight_item_tracker",
-      "name": "Dusklight Item Tracker",
-      "version": "1.1.0",
-      "source_url": "https://github.com/Aldeus-Vip/Item_Tracker_Mod_for_Dusklight_Randomizer",
-      "status": "Available source is 1.2.2, catalog pin is 1.1.0; matching source version still being recovered."
     },
     {
       "id": "io.github.mdra5000.dusklight_online",
@@ -2155,13 +2369,6 @@
       "version": "0.1.3",
       "source_url": "https://github.com/SiggeMcKvack/dusklight-dualscreen-companion",
       "status": "Android-only JNI, Java and second display integration; requires a separate Xbox implementation."
-    },
-    {
-      "id": "com.nozzly.action_prompt_removal",
-      "name": "Nozzlys random QoL",
-      "version": "1.1.2",
-      "source_url": "https://github.com/NozomuR/Nozzlys-QoL-Mod",
-      "status": "Available source is 1.2.0, catalog pin is 1.1.2; matching source version still being recovered."
     },
     {
       "id": "com.krowten.chicken_bomb",
