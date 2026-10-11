@@ -1122,7 +1122,6 @@
         "src/compat/extra_buttons.cpp",
         "src/compat/tp_classic_buttons.cpp",
         "src/compat/lazy_tweaks.cpp",
-        "src/sdk_compat.cpp",
         "src/general/general.cpp",
         "src/general/skip_cutscenes.cpp",
         "src/general/fast_forward_cutscenes.cpp",
@@ -1196,7 +1195,6 @@
         "src/stamina/stamina_swordcharge.cpp",
         "src/collection_menu/collection_menu.cpp",
         "src/collection_menu/collection_menu_shield.cpp",
-        "src/dusklight_compat.cpp",
         "collection-lib/src/collection_lib.cpp"
       ],
       "features": [
@@ -1272,7 +1270,8 @@
       "privateSymbols": [
         "on_set_stick_data_post",
         "g_keep_mod_records"
-      ]
+      ],
+      "hostCompatibilityNote": "Standalone fallback definitions in src/sdk_compat.cpp and src/dusklight_compat.cpp remain in the pinned source audit but are excluded from the signed build; the pinned host already supplies these game functions and real ConfigVarBase notifications."
     },
     {
       "id": "dev.bezide.dawnlight",
