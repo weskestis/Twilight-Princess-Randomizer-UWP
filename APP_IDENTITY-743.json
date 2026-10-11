@@ -137,11 +137,11 @@
   "totalPackagedModEntries": 88,
   "essentialsSourcePort": "Twilit Essentials 2.5.0 recovered from BeZide93/dawnlight-twilit-essentials 7682060c20e2e3757b2888a27bbd958506ccb4f7; matching code and assets; stock 2.7.1 source is unavailable",
   "sourceControls": {
-    "NATIVE_MODS-743.json": "a9e35744159ee85a3598f866b7b02e29997f6b3b143f05ba9d26c7373e57d480",
+    "NATIVE_MODS-743.json": "eed4ac39fec85b56b27b3ec4fa2b671cbd6ce51e44e6999dfda5aac766d30fab",
     "CUSTOM_MODS-743.json": "90565a5c4e606e9baea48e9f9f9b4add3dc5e31722ae3787ea80b800f10a4bef",
     "scripts/apply-743-xbox-fixes.py": "f01cd2222b2ba6cf5d0aeb24a767377feade75685841753f028ea9a5c5d7c7e9",
     "scripts/apply-743-native-ports.py": "ebc74f6ab4cc56eebec358f35fdb3293c1e4bb2628767249bd3e78662fc72dc1",
-    "scripts/stage-743-native-mods.py": "229bc6b59f7cfccdf92989a13ff4cc8c3e1593468fd36281a13f245daf5f57de",
+    "scripts/stage-743-native-mods.py": "bdc05b33f3476b71751f7111b091cfe5ea4b8f9a48a6e25452cd2316b801d4f2",
     "scripts/stage-743-custom-mods.py": "9a2369de6bb7afe3c52a03e1ea0dd23866954cf5a2714883ad6eae9db69cf9f5"
   }
 }

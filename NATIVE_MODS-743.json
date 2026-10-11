@@ -1684,6 +1684,12 @@
         "DAWNLIGHT_PRIVATE_TOUCH_UI_HEADERS=0",
         "mod_meta_import_svc_file=mod_meta_import_port_dawnlight_svc_file",
         "mod_meta_import_svc_te_collection=mod_meta_import_port_dawnlight_svc_te_collection"
+      ],
+      "sourcePatches": [
+        {
+          "name": "xbox-dawnlight-disabled-updater-743.patch",
+          "sha256": "b5d41ccff4e1d77e94a5c64733dd3729a21a0ccc5c9d4710c63a3647f21dccaa"
+        }
       ]
     },
     {

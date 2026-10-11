@@ -76,7 +76,7 @@ for mod in lock['mods']:
     for symbol in mod.get('privateSymbols',[]):cm+='    '+symbol+'='+target+'_'+symbol+'\n'
     for define in mod.get('cmakeDefines',[]):cm+='    '+define+'\n'
     cm+=')\n'
-    cm+='target_include_directories('+target+' PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/include")\n'
+    cm+='target_include_directories('+target+' PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}/src")\n'
     for include in mod.get('includePaths',[]):
         path=include if include.startswith('${') else '${CMAKE_CURRENT_SOURCE_DIR}/'+include
         cm+='target_include_directories('+target+' PRIVATE "'+path+'")\n'

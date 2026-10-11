@@ -1,0 +1,67 @@
+--- a/src/update_service.cpp
++++ b/src/update_service.cpp
+@@ -1,7 +1,7 @@
+ #include "update_service.hpp"
+ #include "service_imports.hpp"
+ 
+-#ifdef _WIN32
++#if defined(_WIN32) && !defined(_UWP)
+ #include <windows.h>
+ #include <wininet.h>
+ #pragma comment(lib, "wininet.lib")
+@@ -22,6 +22,10 @@
+ 
+ namespace dawnlight {
+ 
++#if defined(_UWP)
++static_assert(!kDawnlightUpdateCheckerAvailable, "Standalone Dawnlight updates require an Xbox implementation if re-enabled upstream");
++#endif
++
+ bool g_configCheckForUpdatesEnabled = false;
+ 
+ static const LogService* s_logSvc = nullptr;
+@@ -59,7 +63,7 @@
+ 
+ static std::string http_get(const std::string& url) {
+     std::string response;
+-#ifdef _WIN32
++#if defined(_WIN32) && !defined(_UWP)
+     HINTERNET hInternet = InternetOpenA("DawnlightUpdater", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+     if (!hInternet) {
+         return response;
+@@ -88,7 +92,7 @@
+         InternetCloseHandle(hConnect);
+     }
+     InternetCloseHandle(hInternet);
+-#elif defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
++#elif defined(_UWP) || (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+     (void)url;
+ #else
+     std::string cmd = "curl -s -L -H \"User-Agent: DawnlightModUpdater\" -H \"Accept: application/vnd.github.v3+json\" \"" + url + "\"";
+@@ -107,7 +111,7 @@
+ }
+ 
+ static bool download_file(const std::string& url, const std::string& destPath) {
+-#ifdef _WIN32
++#if defined(_WIN32) && !defined(_UWP)
+     HINTERNET hInternet = InternetOpenA("DawnlightUpdater", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+     if (!hInternet) {
+         return false;
+@@ -152,7 +156,7 @@
+     InternetCloseHandle(hConnect);
+     InternetCloseHandle(hInternet);
+     return success;
+-#elif defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
++#elif defined(_UWP) || (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+     (void)url;
+     (void)destPath;
+     return false;
+@@ -277,7 +281,7 @@
+ static std::vector<std::string> get_target_mod_paths() {
+     std::vector<std::string> paths;
+ 
+-#ifdef _WIN32
++#if defined(_WIN32) && !defined(_UWP)
+     char appData[MAX_PATH];
+     if (GetEnvironmentVariableA("APPDATA", appData, MAX_PATH) > 0) {
+         std::string modPath = std::string(appData) + "\\TwilitRealm\\Dusklight\\mods\\dawnlight_mod.dusk";
