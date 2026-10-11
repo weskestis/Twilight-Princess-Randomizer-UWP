@@ -11,7 +11,7 @@ def verify(folder,files):
     count=0
     expected={item['path'] for item in files}
     actual={str(f.relative_to(folder)).replace('\\','/') for f in folder.rglob('*') if f.is_file()}
-    assert actual==expected,'Packaged file set changed: '+str(folder)
+    assert actual==expected,'Packaged file set changed: '+str(folder)+'; missing='+repr(sorted(expected-actual))+'; unexpected='+repr(sorted(actual-expected))
     for item in files:
         path=folder/item['path'];assert path.stat().st_size==item['size'] and hashlib.file_digest(path.open('rb'),'sha256').hexdigest()==item['sha256'],'Packaged mod bytes changed: '+str(path)
         count+=1

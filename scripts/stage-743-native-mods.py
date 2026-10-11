@@ -13,6 +13,16 @@ def verified(entry):
 def safe(name):
     n=PurePosixPath(name)
     return not n.is_absolute() and '..' not in n.parts and '\\' not in name and ':' not in name
+def packaged_resources(directory):
+    # Match cmake/CopyModAssets.cmake; the source archive audit still retains dotfiles.
+    files=[]
+    for file in sorted(directory.rglob('*')):
+        if not file.is_file():continue
+        relative=file.relative_to(directory)
+        if relative.as_posix()!='mod.json' and relative.parts[0] not in ('res','overlay','textures'):continue
+        if any(part.startswith('.') for part in relative.parts):continue
+        files.append({'path':relative.as_posix(),'sha256':hashlib.sha256(file.read_bytes()).hexdigest(),'size':file.stat().st_size})
+    return files
 parent=root/'mods/uwp_ports';parent.mkdir(parents=True,exist_ok=True);targets=[];proof=[]
 for mod in lock['mods']:
     target=mod['target'];directory=parent/target;directory.mkdir(parents=True,exist_ok=True)
@@ -98,7 +108,7 @@ for mod in lock['mods']:
         if file==directory/'CMakeLists.txt':continue
         text=file.read_text(encoding='utf-8-sig');text=re.sub(r'\b'+re.escape(mod['originalTarget'])+r'\b',target,text);file.write_text(text)
     (directory/'CMakeLists.txt').write_text(cm,encoding='utf-8',newline='\n');targets.append(target)
-    proof.append({**mod,'resourceFiles':[{'path':str(f.relative_to(directory)).replace('\\','/'),'sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'size':f.stat().st_size} for f in sorted(directory.rglob('*')) if f.is_file() and (f.relative_to(directory).parts[0] in ['res','overlay','textures'] or f.name=='mod.json')]})
+    proof.append({**mod,'resourceFiles':packaged_resources(directory)})
     print('Staged '+mod['name']+' '+mod['version']+' for a signed static UWP build',flush=True)
 (parent/'CMakeLists.txt').write_text('\n'.join('add_subdirectory('+t+')' for t in targets)+'\n')
 (root/'platforms/uwp/NativePorts743.cmake').write_text('set(DUSK_UWP_ADDITIONAL_PORTS '+ ' '.join(targets)+')\n')

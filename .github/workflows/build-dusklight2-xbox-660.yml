@@ -6262,6 +6262,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Original supplied custom mod restoration failed.' }
           python "$env:TPR_CONTROL\scripts\stage-743-native-mods.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw 'Pinned native source/resource staging failed.' }
+          python "$env:TPR_CONTROL\scripts\test-743-resource-inventory.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Native resource inventory differs from the actual asset packager.' }
+          python "$env:TPR_CONTROL\scripts\test-743-resource-inventory.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw 'Original dotfile inventory mismatch was not reproduced.' }
           python "$env:TPR_CONTROL\scripts\apply-743-xbox-fixes.py"
           if ($LASTEXITCODE -ne 0) { throw '.743 Xbox fix source layer failed.' }
           python "$env:TPR_CONTROL\scripts\apply-743-native-ports.py"

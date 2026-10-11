@@ -145,7 +145,8 @@
     "CUSTOM_MODS-743.json": "90565a5c4e606e9baea48e9f9f9b4add3dc5e31722ae3787ea80b800f10a4bef",
     "scripts/apply-743-xbox-fixes.py": "5c27e14a8dbff14d94637075045075444f4723408e798492d118f06d3be8442b",
     "scripts/apply-743-native-ports.py": "ebc74f6ab4cc56eebec358f35fdb3293c1e4bb2628767249bd3e78662fc72dc1",
-    "scripts/stage-743-native-mods.py": "bdc05b33f3476b71751f7111b091cfe5ea4b8f9a48a6e25452cd2316b801d4f2",
+    "scripts/stage-743-native-mods.py": "e6d1308a2b3026a3f304768074bde0509ca5eca33f2537d0b2b9bb145369855e",
+    "scripts/test-743-resource-inventory.py": "6959e8f240200b4048bc79938d4216e76f3ae7f15eba8df06d80a3e6f7b9b3ef",
     "scripts/stage-743-custom-mods.py": "9a2369de6bb7afe3c52a03e1ea0dd23866954cf5a2714883ad6eae9db69cf9f5"
   }
 }
