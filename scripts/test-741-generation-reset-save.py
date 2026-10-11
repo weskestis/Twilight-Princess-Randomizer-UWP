@@ -29,12 +29,14 @@ with tempfile.TemporaryDirectory(prefix='tpr-741-native-') as temporary:
  if a.negative_control:
   scanroot=work/'old';scanroot.mkdir()
   for kind,sub in [('host',''),('randomizer','mods/randomizer'),('aurora','extern/aurora')]:
-   patch=control/'patches'/f'xbox-generation-reset-save-741-{kind}.patch'
+   original_patch=control/'patches'/f'xbox-generation-reset-save-741-{kind}.patch'
+   patch=work/(kind+'-normalized.patch')
+   patch.write_bytes(original_patch.read_bytes().replace(b'\r\n',b'\n'))
    destination=scanroot/sub;destination.mkdir(parents=True,exist_ok=True)
    for line in patch.read_text().splitlines():
     if line.startswith('+++ b/'):
      name=line[6:];out=destination/name;out.parent.mkdir(parents=True,exist_ok=True)
-     out.write_bytes((root/sub/name).read_bytes())
+     out.write_bytes((root/sub/name).read_bytes().replace(b'\r\n',b'\n'))
    subprocess.run(['git','-C',str(destination),'apply','--reverse',str(patch)],check=True)
  def read(name):return (scanroot/name).read_text(encoding='utf-8')
  def run(name,body,expected_failure=None):
