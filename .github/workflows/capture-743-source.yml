@@ -6432,15 +6432,17 @@ jobs:
           $pot720 = Get-Content "$env:TPR_SRC\src\d\actor\d_a_obj_carry.cpp" -Raw
           $pumpkin720 = Get-Content "$env:TPR_SRC\src\d\actor\d_a_obj_pumpkin.cpp" -Raw
           foreach ($breakableColorMarker in @(
-            'dusk::breakable_tint::apply(',
-            'tprPotMarkerColor->r = 102;',
-            'tprPotMarkerColor->g = 74;',
-            '*tprPotMarkerColor = tprPotSavedMarkerColor;',
-            'tprPumpkinMarkerColor->r = 10;',
-            'tprPumpkinMarkerColor->g = 102;',
+            'dusk::breakable_tint::apply(*tprPotMarkerColor, false);',
+            '*tprPotMarkerColor = tprPotSavedMarkerColor;')) {
+            if (-not $pot720.Contains($breakableColorMarker)) {
+              throw "Pot lighting/lifecycle marker missing: $breakableColorMarker"
+            }
+          }
+          foreach ($breakableColorMarker in @(
+            'dusk::breakable_tint::apply(*tprPumpkinMarkerColor, true);',
             '*tprPumpkinMarkerColor = tprPumpkinSavedMarkerColor;')) {
-            if (-not ($pot720.Contains($breakableColorMarker) -or $pumpkin720.Contains($breakableColorMarker))) {
-              throw "Breakable color lifecycle marker missing: $breakableColorMarker"
+            if (-not $pumpkin720.Contains($breakableColorMarker)) {
+              throw "Pumpkin lighting/lifecycle marker missing: $breakableColorMarker"
             }
           }
           $conflicts = Get-ChildItem "$env:TPR_SRC" -Recurse -File `
@@ -6615,6 +6617,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           cmake --build "$env:TPR_FEED" --target port_crests_of_courage port_a_link_between_twilight port_mfb_multiplayer --parallel 3
           if ($LASTEXITCODE -ne 0) { throw 'Xbox native source port compilation failed.' }
+          $opus744 = Get-ChildItem "$env:TPR_FEED" -Recurse -File -Filter 'opus.lib' | Select-Object -First 1
+          if (-not $opus744) { throw 'Source-built Opus library is missing.' }
+          $opusHeader744 = Get-ChildItem "$env:TPR_FEED\_deps" -Recurse -File -Filter 'opus.h' | Select-Object -First 1
+          if (-not $opusHeader744) { throw 'Pinned Opus codec headers are missing.' }
+          $sdlHeader744 = Get-ChildItem "$env:TPR_UWP_DEP" -Recurse -File -Filter 'SDL_audio.h' | Select-Object -First 1
+          if (-not $sdlHeader744) { throw 'Pinned UWP SDL headers are missing.' }
+          $sdlInclude744 = Split-Path (Split-Path $sdlHeader744.FullName -Parent) -Parent
+          python "$env:TPR_CONTROL\scripts\test-744-voice-codecs.py" "$env:TPR_SRC" --opus $opus744.FullName --opus-include (Split-Path $opusHeader744.FullName -Parent) --sdl-include $sdlInclude744
+          if ($LASTEXITCODE -ne 0) { throw '.744 production voice codec/playback integration failed.' }
           New-Item -ItemType Directory -Force "$env:GITHUB_WORKSPACE\Native-744-Proof" | Out-Null
           Copy-Item "$env:TPR_SRC\platforms\uwp\optional_mods\NATIVE-MODS-744.json" "$env:GITHUB_WORKSPACE\Native-744-Proof" -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-744.json" "$env:GITHUB_WORKSPACE\Native-744-Proof" -Force

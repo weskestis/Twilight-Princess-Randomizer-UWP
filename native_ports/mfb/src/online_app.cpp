@@ -2056,6 +2056,7 @@ ModResult OnlineApp::build_voice_tab(ModContext*, UiWindowHandle, UiElementHandl
     range.user_data = &app;
     range.help_rml = "<p>The lobby host sets how far away players can hear each other.</p>";
     svc_ui->pane_add_control(mod_ctx, left, &range, nullptr);
+#if !defined(_UWP)
     add_button(left, "Set mute hotkey", &OnlineApp::mute_hotkey_pressed, &app,
                nullptr, nullptr, nullptr, nullptr,
                "<p>Choose a key that toggles your microphone while playing.</p>");
@@ -2072,6 +2073,10 @@ ModResult OnlineApp::build_voice_tab(ModContext*, UiWindowHandle, UiElementHandl
     input.set = &OnlineApp::voice_input_set;
     input.user_data = &app;
     svc_ui->pane_add_control(mod_ctx, left, &input, nullptr);
+#else
+    svc_ui->pane_add_text(mod_ctx, left,
+        "You can hear other players. Microphone input is unavailable on Xbox.", nullptr);
+#endif
     UiControlDesc volume = UI_CONTROL_DESC_INIT;
     volume.kind = UI_CONTROL_NUMBER;
     volume.binding = UI_BINDING_CONFIG_VAR;
@@ -2079,9 +2084,11 @@ ModResult OnlineApp::build_voice_tab(ModContext*, UiWindowHandle, UiElementHandl
     volume.max = 200;
     volume.step = 5;
     volume.suffix = "%";
+#if !defined(_UWP)
     volume.label = "Your mic volume";
     volume.config_var = app.config_.micVolume;
     svc_ui->pane_add_control(mod_ctx, left, &volume, nullptr);
+#endif
     volume.label = "Other player volume";
     volume.config_var = app.config_.playerVolume;
     svc_ui->pane_add_control(mod_ctx, left, &volume, nullptr);

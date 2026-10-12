@@ -158,7 +158,7 @@
   "sourceControls": {
     "CUSTOM_MODS-743.json": "90565a5c4e606e9baea48e9f9f9b4add3dc5e31722ae3787ea80b800f10a4bef",
     "NATIVE_MODS-743.json": "f257c97ee182cb590db92f7b42307e34ae4d1abdeac726a72e09e98eb580473c",
-    "NATIVE_MODS-744.json": "b3d6b91c16ce612a4e70a9c047491c13a3c95009e52495889503ce6a950ade2c",
+    "NATIVE_MODS-744.json": "d844c6cfb5ce3d6afc1444992f7cfedbc8f9cda4b4b9cbde934b89f8ab2983b6",
     "native_ports/AdditionalPorts744.cmake": "8b653b52b6ad98af7eac586fb08947226fdc23ccb7a7518b4fd42b106db092f3",
     "native_ports/albt-CMakeLists.txt": "e8cfbe736555479c6614f28661cc99a46226bd7d1d0ee390dfd6874d1e90c46b",
     "native_ports/albt-private-aliases.hpp": "49df9b28a6acd668a541390c86a144cc706b6f55235115291a71414a3df133d5",
@@ -182,7 +182,7 @@
     "native_ports/mfb/CMakeLists.txt": "80929e32d08a35627f0c38a7c78895bed378d3cc773683c877b2355e802ada54",
     "native_ports/mfb/src/game/voice_chat.cpp": "532e39a02f9a12c03a1af31edbb2f22df112d05ea86fe941add5fd8bd07b15eb",
     "native_ports/mfb/src/game/xbox_voice_playback.hpp": "d82195db94226d022bee29715c601139605431df826aa0f34108bb5440b3ab82",
-    "native_ports/mfb/src/online_app.cpp": "c3bd8845eeac295cc6e4f0a25768fe03187a400b77b6297187d8d839e010d700",
+    "native_ports/mfb/src/online_app.cpp": "916423a24e8f90f387e764d9076d25f6b07a084d7b264ea7b53ca00ceda1cdbc",
     "native_ports/mfb/src/xbox_private_aliases.hpp": "7fbbc66769f2777f21362e04b4acb18bb2a35750690460348af3a09a46eec76c",
     "native_ports/xbox_voice_playback.hpp": "d82195db94226d022bee29715c601139605431df826aa0f34108bb5440b3ab82",
     "scripts/apply-743-native-ports.py": "ebc74f6ab4cc56eebec358f35fdb3293c1e4bb2628767249bd3e78662fc72dc1",
@@ -191,7 +191,7 @@
     "scripts/apply-744-release-identity.py": "824e3430846e3bfd7c0c064ce867e5f6fbf41c28737c1e7e85ddd4d59e00394b",
     "scripts/apply-744-xbox-fixes.py": "6df83f51121662c9d772365622461c40240c934ebe7dc0f8d4c84252714807e2",
     "scripts/prepare-744-delivery.py": "fe0c68c4a9e3109d011a1df8456ad7843996132653d5e92fcc5245001974d3a2",
-    "scripts/publish-744-draft.py": "780bf74e638e99c4cc46e99603855f4ea537e16180b0be9b8f37e6e6d08eb7bb",
+    "scripts/publish-744-draft.py": "e8a186ca4189aace425b570ad6b3edd800aa1ed13af971223595645e518cf162",
     "scripts/stage-743-custom-mods.py": "9a2369de6bb7afe3c52a03e1ea0dd23866954cf5a2714883ad6eae9db69cf9f5",
     "scripts/stage-743-native-mods.py": "e6d1308a2b3026a3f304768074bde0509ca5eca33f2537d0b2b9bb145369855e",
     "scripts/stage-744-native-mods.py": "c83087088de7591331ffe592edd05f942e590ad797a664dee2ad1b6bf64295b5",
@@ -208,7 +208,10 @@
     "scripts/verify-744-ui-thumbnails.py": "ee224aa00912301841fc5b83396ffb842189f3ea6f3418c8b0aeb42cc9d668df",
     "tests/fake_xaudio/xaudio2.h": "7a6ac2e08006dedc042fadc04121a904372fd490f3a479901c51170c3504a6fc",
     "tests/mod_menu_performance.cpp": "c072eff63fe083619e2ad5f485e5357f19e4ec55576d8dbc6d5f60515fcd9d0b",
-    "tests/xbox_voice_playback.cpp": "a34a2c28f7d32c4166f28d4a67e0ca11d2806dc0fc81c2311b0262d292298df3"
+    "tests/xbox_voice_playback.cpp": "a34a2c28f7d32c4166f28d4a67e0ca11d2806dc0fc81c2311b0262d292298df3",
+    "scripts/test-744-voice-codecs.py": "db2898a931735841aba29c90464df69ed7f4776dc217827f138c9d3677639e6a",
+    "tests/mfb_xbox_voice.cpp": "089233df97e4332160fd69f2eb851f4df0914032630b576916142bed7d8ba90d",
+    "tests/crests_xbox_voice.cpp": "daa78093f0b5081e9472f1ab51f18fe9f8ebf34236ec71523dafa7cc85db85b2"
   },
   "effectBudget": {
     "dofBlurMaxHeight": 720,

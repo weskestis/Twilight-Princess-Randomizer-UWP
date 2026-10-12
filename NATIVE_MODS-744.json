@@ -2824,7 +2824,7 @@
           "path": "src/online_app.cpp",
           "controlPath": "native_ports/mfb/src/online_app.cpp",
           "beforeSha256": "07af6e77b39d3f9b7f1d47638fdac5adb6385b46f12b17d2eafc0eac33c29b02",
-          "sha256": "c3bd8845eeac295cc6e4f0a25768fe03187a400b77b6297187d8d839e010d700"
+          "sha256": "916423a24e8f90f387e764d9076d25f6b07a084d7b264ea7b53ca00ceda1cdbc"
         },
         {
           "path": "src/xbox_private_aliases.hpp",
