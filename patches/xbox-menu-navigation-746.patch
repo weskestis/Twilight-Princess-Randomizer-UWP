@@ -1,0 +1,369 @@
+diff --git a/src/dusk/ui/mod_panel_delay.hpp b/src/dusk/ui/mod_panel_delay.hpp
+index f2480aa..7ac9bde 100644
+--- a/src/dusk/ui/mod_panel_delay.hpp
++++ b/src/dusk/ui/mod_panel_delay.hpp
+@@ -9,16 +9,18 @@ class ModPanelDelay {
+ public:
+     using Clock = std::chrono::steady_clock;
+     void cancel() noexcept { mPending = false; }
+-    void select(std::string_view id, uint64_t registry, uint64_t resource, Clock::time_point now) {
++    void select(std::string_view id, uint64_t registry, uint64_t resource, Clock::time_point now,
++                std::chrono::milliseconds delay = std::chrono::milliseconds(100)) {
+         mId = id; mRegistry = registry; mResource = resource;
+-        mDue = now + std::chrono::milliseconds(100); mPending = true;
++        mDue = now + delay; mPending = true;
+     }
+-    bool take(std::string_view id, uint64_t registry, uint64_t resource, Clock::time_point now) {
++    bool take(std::string_view id, uint64_t registry, uint64_t resource, Clock::time_point now,
++              bool force = false) {
+         if (!mPending) return false;
+         if (id != mId || registry != mRegistry || resource != mResource) {
+             cancel(); return false;
+         }
+-        if (now < mDue) return false;
++        if (!force && now < mDue) return false;
+         cancel(); return true;
+     }
+ private:
+diff --git a/src/dusk/ui/mods_window.cpp b/src/dusk/ui/mods_window.cpp
+index 38661c2..251de69 100644
+--- a/src/dusk/ui/mods_window.cpp
++++ b/src/dusk/ui/mods_window.cpp
+@@ -121,10 +121,8 @@ public:
+         mIcon = append(mRoot, "mod-icon");
+         mInactive = !mod.active;
+         if (!mod.metadata.iconPath.empty()) {
+-            auto* image = append(mIcon, "mod-icon-image");
+-            image->SetProperty(
+-                "decorator", fmt::format(R"(image-effects("{}" fill))",
+-                                 escape(mod_image_source(mod, mod.metadata.iconPath))));
++            mImage = append(mIcon, "mod-icon-image");
++            mImageSource = mod_image_source(mod, mod.metadata.iconPath);
+         }
+ 
+         const auto status = mod_status(mod);
+@@ -149,6 +147,7 @@ public:
+         // Full author and description remain in the selected mod's detail pane.
+         mRoot->SetClass("inactive", !mod.active);
+         mRoot->SetClass("failed", mod.loadFailed);
++        mRoot->SetProperty("visibility", "hidden");
+ 
+         on_nav_command([this](Rml::Event&, NavCommand cmd) {
+             if (cmd == NavCommand::Confirm) {
+@@ -159,7 +158,29 @@ public:
+         });
+     }
+ 
++    bool focus() override {
++        // Hidden rows keep their layout space and remain controller targets.
++        set_culled(false);
++        return Component::focus();
++    }
++
++    void set_culled(bool value) {
++        if (value == mCulled) return;
++        mCulled = value;
++        if (value) {
++            mRoot->SetProperty("visibility", "hidden");
++        } else {
++            if (mImage && !mImageSource.empty()) {
++                mImage->SetProperty("decorator", fmt::format(R"(image-effects("{}" fill))",
++                                                            escape(mImageSource)));
++                mImageSource.clear();
++            }
++            mRoot->RemoveProperty("visibility");
++        }
++    }
++
+     void update() override {
++        if (mCulled) return;
+         if (mInactive) {
+             const auto setGray = [this](const char* source, Rml::PropertyId target) {
+                 const auto* property = mIcon->GetProperty(source);
+@@ -184,7 +205,52 @@ public:
+ 
+ private:
+     Rml::Element* mIcon = nullptr;
++    Rml::Element* mImage = nullptr;
++    std::string mImageSource;
+     bool mInactive = false;
++    bool mCulled = true;
++};
++
++class ModListPane final : public Pane {
++public:
++    explicit ModListPane(Rml::Element* parent) : Pane(parent, Type::Controlled) {}
++
++    void update() override {
++        const float viewTop = mRoot->GetAbsoluteOffset(Rml::BoxArea::Border).y;
++        const float viewHeight = mRoot->GetClientHeight();
++        const float margin = viewHeight * 0.25f;
++        auto* context = mRoot->GetContext();
++        auto* focused = context ? context->GetFocusElement() : nullptr;
++        for (const auto& child : mChildren) {
++            if (auto* entry = dynamic_cast<ModListEntry*>(child.get()); entry && viewHeight > 0) {
++                const float top = entry->root()->GetAbsoluteOffset(Rml::BoxArea::Border).y - viewTop;
++                const bool nearby = top + entry->root()->GetOffsetHeight() >= -margin &&
++                                    top <= viewHeight + margin;
++                entry->set_culled(!nearby && !entry->contains(focused));
++            }
++            child->update();
++        }
++    }
++};
++
++class ModDetailPane final : public Pane {
++public:
++    ModDetailPane(Rml::Element* parent, std::function<void()> beforeFocus,
++                  std::function<bool()> previewPending)
++        : Pane(parent, Type::Uncontrolled), mBeforeFocus(std::move(beforeFocus)),
++          mPreviewPending(std::move(previewPending)) {}
++    void update() override {
++        // Native controls from the previous preview do not need to poll while
++        // the user is scrolling to another mod.
++        if (!mPreviewPending()) Pane::update();
++    }
++    bool focus() override {
++        mBeforeFocus();
++        return Pane::focus();
++    }
++private:
++    std::function<void()> mBeforeFocus;
++    std::function<bool()> mPreviewPending;
+ };
+ 
+ class OnlineModsEntry final : public FluentComponent<OnlineModsEntry> {
+@@ -305,7 +371,19 @@ ModsWindow::ModsWindow()
+     set_content([this](Rml::Element* content) { build_content(content); });
+ }
+ 
++void ModsWindow::show() {
++    Window::show();
++    update();
++    if (mSelection == Selection::Mod && mSelectedMod && mContentComponents.size() > 1) {
++        if (auto* pane = dynamic_cast<Pane*>(mContentComponents[1].get())) {
++            queue_detail(*pane, *mSelectedMod);
++            commit_detail(true);
++        }
++    }
++}
++
+ void ModsWindow::hide(bool close) {
++    cancel_detail();
+     mContextMenu.dismiss();
+     Window::hide(close);
+ }
+@@ -385,7 +463,10 @@ std::vector<ContextMenu::Item> ModsWindow::mod_actions(
+             .text = info.text,
+             .icon = info.icon,
+             .onPressed =
+-                [this, id = mod.metadata.id, action = info.action] {
++                [this, id = mod.metadata.id, action = info.action, contextMenu] {
++                    // A delayed preview must never act on a row the user has left.
++                    if (!contextMenu && (mSelection != Selection::Mod || mSelectedModId != id ||
++                        mDisplayedModId != id)) return;
+                     auto& loader = mods::ModLoader::instance();
+                     auto* current = loader.find_mod(id);
+                     if (current == nullptr) {
+@@ -446,6 +527,7 @@ Component* ModsWindow::selected_utility() const {
+ }
+ 
+ void ModsWindow::build_online(Pane& pane) {
++    cancel_detail();
+     mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
+     mRoot->SetClass("image-header", false);
+     mSelection = Selection::Online;
+@@ -457,6 +539,7 @@ void ModsWindow::build_online(Pane& pane) {
+ }
+ 
+ void ModsWindow::build_content(Rml::Element* content) {
++    cancel_detail();
+     mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
+     startup_guard::stage("menu.mods.build");
+     mEntries.clear();
+@@ -466,9 +549,12 @@ void ModsWindow::build_content(Rml::Element* content) {
+     for (const auto& item : mods::queue::items()) {
+         mQueueItems.emplace_back(item.id, mods::queue::is_completed(item.state));
+     }
+-    auto& listPane = add_child<Pane>(content, Pane::Type::Controlled);
++    auto& listPane = add_child<ModListPane>(content);
+     listPane.root()->SetClass("mod-list", true);
+-    auto& detailPane = add_child<Pane>(content, Pane::Type::Uncontrolled);
++    auto& detailPane = add_child<ModDetailPane>(content, [this] {
++        commit_detail(true);
++        commit_panel(true);
++    }, [this] { return mPendingDetailPane != nullptr; });
+     detailPane.root()->SetClass("mod-detail", true);
+     auto& online = listPane.add_child<OnlineModsEntry>();
+     mOnlineEntry = &online;
+@@ -500,9 +586,9 @@ void ModsWindow::build_content(Rml::Element* content) {
+             mSelection = Selection::Mod;
+             mSelectedMod = tracked;
+             mSelectedModId = tracked->metadata.id;
+-            build_detail(pane, *tracked);
++            queue_detail(pane, *tracked);
+             mark_current_entry();
+-        });
++        }, false);
+     }
+     if (!hasInstalledMods) {
+         listPane.add_text("No mods installed.");
+@@ -528,6 +614,7 @@ void ModsWindow::build_content(Rml::Element* content) {
+ void ModsWindow::build_detail(Pane& pane, mods::LoadedMod& mod) {
+     mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
+     startup_guard::stage(fmt::format("menu.mods.detail:{}", mod.metadata.id));
++    mDisplayedModId = mod.metadata.id;
+     mRoot->SetClass("image-header", !mod.metadata.bannerPath.empty());
+     pane.root()->SetAttribute("mod-id", mod.metadata.id);
+     pane.add_child<ModDetailHeader>(mod, mod_actions(mod, false));
+@@ -594,6 +681,46 @@ void ModsWindow::build_detail(Pane& pane, mods::LoadedMod& mod) {
+     }
+ }
+ 
++void ModsWindow::cancel_detail() noexcept {
++    mDetailDelay.cancel(); mPendingDetailPane = nullptr; mDisplayedModId.clear();
++    mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
++}
++
++void ModsWindow::queue_detail(Pane& pane, mods::LoadedMod& mod) {
++    mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
++    mPendingDetailPane = &pane;
++    mDetailDelay.select(mod.metadata.id, mods::ModLoader::instance().generation(),
++                        mod.cacheGeneration, ModPanelDelay::Clock::now(),
++                        std::chrono::milliseconds(180));
++}
++
++void ModsWindow::commit_detail(bool force) {
++    if (!mPendingDetailPane || mSelection != Selection::Mod || !visible()) return;
++    auto& loader = mods::ModLoader::instance();
++    auto* mod = loader.find_mod(mSelectedModId);
++    if (!mod || !mDetailDelay.take(mod->metadata.id, loader.generation(),
++                                  mod->cacheGeneration, ModPanelDelay::Clock::now(), force)) return;
++    auto* pane = mPendingDetailPane; mPendingDetailPane = nullptr;
++    mSelectedMod = mod;
++    pane->clear();
++    build_detail(*pane, *mod);
++    if (force && mDocument) mDocument->UpdateDocument();
++}
++
++void ModsWindow::commit_panel(bool force) {
++    if (!mPendingPanelPane || mSelection != Selection::Mod || !visible()) return;
++    auto& loader = mods::ModLoader::instance();
++    auto* mod = loader.find_mod(mSelectedModId);
++    if (!mod || !mod->active || mDisplayedModId != mod->metadata.id ||
++        !mPanelDelay.take(mod->metadata.id, loader.generation(), mod->cacheGeneration,
++                         ModPanelDelay::Clock::now(), force)) return;
++    auto* pane = mPendingPanelPane; mPendingPanelPane = nullptr;
++    startup_guard::stage(fmt::format("menu.mods.panel:{}", mod->metadata.id));
++    mods::svc::ui_build_mods_panels(*mod, *pane);
++    mModPanelBuilt = true;
++    if (force && mDocument) mDocument->UpdateDocument();
++}
++
+ void ModsWindow::confirm_uninstall(const mods::LoadedMod& mod) {
+     const std::string action = mod.hasBundledCopy ? "Remove update" : "Uninstall";
+     std::string body = mod.hasBundledCopy ?
+@@ -771,15 +898,8 @@ void ModsWindow::update() {
+         }
+     }
+ 
+-    if (mPendingPanelPane != nullptr && mSelection == Selection::Mod &&
+-        mSelectedMod != nullptr && mSelectedMod->active &&
+-        mPanelDelay.take(mSelectedMod->metadata.id, loader.generation(),
+-                         mSelectedMod->cacheGeneration, ModPanelDelay::Clock::now())) {
+-        auto* pane = mPendingPanelPane; mPendingPanelPane = nullptr;
+-        startup_guard::stage(fmt::format("menu.mods.panel:{}", mSelectedMod->metadata.id));
+-        mods::svc::ui_build_mods_panels(*mSelectedMod, *pane);
+-        mModPanelBuilt = true;
+-    }
++    commit_detail();
++    commit_panel();
+     if (mModPanelBuilt && mSelectedMod != nullptr && mSelectedMod->active) {
+         mods::svc::ui_update_mods_panels(*mSelectedMod);
+     }
+diff --git a/src/dusk/ui/mods_window.hpp b/src/dusk/ui/mods_window.hpp
+index ffbf9df..448f867 100644
+--- a/src/dusk/ui/mods_window.hpp
++++ b/src/dusk/ui/mods_window.hpp
+@@ -19,6 +19,7 @@ class Pane;
+ class ModsWindow : public Window {
+ public:
+     ModsWindow();
++    void show() override;
+     void hide(bool close) override;
+     void update() override;
+     bool focus() override;
+@@ -41,6 +42,10 @@ private:
+     void build_online(Pane& pane);
+     Component* selected_utility() const;
+     void build_detail(Pane& pane, mods::LoadedMod& mod);
++    void queue_detail(Pane& pane, mods::LoadedMod& mod);
++    void commit_detail(bool force = false);
++    void commit_panel(bool force = false);
++    void cancel_detail() noexcept;
+     void confirm_uninstall(const mods::LoadedMod& mod);
+     std::vector<ContextMenu::Item> mod_actions(const mods::LoadedMod& mod, bool contextMenu);
+     void refresh_snapshot();
+@@ -62,6 +67,9 @@ private:
+     ModPanelDelay mPanelDelay;
+     Pane* mPendingPanelPane = nullptr;
+     bool mModPanelBuilt = false;
++    ModPanelDelay mDetailDelay;
++    Pane* mPendingDetailPane = nullptr;
++    std::string mDisplayedModId;
+     ContextMenu::Binding mContextMenu;
+ };
+ 
+diff --git a/src/dusk/ui/pane.cpp b/src/dusk/ui/pane.cpp
+index 8df7742..b16acfc 100644
+--- a/src/dusk/ui/pane.cpp
++++ b/src/dusk/ui/pane.cpp
+@@ -100,9 +100,10 @@ void Pane::set_selected_item(int index) {
+ }
+ 
+ Component& Pane::register_control(
+-    Component& component, Pane& nextPane, std::function<void(Pane&)> callback) {
++    Component& component, Pane& nextPane, std::function<void(Pane&)> callback,
++    bool clearNextPane) {
+     component.listen(component.root(), Rml::EventId::Mouseover,
+-        [this, &component, &nextPane, callback](Rml::Event&) {
++        [this, &component, &nextPane, callback, clearNextPane](Rml::Event&) {
+             if (component.disabled()) {
+                 return;
+             }
+@@ -114,18 +115,18 @@ Component& Pane::register_control(
+                 }
+             }
+             if (!anySelected) {
+-                nextPane.clear();
++                if (clearNextPane) nextPane.clear();
+                 if (callback) {
+                     callback(nextPane);
+                 }
+             }
+         });
+     component.listen(component.root(), Rml::EventId::Focus,
+-        [this, &component, &nextPane, callback = std::move(callback)](Rml::Event&) {
++        [this, &component, &nextPane, callback = std::move(callback), clearNextPane](Rml::Event&) {
+             if (component.disabled()) {
+                 return;
+             }
+-            nextPane.clear();
++            if (clearNextPane) nextPane.clear();
+ 
+             // If an item is already selected, deselect
+             for (const auto& child : mChildren) {
+diff --git a/src/dusk/ui/pane.hpp b/src/dusk/ui/pane.hpp
+index 134bdf2..b2c7f23 100644
+--- a/src/dusk/ui/pane.hpp
++++ b/src/dusk/ui/pane.hpp
+@@ -21,7 +21,8 @@ public:
+ 
+     void set_selected_item(int index);
+     Component& register_control(
+-        Component& component, Pane& nextPane, std::function<void(Pane&)> callback);
++        Component& component, Pane& nextPane, std::function<void(Pane&)> callback,
++        bool clearNextPane = true);
+ 
+     ControlledButton& add_button(ControlledButton::Props props) {
+         return add_child<ControlledButton>(std::move(props));
