@@ -226,7 +226,7 @@
     "scripts/test-745-game-time.py": "af7dce2ff16f4202760a6b07a1ef23580c83f5a7e36a7bf443b29d90845213dd",
     "scripts/test-745-run-overlays.py": "84c3a8bc388ce9991fa9cf959fdd150193f93819f80a48cffa353be534efdcc1",
     "scripts/prepare-745-delivery.py": "73d87a3d938e76dffedd238bf6a7e02c31225806fc9928b711c252f8a006328f",
-    "scripts/publish-745-draft.py": "d67e4e944378122b4520863585ef95df1a1eeac687dacbea480c4b2f7aa097db",
+    "scripts/publish-745-draft.py": "de64d2054c2b9c7084cb76df3683081518bce9438bd88aba16bb2334a37304d4",
     "tests/appearance_restore_745.cpp": "0126aea40701b83c27c00f0d43f690b41230fe1984cac9eefe51ba45a1e80eaa",
     "tests/run_overlays_745.cpp": "6102dfa619d490480649a1dc3d4b3dd97d3eda8b81ce3acd70b19627b6d1160c",
     "tests/pure_tracker_position.cpp": "21b143383ec40e28d1dd8c8d4b46ff8249c56976dc05e74fba8b949060425bb5",
