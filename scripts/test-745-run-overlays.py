@@ -25,6 +25,6 @@ with tempfile.TemporaryDirectory(prefix='overlays-745-') as tmp:
  exe=w/('overlays.exe' if os.name=='nt' else 'overlays')
  sources=[r/'src/dusk/imgui/PureItemTracker.cpp',c/'tests/run_overlays_745.cpp']+[imgui/n for n in ['imgui.cpp','imgui_draw.cpp','imgui_tables.cpp','imgui_widgets.cpp']]
  includes=[w,imgui,fmt,r/'src/dusk/imgui',c/'tests']
- if os.name=='nt':cmd=['cl','/nologo','/EHsc','/std:c++20','/MD','/D_UWP=1','/DFMT_HEADER_ONLY=1',*['/I'+str(i) for i in includes],*map(str,sources),'/Fe:'+str(exe)]
+ if os.name=='nt':cmd=['cl','/nologo','/EHsc','/std:c++20','/utf-8','/MD','/D_UWP=1','/DFMT_HEADER_ONLY=1',*['/I'+str(i) for i in includes],*map(str,sources),'/Fe:'+str(exe)]
  else:cmd=['c++','-std=c++20','-D_UWP=1','-DFMT_HEADER_ONLY=1','-O0',*['-I'+str(i) for i in includes],*map(str,sources),'-o',str(exe)]
  subprocess.run(cmd,cwd=w,check=True);subprocess.run([str(exe)],check=True)

@@ -224,7 +224,7 @@
     "scripts/apply-745-release-identity.py": "5d800d6d0bdf9b63dd9aa423aa0b8db94e9da4737359482cce202082d1b2399b",
     "scripts/test-745-appearance.py": "9092f89e299a3b0ac847f0ed29f6b38cf83c1a7f681ddd10f81e7b7dfc00c468",
     "scripts/test-745-game-time.py": "af7dce2ff16f4202760a6b07a1ef23580c83f5a7e36a7bf443b29d90845213dd",
-    "scripts/test-745-run-overlays.py": "e893fab73332b2d9f88561e99c346bf49be6200be6f802322ff76825d451cc63",
+    "scripts/test-745-run-overlays.py": "84c3a8bc388ce9991fa9cf959fdd150193f93819f80a48cffa353be534efdcc1",
     "scripts/prepare-745-delivery.py": "73d87a3d938e76dffedd238bf6a7e02c31225806fc9928b711c252f8a006328f",
     "scripts/publish-745-draft.py": "d67e4e944378122b4520863585ef95df1a1eeac687dacbea480c4b2f7aa097db",
     "tests/appearance_restore_745.cpp": "0126aea40701b83c27c00f0d43f690b41230fe1984cac9eefe51ba45a1e80eaa",

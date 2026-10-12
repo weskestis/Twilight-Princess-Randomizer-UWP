@@ -6673,6 +6673,13 @@ jobs:
             Write-Host 'No generator-sensitive inputs changed after 0721d1cd.'
           }
 
+      - name: Verify restored run overlays with the real UI renderer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\test-745-run-overlays.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
+          if ($LASTEXITCODE -ne 0) { throw "Pure Item tracker and restored run overlay regression failed." }
+
       - name: Compile core, built-in Randomizer, and package
         shell: powershell
         run: |
@@ -6711,8 +6718,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.737 UWP controller picker/UI compilation failed.' }
           python "$env:TPR_CONTROL\scripts\test-738-picker-navigation.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
           if ($LASTEXITCODE -ne 0) { throw '.738 production RmlUi picker navigation/layout tests failed.' }
-          python "$env:TPR_CONTROL\scripts\test-745-run-overlays.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
-          if ($LASTEXITCODE -ne 0) { throw "Pure Item tracker and restored run overlay regression failed." }
           $targets = @('dusklight', 'randomizer_package', 'cosmetics_package', 'controller_ui_package', 'luau_runtime_package')
           $targets += @($nativePorts743.mods | ForEach-Object { $_.target + '_package' })
           if ($env:RUN_GENERATOR_SUITE -eq 'true') {
