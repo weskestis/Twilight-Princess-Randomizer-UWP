@@ -169,7 +169,7 @@
     "scripts/stage-744-ui-thumbnails.py": "172dca0631ffb93a4c7655dbf3f86b2b022bcdffaae33cb9d553d781b3408180",
     "scripts/test-744-grotto-rewards.py": "9c8c765d4860ae3d7505270dae06c02e84f31f2cc7722a61550880ab80b64048",
     "scripts/test-744-menu-performance.py": "f640110b73d64ee6b8453b0e15b6641563ad78bb8f519a574da52c6d3e83d4d8",
-    "scripts/test-744-pickup-lifecycle.py": "edf269105745aed9b5fbac2742dcec6264652aa1fc19adbf51fd628d2058ed0b",
+    "scripts/test-744-pickup-lifecycle.py": "0ca390071162f3998f2a45216644a4b800f0d047f0cff7c2c1da53d015803574",
     "scripts/test-744-render-budget.py": "ed1b68abf4694da733c022c833c8f9a661b4caf8cb55d50db4c5c0d981ae91cd",
     "scripts/test-744-shop-resources.py": "1fc1ff7f3bb3c79334d4fb75e238ac9d7954b6a201f4fa1c1b70277cfbd0a467",
     "scripts/verify-744-ui-thumbnails.py": "ee224aa00912301841fc5b83396ffb842189f3ea6f3418c8b0aeb42cc9d668df",

@@ -93,12 +93,12 @@ probe=r'''
     for(unsigned kind=0;kind<2;++kind)for(u16 reward:rewards){
         ++serial;pickupGrantTrace.clear();fixtureEventEnded=false;
         breakables::clear_scene_actors();breakables::ensure_collection_locked();
-        const uint64_t key=0x74400000u+serial;
-        testContext.mBreakableOverrides[key]={reward};
+        const uint64_t pickupCheckKey=0x74400000u+serial;
+        testContext.mBreakableOverrides[pickupCheckKey]={reward};
         fopAc_ac_c container;container.id=10000+serial*3;
         daItem_c parent;parent.id=container.id+1;parent.m_itemNo=enemy_souls::physical_item(reward);
-        breakables::s_actorKeys[container.id]=key;
-        breakables::s_spawnedItemKeys[parent.id]=key;breakables::s_pendingKeys.insert(key);
+        breakables::s_actorKeys[container.id]=pickupCheckKey;
+        breakables::s_spawnedItemKeys[parent.id]=pickupCheckKey;breakables::s_pendingKeys.insert(pickupCheckKey);
         HookArgs args{parent.m_itemNo,0,&parent};
         assert(hookPreItemItemGetNextExecute(nullptr,&args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
         assert(parent.checkFlag(daItem_c::FLAG_INIT_GET_ITEM_e)&&parent.mCcCyl.cleared);
@@ -111,7 +111,7 @@ probe=r'''
             if(serial%3==0){
                 // A canceled display actor must not release the parent's pending check.
                 breakables::forget_spawned_item(&child);
-                assert(breakables::s_pendingKeys.contains(key));
+                assert(breakables::s_pendingKeys.contains(pickupCheckKey));
                 parent.itemGet();parent.itemGet();
             }else{
                 if(serial%3==1){fixtureEventEnded=true;hookPreItemGetDemoExecute(nullptr,&args,nullptr,nullptr);}
@@ -128,11 +128,11 @@ probe=r'''
             parent.itemGet(); // A repeated late callback cannot grant the item again.
         }
         assert(pickupGrantTrace==std::vector<u16>{reward});
-        assert(breakables::is_collected(key)&&!breakables::should_show_marker(&container));
+        assert(breakables::is_collected(pickupCheckKey)&&!breakables::should_show_marker(&container));
         hookPreItemItemGetNextExecute(nullptr,&args,nullptr,nullptr);
         assert(pickupGrantTrace.size()==1);
         session::noteSaveSlot(session::currentSaveSlot(),true);
-        assert(breakables::is_collected(key));
+        assert(breakables::is_collected(pickupCheckKey));
     }
     assert(bypassedNativeGrants==0&&eventResets>0);
     #if HAS_PICKUP_GUARD744
