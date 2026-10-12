@@ -41,6 +41,11 @@ jobs:
           $expected = @{
             'dev.remiafterdark.coop_mod.dusk' = '6967db851bd9575eb8ec3bd2439b5d908fc26353343da03eb5346d637c62591a'
             'com.blueflaregames.zora_swim.dusk' = 'dc3ced805a85a9d657937e2a802c944138cbb98e5cca883d09161bc0db455140'
+            'dev.albt.albw.dusk' = '91cffa72a066569e481a284a549c90700adfd9d1dc8c52ca936188261aba8d98'
+            'hopex.dark_link.dusk' = 'be24e28468a2eccc737baf593c3f7fb6979f646baa334602f176c6d807a784a0'
+            'com.peter.link_ragdoll.dusk' = '58e1a65246db041310e5397703033ca7dae0034761913002a039790b9de877de'
+            'io.github.mdra5000.dusklight_online.dusk' = '0e8ba76467f70fedee7c03c90967f758b9aa5652219240fe6ca24ddcf8608d0b'
+            'com.blueflaregames.dark_morpheel.dusk' = '0cfe11a7f6d5540c04f0e3c2c568eb6e54bcf459c004a7d7b6f649ba4be955dc'
             'com.dusklight.twilit_essentials.zip' = '9d70b091a2ec88c0959c5e0f241acb02279326fa97e4d7db49035e18c3d7ad23'
           }
           foreach ($name in $expected.Keys) {
