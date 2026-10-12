@@ -72,7 +72,8 @@
     "Add configurable default 720px DOF blur height and optional high-resolution balanced VBAO with 5 slices/2 steps; retain full-resolution AO history, original shaders, game resolution and frame-rate cap",
     "Gate native all-die and chest combat-clear rewards while Soul-blocked room enemies remain pending; keep escape/door query behavior and require defeat after Soul acquisition",
     "Guard null archives/models/all-five-animation resources, shop heap indices and failed resource cleanup in release builds, retaining native load and heap failure paths",
-    "Preserve the exact recovered Twilit Essentials 2.5.0 source archive alongside the verified build"
+    "Preserve the exact recovered Twilit Essentials 2.5.0 source archive alongside the verified build",
+    "New pinned Crests of Courage 1.10.0, A Link Between Twilight 0.3.0 and MFB Multiplayer 0.2.0 ports; hardware validation pending"
   ],
   "preserved": [
     "All green .734 Enemy/Boss Soul check types, wide IDs, native FIFO and normal Poe isolation",

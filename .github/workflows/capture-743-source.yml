@@ -3,6 +3,7 @@ name: Validate Xbox 744 native source ports
 on:
   pull_request:
     branches: [codex/xbox-680-from-679]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
