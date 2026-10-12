@@ -1,0 +1,29 @@
+{
+  "id": "tpr.optional.fierce_deity_hair_physics",
+  "name": "Fierce Deity Hair Physics",
+  "version": "0.1.0",
+  "author": "Wes Kestis; hair adaptation created with ChatGPT",
+  "description": "Damped head-anchored motion for the five native hair joints. Optional signed Xbox .746 test port; console gameplay validation pending.",
+  "abi": 1,
+  "imports": [
+    {
+      "service_id": "dev.twilitrealm.dusklight.game",
+      "major": 2,
+      "min_minor": 0,
+      "optional": false
+    },
+    {
+      "service_id": "dev.twilitrealm.dusklight.hook",
+      "major": 1,
+      "min_minor": 1,
+      "optional": false
+    },
+    {
+      "service_id": "dev.twilitrealm.dusklight.log",
+      "major": 1,
+      "min_minor": 0,
+      "optional": false
+    }
+  ],
+  "exports": []
+}
