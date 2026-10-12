@@ -530,7 +530,7 @@
           "path": "src/xbox_voice_playback.hpp",
           "controlPath": "native_ports/crests/src/xbox_voice_playback.hpp",
           "beforeSha256": null,
-          "sha256": "d82195db94226d022bee29715c601139605431df826aa0f34108bb5440b3ab82"
+          "sha256": "f11d543e20726414eb7b9111fc6e87898ce16c23fdac3953774d091186e115e2"
         }
       ]
     },
@@ -2818,7 +2818,7 @@
           "path": "src/game/xbox_voice_playback.hpp",
           "controlPath": "native_ports/mfb/src/game/xbox_voice_playback.hpp",
           "beforeSha256": null,
-          "sha256": "d82195db94226d022bee29715c601139605431df826aa0f34108bb5440b3ab82"
+          "sha256": "f11d543e20726414eb7b9111fc6e87898ce16c23fdac3953774d091186e115e2"
         },
         {
           "path": "src/online_app.cpp",
