@@ -1,0 +1,61 @@
+name: Provide verified Xbox 743 MSIX download
+on:
+  push:
+    branches:
+      - codex/deliver-743-38183843368
+    paths:
+      - '.github/workflows/upload-verified-743-msix.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  msix-download:
+    name: Create reviewable verified MSIX download
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download the exact green package
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11719521935'
+          path: verified-artifact
+          merge-multiple: true
+          run-id: '38183843368'
+          repository: weskestis/Twilight-Princess-Randomizer-UWP
+          github-token: ${{ github.token }}
+      - name: Verify original MSIX and write release notes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          source = Path("verified-artifact")
+          name = "TwilightPrincessRandomizer_1.4.1.743_x64.msix"
+          with (source/name).open("rb") as stream:
+              assert hashlib.file_digest(stream, "sha256").hexdigest() == "647ef067ab070a1ff6569299d40c4b8c8149423e51e6f82fd923e6eafcd02d66"
+          manifest = json.loads((source/"SOURCE-MANIFEST-743.json").read_text(encoding="utf-8-sig"))
+          assert manifest["sourceRevision"] == "8e9f155461208151b4b1e9fb565eba75ab19d1c4"
+          assert int(manifest["workflowRun"]) == 38183843368 and manifest["generatorScenarios"] == 67
+          Path("release-notes-743.txt").write_text(
+              "Verified Xbox/UWP 1.4.1.743 from green build https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/actions/runs/38183843368.\n\n"
+              "Includes 35 supplied asset mods, both Fierce Deity sets, and 28 additional source-built native ports including recovered Twilit Essentials 2.5.0. "
+              "All 67 generator scenarios and all 1,533 installed mod file hashes passed. Console retesting remains pending. "
+              "Enable the bundled optional mods in Mods; restart after controller-design or model-overlay changes. "
+              "Eleven other catalog native mods remain unported. The base remains Dusklight 2.0.1.\n\n"
+              "MSIX SHA256: 647ef067ab070a1ff6569299d40c4b8c8149423e51e6f82fd923e6eafcd02d66\n")
+          print("Verified original signed MSIX and green source manifest.")
+          PY
+      - name: Create draft with the verified MSIX and support ZIP
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create xbox-1.4.1.743-38183843368 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target 8e9f155461208151b4b1e9fb565eba75ab19d1c4 \
+            --draft \
+            --title "Twilight Princess Randomizer Xbox/UWP 1.4.1.743" \
+            --notes-file release-notes-743.txt \
+            verified-artifact/TwilightPrincessRandomizer_1.4.1.743_x64.msix \
+            verified-artifact/Twilight-Princess-Randomizer-UWP-1.4.1.743-Xbox-Support.zip
