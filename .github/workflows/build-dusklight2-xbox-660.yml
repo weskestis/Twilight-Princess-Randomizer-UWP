@@ -6680,6 +6680,8 @@ jobs:
           $sdlInclude744 = Split-Path (Split-Path $sdlHeader744.FullName -Parent) -Parent
           python "$env:TPR_CONTROL\scripts\test-744-voice-codecs.py" "$env:TPR_SRC" --opus $opus744.FullName --opus-include (Split-Path $opusHeader744.FullName -Parent) --sdl-include $sdlInclude744
           if ($LASTEXITCODE -ne 0) { throw '.744 production voice codec/playback integration failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-mfb-author-suite.py" "$env:TPR_SRC" "$env:TPR_FEED" "$env:GITHUB_WORKSPACE\MFB-744-Tests"
+          if ($LASTEXITCODE -ne 0) { throw '.744 author multiplayer core/network suite failed.' }
           # Compile the repaired picker/UI first so platform integration failures surface promptly.
           cmake --build "$env:TPR_FEED" --target `
             'CMakeFiles/dusk_internal.dir/src/dusk/save_manager.cpp.obj' `

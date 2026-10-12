@@ -4,8 +4,6 @@ add_mod(port_crests_of_courage
     SOURCES src/mod.cpp src/puppet.cpp src/util.cpp src/models.cpp src/features.cpp src/menu.cpp src/colors.cpp src/upnp.cpp src/online.cpp src/skipvote.cpp src/drops.cpp src/softlocks.cpp src/storytest.cpp src/twilight.cpp src/skills.cpp src/rando.cpp src/checks.cpp src/check_names.cpp src/ganon.cpp src/beast.cpp src/sumo.cpp src/map_markers.cpp src/notify.cpp src/selftest.cpp src/private_arc.cpp src/projectiles.cpp src/effects.cpp src/pvp.cpp src/spinner.cpp src/rival.cpp src/world.cpp src/enemies.cpp src/enemy_layout_wb.cpp src/enemy_layout_yk.cpp src/enemy_layout_po.cpp src/spawns.cpp src/boss.cpp src/join_sync.cpp src/epona.cpp src/grass.cpp src/party_hud.cpp src/skins.cpp src/icons.cpp src/voices.cpp src/game_mode.cpp src/horses.cpp src/report.cpp src/lan.cpp src/global.cpp src/chat.cpp src/crash_guard.cpp src/global_hud.cpp src/chat_keys.cpp src/voice.cpp src/voice_io.cpp
     MOD_JSON mod.json
     RES_DIR res
-    OVERLAY_DIR overlay
-    TEXTURES_DIR textures
     BUNDLE
 )
 target_compile_definitions(port_crests_of_courage PRIVATE DUSK_STATIC_PORT_28=1 COOP_VOICE=1 COOP_MOD_VERSION="1.10.0")

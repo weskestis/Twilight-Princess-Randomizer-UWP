@@ -121,8 +121,6 @@ add_mod(port_a_link_between_twilight
             src/menu_ring_ext.cpp
         MOD_JSON mod.json
         RES_DIR res
-        OVERLAY_DIR overlay
-        TEXTURES_DIR textures
         BUNDLE
 )
 if (MSVC)

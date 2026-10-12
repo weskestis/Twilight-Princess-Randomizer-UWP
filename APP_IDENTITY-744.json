@@ -158,17 +158,17 @@
   "sourceControls": {
     "CUSTOM_MODS-743.json": "90565a5c4e606e9baea48e9f9f9b4add3dc5e31722ae3787ea80b800f10a4bef",
     "NATIVE_MODS-743.json": "f257c97ee182cb590db92f7b42307e34ae4d1abdeac726a72e09e98eb580473c",
-    "NATIVE_MODS-744.json": "d844c6cfb5ce3d6afc1444992f7cfedbc8f9cda4b4b9cbde934b89f8ab2983b6",
+    "NATIVE_MODS-744.json": "e197dcf6cc543c021b06398410e2a0adf6b6d3b218ecdffbfc3757e29b61ac8a",
     "native_ports/AdditionalPorts744.cmake": "8b653b52b6ad98af7eac586fb08947226fdc23ccb7a7518b4fd42b106db092f3",
-    "native_ports/albt-CMakeLists.txt": "e8cfbe736555479c6614f28661cc99a46226bd7d1d0ee390dfd6874d1e90c46b",
+    "native_ports/albt-CMakeLists.txt": "973229de557487fe24a8d7b6f222203bbaa79c1cea788cd176e9032b868edc33",
     "native_ports/albt-private-aliases.hpp": "49df9b28a6acd668a541390c86a144cc706b6f55235115291a71414a3df133d5",
-    "native_ports/albt/CMakeLists.txt": "e8cfbe736555479c6614f28661cc99a46226bd7d1d0ee390dfd6874d1e90c46b",
+    "native_ports/albt/CMakeLists.txt": "973229de557487fe24a8d7b6f222203bbaa79c1cea788cd176e9032b868edc33",
     "native_ports/albt/src/albw_l1_input.cpp": "a96f73ae381471777ea949bb10e5b941a5a9677c322a2f1d9a1bc4dc70f966d2",
     "native_ports/albt/src/soul_of_light.cpp": "0e9763560c37a5f36ea7bbbe265eee8e81ca49ac288c93c4d8c71c992e350c36",
     "native_ports/albt/src/xbox_private_aliases.hpp": "49df9b28a6acd668a541390c86a144cc706b6f55235115291a71414a3df133d5",
-    "native_ports/crests-CMakeLists.txt": "c97577e1842537fdd6756e3bf9c165701ba7906ad855fc23e13d905b17bddae8",
+    "native_ports/crests-CMakeLists.txt": "5ab9ad9372b8359ed61f3dffc07c1fd1a3a9b3eae3d83cb9c474e59fbe9c8ee8",
     "native_ports/crests-private-aliases.hpp": "2aaa44c3a28bfc563eb46f993b10bb50a1a5ce12fa1860409a8a9da7a937c45e",
-    "native_ports/crests/CMakeLists.txt": "c97577e1842537fdd6756e3bf9c165701ba7906ad855fc23e13d905b17bddae8",
+    "native_ports/crests/CMakeLists.txt": "5ab9ad9372b8359ed61f3dffc07c1fd1a3a9b3eae3d83cb9c474e59fbe9c8ee8",
     "native_ports/crests/src/chat_keys.cpp": "b0ae4d309d198381730b12ebeb65db87b02690e33d91d40ccf8e9886bdb6ee8a",
     "native_ports/crests/src/crash_guard.cpp": "ed2b966e0a6c84fc7fa5775dec8718cc5b260c16e44f2f011b5f319b8935184a",
     "native_ports/crests/src/global_hud.cpp": "5aacec1795a6a3b4e55ab794e811fe2bcee19416880805591cedbb83dff35ecf",
@@ -211,7 +211,8 @@
     "tests/xbox_voice_playback.cpp": "a34a2c28f7d32c4166f28d4a67e0ca11d2806dc0fc81c2311b0262d292298df3",
     "scripts/test-744-voice-codecs.py": "db2898a931735841aba29c90464df69ed7f4776dc217827f138c9d3677639e6a",
     "tests/mfb_xbox_voice.cpp": "089233df97e4332160fd69f2eb851f4df0914032630b576916142bed7d8ba90d",
-    "tests/crests_xbox_voice.cpp": "daa78093f0b5081e9472f1ab51f18fe9f8ebf34236ec71523dafa7cc85db85b2"
+    "tests/crests_xbox_voice.cpp": "daa78093f0b5081e9472f1ab51f18fe9f8ebf34236ec71523dafa7cc85db85b2",
+    "scripts/test-744-mfb-author-suite.py": "5812b5275bc4a5fe2d68dffe743ad728e453be3d9996625b2ab1d2cce903cc40"
   },
   "effectBudget": {
     "dofBlurMaxHeight": 720,

@@ -482,7 +482,7 @@
           "path": "CMakeLists.txt",
           "controlPath": "native_ports/crests/CMakeLists.txt",
           "beforeSha256": "55bd33891283030e8617bbe65af9bbb17e0ca44d1f4b7fa651a0ade3669ef132",
-          "sha256": "c97577e1842537fdd6756e3bf9c165701ba7906ad855fc23e13d905b17bddae8"
+          "sha256": "5ab9ad9372b8359ed61f3dffc07c1fd1a3a9b3eae3d83cb9c474e59fbe9c8ee8"
         },
         {
           "path": "src/chat_keys.cpp",
@@ -2028,7 +2028,7 @@
           "path": "CMakeLists.txt",
           "controlPath": "native_ports/albt/CMakeLists.txt",
           "beforeSha256": "430674774bb8b633d65f01b71f38aa5681a8787d4ab0b374858fe5f13b76c952",
-          "sha256": "e8cfbe736555479c6614f28661cc99a46226bd7d1d0ee390dfd6874d1e90c46b"
+          "sha256": "973229de557487fe24a8d7b6f222203bbaa79c1cea788cd176e9032b868edc33"
         },
         {
           "path": "src/albw_l1_input.cpp",
