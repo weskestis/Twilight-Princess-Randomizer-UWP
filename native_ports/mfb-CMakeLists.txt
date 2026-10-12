@@ -98,6 +98,14 @@ endif ()
 # Chat observes the SDL event already owned and dispatched by Dusklight; it
 # does not link or initialize a second SDL runtime. Standalone mod builds need
 # only the matching public event/key definitions.
+if (DUSK_UWP)
+    # The SDK's Store-compatible SDL headers match the already selected runtime.
+    # Upstream desktop 3.4 headers deliberately reject WINAPI_FAMILY_APP.
+    set(DUSKLIGHT_ONLINE_SDL3_INCLUDE_DIR "${AURORA_UWP_DEP_SOURCE_DIR}/x64/include")
+    if (NOT EXISTS "${DUSKLIGHT_ONLINE_SDL3_INCLUDE_DIR}/SDL3/SDL_events.h")
+        message(FATAL_ERROR "Pinned UWP SDL headers are missing")
+    endif ()
+endif ()
 find_path(DUSKLIGHT_ONLINE_SDL3_INCLUDE_DIR SDL3/SDL_events.h
     HINTS
         "${DUSKLIGHT_DIR}/build/windows-msvc/_deps/sdl3_prebuilt-src/include"

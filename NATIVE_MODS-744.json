@@ -2806,7 +2806,7 @@
           "path": "CMakeLists.txt",
           "controlPath": "native_ports/mfb/CMakeLists.txt",
           "beforeSha256": "d48b8c344bf19923998c78f5af73d44b13015b29e06e0a529fc4c0569badd8ef",
-          "sha256": "80929e32d08a35627f0c38a7c78895bed378d3cc773683c877b2355e802ada54"
+          "sha256": "6e25511203efb1e5b7b5634ae418c426667307bc3ba48429c5e19f36555a2890"
         },
         {
           "path": "src/game/voice_chat.cpp",
