@@ -23,6 +23,7 @@ jobs:
         with:
           artifact-ids: '11719521935'
           path: verified-artifact
+          merge-multiple: true
           run-id: '38183843368'
           repository: weskestis/Twilight-Princess-Randomizer-UWP
           github-token: ${{ github.token }}
