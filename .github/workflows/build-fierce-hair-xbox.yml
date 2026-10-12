@@ -6469,9 +6469,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           python "$env:TPR_CONTROL\scripts\apply-fierce-hair.py"
           if ($LASTEXITCODE -ne 0) { throw 'Signed hair port integration failed.' }
-          cl /nologo /std:c++20 /EHsc /W4 /WX "$env:TPR_CONTROL\native_ports\fierce_hair\test_hair_spring.cpp" "/Fe:$env:TPR_FEED\hair_spring_test.exe"
+          cl /nologo /std:c++20 /EHsc /W4 /WX "$env:TPR_CONTROL\native_ports\fierce_hair\test_hair_spring.cpp" "/Fe:$env:TMP\hair_spring_test.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Windows hair solver compilation failed.' }
-          & "$env:TPR_FEED\hair_spring_test.exe"
+          & "$env:TMP\hair_spring_test.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Hair solver numerical regression failed.' }
 
       - name: Configure Dusklight 2 UWP feed
