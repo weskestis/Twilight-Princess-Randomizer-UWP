@@ -50,10 +50,19 @@ jobs:
           }
           foreach ($name in $expected.Keys) {
             $file = Get-ChildItem "$env:TPR_SRC" -Recurse -File -Filter $name | Select-Object -First 1
-            if (-not $file) { throw "Requested cached input missing: $name" }
+            if (-not $file) {
+              $catalog = Get-Content "$env:GITHUB_WORKSPACE\_control\BUNDLED_MODS-736.json" -Raw | ConvertFrom-Json
+              $entry = $catalog.mods | Where-Object { ($_.id + '.dusk') -eq $name } | Select-Object -First 1
+              if (-not $entry) { throw "Requested source archive missing from cache: $name" }
+              $target = Join-Path $out $name
+              Invoke-WebRequest -UseBasicParsing -Uri $entry.download.url -OutFile $target
+              $file = Get-Item $target
+            }
             $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($hash -ne $expected[$name]) { throw "Cached input hash mismatch: $name" }
-            Copy-Item $file.FullName (Join-Path $out $name)
+            if ($hash -ne $expected[$name]) { throw "Mod input hash mismatch: $name" }
+            if ($file.FullName -ne (Join-Path $out $name)) {
+              Copy-Item $file.FullName (Join-Path $out $name)
+            }
             Write-Host "$name $hash"
           }
       - uses: actions/upload-artifact@v4
