@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: xbox744-delivery-recovery
+  cancel-in-progress: true
 jobs:
   recover:
     runs-on: windows-2022
@@ -25,6 +28,7 @@ jobs:
           run-id: 38245912565
           github-token: ${{ github.token }}
           path: Verified744
+          merge-multiple: true
       - name: Verify exact package and recover pinned Essentials source
         shell: powershell
         env:
