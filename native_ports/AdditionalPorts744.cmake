@@ -1,0 +1,17 @@
+include(FetchContent)
+if (NOT TARGET opus)
+    set(OPUS_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
+    set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+    set(OPUS_INSTALL_PKG_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
+    set(OPUS_INSTALL_CMAKE_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(xbox_opus
+        GIT_REPOSITORY https://github.com/xiph/opus.git
+        GIT_TAG ddbe48383984d56acd9e1ab6a090c54ca6b735a6)
+    FetchContent_MakeAvailable(xbox_opus)
+endif ()
+if (DUSK_UWP)
+    set_target_properties(opus PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    target_compile_definitions(opus PRIVATE _UWP=1 WINAPI_FAMILY=WINAPI_FAMILY_APP)
+    target_link_directories(opus BEFORE PRIVATE "${DUSK_UWP_STORE_LIB_DIR}")
+endif ()

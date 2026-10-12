@@ -1,0 +1,246 @@
+diff --git a/mods/uwp_ports/port_dof_hq/src/mod.cpp b/mods/uwp_ports/port_dof_hq/src/mod.cpp
+index 2e4596a..ae20a9a 100644
+--- a/mods/uwp_ports/port_dof_hq/src/mod.cpp
++++ b/mods/uwp_ports/port_dof_hq/src/mod.cpp
+@@ -8,6 +8,7 @@
+ // Half resolution: the gather is drawn into an offscreen target, then upsampled onto the scene.
+ 
+ #include "global.h"
++#include "../../xbox_effect_budget.hpp"
+ 
+ #include "d/actor/d_a_player.h"
+ #include "d/d_camera.h"
+@@ -58,6 +59,7 @@ namespace
+     ConfigVarHandle g_cvarNearFalloff = 0;        // % of focus distance
+     ConfigVarHandle g_cvarTapCount = 0;           // maximum number of taps in the gather pass
+     ConfigVarHandle g_cvarHalfResolution = 0;     // run the gather pass at half resolution
++    ConfigVarHandle g_cvarEffectHeight = 0;
+     UiWindowHandle g_controlsWindow = 0;
+ 
+     // Single source of truth for defaults (used for registration and as read fallbacks).
+@@ -98,6 +100,7 @@ namespace
+         bool enabled = kDefEnabled;
+         bool ambientEnabled = kDefAmbientEnabled;
+         bool halfRes = kDefHalfResolution;
++        uint32_t effectHeight = 720;
+         float intensity = 1.0f;
+         float ambientFarBlur = 0.0f;
+         float ambientFarDistance = 0.0f;
+@@ -118,6 +121,9 @@ namespace
+         s.enabled = get_bool_option(g_cvarEnabled, kDefEnabled);
+         s.ambientEnabled = get_bool_option(g_cvarAmbientEnabled, kDefAmbientEnabled);
+         s.halfRes = get_bool_option(g_cvarHalfResolution, kDefHalfResolution);
++        const int64_t effectHeight = get_int_option(g_cvarEffectHeight, 720);
++        s.effectHeight = effectHeight == 0 ? 0u :
++            static_cast<uint32_t>(std::clamp<int64_t>(effectHeight, 360, 2160));
+         s.intensity = pct(g_cvarIntensity, kDefIntensity, 0, 200);
+         s.ambientFarBlur = pct(g_cvarAmbientFarBlur, kDefAmbientFarBlur, 0, 100);
+         s.ambientFarDistance = static_cast<float>(
+@@ -642,14 +648,18 @@ namespace
+         const GatherPayload gatherPayload{
+             resolved.color, resolved.depth, uniformRange.offset, uniformRange.size};
+ 
+-        if (!g_settings.halfRes) {
++        if (!g_settings.halfRes && (g_settings.effectHeight == 0 ||
++                resolved.height <= g_settings.effectHeight)) {
+             // Full resolution: blend the gather straight onto the scene, no extra pass.
+             svc_gfx->push_draw(mod_ctx, g_drawGatherDirect, &gatherPayload, sizeof(gatherPayload));
+             return;
+         }
+ 
+-        const uint32_t gatherWidth = std::max((resolved.width + 1u) / 2u, 1u);
+-        const uint32_t gatherHeight = std::max((resolved.height + 1u) / 2u, 1u);
++        const uint32_t divisor = g_settings.halfRes ? 2u : 1u;
++        const auto extent = xbox_effect_budget::fit(
++            std::max((resolved.width + divisor - 1u) / divisor, 1u),
++            std::max((resolved.height + divisor - 1u) / divisor, 1u), g_settings.effectHeight);
++        const uint32_t gatherWidth = extent.width, gatherHeight = extent.height;
+         if (svc_gfx->create_pass(mod_ctx, gatherWidth, gatherHeight) != MOD_OK)
+             return;
+ 
+@@ -737,6 +747,8 @@ namespace
+         svc_ui->pane_add_section(mod_ctx, left, "Performance");
+         add_toggle(left, "Half Resolution", g_cvarHalfResolution,
+                    "Render the DoF gather pass at half the scene resolution for better performance. This may introduce some blur artifacts.");
++        add_number(left, "Blur Height Limit", g_cvarEffectHeight, 0, 2160, 120, " px",
++                   "Limits blur processing to 720 pixels high by default. Game resolution stays unchanged. Set 0 for unlimited blur resolution.");
+         add_number(left, "Max Tap Count", g_cvarTapCount, 8, 64, 8, " taps",
+                    "Maximum number of samples in the gather pass. Small blurs automatically use fewer samples.");
+         return MOD_OK;
+@@ -804,6 +816,7 @@ extern "C"
+             (result = register_int_option("farFalloff", kDefFarFalloff, g_cvarFarFalloff, error)) != MOD_OK ||
+             (result = register_int_option("nearFalloff", kDefNearFalloff, g_cvarNearFalloff, error)) != MOD_OK ||
+             (result = register_bool_option("halfResolution", kDefHalfResolution, g_cvarHalfResolution, error)) != MOD_OK ||
++            (result = register_int_option("xboxEffectHeight", 720, g_cvarEffectHeight, error)) != MOD_OK ||
+             (result = register_int_option("tapCount", kDefTapCount, g_cvarTapCount, error)) != MOD_OK)
+         {
+             return result;
+@@ -865,4 +878,4 @@ extern "C"
+         g_drawGatherDirect = g_drawGatherOffscreen = g_drawComposite = 0;
+         return MOD_OK;
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/mods/uwp_ports/port_vbao/mods/vbao/src/mod.cpp b/mods/uwp_ports/port_vbao/mods/vbao/src/mod.cpp
+index 15d3a55..f8081f0 100644
+--- a/mods/uwp_ports/port_vbao/mods/vbao/src/mod.cpp
++++ b/mods/uwp_ports/port_vbao/mods/vbao/src/mod.cpp
+@@ -32,6 +32,7 @@
+ #include "mods/svc/gfx.h"
+ 
+ #include "gfx_normal_compat.h"
++#include "../../../../xbox_effect_budget.hpp"
+ #include "gfx_scene_pass.h"
+ #include "mods/svc/log.h"
+ #include "mods/svc/resource.h"
+@@ -89,6 +90,7 @@ ConfigVarHandle g_cvarDistanceFade = 0;
+ ConfigVarHandle g_cvarFadeStart = 0;
+ ConfigVarHandle g_cvarFadeEnd = 0;
+ ConfigVarHandle g_cvarHalfRes = 0;
++ConfigVarHandle g_cvarXboxBalanced = 0;
+ ConfigVarHandle g_cvarDebugView = 0;
+ 
+ GfxComputeTypeHandle g_computeType = 0;
+@@ -564,7 +566,8 @@ void tick_retired_targets() {
+ }
+ 
+ bool ensure_targets(uint32_t width, uint32_t height, uint32_t fullWidth, uint32_t fullHeight) {
+-    if (g_targets.width == width && g_targets.height == height) {
++    if (g_targets.width == width && g_targets.height == height &&
++        g_targets.fullWidth == fullWidth && g_targets.fullHeight == fullHeight) {
+         return true;
+     }
+     if (g_targets.width != 0) {
+@@ -948,7 +951,9 @@ void on_scene_after_opaque(ModContext*, const GfxStageContext* stageCtx, void*)
+     }
+     g_normalWaitFrames = 0;
+ 
+-    const bool halfRes = get_bool_option(g_cvarHalfRes, false);
++    const bool balanced = xbox_effect_budget::balanced(
++        get_bool_option(g_cvarXboxBalanced, true), resolved.height);
++    const bool halfRes = get_bool_option(g_cvarHalfRes, true) || balanced;
+     const uint32_t divisor = halfRes ? 2 : 1;
+     const uint32_t width = resolved.width / divisor;
+     const uint32_t height = resolved.height / divisor;
+@@ -1021,6 +1026,9 @@ void on_scene_after_opaque(ModContext*, const GfxStageContext* stageCtx, void*)
+         1000.0f;
+     quality_counts(
+         get_int_option(g_cvarQuality, 2), uniforms.slice_count, uniforms.steps_per_side);
++    if (balanced) {
++        xbox_effect_budget::bound_ao_samples(uniforms.slice_count, uniforms.steps_per_side);
++    }
+     uniforms.denoise_strength = percent(g_cvarDenoiseStrength, 60, 0, 100);
+     const int64_t temporalFrames = std::clamp<int64_t>(get_int_option(g_cvarTemporalFrames, 5), 2, 12);
+     uniforms.temporal_alpha = 1.0f / static_cast<float>(temporalFrames);
+@@ -1301,6 +1309,8 @@ ModResult build_controls_tab(
+         "Accumulation on, a jittered temporal upsampler reconstructs full-resolution detail across "
+         "frames, so the result stays close to full-res; with it off, a depth-aware bilinear upscale "
+         "is used instead (silhouettes stay crisp, but softer).");
++    add_toggle(left, "Xbox Balanced at High Resolution", g_cvarXboxBalanced,
++        "Above 1080 pixels high, use half-resolution AO and at most five slices with two steps. Reduces effect cost at 5x without changing game resolution or frame-rate limit. Turn off to use the full selected AO quality.");
+ 
+     svc_ui->pane_add_section(mod_ctx, left, "Distance Fade");
+     add_toggle(left, "Distance Fade", g_cvarDistanceFade,
+@@ -1434,6 +1444,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
+         {"temporal", true, &g_cvarTemporal},
+         {"distanceFade", false, &g_cvarDistanceFade},
+         {"halfRes", true, &g_cvarHalfRes},
++        {"xboxBalanced", true, &g_cvarXboxBalanced},
+     };
+     for (const auto& opt : boolOptions) {
+         result = register_bool_option(opt.name, opt.defaultValue, *opt.handle, error);
+diff --git a/mods/uwp_ports/xbox_effect_budget.hpp b/mods/uwp_ports/xbox_effect_budget.hpp
+new file mode 100644
+index 0000000..37b6254
+--- /dev/null
++++ b/mods/uwp_ports/xbox_effect_budget.hpp
+@@ -0,0 +1,19 @@
++#pragma once
++#include <algorithm>
++#include <cstdint>
++
++namespace xbox_effect_budget {
++struct Extent { uint32_t width, height; };
++inline Extent fit(uint32_t width, uint32_t height, uint32_t maxHeight) noexcept {
++    if (height == 0 || width == 0) return {0, 0};
++    if (maxHeight == 0 || height <= maxHeight) return {width, height};
++    return {std::max(1u, uint32_t(uint64_t(width) * maxHeight / height)), maxHeight};
++}
++inline bool balanced(bool enabled, uint32_t sceneHeight) noexcept {
++    return enabled && sceneHeight > 1080;
++}
++inline void bound_ao_samples(float& slices, float& steps) noexcept {
++    slices = std::min(slices, 5.0f);
++    steps = std::min(steps, 2.0f);
++}
++}
+diff --git a/src/d/actor/d_a_obj_carry.cpp b/src/d/actor/d_a_obj_carry.cpp
+index 39244bb..82b053c 100644
+--- a/src/d/actor/d_a_obj_carry.cpp
++++ b/src/d/actor/d_a_obj_carry.cpp
+@@ -6,6 +6,7 @@
+ #include "d/dolzel_rel.h" // IWYU pragma: keep
+ 
+ #include "d/actor/d_a_obj_carry.h"
++#include "dusk/breakable_tint.hpp"
+ #if defined(_UWP)
+ #include "dusk/startup_guard.hpp"
+ #endif
+@@ -1941,10 +1942,7 @@ int daObjCarry_c::draw() {
+             tprPotMarkerColor = material->getTevKColor(0);
+             if (tprPotMarkerColor != nullptr) {
+                 tprPotSavedMarkerColor = *tprPotMarkerColor;
+-                tprPotMarkerColor->r = 102;
+-                tprPotMarkerColor->g = 74;
+-                tprPotMarkerColor->b = 17;
+-                tprPotMarkerColor->a = 255;
++                dusk::breakable_tint::apply(*tprPotMarkerColor, false);
+             }
+         }
+     }
+diff --git a/src/d/actor/d_a_obj_pumpkin.cpp b/src/d/actor/d_a_obj_pumpkin.cpp
+index 2e5ba4f..95cacc2 100644
+--- a/src/d/actor/d_a_obj_pumpkin.cpp
++++ b/src/d/actor/d_a_obj_pumpkin.cpp
+@@ -6,6 +6,7 @@
+ #include "d/dolzel_rel.h" // IWYU pragma: keep
+ 
+ #include "d/actor/d_a_obj_pumpkin.h"
++#include "dusk/breakable_tint.hpp"
+ extern "C" bool tpr_breakable_marker_pending(fopAc_ac_c* actor) noexcept;
+ #include "d/actor/d_a_npc.h"
+ #include "d/actor/d_a_npc4.h"
+@@ -689,10 +690,7 @@ int daObj_Pumpkin_c::Draw() {
+                 tprPumpkinMarkerColor = material->getTevKColor(0);
+                 if (tprPumpkinMarkerColor != nullptr) {
+                     tprPumpkinSavedMarkerColor = *tprPumpkinMarkerColor;
+-                    tprPumpkinMarkerColor->r = 10;
+-                    tprPumpkinMarkerColor->g = 102;
+-                    tprPumpkinMarkerColor->b = 19;
+-                    tprPumpkinMarkerColor->a = 255;
++                    dusk::breakable_tint::apply(*tprPumpkinMarkerColor, true);
+                 }
+             }
+         }
+diff --git a/src/dusk/breakable_tint.hpp b/src/dusk/breakable_tint.hpp
+new file mode 100644
+index 0000000..1039a3d
+--- /dev/null
++++ b/src/dusk/breakable_tint.hpp
+@@ -0,0 +1,15 @@
++#pragma once
++#include <cstdint>
++
++namespace dusk::breakable_tint {
++// Tint the lighting-derived constant; never add light or replace its alpha.
++template<class Color>
++void apply(Color& color, bool pumpkin) noexcept {
++    const auto attenuate = [](uint8_t value, unsigned factor) {
++        return static_cast<uint8_t>((unsigned(value) * factor + 127u) / 255u);
++    };
++    color.r = attenuate(color.r, pumpkin ? 96u : 204u);
++    color.g = attenuate(color.g, pumpkin ? 192u : 154u);
++    color.b = attenuate(color.b, pumpkin ? 112u : 68u);
++}
++}

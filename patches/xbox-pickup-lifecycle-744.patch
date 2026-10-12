@@ -1,0 +1,332 @@
+diff --git a/mods/randomizer/src/breakables.cpp b/mods/randomizer/src/breakables.cpp
+index 0d4f4f2..1d62cb8 100644
+--- a/mods/randomizer/src/breakables.cpp
++++ b/mods/randomizer/src/breakables.cpp
+@@ -612,6 +612,28 @@ std::optional<uint16_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcep
+     }
+     return std::nullopt;
+ }
++bool has_spawned_item_binding(const fopAc_ac_c* actor) noexcept {
++    try {
++        std::scoped_lock lock(s_mutex);
++        ensure_collection_locked();
++        return spawned_key_locked(actor).has_value();
++    } catch (...) {
++        return false;
++    }
++}
++
++void inherit_spawned_item(const fopAc_ac_c* actor, fpc_ProcID childId) noexcept {
++    if (childId == fpcM_ERROR_PROCESS_ID_e) return;
++    try {
++        std::scoped_lock lock(s_mutex);
++        ensure_collection_locked();
++        if (const auto key = spawned_key_locked(actor)) {
++            s_spawnedItemKeys[childId] = *key;
++        }
++    } catch (...) {
++    }
++}
++
+ void collect_spawned_item(const fopAc_ac_c* actor) noexcept {
+     try {
+         if (actor == nullptr) {
+@@ -625,7 +647,8 @@ void collect_spawned_item(const fopAc_ac_c* actor) noexcept {
+             if (!key) {
+                 return;
+             }
+-            s_spawnedItemKeys.erase(fopAcM_GetID(actor));
++            // Retain the binding through actor deletion. A late/repeated
++            // callback must see this as an already granted breakable reward.
+             s_pendingKeys.erase(*key);
+             collected = s_collectedKeys.insert(*key).second;
+             if (collected) {
+@@ -649,10 +672,12 @@ void forget_spawned_item(const fopAc_ac_c* actor) noexcept {
+         }
+         std::scoped_lock lock(s_mutex);
+         const auto key = spawned_key_locked(actor);
+-        if (key) {
++        s_spawnedItemKeys.erase(fopAcM_GetID(actor));
++        // A get-item display actor may still own the same pending pickup.
++        if (key && std::none_of(s_spawnedItemKeys.begin(), s_spawnedItemKeys.end(),
++                [&](const auto& entry) { return entry.second == *key; })) {
+             s_pendingKeys.erase(*key);
+         }
+-        s_spawnedItemKeys.erase(fopAcM_GetID(actor));
+     } catch (const std::exception& error) {
+         mods::log::error("Could not forget randomized breakable item: {}", error.what());
+     } catch (...) {
+@@ -717,4 +742,8 @@ extern "C" bool tpr_breakable_marker_pending(fopAc_ac_c* actor) noexcept {
+     } catch (...) {
+         return false;
+     }
+-}
+\ No newline at end of file
++}
++
++extern "C" bool tpr_breakable_item_bound(const fopAc_ac_c* actor) noexcept {
++    return randomizer::breakables::has_spawned_item_binding(actor);
++}
+diff --git a/mods/randomizer/src/breakables.hpp b/mods/randomizer/src/breakables.hpp
+index 754d64c..711c13e 100644
+--- a/mods/randomizer/src/breakables.hpp
++++ b/mods/randomizer/src/breakables.hpp
+@@ -85,6 +85,8 @@ bool spawn_shuffled_item(fopAc_ac_c* actor,
+ // can be re-evaluated at pickup time.
+ bool refresh_spawned_item(fopAc_ac_c* actor) noexcept;
+ std::optional<uint16_t> spawned_item_assignment(const fopAc_ac_c* actor) noexcept;
++bool has_spawned_item_binding(const fopAc_ac_c* actor) noexcept;
++void inherit_spawned_item(const fopAc_ac_c* actor, fpc_ProcID childId) noexcept;
+ void collect_spawned_item(const fopAc_ac_c* actor) noexcept;
+ void forget_spawned_item(const fopAc_ac_c* actor) noexcept;
+ 
+diff --git a/mods/randomizer/src/hooks.cpp b/mods/randomizer/src/hooks.cpp
+index 12bd35f..43e1575 100644
+--- a/mods/randomizer/src/hooks.cpp
++++ b/mods/randomizer/src/hooks.cpp
+@@ -11,6 +11,7 @@
+ #include "tools.h"
+ #include "item.hpp"
+ #include "item_ids.h"
++#include "pickup_message_guard.hpp"
+ #include "verify_item_functions.h"
+ #include "../generator/utility/text.hpp"
+ 
+@@ -86,6 +87,8 @@ extern "C" const char* tpr_xbox_retain_shop_text(void*, const char*, size_t) noe
+ #include "d/d_menu_ring.h"
+ #include "d/d_meter2_info.h"
+ #include "d/d_msg_object.h"
++#include "f_op/f_op_msg.h"
++#include "f_op/f_op_msg_mng.h"
+ #include "d/d_s_name.h"
+ #include "d/d_s_play.h"
+ #include "d/d_save.h"
+@@ -213,6 +216,7 @@ DEFINE_HOOK(&daAlink_c::checkGroundSpecialMode, daAlink_c__checkGroundSpecialMod
+ DEFINE_HOOK(&daAlink_c::setGetItemFace, daAlink_c__setGetItemFace);
+ DEFINE_HOOK(&daAlink_c::setGetSubBgm, daAlink_c__setGetSubBgm);
+ DEFINE_HOOK(&daAlink_c::procCoGetItem, daAlink_c__procCoGetItem);
++DEFINE_HOOK(&daAlink_c::checkEndMessage, daAlink_c__checkEndMessage_Pickup744);
+ DEFINE_HOOK(&daAlink_c::procCoWarpInit, daAlink_c__procCoWarpInit);
+ 
+ DEFINE_HOOK_SYMBOL("b_bq_end", void(b_bq_class*), bq_end);
+@@ -480,7 +484,10 @@ HookAction hookPreCreateDisappear(ModContext*, void* args, void*, void*) {
+     return HOOK_CONTINUE;
+ }
+ 
++void resetPickupMessageGuard() noexcept;
++
+ HookAction hookPreSceneDelete(ModContext*, void*, void*, void*) {
++    resetPickupMessageGuard();
+     breakables::clear_scene_actors();
+     enemy_souls::clear_scene_actors();
+     shops::clear_scene_actors();
+@@ -746,6 +753,7 @@ HookAction hookPreItemCreate(ModContext*, void* args, void*, void*) {
+ 
+ void hookPostItemGetDemoInit(ModContext*, void* args, void*, void*) {
+     auto* actor = mods::arg<daItem_c*>(args, 0);
++    breakables::inherit_spawned_item(actor, actor->m_item_id);
+     enemy_souls::transfer_item_association(
+         fopAcM_GetID(actor), actor->m_item_id);
+ }
+@@ -755,6 +763,12 @@ HookAction hookPreItemGetDemoExecute(
+ {
+     auto* actor = mods::arg<daItem_c*>(args, 0);
+     if (dComIfGp_evmng_endCheck("DEFAULT_GETITEM")) {
++        // The event can end before a delayed display-actor callback. The
++        // shared binding makes either order grant once, then persist once.
++        if (const auto reward = breakables::spawned_item_assignment(actor)) {
++            item::exec_item_get(*reward);
++            enemy_souls::commit_item_pickup(actor);
++        }
+         breakables::collect_spawned_item(actor);
+     }
+     return HOOK_CONTINUE;
+@@ -846,7 +860,18 @@ HookAction hookPreDemoItemActionEvent(
+     }
+ 
+     s_demoPickupActor = actor;
+-    if (enemy_souls::collect_extended_item(actor)) {
++    // The native action still owns lights, particles and event teardown.
++    // Suppress only its grant after awarding the exact breakable assignment.
++    if (breakables::has_spawned_item_binding(actor)) {
++        if (const auto reward = breakables::spawned_item_assignment(actor)) {
++            item::exec_item_get(*reward);
++            enemy_souls::commit_item_pickup(actor);
++            breakables::collect_spawned_item(actor);
++        }
++        s_demoPickupFlags = actor->field_0x93d;
++        actor->field_0x93d |= 0x1;
++        s_demoPickupSuppressed = true;
++    } else if (enemy_souls::collect_extended_item(actor)) {
+         session::completeLogicalCheck(actor, actor->m_itemNo);
+         s_demoPickupFlags = actor->field_0x93d;
+         actor->field_0x93d |= 0x1;
+@@ -2863,6 +2888,9 @@ HookAction hookPreSetGetSubBgm(ModContext*, void* args, void*, void*) {
+ 
+     auto* i_this = mods::arg<daAlink_c*>(args, 0);
+     const int i_itemNo = mods::arg<int>(args, 1);
++    if (i_itemNo < 0 || i_itemNo >= static_cast<int>(std::size(getSeTypeRandomizer))) {
++        return HOOK_SKIP_ORIGINAL;
++    }
+     u32 se_type = getSeTypeRandomizer[i_itemNo];
+ 
+     if (se_type == SETYPE_ITEM_GET_ME && i_this->mProcVar4.field_0x3010 == 0) {
+@@ -2877,6 +2905,50 @@ HookAction hookPreSetGetSubBgm(ModContext*, void* args, void*, void*) {
+     return HOOK_SKIP_ORIGINAL;
+ }
+ 
++PickupMessageGuard s_pickupMessageGuard;
++void resetPickupMessageGuard() noexcept { s_pickupMessageGuard.reset(); }
++
++void recoverMissingPickupMessage(daAlink_c* link, u32 messageId, BOOL& finished,
++                                PickupMessageGuard::Clock::time_point now) {
++    if (finished || link == nullptr || link->mProcID != daAlink_c::PROC_GET_ITEM) {
++        s_pickupMessageGuard.reset(); return;
++    }
++    auto* partner = fopAcM_getItemEventPartner(link);
++    if (partner == nullptr || fpcM_IsCreating(fpcM_GetID(partner)) ||
++        !breakables::has_spawned_item_binding(partner)) {
++        s_pickupMessageGuard.reset(); return;
++    }
++    auto* message = fopMsgM_SearchByID(link->mMsgClassID);
++    const bool creating = link->mMsgClassID != fpcM_ERROR_PROCESS_ID_e &&
++        link->mMsgClassID != 0 && fpcM_IsCreating(link->mMsgClassID);
++    // messageSet returns 0 when the shared message actor is not ready. The
++    // vanilla caller stores that as a live ID and otherwise never retries.
++    if (message == nullptr && !creating) link->mMsgClassID = fpcM_ERROR_PROCESS_ID_e;
++    const bool unavailable = message == nullptr || message->mode == fopMsg_MODE_MSG_PREPARING_e;
++    if (!s_pickupMessageGuard.expired(fopAcM_GetID(link), fopAcM_GetID(partner),
++                                    messageId, unavailable, creating, now)) return;
++    if (message != nullptr) message->mode = fopMsg_MODE_MSG_DESTROYED_e;
++    // Returning true lets procCoGetItem run its normal animation/event cleanup
++    // and mark the display actor dead. Its .744 grant binding remains intact.
++    finished = TRUE;
++    s_pickupMessageGuard.reset();
++    try {
++        mods::log::warn("Recovered missing breakable pickup text (744)");
++        if (session::svc_mng.ui != nullptr) {
++            UiToastDesc toast = UI_TOAST_DESC_INIT;
++            toast.title_rml = "Reward received";
++            toast.body_rml = "Pickup text could not open. Your reward is being added.";
++            toast.duration_ms = 5000;
++            session::svc_mng.ui->push_toast(session::svc_mng.mod_ctx, &toast);
++        }
++    } catch (...) {}
++}
++
++void hookPostCheckEndPickupMessage(ModContext*, void* args, void* retval, void*) {
++    recoverMissingPickupMessage(mods::arg<daAlink_c*>(args, 0), mods::arg<u32>(args, 1),
++                                *static_cast<BOOL*>(retval), PickupMessageGuard::Clock::now());
++}
++
+ HookAction hookPreProcCoGetItem(ModContext*, void* args, void*, void*) {
+     auto* link = mods::arg<daAlink_c*>(args, 0);
+     if (link->field_0x32cc != 0) return HOOK_CONTINUE;
+@@ -4057,7 +4129,19 @@ HookAction hookPreItemItemGetNextExecute(ModContext*, void* args, void* retval,
+         i_this->setFlag(daItem_c::FLAG_INIT_GET_ITEM_e);
+         BOOL haveItem = false;
+ 
+-        switch (i_this->m_itemNo) {
++        const auto reward = breakables::spawned_item_assignment(i_this);
++        const bool simpleBreakable = reward && (
++            (*reward <= dItemNo_Randomizer_SILVER_RUPEE_e) ||
++            (*reward >= dItemNo_Randomizer_BOMB_5_e && *reward <= dItemNo_Randomizer_BOMB_30_e) ||
++            (*reward >= dItemNo_Randomizer_ARROW_10_e && *reward <= dItemNo_Randomizer_ARROW_30_e) ||
++            *reward == dItemNo_Randomizer_ARROW_1_e ||
++            *reward == dItemNo_Randomizer_PACHINKO_SHOT_e ||
++            (*reward >= dItemNo_Randomizer_WATER_BOMB_5_e && *reward <= dItemNo_Randomizer_TRIPLE_HEART_e));
++        if (simpleBreakable) {
++            // Do not stop Link for filler or run an unnecessary message/demo.
++            i_this->procInitSimpleGetDemo();
++            i_this->itemGet();
++        } else switch (i_this->m_itemNo) {
+         case dItemNo_HEART_e:
+         case dItemNo_GREEN_RUPEE_e:
+         case dItemNo_ARROW_10_e:
+@@ -4126,6 +4210,10 @@ HookAction hookPreItemItemGet(ModContext*, void* args, void*, void*) {
+         return HOOK_SKIP_ORIGINAL;
+     }
+ 
++    if (breakables::has_spawned_item_binding(i_this)) {
++        return HOOK_SKIP_ORIGINAL; // This bound reward was already granted.
++    }
++
+     if (enemy_souls::collect_extended_item(i_this)) {
+         session::completeLogicalCheck(i_this, i_this->m_itemNo);
+         mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
+@@ -4659,6 +4747,7 @@ ModResult initialize() {
+     ADD_HOOK_POST(daAlink_c__setGetItemFace, hookPostSetGetItemFace);
+     ADD_HOOK_PRE(daAlink_c__setGetSubBgm, hookPreSetGetSubBgm);
+     ADD_HOOK_PRE(daAlink_c__procCoGetItem, hookPreProcCoGetItem);
++    ADD_HOOK_POST(daAlink_c__checkEndMessage_Pickup744, hookPostCheckEndPickupMessage);
+     ADD_HOOK_PRE(daAlink_c__procCoWarpInit, hookPreProcCoWarpInit);
+     ADD_HOOK_POST(daAlink_c__procCoWarpInit, hookPostProcCoWarpInit);
+ 
+@@ -4906,6 +4995,8 @@ ModResult uninstall() {
+     mods::hook::uninstall<daAlink_c__setGetItemFace>(svc_hook);
+     mods::hook::uninstall<daAlink_c__setGetSubBgm>(svc_hook);
+     mods::hook::uninstall<daAlink_c__procCoGetItem>(svc_hook);
++    mods::hook::uninstall<daAlink_c__checkEndMessage_Pickup744>(svc_hook);
++    resetPickupMessageGuard();
+     mods::hook::uninstall<daAlink_c__procCoWarpInit>(svc_hook);
+ 
+     mods::hook::uninstall<bq_end>(svc_hook);
+diff --git a/mods/randomizer/src/pickup_message_guard.hpp b/mods/randomizer/src/pickup_message_guard.hpp
+new file mode 100644
+index 0000000..4b6f8ee
+--- /dev/null
++++ b/mods/randomizer/src/pickup_message_guard.hpp
+@@ -0,0 +1,24 @@
++#pragma once
++#include <chrono>
++#include <cstdint>
++
++namespace randomizer {
++class PickupMessageGuard {
++public:
++    using Clock = std::chrono::steady_clock;
++    void reset() noexcept { mPending = false; }
++    bool expired(uint32_t player, uint32_t partner, uint32_t text, bool unavailable,
++                 bool creating, Clock::time_point now) noexcept {
++        if (!unavailable || creating) { reset(); return false; }
++        if (!mPending || player != mPlayer || partner != mPartner || text != mText) {
++            mPlayer=player; mPartner=partner; mText=text; mStarted=now; mPending=true;
++            return false;
++        }
++        return now-mStarted >= std::chrono::seconds(5);
++    }
++private:
++    uint32_t mPlayer=0, mPartner=0, mText=0;
++    bool mPending=false;
++    Clock::time_point mStarted{};
++};
++}
+diff --git a/src/d/actor/d_a_obj_item.cpp b/src/d/actor/d_a_obj_item.cpp
+index 1c9cc1d..6d9ec9e 100644
+--- a/src/d/actor/d_a_obj_item.cpp
++++ b/src/d/actor/d_a_obj_item.cpp
+@@ -6,6 +6,9 @@
+ #include "d/dolzel.h" // IWYU pragma: keep
+ 
+ #include "d/actor/d_a_obj_item.h"
++#if defined(_UWP)
++extern "C" bool tpr_breakable_item_bound(const fopAc_ac_c* actor) noexcept;
++#endif
+ #include "SSystem/SComponent/c_math.h"
+ #include "d/d_a_itembase_static.h"
+ #include "d/actor/d_a_player.h"
+@@ -242,7 +245,14 @@ int daItem_c::_daItem_create() {
+ #if TARGET_PC
+         const u32 params = fopAcM_GetParam(this);
+         mOriginalItemNo = params & 0xFF;
++        // .744: a pot/pumpkin already owns this reward. It is not a second
++        // freestanding check, even in stages with a shared 0xFF item bit.
++#if defined(_UWP)
++        mItemGiveTag = tpr_breakable_item_bound(this) ? 0 :
++            dusk::mods::item_give_tag_freestanding(daItem_prm::getItemBitNo(this));
++#else
+         mItemGiveTag = dusk::mods::item_give_tag_freestanding(daItem_prm::getItemBitNo(this));
++#endif
+         const auto [item, displayItem, _] =
+             dusk::mods::item_check_resolve(mItemGiveTag, mOriginalItemNo, this);
+         mItemOverridden = item != mOriginalItemNo;

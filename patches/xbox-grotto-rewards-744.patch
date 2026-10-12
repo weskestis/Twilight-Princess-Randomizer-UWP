@@ -1,0 +1,101 @@
+diff --git a/mods/randomizer/src/enemy_souls.cpp b/mods/randomizer/src/enemy_souls.cpp
+index 4d682f5..1bfa787 100644
+--- a/mods/randomizer/src/enemy_souls.cpp
++++ b/mods/randomizer/src/enemy_souls.cpp
+@@ -990,6 +990,22 @@ bool is_blocked(const fopAc_ac_c* actor) noexcept {
+     }
+ }
+ 
++bool room_has_pending_enemies(const std::int8_t room) noexcept {
++    if (room < 0 || !randomizer_IsActive()) return false;
++    try {
++        std::scoped_lock lock(s_mutex);
++        ensure_state_locked();
++        for (const auto id : s_blockedActors) {
++            const auto* actor = fopAcM_SearchByID(id);
++            if (actor != nullptr && fopAcM_GetRoomNo(actor) == room &&
++                fopAcM_GetGroup(actor) == fopAc_ENEMY_e) return true;
++        }
++    } catch (...) {
++        return true; // A failed permission query cannot clear a combat reward.
++    }
++    return false;
++}
++
+ bool is_creation_blocked(const fopAc_ac_c* actor) noexcept {
+     try {
+         if (actor == nullptr) {
+@@ -1196,3 +1212,7 @@ std::size_t completed_first_defeat_count() noexcept {
+ }
+ 
+ }  // namespace randomizer::enemy_souls
++
++extern "C" bool tpr_room_has_pending_soul_enemies(std::int8_t room) noexcept {
++    return randomizer::enemy_souls::room_has_pending_enemies(room);
++}
+diff --git a/mods/randomizer/src/enemy_souls.hpp b/mods/randomizer/src/enemy_souls.hpp
+index 8c53f6e..31ecbf6 100644
+--- a/mods/randomizer/src/enemy_souls.hpp
++++ b/mods/randomizer/src/enemy_souls.hpp
+@@ -38,6 +38,7 @@ void retry_uncollected_reward() noexcept;
+ void forget_actor(const fopAc_ac_c* actor) noexcept;
+ bool is_blocked(const fopAc_ac_c* actor) noexcept;
+ bool is_creation_blocked(const fopAc_ac_c* actor) noexcept;
++bool room_has_pending_enemies(std::int8_t room) noexcept;
+ void clear_scene_actors() noexcept;
+ 
+ // Logical-item sidecar. Extended IDs never enter vanilla u8 actor parameters.
+diff --git a/src/d/actor/d_a_alldie.cpp b/src/d/actor/d_a_alldie.cpp
+index 68eeaae..d12f65e 100644
+--- a/src/d/actor/d_a_alldie.cpp
++++ b/src/d/actor/d_a_alldie.cpp
+@@ -6,6 +6,7 @@
+ #include "d/dolzel_rel.h" // IWYU pragma: keep
+ 
+ #include "d/actor/d_a_alldie.h"
++extern "C" bool tpr_room_has_pending_soul_enemies(s8 room) noexcept;
+ #include "d/d_com_inf_game.h"
+ #include "f_op/f_op_actor_mng.h"
+ 
+@@ -22,7 +23,8 @@ int daAlldie_c::actionWait() {
+ }
+ 
+ int daAlldie_c::actionCheck() {
+-    if (fopAcM_myRoomSearchEnemy(fopAcM_GetRoomNo(this)) == NULL) {
++    if (!tpr_room_has_pending_soul_enemies(fopAcM_GetRoomNo(this)) &&
++        fopAcM_myRoomSearchEnemy(fopAcM_GetRoomNo(this)) == NULL) {
+         mAction = ACT_TIMER;
+         mTimer = 65;
+     }
+@@ -31,7 +33,8 @@ int daAlldie_c::actionCheck() {
+ }
+ 
+ int daAlldie_c::actionTimer() {
+-    if (fopAcM_myRoomSearchEnemy(fopAcM_GetRoomNo(this)) != NULL) {
++    if (tpr_room_has_pending_soul_enemies(fopAcM_GetRoomNo(this)) ||
++        fopAcM_myRoomSearchEnemy(fopAcM_GetRoomNo(this)) != NULL) {
+         mAction = ACT_CHECK;
+     } else {
+         if (mTimer > 0) {
+diff --git a/src/d/actor/d_a_tbox.cpp b/src/d/actor/d_a_tbox.cpp
+index f804847..4678138 100644
+--- a/src/d/actor/d_a_tbox.cpp
++++ b/src/d/actor/d_a_tbox.cpp
+@@ -1,6 +1,7 @@
+ #include "d/dolzel_rel.h" // IWYU pragma: keep
+ 
+ #include "d/actor/d_a_tbox.h"
++extern "C" bool tpr_room_has_pending_soul_enemies(s8 room) noexcept;
+ #include "d/d_tresure.h"
+ #include "d/d_item_data.h"
+ #include "d/actor/d_a_midna.h"
+@@ -1606,7 +1607,8 @@ int daTbox_c::actionGenocide() {
+         setAction(&daTbox_c::actionDemo2);
+         mStaffId = dComIfGp_evmng_getMyStaffId(l_staff_name, NULL, 0);
+         demoProc();
+-    } else if (!fopAcM_myRoomSearchEnemy(fopAcM_GetRoomNo(this))) {
++    } else if (!tpr_room_has_pending_soul_enemies(fopAcM_GetRoomNo(this)) &&
++               !fopAcM_myRoomSearchEnemy(fopAcM_GetRoomNo(this))) {
+         if (mTimer != 0) {
+             mTimer--;
+         } else {

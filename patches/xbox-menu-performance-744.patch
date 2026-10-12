@@ -1,0 +1,245 @@
+diff --git a/src/dusk/ui/mod_panel_delay.hpp b/src/dusk/ui/mod_panel_delay.hpp
+new file mode 100644
+index 0000000..f2480aa
+--- /dev/null
++++ b/src/dusk/ui/mod_panel_delay.hpp
+@@ -0,0 +1,30 @@
++#pragma once
++#include <chrono>
++#include <cstdint>
++#include <string>
++#include <string_view>
++
++namespace dusk::ui {
++class ModPanelDelay {
++public:
++    using Clock = std::chrono::steady_clock;
++    void cancel() noexcept { mPending = false; }
++    void select(std::string_view id, uint64_t registry, uint64_t resource, Clock::time_point now) {
++        mId = id; mRegistry = registry; mResource = resource;
++        mDue = now + std::chrono::milliseconds(100); mPending = true;
++    }
++    bool take(std::string_view id, uint64_t registry, uint64_t resource, Clock::time_point now) {
++        if (!mPending) return false;
++        if (id != mId || registry != mRegistry || resource != mResource) {
++            cancel(); return false;
++        }
++        if (now < mDue) return false;
++        cancel(); return true;
++    }
++private:
++    std::string mId;
++    uint64_t mRegistry = 0, mResource = 0;
++    Clock::time_point mDue{};
++    bool mPending = false;
++};
++}
+diff --git a/src/dusk/ui/mod_texture_provider.cpp b/src/dusk/ui/mod_texture_provider.cpp
+index f43736e..4ce60b9 100644
+--- a/src/dusk/ui/mod_texture_provider.cpp
++++ b/src/dusk/ui/mod_texture_provider.cpp
+@@ -40,10 +40,10 @@ namespace {
+ constexpr borealis::Log Log{"dusk::ui::modTexture"};
+ constexpr std::string_view kScheme = "mod";
+ constexpr std::string_view kSourcePrefix = "mod://";
+-constexpr size_t kMaxCachedImages = 64;
++constexpr size_t kMaxCachedImages = 256;
+ constexpr size_t kMaxCachedImageBytes = 16 * 1024 * 1024;
+ constexpr size_t kMaxImageFileSize = 16 * 1024 * 1024;
+-constexpr uint32_t kMaxModIconDimension = 256;
++constexpr uint32_t kMaxModIconDimension = 128;
+ constexpr uint32_t kMaxModPreviewDimension = 768;
+ 
+ // Bound the temporary decoded image before libpng allocates the full RGBA buffer.
+@@ -109,6 +109,23 @@ std::unordered_map<std::string, DecodedImage>& image_cache() {
+     return cache;
+ }
+ 
++struct ImageUse { uint64_t age = 0; bool icon = false; };
++std::unordered_map<std::string, ImageUse>& image_use() {
++    static std::unordered_map<std::string, ImageUse> uses;
++    return uses;
++}
++uint64_t& image_age() { static uint64_t age = 0; return age; }
++
++std::string prepared_image_path(std::string_view path) {
++    // A deterministic, flat UTF-8 encoding avoids filename and slash collisions.
++    constexpr char hex[] = "0123456789abcdef";
++    std::string result = "res/uwp-ui-744/";
++    for (const unsigned char value : path) {
++        result += hex[value >> 4]; result += hex[value & 15];
++    }
++    return result + ".png";
++}
++
+ std::string_view strip_query(std::string_view path) noexcept {
+     const auto queryPos = path.find_first_of("?#");
+     if (queryPos != std::string_view::npos) {
+@@ -117,7 +134,8 @@ std::string_view strip_query(std::string_view path) noexcept {
+     return path;
+ }
+ 
+-std::optional<DecodedImage> load_mod_image(std::string_view idAndPath, std::string_view source) {
++std::optional<DecodedImage> load_mod_image(std::string_view idAndPath, std::string_view source,
++                                        bool* isIcon = nullptr) {
+     const auto slash = idAndPath.find('/');
+     if (slash == std::string_view::npos || slash == 0 || slash + 1 >= idAndPath.size()) {
+         Log.warn("Malformed mod image source '{}'", source);
+@@ -143,15 +161,19 @@ std::optional<DecodedImage> load_mod_image(std::string_view idAndPath, std::stri
+         Log.warn("Unknown mod in image source '{}'", source);
+         return std::nullopt;
+     }
++    if (isIcon != nullptr) *isIcon = icon;
+ 
+     std::vector<u8> data;
+     try {
+         startup_guard::stage(fmt::format("menu.mods.image:{}:{}", modId, path));
+-        if (bundle->getFileSize(path) > kMaxImageFileSize) {
++        std::string readPath = path;
++        const auto prepared = prepared_image_path(path);
++        try { if (bundle->file_exists(prepared)) readPath = prepared; } catch (...) {}
++        if (bundle->getFileSize(readPath) > kMaxImageFileSize) {
+             Log.warn("Image '{}' exceeds the {} MiB limit", source, kMaxImageFileSize >> 20);
+             return std::nullopt;
+         }
+-        data = bundle->readFile(path);
++        data = bundle->readFile(readPath);
+         if (!bounded_mod_png(std::span<const u8>{data.data(), data.size()})) {
+             Log.warn("Mod menu image '{}' exceeds the temporary decode budget or has an invalid PNG header", source);
+             return std::nullopt;
+@@ -177,8 +199,10 @@ std::optional<aurora::rmlui::RuntimeTexture> mod_texture_provider_impl(std::stri
+     auto& cache = image_cache();
+     const std::string key{source};
+     auto it = cache.find(key);
++    auto& uses = image_use();
+     if (it == cache.end()) {
+-        auto image = load_mod_image(strip_query(source.substr(kSourcePrefix.size())), source);
++        bool icon = false;
++        auto image = load_mod_image(strip_query(source.substr(kSourcePrefix.size())), source, &icon);
+         if (!image) {
+             return std::nullopt;
+         }
+@@ -192,12 +216,23 @@ std::optional<aurora::rmlui::RuntimeTexture> mod_texture_provider_impl(std::stri
+         while (cache.size() >= kMaxCachedImages ||
+                cachedBytes > kMaxCachedImageBytes - image->pixels.size())
+         {
+-            const auto victim = cache.begin();
++            // Keep small list icons resident. Evict the oldest preview first,
++            // rather than an arbitrary unordered-map entry that may be on screen.
++            const auto victim = std::min_element(cache.begin(), cache.end(), [&](const auto& a, const auto& b) {
++                const auto ua = uses.find(a.first), ub = uses.find(b.first);
++                const ImageUse va = ua == uses.end() ? ImageUse{} : ua->second;
++                const ImageUse vb = ub == uses.end() ? ImageUse{} : ub->second;
++                return va.icon != vb.icon ? !va.icon : va.age < vb.age;
++            });
+             cachedBytes -= victim->second.pixels.size();
+             Rml::ReleaseTexture(victim->first);
++            uses.erase(victim->first);
+             cache.erase(victim);
+         }
+         it = cache.emplace(key, std::move(*image)).first;
++        uses[key] = {++image_age(), icon};
++    } else {
++        uses[key].age = ++image_age();
+     }
+ 
+     const auto& image = it->second;
+@@ -207,7 +242,7 @@ std::optional<aurora::rmlui::RuntimeTexture> mod_texture_provider_impl(std::stri
+         .rgba8 =
+             std::span{reinterpret_cast<const std::byte*>(image.pixels.data()), image.pixels.size()},
+         .premultipliedAlpha = true,
+-        .generateMipmaps = true,
++        .generateMipmaps = false,
+     };
+ }
+ 
+@@ -234,6 +269,7 @@ void unregister_mod_texture_provider() noexcept {
+         Rml::ReleaseTexture(source);
+     }
+     image_cache().clear();
++    image_use().clear();
+ }
+ 
+ }  // namespace dusk::ui
+diff --git a/src/dusk/ui/mods_window.cpp b/src/dusk/ui/mods_window.cpp
+index c163bba..38661c2 100644
+--- a/src/dusk/ui/mods_window.cpp
++++ b/src/dusk/ui/mods_window.cpp
+@@ -446,6 +446,7 @@ Component* ModsWindow::selected_utility() const {
+ }
+ 
+ void ModsWindow::build_online(Pane& pane) {
++    mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
+     mRoot->SetClass("image-header", false);
+     mSelection = Selection::Online;
+     mSelectedMod = nullptr;
+@@ -456,6 +457,7 @@ void ModsWindow::build_online(Pane& pane) {
+ }
+ 
+ void ModsWindow::build_content(Rml::Element* content) {
++    mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
+     startup_guard::stage("menu.mods.build");
+     mEntries.clear();
+     mEntryMods.clear();
+@@ -524,6 +526,7 @@ void ModsWindow::build_content(Rml::Element* content) {
+ }
+ 
+ void ModsWindow::build_detail(Pane& pane, mods::LoadedMod& mod) {
++    mPanelDelay.cancel(); mPendingPanelPane = nullptr; mModPanelBuilt = false;
+     startup_guard::stage(fmt::format("menu.mods.detail:{}", mod.metadata.id));
+     mRoot->SetClass("image-header", !mod.metadata.bannerPath.empty());
+     pane.root()->SetAttribute("mod-id", mod.metadata.id);
+@@ -583,8 +586,11 @@ void ModsWindow::build_detail(Pane& pane, mods::LoadedMod& mod) {
+     }
+ 
+     if (mod.active) {
+-        startup_guard::stage(fmt::format("menu.mods.panel:{}", mod.metadata.id));
+-        mods::svc::ui_build_mods_panels(mod, pane);
++        // Header and actions remain immediate. During a scroll burst, build
++        // optional native controls only for the row where focus settles.
++        mPendingPanelPane = &pane;
++        mPanelDelay.select(mod.metadata.id, mods::ModLoader::instance().generation(),
++                          mod.cacheGeneration, ModPanelDelay::Clock::now());
+     }
+ }
+ 
+@@ -765,7 +771,16 @@ void ModsWindow::update() {
+         }
+     }
+ 
+-    if (mSelectedMod != nullptr && mSelectedMod->active) {
++    if (mPendingPanelPane != nullptr && mSelection == Selection::Mod &&
++        mSelectedMod != nullptr && mSelectedMod->active &&
++        mPanelDelay.take(mSelectedMod->metadata.id, loader.generation(),
++                         mSelectedMod->cacheGeneration, ModPanelDelay::Clock::now())) {
++        auto* pane = mPendingPanelPane; mPendingPanelPane = nullptr;
++        startup_guard::stage(fmt::format("menu.mods.panel:{}", mSelectedMod->metadata.id));
++        mods::svc::ui_build_mods_panels(*mSelectedMod, *pane);
++        mModPanelBuilt = true;
++    }
++    if (mModPanelBuilt && mSelectedMod != nullptr && mSelectedMod->active) {
+         mods::svc::ui_update_mods_panels(*mSelectedMod);
+     }
+ 
+diff --git a/src/dusk/ui/mods_window.hpp b/src/dusk/ui/mods_window.hpp
+index 9534e62..ffbf9df 100644
+--- a/src/dusk/ui/mods_window.hpp
++++ b/src/dusk/ui/mods_window.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include "context_menu.hpp"
+ #include "window.hpp"
++#include "mod_panel_delay.hpp"
+ 
+ #include <cstddef>
+ #include <string>
+@@ -58,6 +59,9 @@ private:
+     uint64_t mUpdateGeneration = 0;
+     std::unordered_set<std::string> mExpandedChangelogs;
+     bool mFocusSelectedMod = false;
++    ModPanelDelay mPanelDelay;
++    Pane* mPendingPanelPane = nullptr;
++    bool mModPanelBuilt = false;
+     ContextMenu::Binding mContextMenu;
+ };
+ 

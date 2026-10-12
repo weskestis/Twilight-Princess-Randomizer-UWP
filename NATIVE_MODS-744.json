@@ -1,0 +1,2861 @@
+{
+  "mods": [
+    {
+      "id": "dev.remiafterdark.coop_mod",
+      "name": "Crests of Courage",
+      "version": "1.10.0",
+      "target": "port_crests_of_courage",
+      "source_url": "https://github.com/remiafterdark/crests-of-courage",
+      "sourceCommit": "bb9922eb4ea52f36ca21c40edb6d2e2cf9a7ee61",
+      "sourceFiles": [
+        {
+          "path": "CMakeLists.txt",
+          "sha256": "55bd33891283030e8617bbe65af9bbb17e0ca44d1f4b7fa651a0ade3669ef132",
+          "size": 5074
+        },
+        {
+          "path": "CREDITS.md",
+          "sha256": "c0817f7e46e5d3e9087f2b102463f0c1a61c538f012b9a8595a8b4eb20f0573e",
+          "size": 1654
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "747ae7cc531a3dbce5c34b05866d93aec67cf7a71aa3b35eecc30d46bc1598d8",
+          "size": 1665
+        },
+        {
+          "path": "cmake/FetchDusklight.cmake",
+          "sha256": "d5e0b2857ef315d99c5ca9aa8752f1fb0fd5b619427be477bbcfeea0f8f39d90",
+          "size": 3369
+        },
+        {
+          "path": "mod.json",
+          "sha256": "2ef6c988c3e05a9e821f439119996a9acc6a9b7768dd05da634de7cb7ec82081",
+          "size": 241
+        },
+        {
+          "path": "src/beast.cpp",
+          "sha256": "40fc9ce157683427164e22195166004df3eae29d4641178978062294dd08413d",
+          "size": 24638
+        },
+        {
+          "path": "src/boss.cpp",
+          "sha256": "6657e4c9f47a169c177bd057ae898c9ecbca20455cec64a51be619a78f05460d",
+          "size": 75669
+        },
+        {
+          "path": "src/boss_adapter.hpp",
+          "sha256": "420ca1656ecd2c911e379ac4912da91dca205524934dc38ae81fcbb7e6ab2be5",
+          "size": 6282
+        },
+        {
+          "path": "src/chat.cpp",
+          "sha256": "cc03c1e1f8329e9d14a585303354ad0aee640d209497b09aa465210c97cf5ad5",
+          "size": 19397
+        },
+        {
+          "path": "src/chat_keys.cpp",
+          "sha256": "2488125225eae0a83957f09938c63c25ad572dd4592d3b612f05a7f972e0a2bc",
+          "size": 9415
+        },
+        {
+          "path": "src/check_names.cpp",
+          "sha256": "57aef2c1c495339c75b60adc27c1a5c6b7bd4ce6020b339fcf6c08e4b518e8de",
+          "size": 44682
+        },
+        {
+          "path": "src/checks.cpp",
+          "sha256": "20e760a35c1d0a6dbb61b39dd783ed50625c18c146553afc3ed1622e66d066d9",
+          "size": 17325
+        },
+        {
+          "path": "src/colors.cpp",
+          "sha256": "11e4fabd33210377f102037f5cb891827b2843c265470f3fed0d1a89dbb7d7b6",
+          "size": 39438
+        },
+        {
+          "path": "src/crash_guard.cpp",
+          "sha256": "1992c047d3ed5884c7660685f9b436fb8451eef2113bd05cf8a85fdfc1339b56",
+          "size": 4608
+        },
+        {
+          "path": "src/drops.cpp",
+          "sha256": "b4705084fc58b19407808e8a924e67810d6bc4ee8ac732c4e41f66118a0ad81f",
+          "size": 4766
+        },
+        {
+          "path": "src/dungeon_blob_cases.inc",
+          "sha256": "aa3bedde1f72be37675d159e526c7f86e606531d7937c35917d5c557e3ea047b",
+          "size": 11146
+        },
+        {
+          "path": "src/dungeon_blob_includes.inc",
+          "sha256": "402e7d1ff927e2dbbf8b1a2b14a70fbe6ddc9ada492899b0d394d4e8c2a120cd",
+          "size": 1722
+        },
+        {
+          "path": "src/effects.cpp",
+          "sha256": "87beb665a0d2367889a8312e4f5851c83dc740d8fb3974ac72bd22ab81c9ed51",
+          "size": 30766
+        },
+        {
+          "path": "src/enemies.cpp",
+          "sha256": "0b54f984568312b506166eff8390582240035ae11fefc3f80a6a45d59af23f24",
+          "size": 227959
+        },
+        {
+          "path": "src/enemy_layout.hpp",
+          "sha256": "e2c884890646050985e419342013bdb3debc97f4c818e0561ca3861b771a6b10",
+          "size": 933
+        },
+        {
+          "path": "src/enemy_layout_po.cpp",
+          "sha256": "33e51babba9a65c6b79f7409ffd8ae174a802fd9522e5fc87333eebea61cd896",
+          "size": 789
+        },
+        {
+          "path": "src/enemy_layout_wb.cpp",
+          "sha256": "852c9abc38f4a1aa3a40c9e063fd84c0ebec25e621acc458521c48cffcc61d45",
+          "size": 1237
+        },
+        {
+          "path": "src/enemy_layout_yk.cpp",
+          "sha256": "b214003c099fd341a6a9a3a47a055e06b2557586643ffec89f1bc2fa62ccef10",
+          "size": 1238
+        },
+        {
+          "path": "src/epona.cpp",
+          "sha256": "84e7bf75d70f6ff13456579de92d7779e9d4021895bbc705a0371351ace17a94",
+          "size": 10346
+        },
+        {
+          "path": "src/features.cpp",
+          "sha256": "1c7ead3d1a326c1bd5271a3c860dd51d5f2171583b20fb8a876f66455c3c1726",
+          "size": 94283
+        },
+        {
+          "path": "src/game_mode.cpp",
+          "sha256": "af9d8a22f8f3678431663b4506b9bbdaae14c23139300833dc481a085cd4819f",
+          "size": 6623
+        },
+        {
+          "path": "src/ganon.cpp",
+          "sha256": "0160b8fe2fbf2d121dbb9bfdb3ab979b7247c2656dc9c0b9a1996e94ce2c328b",
+          "size": 41051
+        },
+        {
+          "path": "src/global.cpp",
+          "sha256": "f5555a12b8b5fd226923e39460f7f50a5cac29d13e246ec1e09d89d8fac95d78",
+          "size": 42889
+        },
+        {
+          "path": "src/global_hud.cpp",
+          "sha256": "569785b76d03582f688123214442144ab1388516deb84903658c545ce1d4e735",
+          "size": 6445
+        },
+        {
+          "path": "src/grass.cpp",
+          "sha256": "3a1d67e68ce35c4c29e4adecbff090ca1200c6f8a8884b15b05082f30dff36ae",
+          "size": 8923
+        },
+        {
+          "path": "src/horses.cpp",
+          "sha256": "dd138bc236a429276d6bc0abaeb6b6e88c44853d0951738123b731880d74cfa1",
+          "size": 5673
+        },
+        {
+          "path": "src/icons.cpp",
+          "sha256": "2646fda8c55cc42d30945afde9c818d39b8177b27f46e0215c38882dacad64ce",
+          "size": 2962
+        },
+        {
+          "path": "src/join_sync.cpp",
+          "sha256": "544b0dd8bbad40e61d28b6a91e5e30a71772f2052d8bf22359f8b0134b4b6e01",
+          "size": 24980
+        },
+        {
+          "path": "src/lan.cpp",
+          "sha256": "42a4a83b107af0aaa86c4c887881d6d9174f8df04af7daf89f38f9c5fbef4c0d",
+          "size": 1692
+        },
+        {
+          "path": "src/map_marker_icons.inc",
+          "sha256": "e6bd23abe527cb788b9ec092eaa8dbaeaf668084cc0743688594be27df8da931",
+          "size": 51346
+        },
+        {
+          "path": "src/map_markers.cpp",
+          "sha256": "41e5200e186ed29a8c6d41c298f5366005e3e28158dd166e48148410a7257440",
+          "size": 27013
+        },
+        {
+          "path": "src/menu.cpp",
+          "sha256": "debcb81915323e2e171da55bf0f62aea9c151ec6de2c608b55e61216d11be46a",
+          "size": 80111
+        },
+        {
+          "path": "src/mod.cpp",
+          "sha256": "80e8186da5f59bb68fdb238f06464c88bf62f8be0cfb32433a27a3d3d5a04746",
+          "size": 129313
+        },
+        {
+          "path": "src/mod.hpp",
+          "sha256": "ad06c7254fe06341a8db5dadbf99a0b4e135fbe5ce9a20f7d86bb96c688294f0",
+          "size": 29385
+        },
+        {
+          "path": "src/models.cpp",
+          "sha256": "26dc1da98051bd1cd12c63d24a23137a095ca22cc3750180fa56858d52d4005a",
+          "size": 23698
+        },
+        {
+          "path": "src/models.hpp",
+          "sha256": "5381c9b24200e6cabf621f73e9e554c39bd345eb24f5003c4cb0cbc188f256c7",
+          "size": 1089
+        },
+        {
+          "path": "src/net/json.hpp",
+          "sha256": "ae08fab7cd01681e3ad1dd2f1af909732b7305d1ffdc525d0eba1c992f867265",
+          "size": 4269
+        },
+        {
+          "path": "src/net/messages.hpp",
+          "sha256": "fa8fff304863618bbe62890bbf7effe4cedf9d4526ecd26ae614e3b51e47666e",
+          "size": 15046
+        },
+        {
+          "path": "src/net/protocol.hpp",
+          "sha256": "89d33e7ab2a2e1d58788d9f5f6c4a2a47454f18180be1e77467b71c10b9321ae",
+          "size": 7706
+        },
+        {
+          "path": "src/net/reliable.hpp",
+          "sha256": "b6a0cd395a985517b822546b6b60cfd893d2cb63c55fc15ba265bb8ad2595c4c",
+          "size": 7690
+        },
+        {
+          "path": "src/net/seal.hpp",
+          "sha256": "e491906420b2ef0b8c4732aa9899f7026cfec89b147aae305e2a44ad1e5d4605",
+          "size": 9279
+        },
+        {
+          "path": "src/notify.cpp",
+          "sha256": "8d65db3e13237d837963f735bc0ff51556a5c69859f088a5cec90e7315e6efc8",
+          "size": 20071
+        },
+        {
+          "path": "src/online.cpp",
+          "sha256": "ff8359b0f556ce541c0054c5430ab55a90b03c56a09d54d4dd3127286dc14305",
+          "size": 23983
+        },
+        {
+          "path": "src/party_hud.cpp",
+          "sha256": "4421962d8fb15b5a9c48a72c2dfcb565a6cd27fb9f084730a1f2a5d23edcd480",
+          "size": 36043
+        },
+        {
+          "path": "src/print.hpp",
+          "sha256": "ff909e296a88430dcad96b0056f776e566a10fdffd7ac3341fc710fa369712eb",
+          "size": 1244
+        },
+        {
+          "path": "src/private_arc.cpp",
+          "sha256": "2456e0dd88ff001ed0dc1b86a280349f120ee6d5e873c2ed00b109a838982182",
+          "size": 13494
+        },
+        {
+          "path": "src/projectiles.cpp",
+          "sha256": "2e46870f7c3a0675e737855c525f7c520dcea8f7126beac2464b3509e223e423",
+          "size": 11073
+        },
+        {
+          "path": "src/puppet.cpp",
+          "sha256": "ffd204c79f8f66397cbd80c9d00f622741c83df708c15cfe067f86211cacb137",
+          "size": 258783
+        },
+        {
+          "path": "src/pvp.cpp",
+          "sha256": "4d79845386a88f3060d6d8feac379655ca3830d15a3cef4c9a6a05a8b9c3b126",
+          "size": 14679
+        },
+        {
+          "path": "src/rando.cpp",
+          "sha256": "6e5d1070dfad1e8c201df98ca5d2f6a653e8b61ad8a1de51acf11fe3d1478456",
+          "size": 31562
+        },
+        {
+          "path": "src/report.cpp",
+          "sha256": "23531a49bdd8ab5abccefb2b4f062f1eeaddab81adbae1665cb455379f1b7375",
+          "size": 27397
+        },
+        {
+          "path": "src/rival.cpp",
+          "sha256": "74a4cf97f37e2a43968bcca33f17149cc4c766ea9aab274c687a3afb1c2e57e5",
+          "size": 19359
+        },
+        {
+          "path": "src/selftest.cpp",
+          "sha256": "d63536d64a2406649fec8ac441080c8e0386125d33b54a37e00621f9fa7371d7",
+          "size": 6835
+        },
+        {
+          "path": "src/skills.cpp",
+          "sha256": "3123f5f0ef581b94a3e79a5a993637ad72c5d07e29c43832eef62641b1f7ace1",
+          "size": 8492
+        },
+        {
+          "path": "src/skins.cpp",
+          "sha256": "c76c9e57f33112e70504dadf6dfae6e12e7a6b6f9900e8bdf7150c7581333f7b",
+          "size": 37212
+        },
+        {
+          "path": "src/skipvote.cpp",
+          "sha256": "5c1df02fb3e9bce3a9214e42a26a39086a87ec35ee6d363f075fe174c2aec816",
+          "size": 5008
+        },
+        {
+          "path": "src/softlocks.cpp",
+          "sha256": "17aa081de983a4f8e660164679519760b61111afd0accb37599ff0a18d47ed05",
+          "size": 8152
+        },
+        {
+          "path": "src/softlocks.inc",
+          "sha256": "29742e7afafe208df0de811eac4afa8e306c48482360d215f783592522dece8c",
+          "size": 2061
+        },
+        {
+          "path": "src/spawns.cpp",
+          "sha256": "4ca7a26703ced0043620abf4a2252f0c26a2dfe6150f8f2ec24a1eb4b4da96da",
+          "size": 38573
+        },
+        {
+          "path": "src/spinner.cpp",
+          "sha256": "58fe24316a1ea0295eb1a07013849ee64fb876462314226908b6a8204be6a5a2",
+          "size": 2489
+        },
+        {
+          "path": "src/story_companions.inc",
+          "sha256": "a559ab532a7ccfc3c3e63907e55c440ca76ac426c298a74358c573eeafb9415b",
+          "size": 222
+        },
+        {
+          "path": "src/story_flags.inc",
+          "sha256": "4759a5d2cddba0e7798f38ca58cd128218c7527c623162bae27d53be9acae796",
+          "size": 30312
+        },
+        {
+          "path": "src/storytest.cpp",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        {
+          "path": "src/sumo.cpp",
+          "sha256": "23df84b1c3928d51339727833e8f65881bb09dbc144a0af63b7762e6469927fe",
+          "size": 49641
+        },
+        {
+          "path": "src/twilight.cpp",
+          "sha256": "ee7c9956a4ddb348ab7f4d2bac3518c67ce3fef6fc115ad50f6803067f908112",
+          "size": 10141
+        },
+        {
+          "path": "src/upnp.cpp",
+          "sha256": "eb3d7b53242f52b68f64a51734c35d5ec60620b2587b84aa336f61ef67619d81",
+          "size": 11162
+        },
+        {
+          "path": "src/util.cpp",
+          "sha256": "9532ca50f68ff2f92a6f0457bd948a852cd247e76f427f90e9dda42e5b97e7e6",
+          "size": 3342
+        },
+        {
+          "path": "src/util.hpp",
+          "sha256": "3f6cabc19812fb87241fad3cd601ef68b2e047a7c055383aef473bd4c455f536",
+          "size": 1026
+        },
+        {
+          "path": "src/voice.cpp",
+          "sha256": "6967e4f0a3dc0f71a897f13c1e445ee7af5b0cd1ba5ca2958c55219252e2a41e",
+          "size": 17928
+        },
+        {
+          "path": "src/voice_icons.inc",
+          "sha256": "593fb2efdf0d1bd8bfe790aefce407f487b98e73d3f409694181b37a4c11f67c",
+          "size": 204994
+        },
+        {
+          "path": "src/voice_io.cpp",
+          "sha256": "ab949864c51aeb968a504b79db4e19ceee98717bf7f87fe03c94ad78d459483d",
+          "size": 22288
+        },
+        {
+          "path": "src/voice_io.hpp",
+          "sha256": "415c80a1b3adb54f4ed4ae48b22b3efcedc0d8821f3a1b80b43f0f5c62ae5ff1",
+          "size": 804
+        },
+        {
+          "path": "src/voices.cpp",
+          "sha256": "05021e066a23e92f35ea4bd335a40d70d7d61050a5d08fcbdf08c17fa511121c",
+          "size": 10237
+        },
+        {
+          "path": "src/world.cpp",
+          "sha256": "756cfb0308af56114db33417c068df9b3e34047c62d791ec24cf36cd64720965",
+          "size": 110166
+        },
+        {
+          "path": "tools/package.py",
+          "sha256": "679c46fdd9de766ab7b7b684305275faadf07e8a7439bfe59e2c853098d64078",
+          "size": 7926
+        }
+      ],
+      "sources": [
+        "src/mod.cpp",
+        "src/puppet.cpp",
+        "src/util.cpp",
+        "src/models.cpp",
+        "src/features.cpp",
+        "src/menu.cpp",
+        "src/colors.cpp",
+        "src/upnp.cpp",
+        "src/online.cpp",
+        "src/skipvote.cpp",
+        "src/drops.cpp",
+        "src/softlocks.cpp",
+        "src/storytest.cpp",
+        "src/twilight.cpp",
+        "src/skills.cpp",
+        "src/rando.cpp",
+        "src/checks.cpp",
+        "src/check_names.cpp",
+        "src/ganon.cpp",
+        "src/beast.cpp",
+        "src/sumo.cpp",
+        "src/map_markers.cpp",
+        "src/notify.cpp",
+        "src/selftest.cpp",
+        "src/private_arc.cpp",
+        "src/projectiles.cpp",
+        "src/effects.cpp",
+        "src/pvp.cpp",
+        "src/spinner.cpp",
+        "src/rival.cpp",
+        "src/world.cpp",
+        "src/enemies.cpp",
+        "src/enemy_layout_wb.cpp",
+        "src/enemy_layout_yk.cpp",
+        "src/enemy_layout_po.cpp",
+        "src/spawns.cpp",
+        "src/boss.cpp",
+        "src/join_sync.cpp",
+        "src/epona.cpp",
+        "src/grass.cpp",
+        "src/party_hud.cpp",
+        "src/skins.cpp",
+        "src/icons.cpp",
+        "src/voices.cpp",
+        "src/game_mode.cpp",
+        "src/horses.cpp",
+        "src/report.cpp",
+        "src/lan.cpp",
+        "src/global.cpp",
+        "src/chat.cpp",
+        "src/crash_guard.cpp",
+        "src/global_hud.cpp",
+        "src/chat_keys.cpp",
+        "src/voice.cpp",
+        "src/voice_io.cpp"
+      ],
+      "features": [
+        "game",
+        "fmt"
+      ],
+      "metadataDefine": "DUSK_STATIC_PORT_28",
+      "metadataSection": "p28meta",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.remiafterdark.coop_mod/1.10.0",
+        "sha256": "6967db851bd9575eb8ec3bd2439b5d908fc26353343da03eb5346d637c62591a",
+        "size": 26218999
+      },
+      "adaptations": [
+        {
+          "path": "CMakeLists.txt",
+          "controlPath": "native_ports/crests/CMakeLists.txt",
+          "beforeSha256": "55bd33891283030e8617bbe65af9bbb17e0ca44d1f4b7fa651a0ade3669ef132",
+          "sha256": "c97577e1842537fdd6756e3bf9c165701ba7906ad855fc23e13d905b17bddae8"
+        },
+        {
+          "path": "src/chat_keys.cpp",
+          "controlPath": "native_ports/crests/src/chat_keys.cpp",
+          "beforeSha256": "2488125225eae0a83957f09938c63c25ad572dd4592d3b612f05a7f972e0a2bc",
+          "sha256": "b0ae4d309d198381730b12ebeb65db87b02690e33d91d40ccf8e9886bdb6ee8a"
+        },
+        {
+          "path": "src/crash_guard.cpp",
+          "controlPath": "native_ports/crests/src/crash_guard.cpp",
+          "beforeSha256": "1992c047d3ed5884c7660685f9b436fb8451eef2113bd05cf8a85fdfc1339b56",
+          "sha256": "ed2b966e0a6c84fc7fa5775dec8718cc5b260c16e44f2f011b5f319b8935184a"
+        },
+        {
+          "path": "src/global_hud.cpp",
+          "controlPath": "native_ports/crests/src/global_hud.cpp",
+          "beforeSha256": "569785b76d03582f688123214442144ab1388516deb84903658c545ce1d4e735",
+          "sha256": "5aacec1795a6a3b4e55ab794e811fe2bcee19416880805591cedbb83dff35ecf"
+        },
+        {
+          "path": "src/skins.cpp",
+          "controlPath": "native_ports/crests/src/skins.cpp",
+          "beforeSha256": "c76c9e57f33112e70504dadf6dfae6e12e7a6b6f9900e8bdf7150c7581333f7b",
+          "sha256": "2bf6d95ae759d1751b6aaf5f8c64794aaa0f1f207ad85165c1dda4bc99cc2ad4"
+        },
+        {
+          "path": "src/voice.cpp",
+          "controlPath": "native_ports/crests/src/voice.cpp",
+          "beforeSha256": "6967e4f0a3dc0f71a897f13c1e445ee7af5b0cd1ba5ca2958c55219252e2a41e",
+          "sha256": "5298e8a4a7e36763f69ea7a91c066b2a3ef02a9abc4db9bf4fb92f900e787088"
+        },
+        {
+          "path": "src/voice_io.cpp",
+          "controlPath": "native_ports/crests/src/voice_io.cpp",
+          "beforeSha256": "ab949864c51aeb968a504b79db4e19ceee98717bf7f87fe03c94ad78d459483d",
+          "sha256": "fec398221cc5cd930ad201d5aca427617e13b9a4d483b039f80c3bbe9bc365cb"
+        },
+        {
+          "path": "src/xbox_private_aliases.hpp",
+          "controlPath": "native_ports/crests/src/xbox_private_aliases.hpp",
+          "beforeSha256": null,
+          "sha256": "2aaa44c3a28bfc563eb46f993b10bb50a1a5ce12fa1860409a8a9da7a937c45e"
+        },
+        {
+          "path": "src/xbox_voice_playback.hpp",
+          "controlPath": "native_ports/crests/src/xbox_voice_playback.hpp",
+          "beforeSha256": null,
+          "sha256": "d82195db94226d022bee29715c601139605431df826aa0f34108bb5440b3ab82"
+        }
+      ]
+    },
+    {
+      "id": "dev.albt.albw",
+      "name": "A Link Between Twilight",
+      "version": "0.3.0",
+      "target": "port_a_link_between_twilight",
+      "source_url": "https://github.com/WadeWinningWilson/albt-dusks",
+      "sourceCommit": "5cf4a362b128834199baaaecf8ab56aca9130769",
+      "sourceFiles": [
+        {
+          "path": "CMakeLists.txt",
+          "sha256": "430674774bb8b633d65f01b71f38aa5681a8787d4ab0b374858fe5f13b76c952",
+          "size": 5778
+        },
+        {
+          "path": "cmake/FetchDusklight.cmake",
+          "sha256": "aed0b2997655385dbb3ece2d29c8ad3d4ea3bf166ac4c05efc39669e2e780288",
+          "size": 3390
+        },
+        {
+          "path": "cmake/linux-x86_64-zig.cmake",
+          "sha256": "32a004ffd0bbd1af5336f586f1dedcd93a17cd777640e60fbeef21984996892f",
+          "size": 1211
+        },
+        {
+          "path": "cmake/zig-cross.cmake",
+          "sha256": "3c314e8f14ce9c7f8eb58211279e0edbe68c3b5f22adbc5ce2b3988cbaeac929",
+          "size": 2761
+        },
+        {
+          "path": "mod.json",
+          "sha256": "4d9941daca30ca944fdb34a24449bc5c0c490beca342f3c8610983e3e6e4546d",
+          "size": 386
+        },
+        {
+          "path": "src/air_tricks.cpp",
+          "sha256": "249a2c476ecbb1cb7ac28cad06417c64f42eaedece5c6614aa147dfc4067927c",
+          "size": 21214
+        },
+        {
+          "path": "src/air_tricks.h",
+          "sha256": "893ea3224ed740f769857febad0738d737a50f4cf11e3841f673baf39c6804f9",
+          "size": 1053
+        },
+        {
+          "path": "src/albt_shield_api.cpp",
+          "sha256": "4969c316fb5b3ee1ed6096f569e321fc37bcdbdf36900cb0c7314018f70970c0",
+          "size": 3037
+        },
+        {
+          "path": "src/albt_shield_api.h",
+          "sha256": "19d9a953d8637e0f02d6427f80ca3399fb9b36f77749cce5de5f80714c455321",
+          "size": 4272
+        },
+        {
+          "path": "src/albt_shield_api_impl.h",
+          "sha256": "b2c49a770b862eda70d9b9e5b206043f417024863f3ca5e863ea9c963d71e427",
+          "size": 433
+        },
+        {
+          "path": "src/albw_combat.cpp",
+          "sha256": "ce1c8a74ff0fc6017fe4d208a73c473779a99d9f3640cf9676308dd714c14191",
+          "size": 4588
+        },
+        {
+          "path": "src/albw_combat.h",
+          "sha256": "b5df5e7d30a51df41a023248f142523a5cfc76c0f543c177d7b725a19450e6b6",
+          "size": 1266
+        },
+        {
+          "path": "src/albw_common.cpp",
+          "sha256": "932813da3aa5819b7cfe5219244b92103b68c0c4eefb895a5c2d238e0e6cb60f",
+          "size": 6244
+        },
+        {
+          "path": "src/albw_common.h",
+          "sha256": "cb1703aaee4ad8ac5522f69797f5c8a2f23617129355e3735d7fc9271ed06e58",
+          "size": 2590
+        },
+        {
+          "path": "src/albw_dusk_compat.h",
+          "sha256": "3a27833d217242eb1c9806c9d11f0270934f553ac8876529c93eca1a82687d43",
+          "size": 6278
+        },
+        {
+          "path": "src/albw_dusk_log.h",
+          "sha256": "77d158eae9e0fac806f2534c9fe97046e3954299cbcdb2494669816f3c347a16",
+          "size": 4441
+        },
+        {
+          "path": "src/albw_fork_compat.cpp",
+          "sha256": "7f3ff1f51bf78b5292e4f1e1b299909befe72d20719ce50ffa3e8efa508fd845",
+          "size": 5232
+        },
+        {
+          "path": "src/albw_fork_compat.h",
+          "sha256": "493a4cb28e425e2a2200148e5ecd054caea6364d8f4abd13696a7c080a70d8f5",
+          "size": 5360
+        },
+        {
+          "path": "src/albw_game.h",
+          "sha256": "fb33f0cecf393217c48ef31d7822abbb2682735e519e50d0f55fc497eeee23bf",
+          "size": 7458
+        },
+        {
+          "path": "src/albw_gameinfo_compat.cpp",
+          "sha256": "8d1d6ee7dd556c13d5872b72d166883e45a1dda79f037a420405591d077cb530",
+          "size": 14438
+        },
+        {
+          "path": "src/albw_l1_input.cpp",
+          "sha256": "015f51f8ba42f7646346c65139c94c3c16d7c891c2bbcc2968d03cf6050a4c17",
+          "size": 5159
+        },
+        {
+          "path": "src/albw_l1_input.h",
+          "sha256": "49be9460924c4f50f8277ba0f480149defc99ed91b6649027335bad8e44b669b",
+          "size": 216
+        },
+        {
+          "path": "src/albw_profile_hook.cpp",
+          "sha256": "8736fb6b62848b7eb9e21d0d92eff6f1cdaf143f734ec6762905377a957536bb",
+          "size": 1861
+        },
+        {
+          "path": "src/albw_profile_hook.h",
+          "sha256": "e505503e77466aeae1cb7420449c6ba97c86bf1dbb01d68ff24b2bddc518f897",
+          "size": 1476
+        },
+        {
+          "path": "src/albw_save_flags.cpp",
+          "sha256": "572b88589bba1f4a416c81cf62c0aef37e9c99acb53eb39ef2e180b905380cc9",
+          "size": 6438
+        },
+        {
+          "path": "src/albw_save_flags.h",
+          "sha256": "24aa2e82f041520e44e60e2f2656e27879e148d7c05d45247bf2159308199373",
+          "size": 7266
+        },
+        {
+          "path": "src/albw_settings_ui.cpp",
+          "sha256": "e86c8ba5b3344823df604adbb50dfe5eb6d9ab1d053b3b00d6fbd932c46690c3",
+          "size": 23417
+        },
+        {
+          "path": "src/albw_settings_ui.h",
+          "sha256": "f549968bf726328b4f72088e515503e9a1f1038945ad51d2abe7b53132fd7dc9",
+          "size": 97
+        },
+        {
+          "path": "src/albw_stage.cpp",
+          "sha256": "38d0b5c6dc63871aabc3f68e8d1063fd88176c768d918d3f71428e8c91a0bfb6",
+          "size": 720
+        },
+        {
+          "path": "src/albw_stage.h",
+          "sha256": "dce7cba5f692a2a16637789cb01e3652d3efc81ae1f46984d5625657a260f025",
+          "size": 38
+        },
+        {
+          "path": "src/albw_symbols.h",
+          "sha256": "58fbae62d7e2b7cbf961f205f6e3597f2389989ed3dead5cd36679678bba141b",
+          "size": 7167
+        },
+        {
+          "path": "src/alink_compat.cpp",
+          "sha256": "9e26dc20fff91061eb8f100a700f74acda2ee783979fb586e9c85dc8273f154a",
+          "size": 6175
+        },
+        {
+          "path": "src/alink_compat.h",
+          "sha256": "2c913225b69d84a6695dbafd012520b8bb024ed1d010380b5d803be66e127cfd",
+          "size": 1075
+        },
+        {
+          "path": "src/armogohma.cpp",
+          "sha256": "d4403b05177c325c53845d0ac702bc2fdbddebd970c1c0b193f977aff66145dc",
+          "size": 15283
+        },
+        {
+          "path": "src/armogohma.h",
+          "sha256": "8715cc0f12be0d5cf5ca44bd9d988785a14d18e9b6effccda54340769fa1c368",
+          "size": 590
+        },
+        {
+          "path": "src/armogohma_manual.inc",
+          "sha256": "83b7cb607f3a067bf0497a03ec5f1aecc9b65f99e3514c553dbed82b5f48f288",
+          "size": 5732
+        },
+        {
+          "path": "src/armogohma_port.inc",
+          "sha256": "2b3a9c3e1188e4cbdd99f867c3f3b57521a1a9518364ed0e6e86710b4c2ad77d",
+          "size": 100672
+        },
+        {
+          "path": "src/bgos_port.inc",
+          "sha256": "53d6f5fc37e2677edffccdfd5db47fa1c7351d6870443b9a35eff140e1a14cde",
+          "size": 22116
+        },
+        {
+          "path": "src/bokoblin_dt.cpp",
+          "sha256": "2f9113c7f615a8219ed5471aa46b605792c86c2416b08bdb8e499d8fba31aa5b",
+          "size": 5822
+        },
+        {
+          "path": "src/boss_hp_hud.cpp",
+          "sha256": "6805e9e8db6b993e2ee1e6e8a1b2aba8617d7c20a1f91769047880a33e41c607",
+          "size": 8724
+        },
+        {
+          "path": "src/boss_hp_hud.h",
+          "sha256": "1762bbfc1c2259b6934c3d5951e8421d43ccc5b4adfea6ba8a8c325ebe7edf1f",
+          "size": 240
+        },
+        {
+          "path": "src/boss_refinement.cpp",
+          "sha256": "8ab0dd261e8921cc251f63f24428edadcb259fe54023eec9012353a8c540140a",
+          "size": 53234
+        },
+        {
+          "path": "src/boss_refinement.h",
+          "sha256": "91537e04b12cd0ff4d19b31a250c36740730951a9b9ddf3f45105e088442a67f",
+          "size": 6333
+        },
+        {
+          "path": "src/boss_refinement_hooks.cpp",
+          "sha256": "f114027ae3db0c1b2f306b195a18e12c8345cbacc7cf85b6efd5d5c33d496f3b",
+          "size": 14205
+        },
+        {
+          "path": "src/boss_refinement_hooks.h",
+          "sha256": "1ddf17af937a6c36316a22a93baac523a3c491e1dc848e6c00bb5ec892aab7b3",
+          "size": 192
+        },
+        {
+          "path": "src/btn_parry.cpp",
+          "sha256": "364ff2b036c2682c8aeb95c1f4f1cc92fc0bd2571ed032941c6d1e3951576a0f",
+          "size": 45343
+        },
+        {
+          "path": "src/btn_parry.h",
+          "sha256": "6d5ed4bbdd4a2daa213d62a277c556fb75a478da4cba2a6d32e5db30ec98ff72",
+          "size": 849
+        },
+        {
+          "path": "src/btn_port.inc",
+          "sha256": "b82a27e52de19a6536eff79bb2a1fd3b637cebd910f6cddf3a6da63c3765a4bd",
+          "size": 55249
+        },
+        {
+          "path": "src/btn_probe.h",
+          "sha256": "55dcfcbe800555f2e3d0367d756136e5178bce8d7a50184ae2149b56edf11116",
+          "size": 1576
+        },
+        {
+          "path": "src/bulblin_dt.cpp",
+          "sha256": "21384b31e7aba80805cbdd357f13451246452430c18a577eb17a3c14b24daf01",
+          "size": 8774
+        },
+        {
+          "path": "src/changelink.cpp",
+          "sha256": "a014ab0017683e443e3c3e7d14412d025ef94751a0916981f5cba4383c2f4de8",
+          "size": 17252
+        },
+        {
+          "path": "src/changelink.h",
+          "sha256": "2e2ebc38500eeb7fc54024811f2d3e2842f8b73c5764b72c8b06c6767db07900",
+          "size": 3123
+        },
+        {
+          "path": "src/changelink_port.inc",
+          "sha256": "bb38f47a4a931c314c64c679e7ba29906d030a17d2487f55039cebb86de34558",
+          "size": 32749
+        },
+        {
+          "path": "src/clothes_pipeline.cpp",
+          "sha256": "5a5f058993bc91515a1215349e8946dd5e62f79dca59ebcab04e100993b193e6",
+          "size": 57623
+        },
+        {
+          "path": "src/clothes_pipeline.h",
+          "sha256": "9769365b7c3988f8159bae299e4eb243ba57e48dd07239236f149c36af3775f2",
+          "size": 3335
+        },
+        {
+          "path": "src/colossal_wallet.cpp",
+          "sha256": "73e2238ce420821658839169fe6c39b1a49483d68b8e4c7330ca6c645a404f89",
+          "size": 5025
+        },
+        {
+          "path": "src/colossal_wallet.h",
+          "sha256": "ead54d009f3333d80ed0b8626c5d4fc34d10200da7c0c362526b21c90631be27",
+          "size": 1676
+        },
+        {
+          "path": "src/config_vars.cpp",
+          "sha256": "a8581435b508e8b6e1fba6f8d9e293c7a4091b0405ee2109367ed6c291fb1243",
+          "size": 2835
+        },
+        {
+          "path": "src/config_vars.h",
+          "sha256": "db7b611bbb909fffb6ae8e10923a00a8aa48dd80ef43fa781ee5de1ad95ad195",
+          "size": 3716
+        },
+        {
+          "path": "src/deku_leaf.cpp",
+          "sha256": "f7f2be3969329316dc898ee973a63c58d9a6ce90df8a37414d5fbbf0b1b769ae",
+          "size": 52946
+        },
+        {
+          "path": "src/deku_leaf.h",
+          "sha256": "c67202e15ebdfaf16c8736060a90dd21b0f09f8677f757a1fd6e127bd0385d6e",
+          "size": 1880
+        },
+        {
+          "path": "src/devil_trigger.cpp",
+          "sha256": "71c5fea730bb781391ace74d049b4ee87a52a8f158e7348721ce85c3adcbd7d5",
+          "size": 12245
+        },
+        {
+          "path": "src/devil_trigger.h",
+          "sha256": "58500a4cb3d1679eeb1bcc24e238404ac068239926209044dd70e9e66d25e236",
+          "size": 8043
+        },
+        {
+          "path": "src/devil_trigger_probe.h",
+          "sha256": "0fd81a7d1f5c08620b7e374e07571d18d607cbb21fb10e8710d5eca9f4f1cd3e",
+          "size": 747
+        },
+        {
+          "path": "src/diababa.cpp",
+          "sha256": "9c877b1cc4fe74268f85ce914eed4b6655e1dc2163a2bd1b47c72c36aea3b522",
+          "size": 6122
+        },
+        {
+          "path": "src/diababa.h",
+          "sha256": "9c7da977f89647c3b2be15a66299fbcd1a935d0790a7da02c3d1f24ff6f4f6d6",
+          "size": 1268
+        },
+        {
+          "path": "src/dynalfos_dt.cpp",
+          "sha256": "4c4becea7bf55e288d24d1c3903f8bafe549d0cf44e112cc84b3390468fd3801",
+          "size": 4715
+        },
+        {
+          "path": "src/e_s1_hooks.cpp",
+          "sha256": "73225c828a45f20d680345f5e949542192780bb062cfcbbca2f45bb48aa6ff1e",
+          "size": 11654
+        },
+        {
+          "path": "src/e_s1_port.inc",
+          "sha256": "eff5a8733a292d33d4a042a40d959f7e89a86c8ee4b53ccd8916618fbffd87b8",
+          "size": 68014
+        },
+        {
+          "path": "src/end_game_transform.cpp",
+          "sha256": "57ac4ed2a67613a6c502a4e7af672db6f81b35feff1bba414604fa632dbadf4c",
+          "size": 3558
+        },
+        {
+          "path": "src/end_game_transform.h",
+          "sha256": "a531e6228f3a15ed1ad8837502dd1ac339a59722a839a13154b23f2c6c22bc48",
+          "size": 710
+        },
+        {
+          "path": "src/ending_blow_aoe.cpp",
+          "sha256": "094dbf265f025dc0acea99d195ad75989b648a68464c2b3063d362ee85aa112f",
+          "size": 6238
+        },
+        {
+          "path": "src/ending_blow_aoe.h",
+          "sha256": "abb26bdaa1bda7cc713ac3460ccb5ea9ac09016d423de68f4c4a4bb2116b7d16",
+          "size": 167
+        },
+        {
+          "path": "src/enemy_hp_bars.cpp",
+          "sha256": "feed04a9622c869404482fc6c66d97638baa3ba32b9f14ebb1fc3545e166aaea",
+          "size": 6853
+        },
+        {
+          "path": "src/enemy_hp_bars.h",
+          "sha256": "2a6a9c57b764c5a5717eae8cc8273b0b01039b2896802235c6098996ece7e46a",
+          "size": 202
+        },
+        {
+          "path": "src/enemy_lockout.cpp",
+          "sha256": "663aeedb0e86addcd2ff0c99f203b6093cfa67bc13c51cb1d2623d6cc8d87b91",
+          "size": 9488
+        },
+        {
+          "path": "src/enemy_lockout.h",
+          "sha256": "11c099dded2509ca77931494e889e08dc759e34a29574ff9f6a03f1ec24e2afe",
+          "size": 320
+        },
+        {
+          "path": "src/enemy_rupees.cpp",
+          "sha256": "fd10f61cf8059d75a8d75f69d46b30109aecac636f52e4a67699f40f88c02118",
+          "size": 13264
+        },
+        {
+          "path": "src/epona_spur_hud.cpp",
+          "sha256": "552d39538c9a3bdb40130639a33cbcba9dbd4d2462dd9dec460cdfd24f01b9f0",
+          "size": 3734
+        },
+        {
+          "path": "src/epona_spur_hud.h",
+          "sha256": "460e328f6f4ef6e72b9360ac210c26aec646d974f0cb4f165e242ca22aa05d9b",
+          "size": 210
+        },
+        {
+          "path": "src/ext_quick_equip.cpp",
+          "sha256": "cfb39f21bd30574a1d1555ef747533f19668034c17660dd4b1070df8b445cfc3",
+          "size": 27149
+        },
+        {
+          "path": "src/ext_quick_equip.h",
+          "sha256": "1d476c0703b99686dab4793e81958b208615c0b5adb75bce567dc313dc7e14ef",
+          "size": 2604
+        },
+        {
+          "path": "src/ext_status.h",
+          "sha256": "c07485549c541055824ae77aa356e2379cd6633d84a394fa34ea4984d826b313",
+          "size": 1915
+        },
+        {
+          "path": "src/extra_item_slot.cpp",
+          "sha256": "6990a106d40a56402eaebff69d90b4ebd2e7eb83d272cc6a1310f3159253b987",
+          "size": 2325
+        },
+        {
+          "path": "src/extra_item_slot.h",
+          "sha256": "6a6f4812db1b28937793d6ae9b6df7871b5344914b6c5010286ea89ada67bc00",
+          "size": 602
+        },
+        {
+          "path": "src/extra_item_slot_hooks.cpp",
+          "sha256": "c89e02069b8b5a63eea67df01097ea17a441cfb8e9ece23ea405d991d6855ae1",
+          "size": 26550
+        },
+        {
+          "path": "src/extra_item_slot_hooks.h",
+          "sha256": "fadb71d30abb8326632772ffc3dbe369652814fe07f71b884b30840f58d4be86",
+          "size": 161
+        },
+        {
+          "path": "src/flurry_hooks.cpp",
+          "sha256": "3d4479ebf7134d9c5e6c8b4b73f741f66aacddba3a2733a93b253bccd320c36d",
+          "size": 10598
+        },
+        {
+          "path": "src/flurry_port.inc",
+          "sha256": "7c50386ff262f02bfa8a606bbe0b758e7e84acd3d5c81abe6157ec3e2815d735",
+          "size": 12431
+        },
+        {
+          "path": "src/flurry_probe.h",
+          "sha256": "7c1163c9a516203b1e46cb1272c1e6f26770d8f734d622ff636f56c3d8853881",
+          "size": 1110
+        },
+        {
+          "path": "src/flurry_proc.cpp",
+          "sha256": "82ce29701b4bed0a6f0c731fb7d96b56694483bf2e5418ccf6841acb11ac37af",
+          "size": 25124
+        },
+        {
+          "path": "src/flurry_proc.h",
+          "sha256": "6f2820f302999f61350ab04e61610824bb413d726554ba615ed7ad84ec4c6760",
+          "size": 2661
+        },
+        {
+          "path": "src/flurry_rush.cpp",
+          "sha256": "e304cc972dcf269e9c3515846d33c9f7c6c1fc0b9bfef596a7f7cab7b36858ef",
+          "size": 20485
+        },
+        {
+          "path": "src/flurry_rush.h",
+          "sha256": "3ddec1b1794b4e77004cd55dd5b009b15157cac1c5a3001ee0e552aa8ee4d396",
+          "size": 4402
+        },
+        {
+          "path": "src/focused_arts.cpp",
+          "sha256": "6bedc79cf72dc9610daa8a365f668e8aedf410f361f2836314aab33dcc72037d",
+          "size": 14637
+        },
+        {
+          "path": "src/focused_arts.h",
+          "sha256": "b15b55823f7af173497769b63c073e26a0b508be821dc3a8afbbce22c153c6d7",
+          "size": 4004
+        },
+        {
+          "path": "src/focused_arts_core.inc",
+          "sha256": "0888e61c0bed2e623c5f9e50c427ba0731e3b0731dd9118e4c20a9391077038f",
+          "size": 38253
+        },
+        {
+          "path": "src/fyrus.cpp",
+          "sha256": "c58a7101159f4120130a483969b5874f22a72aef3387f17b3a72fc3ddac0ba76",
+          "size": 25341
+        },
+        {
+          "path": "src/fyrus.h",
+          "sha256": "f677bca1f40e05ed240dad6f0df360ce93bc8a012d3487d914294d5709df30b9",
+          "size": 361
+        },
+        {
+          "path": "src/fyrus_golem.cpp",
+          "sha256": "38a32fa3e8671c2e4d88d72269f93aefc43d5755d98c2c71fe68cda91e03905d",
+          "size": 15645
+        },
+        {
+          "path": "src/fyrus_kids.cpp",
+          "sha256": "e0bebae287f0637495cfca69ee6f3401ba6fcd78bc940d6570377149b3c7bf49",
+          "size": 12092
+        },
+        {
+          "path": "src/fyrus_phases.cpp",
+          "sha256": "766d18ba62b8bf107467933e0395897124e05c79e0cfe30629c970b8927944d7",
+          "size": 24419
+        },
+        {
+          "path": "src/guay_dt.cpp",
+          "sha256": "988dcb08eec30f0b94e45156ed52e07d844a0a7c6dab2891bc8a36c896e3a148",
+          "size": 3934
+        },
+        {
+          "path": "src/hidden_skill_charge.cpp",
+          "sha256": "3ade45a8299c67113de4912c59071047b1425bdb8e1b47425d3ca5b12430d51e",
+          "size": 1521
+        },
+        {
+          "path": "src/hidden_skill_charge.h",
+          "sha256": "9bbe24d45d92f6dd90c360b7c6d42e778b59d5a364afeb35c91bc907200d84eb",
+          "size": 652
+        },
+        {
+          "path": "src/hold_a_crawl.cpp",
+          "sha256": "4e15937835a34688707c2673e9a86d342c130527620f33a7980851d98bbda01c",
+          "size": 3575
+        },
+        {
+          "path": "src/hold_a_crawl.h",
+          "sha256": "35d65a285b1571e82a21ddc85783012888786aa24917a065306c92beb08c7ce8",
+          "size": 143
+        },
+        {
+          "path": "src/hp_mult_port.h",
+          "sha256": "919bfeea76aa6f749fa3d5d14f35d35d8276be269122fd72f81dd0a1940135af",
+          "size": 1328
+        },
+        {
+          "path": "src/hp_mult_port.inc",
+          "sha256": "99f5c2b5d2be7292632d7e062968f85b5ffccb342c48fcd8b9bee26e9215ce48",
+          "size": 4299
+        },
+        {
+          "path": "src/hurricane_se_port.inc",
+          "sha256": "fb086a9e9b640a4d0dd6a5366d5a35f6e634c8e3e7ff05ee30ffd1eab395b72a",
+          "size": 9441
+        },
+        {
+          "path": "src/hurricane_spin.cpp",
+          "sha256": "54b4b23eb6e88e71c12699182753df3d43c7e55cab11e933c9365d1656582cd5",
+          "size": 19871
+        },
+        {
+          "path": "src/hurricane_spin.h",
+          "sha256": "440d61aef4c2027bee48927db347b5711af5188b61b55d911024dd0717e748e3",
+          "size": 1750
+        },
+        {
+          "path": "src/kargarok_dt.cpp",
+          "sha256": "c05fb02e30766d20b34e3fe440626021a38227ff9959ca1b927ad30cd3f7cbc3",
+          "size": 4866
+        },
+        {
+          "path": "src/king_bulblin_dt.cpp",
+          "sha256": "447bf054354bded5572a371f12c4699929b2423fa9c0462b0620839ab1d60c5a",
+          "size": 10864
+        },
+        {
+          "path": "src/lantern_fix.cpp",
+          "sha256": "1a0d6a3e880b93fa7ebe49343efb798108e278bdb60806f456ae1c84416e2336",
+          "size": 3232
+        },
+        {
+          "path": "src/lantern_fix.h",
+          "sha256": "858fec62f6161cd31b8e8db664f8e05fc1922c742f00633ce0814c8798142cce",
+          "size": 924
+        },
+        {
+          "path": "src/lizalfos_dt.cpp",
+          "sha256": "c396a8687de55655ce64459c3af86831b65d0bafaa08c0dcb7ec51373b49cfd5",
+          "size": 4978
+        },
+        {
+          "path": "src/lockout.cpp",
+          "sha256": "ce6aea7921103ee933a723b5e49b405940f38eaa714cbf508cfcf9db9f778111",
+          "size": 23565
+        },
+        {
+          "path": "src/lockout.h",
+          "sha256": "4769ed33091eba21d4160008003e65ed9dee390d1e301247b0d90d1ede5dbf52",
+          "size": 891
+        },
+        {
+          "path": "src/lockout_port.h",
+          "sha256": "8ced86547521cbf6c707536950db2ed592ac4819ee3cb8bd49ba381ff28e4391",
+          "size": 5620
+        },
+        {
+          "path": "src/lockout_port.inc",
+          "sha256": "fcb7c1962ddd5146f98320575617a2d060b4a3e13e367f81e4a4ca0bf91f70a7",
+          "size": 32604
+        },
+        {
+          "path": "src/lop_hud.cpp",
+          "sha256": "a554940136107531c1d896e74cd9ceea2e3b507fcede7c2e1bcc45348ded5516",
+          "size": 43964
+        },
+        {
+          "path": "src/lop_hud.h",
+          "sha256": "146bd9366c374dba12eafb0baf20679fbb0fc60ce5207232625e062c36e6be7c",
+          "size": 2889
+        },
+        {
+          "path": "src/lop_item_belt.cpp",
+          "sha256": "3b5a038d44975104f0768f199e1998a705b832f4c78de1070ea05fbeabc9af62",
+          "size": 13471
+        },
+        {
+          "path": "src/lop_item_belt.h",
+          "sha256": "aeed1ee70b4ecb5de8a3595ef7f9a619f29985ad1172739fb265fea990c492fd",
+          "size": 2955
+        },
+        {
+          "path": "src/magic_jar.cpp",
+          "sha256": "e42c92ca5575d61abfa23888d5a0ce17ce8ac041c5fc80473166f0497c1bc77a",
+          "size": 14320
+        },
+        {
+          "path": "src/magic_jar_probe.h",
+          "sha256": "8a7a67f85ca0346eed1a11d3a26b93486a27667dfe268356ad1a3bfa47b04df8",
+          "size": 1031
+        },
+        {
+          "path": "src/mail.cpp",
+          "sha256": "b580d33bb733eb4dfa6ac0b3b52019ce2a9e6ef57bbeaeb45275b5fa1c92b2a7",
+          "size": 17451
+        },
+        {
+          "path": "src/mail.h",
+          "sha256": "6cc723d6bd1ff8ca14d1fd564642b2beeecf62bdbe6ed4c3ea334fb1e07e6119",
+          "size": 2073
+        },
+        {
+          "path": "src/mail_hooks.cpp",
+          "sha256": "857301776965228b9389e0173b772f45e707e573e972d1bc5e64e392bbedbf34",
+          "size": 9960
+        },
+        {
+          "path": "src/mail_hooks.h",
+          "sha256": "1a895fc8fd24bef533bb186bd74893f49b0469db06febc3959e215c7349275e4",
+          "size": 139
+        },
+        {
+          "path": "src/menu_ext_members.cpp",
+          "sha256": "4ce0a3fa78bb510a88ef34e8ce407586cfbe77daf9449fe97978928c54db72e2",
+          "size": 2270
+        },
+        {
+          "path": "src/menu_ext_members.h",
+          "sha256": "83140b1410ef54b499ec9070bdecff91347b1aea148cee389e935cc0e4f9340d",
+          "size": 1734
+        },
+        {
+          "path": "src/menu_ext_status.cpp",
+          "sha256": "1f1e07d46bf47f56f68f64790339b43d93904d8699248451badc345b6c5094ea",
+          "size": 4461
+        },
+        {
+          "path": "src/menu_ext_status.h",
+          "sha256": "868529188a7d2edcac51c25bf22ef50b604a26101442df2dee177e8c3a638bed",
+          "size": 1029
+        },
+        {
+          "path": "src/menu_ring_ext.cpp",
+          "sha256": "5f06f911e4ca844cd361f8add35d26420091df9bfe8432602e99ab25a21968a2",
+          "size": 44026
+        },
+        {
+          "path": "src/menu_ring_ext.h",
+          "sha256": "4259e3b770c3243c59b4b538d303ac42f4ac9e229f98da97cb437510797b895d",
+          "size": 314
+        },
+        {
+          "path": "src/menu_window_ext.cpp",
+          "sha256": "b64a241e8131cc631161decb83fd0f3f8199722ea11fa64d6eecc013fe255f99",
+          "size": 10725
+        },
+        {
+          "path": "src/menu_window_ext.h",
+          "sha256": "413bb583435ea4a4eddc7d5c3b549bacbd51e53982f0c8a72fdbf8538bc535a9",
+          "size": 320
+        },
+        {
+          "path": "src/meter.cpp",
+          "sha256": "15fa9cfee493d8c018acbb5fd4cd71d87c15fdabf2d08804ecdba8ce31e37296",
+          "size": 91204
+        },
+        {
+          "path": "src/meter.h",
+          "sha256": "02f9f0d7248448ea7621fb313906541a045ce236858fc442bce05ea353bc0b69",
+          "size": 155
+        },
+        {
+          "path": "src/meter_bridge.h",
+          "sha256": "cafc978315f17a0a9a0d92e69a7ce2d6970e141f07e0b8119a6ecf3a10a7f445",
+          "size": 1199
+        },
+        {
+          "path": "src/midna_arm.cpp",
+          "sha256": "f483de91939ecebc19bc1a67a8e9f72c24867d6f88b28bb527d38c20869e3b61",
+          "size": 15313
+        },
+        {
+          "path": "src/midna_arm_visual.cpp",
+          "sha256": "67f9f884178c2e4b0e050fdfa5c8bb48534e44ffb615030fc7d6f9331b586f64",
+          "size": 10951
+        },
+        {
+          "path": "src/mod.cpp",
+          "sha256": "ef507b8c4a7d645e6cf0bddd7a791e703106c9a180ac5b556948ffa6b59ed813",
+          "size": 18987
+        },
+        {
+          "path": "src/modules.h",
+          "sha256": "32b173db36d2521b4cb0dd12cd2386ad37318333661d87092a6394b278b37817",
+          "size": 2158
+        },
+        {
+          "path": "src/mq_heart_meter.cpp",
+          "sha256": "8837937cd3c2622f67e5d03b67080115a431b34b45cfd70095849e5f6cc4003c",
+          "size": 2866
+        },
+        {
+          "path": "src/mq_hearts.cpp",
+          "sha256": "6c903e8364eeff6178ef6179cdb3a09dafe8576d9a77f5f00fae069735e068df",
+          "size": 7385
+        },
+        {
+          "path": "src/mq_hearts.h",
+          "sha256": "21b8e9a01c14ab55ece824edaece993216772b806749b6afbb21f5633e90d0c7",
+          "size": 1000
+        },
+        {
+          "path": "src/mq_move_life_port.inc",
+          "sha256": "ce74b2601061edb6bdd936091c1f6bd0102df6996cf4776cd3971b44ce80468f",
+          "size": 4775
+        },
+        {
+          "path": "src/oocoo.cpp",
+          "sha256": "a74c6e84be16edcd66d16e6030b5a9a4b5cfebeb5419eec7ebaa522078595edc",
+          "size": 5259
+        },
+        {
+          "path": "src/oocoo.h",
+          "sha256": "5d5e1b9d53852772b70d876fc2ea7e890464d144d6b767cbb1095677e04da88c",
+          "size": 357
+        },
+        {
+          "path": "src/outfit.cpp",
+          "sha256": "15b1948888f08d973173f4b0cc33b148655ef92f7a4231f233d0821875dd8417",
+          "size": 37094
+        },
+        {
+          "path": "src/outfit.h",
+          "sha256": "d795d65f0cc06799826c11cd7f7dba7071f9d376f35b1d0e26c87912d1965e83",
+          "size": 5741
+        },
+        {
+          "path": "src/outfit_debug.cpp",
+          "sha256": "d3b1560d5f1523e25af3e72e264282a1b791b6f4f1b25880559375e3ae6be126",
+          "size": 1357
+        },
+        {
+          "path": "src/outfit_debug.h",
+          "sha256": "3da156a60044074ff275a25a1affa45bbc72066c9f764f7823a03c00c02cdfc3",
+          "size": 346
+        },
+        {
+          "path": "src/outfit_stats.cpp",
+          "sha256": "20abc52123c3b0c0edf22b9ce7b34a0d1941ef2c6a5c6612078bfd821107c549",
+          "size": 6243
+        },
+        {
+          "path": "src/outfit_stats.h",
+          "sha256": "fe5bc44feef8f10ce489a2b25c717831f2a792212c3595dbe7e6705d5b856ec6",
+          "size": 2582
+        },
+        {
+          "path": "src/outfit_swim.cpp",
+          "sha256": "1c25fb810fcbb57d9580775275ff13a8586c39db0b8af98a2fcda06808dd8a6b",
+          "size": 9561
+        },
+        {
+          "path": "src/outfit_swim.h",
+          "sha256": "482dc1ca19f822bf85724ab198e241a89da17ffd46f5c760c6d852c511d7c6d4",
+          "size": 1567
+        },
+        {
+          "path": "src/outfit_swim_port.inc",
+          "sha256": "7fd0ff9dce2046981258276ce9cbe74539cfb2d7a88c5a4d67bb576f56478fec",
+          "size": 29813
+        },
+        {
+          "path": "src/parry_hooks.cpp",
+          "sha256": "73a5e53a9be18b6fd397a56abed4286fc0b9ce0e1eca06be155bea5d71aeac87",
+          "size": 5034
+        },
+        {
+          "path": "src/parry_hooks.h",
+          "sha256": "c562909635b297190e17af50b8142a6e4a4b9cf0d9dbc755e87afcb63f7e4f24",
+          "size": 143
+        },
+        {
+          "path": "src/parry_master.cpp",
+          "sha256": "f875503c3046e5c225d433dbc304ceb739c3f93e2eabbc359c1690e2adb2c8db",
+          "size": 6990
+        },
+        {
+          "path": "src/parry_master.h",
+          "sha256": "5e5357b8904f4583afc0ec9a0ac76e3c299a6a9040c6187a8232f50ea6f0f9ab",
+          "size": 407
+        },
+        {
+          "path": "src/poise_suppress.cpp",
+          "sha256": "852365aa755a0f9d6b1103ce30c11aead6a41bcd12ce42ade71ccc4721a182d8",
+          "size": 45131
+        },
+        {
+          "path": "src/poise_suppress.h",
+          "sha256": "4f8cf739bfab224d99623641e37cc0070ba3e66d2aa74cb2c3302aba0844546a",
+          "size": 845
+        },
+        {
+          "path": "src/potion.cpp",
+          "sha256": "72649af2c0b0c59b73f8d05f18c625b9266b460477cef2ead2e84f09abcecf56",
+          "size": 8465
+        },
+        {
+          "path": "src/potion.h",
+          "sha256": "67baa1acf4f0b99ba1a0d5dd45693dab45715da606c490f46cfe2f3921d631f8",
+          "size": 3011
+        },
+        {
+          "path": "src/potion_bottle.cpp",
+          "sha256": "30863f61baff7417992db99946a97efb10aa5f6eaabe0d48de50c406f2fa85d1",
+          "size": 8785
+        },
+        {
+          "path": "src/potion_bottle.h",
+          "sha256": "21ac9505f8045cb7ec1e8a1f4cfb791680b8f67aaa132b26f253746c9b5af0fd",
+          "size": 257
+        },
+        {
+          "path": "src/potion_bottle_port.inc",
+          "sha256": "54e74e3c48bb21e401ee1d3b48389a818d9bcfc2f3c1ab35a30e45e6bfbbafb6",
+          "size": 10590
+        },
+        {
+          "path": "src/potion_grant.cpp",
+          "sha256": "a55c9c72393aa2319dfa4dc5f86fa7b4db905528807bfa7b1859bbcedfbe83f2",
+          "size": 2618
+        },
+        {
+          "path": "src/potion_grant.h",
+          "sha256": "0b39d24c38f48be7c3e6e1ffedc115597070ddecafa5604fc3cbd7fef31d3e63",
+          "size": 518
+        },
+        {
+          "path": "src/potion_hooks.cpp",
+          "sha256": "e51a972d847ce049ae2291a679ecd86cdadcf2acb424a04c3f746a8d0d208975",
+          "size": 7579
+        },
+        {
+          "path": "src/potion_hooks.h",
+          "sha256": "f93ddcc0223dadcd3f3346e6c3ab254cf4df09f17b4ff08cedc1fc60674d67f9",
+          "size": 260
+        },
+        {
+          "path": "src/potion_realtime.cpp",
+          "sha256": "097b681f8d7445258d6b946deaad99bae77aedc8e844c2ed86a4aba4c1064483",
+          "size": 7642
+        },
+        {
+          "path": "src/potion_realtime.h",
+          "sha256": "137d4b78f4105b2764feb641a2745c70dcadc8ab1d6540ca60f29f6f363f6754",
+          "size": 1251
+        },
+        {
+          "path": "src/potion_realtime_port.inc",
+          "sha256": "7aa939a7427462758c00ecc8d27b21d1d2f3b41996f83e34829a0a53cba662b1",
+          "size": 6723
+        },
+        {
+          "path": "src/quick_equip.cpp",
+          "sha256": "6752bd426e734c195536f450c0acac814bdaff7e466f8e8db00d1e56210d6149",
+          "size": 6341
+        },
+        {
+          "path": "src/quick_equip.h",
+          "sha256": "49272006e94f4c8bf10cc7a089a6a60255c2a65284a73cf7b4e741584fe7872f",
+          "size": 540
+        },
+        {
+          "path": "src/quick_swap.cpp",
+          "sha256": "364a41b104efaaca71c89c0b8c6016833c4028f7636164f02c1891a8967c7911",
+          "size": 12324
+        },
+        {
+          "path": "src/quick_swap.h",
+          "sha256": "de56a7d33fc92c00ce602c1feb457d89116791c8be3e5b9e39f89681a5261c51",
+          "size": 168
+        },
+        {
+          "path": "src/region_mult_port.h",
+          "sha256": "4e73fcd6dc8dd39709a9f2a763da02fecb3a7d3e46d91359cb2dc8090aea7c20",
+          "size": 1189
+        },
+        {
+          "path": "src/region_mult_port.inc",
+          "sha256": "08ab4c91f2f1ef83cfa5ebc91ac940b8ec14c082c2e1d17f0e65379e832a9bb9",
+          "size": 8744
+        },
+        {
+          "path": "src/region_port.cpp",
+          "sha256": "8ab7f24cf6e308244625ecb8ec621f2c92874323765dc8ad4391fdf96d9ee596",
+          "size": 13628
+        },
+        {
+          "path": "src/region_table.h",
+          "sha256": "d68403278ccbbaadeab613449913518124275d2b3e6827fdc3d1bc4a0907fc7f",
+          "size": 294
+        },
+        {
+          "path": "src/rental_dialogue.cpp",
+          "sha256": "dc1c725918bdfac05160b8cde779cd7591d0eb94218d3624d93f37d282f1d5db",
+          "size": 11775
+        },
+        {
+          "path": "src/rental_dialogue.h",
+          "sha256": "2047a57378a589549192de80e78ccec17aec5a58a17155bcbf01953a6a163e51",
+          "size": 1559
+        },
+        {
+          "path": "src/rental_eligibility.cpp",
+          "sha256": "ba38463655391a5e6fdf2e7cd942b8daa9fcc4d8ba77a9b429077967c3167add",
+          "size": 10040
+        },
+        {
+          "path": "src/rental_eligibility.h",
+          "sha256": "0b4e20d9569f7a0728ce041bf3d5fdee8916b3d1b6470696bd8423c57f4a03bc",
+          "size": 492
+        },
+        {
+          "path": "src/rental_postman_hooks.cpp",
+          "sha256": "16ba6270b179897cd94b98e0e602f3de3cbb6e8fd762eef22d4b576b5c5dfe0a",
+          "size": 14469
+        },
+        {
+          "path": "src/rental_postman_hooks.h",
+          "sha256": "2d8278c6a4cfa487afd49c50d7f363ce58cca7cafcdd93a440589572c0433ef3",
+          "size": 192
+        },
+        {
+          "path": "src/rental_shop.cpp",
+          "sha256": "35c80effdc5a8cb334ddfb9d5b6fa69d9945b0e136883eb2e5c7c4f1ffd4b5dc",
+          "size": 54597
+        },
+        {
+          "path": "src/rental_shop.h",
+          "sha256": "a6f803905522cb0f4d2b9c94e4d637fd4dc57d96f1cf1c7eef314b7810779b86",
+          "size": 1802
+        },
+        {
+          "path": "src/rental_shop_ui.cpp",
+          "sha256": "5f46291eb99448b2994882bf7bd71b64a9ee8a2084f9518156d1e617fe9ec809",
+          "size": 103363
+        },
+        {
+          "path": "src/rental_shop_ui.h",
+          "sha256": "9dc459fd404c28a1f5225fbce6fdf38c9176ffd8fe03f3e87de9f68b5b48727a",
+          "size": 8566
+        },
+        {
+          "path": "src/rental_ui_text.cpp",
+          "sha256": "94303f2fafbb7718fb7907b94fa8079e687497934fdad0f5e6fdcfbb1a74be18",
+          "size": 6225
+        },
+        {
+          "path": "src/rental_ui_text.h",
+          "sha256": "663338e50955b1c3539c145c8dde5ccb49c775b26c3124a0375292151f2e6b3d",
+          "size": 571
+        },
+        {
+          "path": "src/rupee_popup.cpp",
+          "sha256": "cd1bbded7227bf106fc6b7f76459cf3079a5babfcec7d9ec714fbd5185ebf243",
+          "size": 11266
+        },
+        {
+          "path": "src/shade_refuge.cpp",
+          "sha256": "a6fef222b32c7fb6aa9b6069da757f1b9403bbd7e05d874f5fc3dc775d21ff21",
+          "size": 7755
+        },
+        {
+          "path": "src/shade_refuge.h",
+          "sha256": "35a307a5b65e53ab79e2b8fb4cc386ae49177cab7096b1c879aecc5aeeb03e8b",
+          "size": 3345
+        },
+        {
+          "path": "src/shield.cpp",
+          "sha256": "831c13d3dadfdc31bf867f03f68043d5c8c49f8fc2d66672a89c6b4e41d8f3dc",
+          "size": 72288
+        },
+        {
+          "path": "src/shield.h",
+          "sha256": "145996e5b0f81bf5a7dbb520f8fb52e78096e69cefa2a0754a967827dfebe638",
+          "size": 5998
+        },
+        {
+          "path": "src/shield_adapt.cpp",
+          "sha256": "c3b0ec1ec27210882604c1df17641e98c6a47abbba0d42a7094e28c89b3b00bc",
+          "size": 4361
+        },
+        {
+          "path": "src/shield_adapt.h",
+          "sha256": "553d402d8229c60988cc337862075228963428e88140b5fff19d2bdc582caab1",
+          "size": 1878
+        },
+        {
+          "path": "src/shield_game.cpp",
+          "sha256": "a5b104cecc266ccc7ea436204173dc105c4e818b33185cf5b81b174cb838ea3a",
+          "size": 508
+        },
+        {
+          "path": "src/shield_game.h",
+          "sha256": "cf7861c59d97c96500499079f106d13657cc1a48353b84cc4a19a8e4f928f0ff",
+          "size": 2170
+        },
+        {
+          "path": "src/shield_hooks.cpp",
+          "sha256": "b144bc7373f4cb170455615d4e928b4eed4231dd84909accadd368d1fcaf179f",
+          "size": 36496
+        },
+        {
+          "path": "src/shield_mod.h",
+          "sha256": "fd3cfcfff908ef4bf6decdd8196eaf3402b2eb7fae4fd880c11188d04848c8a2",
+          "size": 252
+        },
+        {
+          "path": "src/sim_time_scale.cpp",
+          "sha256": "b68dc40b0987fa814321c87ec70f5a4927d7f78dd6a47bd6efe63f2d8f09b9be",
+          "size": 879
+        },
+        {
+          "path": "src/sim_time_scale.h",
+          "sha256": "3c4a4c92a8ab36d6021f06c70be4c883f7f0720118e890883cc02a97bc59490e",
+          "size": 1893
+        },
+        {
+          "path": "src/sim_time_scale_hooks.cpp",
+          "sha256": "adb4494283c50a330a9929b4306d369cb748cecc6812679b01206c5ed692509f",
+          "size": 16017
+        },
+        {
+          "path": "src/soul_of_light.cpp",
+          "sha256": "0f44ab67bbdf40c47ffa123ddb9c2c774a1cea2bff7634481bf7d99e6a142e38",
+          "size": 28212
+        },
+        {
+          "path": "src/soul_probe.h",
+          "sha256": "7ee8253a2d2cf48e52f67e35771fff3580dd240e37b53450b4ed36c91b3f07e8",
+          "size": 1016
+        },
+        {
+          "path": "src/stalfos_dt.cpp",
+          "sha256": "918d2e5bb5be58b2d6ba8c9581c41cb535faaf90b21a69101c28a7f5c2bc8cb1",
+          "size": 4734
+        },
+        {
+          "path": "src/stick_cycle.cpp",
+          "sha256": "08c88de9ade7c69854e565832d9f48f6ce1a73cb19a9edf9a4644f786e3b2de4",
+          "size": 4765
+        },
+        {
+          "path": "src/sumo_test.cpp",
+          "sha256": "f52ec7075e58b99026c1b200acc7af201365b22cd901690702e3e4e31d64fcf8",
+          "size": 62758
+        },
+        {
+          "path": "src/sumo_test.h",
+          "sha256": "76ef5f7e78da718111525ae9a80043c3e571f6dc7ae2025410082ba7ee6da4f9",
+          "size": 6697
+        },
+        {
+          "path": "src/sword_atp.cpp",
+          "sha256": "98d28760343762a3db7476939e64d58c2873c261c388d9cbaca443f48ef5c41d",
+          "size": 10134
+        },
+        {
+          "path": "src/sword_atp.h",
+          "sha256": "c30aad794502b83666d4169f8c3d5e2ad7e5a1a4e141411da1200064615fa8ac",
+          "size": 932
+        },
+        {
+          "path": "src/tear_actor.cpp",
+          "sha256": "c076c1063fb4437b8a1dfce71f41bb9df287e2ebec7631af2302de8e02d9e8b7",
+          "size": 11401
+        },
+        {
+          "path": "src/tear_actor.hpp",
+          "sha256": "844d3da0fa726430909b658271cd831d80abc575f07d909ebed2a89f0ff2c370",
+          "size": 2693
+        },
+        {
+          "path": "src/tear_glow.cpp",
+          "sha256": "a066a481be700b0568e5a6c56cdd6833450dc1665d0aaf4d077555cd1ab72ada",
+          "size": 9633
+        },
+        {
+          "path": "src/tear_particles.cpp",
+          "sha256": "eb49ccbf84b57c15d56eee0d054f39d7d631d5362b09037612a965c50b8dcc12",
+          "size": 12435
+        },
+        {
+          "path": "src/tutorial_dummy.cpp",
+          "sha256": "933b1fcdefb4eb7efcfa75b3aa181e23c9796c74ddeeadd5caae2c69901cedd5",
+          "size": 2501
+        },
+        {
+          "path": "src/tutorial_dummy.h",
+          "sha256": "3c48ddaa2bbc5138f48f6c13eed302ab87be2ca694c85515753709c7b4fb84d5",
+          "size": 230
+        },
+        {
+          "path": "src/wardrobe.cpp",
+          "sha256": "b557aa64b5e8b932c68ba72abec73da369fe7d7c51e69a3578cc2713b6266829",
+          "size": 21448
+        },
+        {
+          "path": "src/wardrobe.h",
+          "sha256": "d090907f96f107f008e3bbfe847853b258652bd76fc42f06ca33c56f99d83d55",
+          "size": 3736
+        },
+        {
+          "path": "src/wolf_arts.cpp",
+          "sha256": "2bfaee758b98e48e4d0e7af719de2df5500aef158e038acdc327d8dfdaf3574e",
+          "size": 5963
+        },
+        {
+          "path": "src/wolf_arts.h",
+          "sha256": "d4d0bc8c5b28c196c011438a05246338c749630cd54c92f890432d033102e53f",
+          "size": 165
+        },
+        {
+          "path": "src/wolf_charge_art.cpp",
+          "sha256": "89aa9ae4ece8af31562284c0dcd4896858c731e9a6e1ae51ea5565cc095ed547",
+          "size": 6030
+        },
+        {
+          "path": "src/wolf_charge_hud.cpp",
+          "sha256": "8767bf7163026fa9127177b84a30dea497f1d1bcfb5ff4f4d2e8478e9a69e266",
+          "size": 12326
+        },
+        {
+          "path": "src/wolf_charge_hud.h",
+          "sha256": "621d9370004137f52623af92f2422a3014fe34a7fea4bcec96e246e047098cf3",
+          "size": 118
+        },
+        {
+          "path": "src/wolf_combat.cpp",
+          "sha256": "574bec858dc2291ffa2738bea40393c5e224ecc7ad0fbe841f8d0ff14a716c8f",
+          "size": 57035
+        },
+        {
+          "path": "src/wolf_combat.h",
+          "sha256": "01be8bb2136ad0553c13a6235683c231f87330a7ccee8ef4bddc2c43ca472b45",
+          "size": 3280
+        },
+        {
+          "path": "src/wolf_guard.cpp",
+          "sha256": "9e4af5360fec135757396e5f4bffe43a6f0290ce2d05cbf730847145a0c6946e",
+          "size": 4508
+        },
+        {
+          "path": "src/wolf_guard.h",
+          "sha256": "4c0983b739c5dcf9922e8d4d5f8fb8e7ad99e1019600822f0abb766451733d1a",
+          "size": 2440
+        },
+        {
+          "path": "src/wolf_guard_hooks.cpp",
+          "sha256": "cd6fda92cfb7d0b3d078de848f8c3d6d691e380aa335bc5da6db3b8a33a29a76",
+          "size": 10468
+        },
+        {
+          "path": "src/wolf_howl_combat.cpp",
+          "sha256": "41a36dff20589c3b3eb27710f091ccf3ec36216e1c72e8f0b248e7261a4ed8b2",
+          "size": 14171
+        },
+        {
+          "path": "src/wolf_uty_port.inc",
+          "sha256": "119430cdf5a4f0a30c5d53bc63e3512304ccce86ae178dce21d8a9fe8e5f543e",
+          "size": 25346
+        },
+        {
+          "path": "src/z_item_hud.cpp",
+          "sha256": "2ae348cbd76e6d88b28bacfa941e7b2f7ad935f2a349bb68dc906b804e739b28",
+          "size": 10873
+        },
+        {
+          "path": "src/z_item_hud.h",
+          "sha256": "b858a01ec29f0af9bbe4051f640206752e9d04206ec1acaba4404c980259027a",
+          "size": 281
+        },
+        {
+          "path": "tools/check_hooks.py",
+          "sha256": "f3b79e0e207406752239930c8f55f785987571279bfa49e6e9333665642d275b",
+          "size": 7829
+        },
+        {
+          "path": "tools/merge_mod.py",
+          "sha256": "e098a2464eac8b43a86387a6a606bbc2910c28d3cd9fa735fa4423f55bb2d4c0",
+          "size": 4797
+        },
+        {
+          "path": "tools/pack_dist.py",
+          "sha256": "39fd3a00ed3baf23f047ed5bf049e52ce108a6a3b3c998de1ee9aefb882d5d72",
+          "size": 3944
+        },
+        {
+          "path": "tools/port/_empty_stock.cpp",
+          "sha256": "77f7e514d1d1e592c45fce5cc70a14595529c936b2e1bda1f3a31c9aded42cfd",
+          "size": 86
+        },
+        {
+          "path": "tools/port/armogohma.json",
+          "sha256": "0fe92080949f3dd5c4028615a4cacdb4cee2cbb3ac42cfafb26b758e749bc893",
+          "size": 1212
+        },
+        {
+          "path": "tools/port/bgos.json",
+          "sha256": "3cce908e731a433ed12297cd9ac6cc3161a44e24fd9f85bd197b36aac61bcfeb",
+          "size": 1893
+        },
+        {
+          "path": "tools/port/btn.json",
+          "sha256": "89d9bf3ecd1db593f3ee4adc936b3e590470d0301f4b293740b6220ddf625342",
+          "size": 4389
+        },
+        {
+          "path": "tools/port/btn_seams.json",
+          "sha256": "efc1b31d2b5579558cf5eeeb0e9581f079b775cb2082155786b28090073f533b",
+          "size": 2027
+        },
+        {
+          "path": "tools/port/changelink.json",
+          "sha256": "ebb3e991266354c317936c1577378f18832a61f3ecf2708a55850b23bfdec509",
+          "size": 606
+        },
+        {
+          "path": "tools/port/deku_leaf.json",
+          "sha256": "cee5e818b6ad4ef19d38d0c633abe8f1fdbb5f227b586559b9f1ece42797b35d",
+          "size": 708
+        },
+        {
+          "path": "tools/port/e_s1.json",
+          "sha256": "ea6448b699697bbfb00c1cde7ffb608ea37b00ce54800898033ab4c7a2f744aa",
+          "size": 4044
+        },
+        {
+          "path": "tools/port/flurry.json",
+          "sha256": "e1d4d2eaa0190ecb5f85b1f81b070d623b3ab4ddabc64c53548f810b535d2252",
+          "size": 951
+        },
+        {
+          "path": "tools/port/focused_arts.json",
+          "sha256": "bb1b935a3afedc59e0f044c07c2c5bd8ad631f2bbd015c0f989eb34619526b00",
+          "size": 890
+        },
+        {
+          "path": "tools/port/hp_mult.json",
+          "sha256": "efed6043e16bac81c560b08cce2652c056db6351a488fd06d423dcfd9c6f685b",
+          "size": 900
+        },
+        {
+          "path": "tools/port/hurricane.json",
+          "sha256": "2458a2b49626b1656e3d1d1157148bea6245663d4ef50cd67a6ca3113b10e212",
+          "size": 543
+        },
+        {
+          "path": "tools/port/hurricane_se.json",
+          "sha256": "7d338442b42233698fc2b5bba227b280b4e09f40250b1d990e0c744092ecf13d",
+          "size": 575
+        },
+        {
+          "path": "tools/port/lockout_full.json",
+          "sha256": "07af37ad7558615ea6764757967d9bcd2d1811267bd06c510e19444c3bdd3fbc",
+          "size": 269
+        },
+        {
+          "path": "tools/port/mq_move_life.json",
+          "sha256": "138514664293668070bb40a9264b2d9d9bdcc1c37fdd8dba3d3a71c2a601d341",
+          "size": 580
+        },
+        {
+          "path": "tools/port/outfit_swim.json",
+          "sha256": "167aedcc34bb9d88bd86debec116cd3f22a97ae387bf7863ff7946807aba8b7c",
+          "size": 995
+        },
+        {
+          "path": "tools/port/port_tool.py",
+          "sha256": "2573c48258f2eb0c45f25dcbabc8fa4f76abd752f7424297b9842730ffc87aba",
+          "size": 12417
+        },
+        {
+          "path": "tools/port/potion_bottle.json",
+          "sha256": "aaafe6f856b9d78fe5fc19899369bb7d8331ba215c7e54652dd0574dcb4d8e50",
+          "size": 643
+        },
+        {
+          "path": "tools/port/potion_realtime.json",
+          "sha256": "9a35c173059b7933af933bc760ce198ff7249f7b1a9d99d44cb2d0686e8b5be8",
+          "size": 1237
+        },
+        {
+          "path": "tools/port/region_mult.json",
+          "sha256": "5f07317003baf7b15a57ba6ce05cdebc71911bbfdbb43895605e723f7bf0c3a4",
+          "size": 678
+        },
+        {
+          "path": "tools/port/rental.json",
+          "sha256": "d452c8c3e319c8a5285217de45f35e36165e0921f3776032cc22e2484c1db19d",
+          "size": 1255
+        },
+        {
+          "path": "tools/port/shield_alink.json",
+          "sha256": "c5adb114b72ca2119471a17d0d2d4aa6e3aaa77d34cfac1fd0b9dcaf3d875a9b",
+          "size": 364
+        },
+        {
+          "path": "tools/port/wolf_stun.json",
+          "sha256": "b8cb333d32283e5c621c3e2fccfa601f2957fe19628532a820cca7f02224823c",
+          "size": 299
+        },
+        {
+          "path": "tools/port/wolf_uty.json",
+          "sha256": "8d24789e7d9ef6b73ddac5ceccad5f634f75a21009c247642112ceb0821bce34",
+          "size": 12178
+        }
+      ],
+      "sources": [
+        "src/mod.cpp",
+        "src/albt_shield_api.cpp",
+        "src/albw_common.cpp",
+        "src/albw_save_flags.cpp",
+        "src/devil_trigger.cpp",
+        "src/bokoblin_dt.cpp",
+        "src/poise_suppress.cpp",
+        "src/lantern_fix.cpp",
+        "src/king_bulblin_dt.cpp",
+        "src/guay_dt.cpp",
+        "src/bulblin_dt.cpp",
+        "src/lizalfos_dt.cpp",
+        "src/dynalfos_dt.cpp",
+        "src/kargarok_dt.cpp",
+        "src/stalfos_dt.cpp",
+        "src/albw_profile_hook.cpp",
+        "src/albw_l1_input.cpp",
+        "src/albw_settings_ui.cpp",
+        "src/albw_stage.cpp",
+        "src/config_vars.cpp",
+        "src/meter.cpp",
+        "src/lockout.cpp",
+        "src/enemy_lockout.cpp",
+        "src/enemy_hp_bars.cpp",
+        "src/magic_jar.cpp",
+        "src/rupee_popup.cpp",
+        "src/tear_particles.cpp",
+        "src/tear_actor.cpp",
+        "src/tear_glow.cpp",
+        "src/mq_heart_meter.cpp",
+        "src/shield.cpp",
+        "src/shield_adapt.cpp",
+        "src/shield_game.cpp",
+        "src/shield_hooks.cpp",
+        "src/stick_cycle.cpp",
+        "src/region_port.cpp",
+        "src/soul_of_light.cpp",
+        "src/enemy_rupees.cpp",
+        "src/wolf_combat.cpp",
+        "src/wolf_guard.cpp",
+        "src/wolf_guard_hooks.cpp",
+        "src/e_s1_hooks.cpp",
+        "src/end_game_transform.cpp",
+        "src/hurricane_spin.cpp",
+        "src/deku_leaf.cpp",
+        "src/air_tricks.cpp",
+        "src/ending_blow_aoe.cpp",
+        "src/tutorial_dummy.cpp",
+        "src/wolf_charge_art.cpp",
+        "src/wolf_howl_combat.cpp",
+        "src/midna_arm.cpp",
+        "src/midna_arm_visual.cpp",
+        "src/wolf_charge_hud.cpp",
+        "src/hold_a_crawl.cpp",
+        "src/quick_swap.cpp",
+        "src/quick_equip.cpp",
+        "src/extra_item_slot.cpp",
+        "src/extra_item_slot_hooks.cpp",
+        "src/z_item_hud.cpp",
+        "src/mail.cpp",
+        "src/mail_hooks.cpp",
+        "src/focused_arts.cpp",
+        "src/sim_time_scale.cpp",
+        "src/sim_time_scale_hooks.cpp",
+        "src/flurry_rush.cpp",
+        "src/flurry_hooks.cpp",
+        "src/flurry_proc.cpp",
+        "src/wolf_arts.cpp",
+        "src/parry_master.cpp",
+        "src/parry_hooks.cpp",
+        "src/albw_combat.cpp",
+        "src/btn_parry.cpp",
+        "src/boss_hp_hud.cpp",
+        "src/lop_hud.cpp",
+        "src/lop_item_belt.cpp",
+        "src/boss_refinement.cpp",
+        "src/diababa.cpp",
+        "src/fyrus.cpp",
+        "src/fyrus_golem.cpp",
+        "src/armogohma.cpp",
+        "src/epona_spur_hud.cpp",
+        "src/hidden_skill_charge.cpp",
+        "src/fyrus_kids.cpp",
+        "src/fyrus_phases.cpp",
+        "src/boss_refinement_hooks.cpp",
+        "src/rental_eligibility.cpp",
+        "src/rental_shop.cpp",
+        "src/rental_ui_text.cpp",
+        "src/rental_dialogue.cpp",
+        "src/rental_postman_hooks.cpp",
+        "src/rental_shop_ui.cpp",
+        "src/oocoo.cpp",
+        "src/mq_hearts.cpp",
+        "src/sword_atp.cpp",
+        "src/potion.cpp",
+        "src/potion_grant.cpp",
+        "src/potion_bottle.cpp",
+        "src/potion_realtime.cpp",
+        "src/potion_hooks.cpp",
+        "src/shade_refuge.cpp",
+        "src/outfit_stats.cpp",
+        "src/outfit_swim.cpp",
+        "src/outfit.cpp",
+        "src/outfit_debug.cpp",
+        "src/sumo_test.cpp",
+        "src/wardrobe.cpp",
+        "src/alink_compat.cpp",
+        "src/albw_fork_compat.cpp",
+        "src/albw_gameinfo_compat.cpp",
+        "src/colossal_wallet.cpp",
+        "src/clothes_pipeline.cpp",
+        "src/changelink.cpp",
+        "src/ext_quick_equip.cpp",
+        "src/menu_ext_status.cpp",
+        "src/menu_ext_members.cpp",
+        "src/menu_window_ext.cpp",
+        "src/menu_ring_ext.cpp"
+      ],
+      "features": [
+        "game",
+        "webgpu"
+      ],
+      "metadataDefine": "DUSK_STATIC_PORT_29",
+      "metadataSection": "p29meta",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/dev.albt.albw/0.3.0",
+        "sha256": "91cffa72a066569e481a284a549c90700adfd9d1dc8c52ca936188261aba8d98",
+        "size": 5450009
+      },
+      "adaptations": [
+        {
+          "path": "CMakeLists.txt",
+          "controlPath": "native_ports/albt/CMakeLists.txt",
+          "beforeSha256": "430674774bb8b633d65f01b71f38aa5681a8787d4ab0b374858fe5f13b76c952",
+          "sha256": "e8cfbe736555479c6614f28661cc99a46226bd7d1d0ee390dfd6874d1e90c46b"
+        },
+        {
+          "path": "src/albw_l1_input.cpp",
+          "controlPath": "native_ports/albt/src/albw_l1_input.cpp",
+          "beforeSha256": "015f51f8ba42f7646346c65139c94c3c16d7c891c2bbcc2968d03cf6050a4c17",
+          "sha256": "a96f73ae381471777ea949bb10e5b941a5a9677c322a2f1d9a1bc4dc70f966d2"
+        },
+        {
+          "path": "src/soul_of_light.cpp",
+          "controlPath": "native_ports/albt/src/soul_of_light.cpp",
+          "beforeSha256": "0f44ab67bbdf40c47ffa123ddb9c2c774a1cea2bff7634481bf7d99e6a142e38",
+          "sha256": "0e9763560c37a5f36ea7bbbe265eee8e81ca49ac288c93c4d8c71c992e350c36"
+        },
+        {
+          "path": "src/xbox_private_aliases.hpp",
+          "controlPath": "native_ports/albt/src/xbox_private_aliases.hpp",
+          "beforeSha256": null,
+          "sha256": "49df9b28a6acd668a541390c86a144cc706b6f55235115291a71414a3df133d5"
+        }
+      ]
+    },
+    {
+      "id": "io.github.mdra5000.dusklight_online",
+      "name": "MFB Multiplayer",
+      "version": "0.2.0",
+      "target": "port_mfb_multiplayer",
+      "source_url": "https://github.com/matthewdavidrichardanderson/dusklight-online-mod",
+      "sourceCommit": "8a1d8c8e75bec7e3678abd38803a8fe989369fc0",
+      "sourceFiles": [
+        {
+          "path": "CMakeLists.txt",
+          "sha256": "d48b8c344bf19923998c78f5af73d44b13015b29e06e0a529fc4c0569badd8ef",
+          "size": 39283
+        },
+        {
+          "path": "LICENSE.md",
+          "sha256": "da507380e0b6f829a6e65ed08a08297c2ec9354694e1bf7ebd946c4abe625688",
+          "size": 6944
+        },
+        {
+          "path": "cmake/FetchDusklight.cmake",
+          "sha256": "52e107c4e1d282f2e1463c7220637bc25d2bda99869338f7d9e867aa59bc57a7",
+          "size": 3358
+        },
+        {
+          "path": "cmake/LibJuice.cmake",
+          "sha256": "c39ac2d5ba3af26548d42dbd4a40dde9998bc2238afffd82b1a6a4cf4e20a23f",
+          "size": 1046
+        },
+        {
+          "path": "include/dusk/frame_interpolation.h",
+          "sha256": "897f0300c491d1fdd607fd5e6fdc84b7094a8ec3c148266337461e46086d599b",
+          "size": 988
+        },
+        {
+          "path": "include/dusk/logging.h",
+          "sha256": "dc757e16a74f9304714de6d9331c9cd4695ef8d0a35d3f61767be7a20449fe98",
+          "size": 512
+        },
+        {
+          "path": "include/dusk/multiplayer/invite_code.hpp",
+          "sha256": "d94bc9a09ec357d783f58a72ca83551728effbc03f9981d969637b0ffae5c966",
+          "size": 564
+        },
+        {
+          "path": "include/dusk/multiplayer/multiplayer.hpp",
+          "sha256": "67c99943b8ad191ad027ac547b749622b93683e7a9ef243529dcc5fae76c0317",
+          "size": 12496
+        },
+        {
+          "path": "include/dusklight_online/game/appearance.hpp",
+          "sha256": "5e917bf8106fe016ed7f5f051074ab35dddd35f7ef380bd799322d1ab31dbc2f",
+          "size": 990
+        },
+        {
+          "path": "include/dusklight_online/game/audio_bridge.hpp",
+          "sha256": "695843ce9f25174e7b579a4efa79b54242576ca6548587be82354b7f86480206",
+          "size": 496
+        },
+        {
+          "path": "include/dusklight_online/game/audio_lifetime.hpp",
+          "sha256": "2cfd6a309024bc74be5c68b60e47fad020df1f4ed028d942735d1ede004b75be",
+          "size": 2044
+        },
+        {
+          "path": "include/dusklight_online/game/bomb_bag_sync.hpp",
+          "sha256": "822f671930d8f7c52c0e7dedda98af3a1e9735be855203c9824bac6cb89800da",
+          "size": 1360
+        },
+        {
+          "path": "include/dusklight_online/game/bomb_bridge.hpp",
+          "sha256": "d3d4b83cddbf7afaf34288157c749ac33eb3c5e88724e173c300ead7fc2f6596",
+          "size": 342
+        },
+        {
+          "path": "include/dusklight_online/game/bottle_sync.hpp",
+          "sha256": "6d198aa4bf53f1dbafba91eeb27129ae2690126c0c5a0c08e1b5b5f24562db69",
+          "size": 599
+        },
+        {
+          "path": "include/dusklight_online/game/cave_map_sync.hpp",
+          "sha256": "4546e454d2dc0c46e8c86d88ab236cf677330b2a6750a3f66a20dcb28d9c7aff",
+          "size": 1567
+        },
+        {
+          "path": "include/dusklight_online/game/chat.hpp",
+          "sha256": "3de45053ffd8485b3b7969b27c622a7397f8545f66d970e40368553158272bb3",
+          "size": 10247
+        },
+        {
+          "path": "include/dusklight_online/game/chat_emoji.hpp",
+          "sha256": "51ec941168f5d58a9e336fdd5ef7f4dfc4e94cd45bfadad165e75ca8c88a6e03",
+          "size": 16135
+        },
+        {
+          "path": "include/dusklight_online/game/chat_emoji_atlas.hpp",
+          "sha256": "7d6506c0d9b1fe7cda67e7674d22017103ff630a2ee16f7c3572eb69402b2bf8",
+          "size": 426
+        },
+        {
+          "path": "include/dusklight_online/game/collectible_visual_bridge.hpp",
+          "sha256": "e0a657f16611be54eb2770717013c8043470b10719e8667e08b3671adb4d1f33",
+          "size": 3512
+        },
+        {
+          "path": "include/dusklight_online/game/floor_switch_bridge.hpp",
+          "sha256": "4b0d61110cb8923ba02af31bfa033ba676cb74cd635d9a579e49f1879459844b",
+          "size": 1705
+        },
+        {
+          "path": "include/dusklight_online/game/floor_switch_sync.hpp",
+          "sha256": "72f9fae018f9d35fdf5adb4853fe1951978317e1a22d30a60f5a30b43087c9f9",
+          "size": 5735
+        },
+        {
+          "path": "include/dusklight_online/game/floor_switch_wire.hpp",
+          "sha256": "57c4d9e63d9864c409a52348fcbc30f2e3f7265279eaa192a1852211ea16827d",
+          "size": 4102
+        },
+        {
+          "path": "include/dusklight_online/game/game_adapter.hpp",
+          "sha256": "b4ac3a1a6872815a5948a10c93d01755a0e15c1c80da5d5bdd3516f9b5f1d810",
+          "size": 16533
+        },
+        {
+          "path": "include/dusklight_online/game/local_event_visibility.hpp",
+          "sha256": "6c437141ef9ac1303ff084372fd32557ac331d6038c666979c9a048a2a9f6cc3",
+          "size": 2300
+        },
+        {
+          "path": "include/dusklight_online/game/local_pose.hpp",
+          "sha256": "6edfd6e84c9f4bb9eb0c4a6263fe9bdf8e47e6cc97ab0a4761465d3df0611de7",
+          "size": 720
+        },
+        {
+          "path": "include/dusklight_online/game/ooccoo_sync.hpp",
+          "sha256": "b27321b73d2b809e6e2e1d6e344807a2d7b58c3ba1db42b59177f95c2130efcd",
+          "size": 12741
+        },
+        {
+          "path": "include/dusklight_online/game/ooccoo_wire.hpp",
+          "sha256": "db4e53a9748a1f69d17d9be580a7789e09c01e83958045922f1a787383d7ecce",
+          "size": 4712
+        },
+        {
+          "path": "include/dusklight_online/game/particle_depth.hpp",
+          "sha256": "e2fe56e0d5e02b8d16c96b1f385202187b012da0b07155f995f84703e8c3a6c2",
+          "size": 1083
+        },
+        {
+          "path": "include/dusklight_online/game/pickup_sync.hpp",
+          "sha256": "2f510313f83fba6ef8f619e2a19aeebd1472f9f7b703b58cf0e243383ab8856b",
+          "size": 1502
+        },
+        {
+          "path": "include/dusklight_online/game/player_color.hpp",
+          "sha256": "792d36b3cde405ff2339bd7cbe960b6adf100cd148dcc914750bee9bcd634ac6",
+          "size": 859
+        },
+        {
+          "path": "include/dusklight_online/game/poe_sync.hpp",
+          "sha256": "fbb489783d8acfa670026ad3ac203be7c8fb387be6d72c54cf391cd2ad17f802",
+          "size": 1014
+        },
+        {
+          "path": "include/dusklight_online/game/pose_playback.hpp",
+          "sha256": "c1df682e98c822de1286f02a022deb7849cd0d8dc14cec50d42126e90bf21540",
+          "size": 3778
+        },
+        {
+          "path": "include/dusklight_online/game/pose_prediction.hpp",
+          "sha256": "dd82de81ff73673550a1a2cedaf8c428fd6b1997783e6c3d5bb0a499ffb512aa",
+          "size": 6349
+        },
+        {
+          "path": "include/dusklight_online/game/protocol_router.hpp",
+          "sha256": "bf31f24129ece80f5cf82a2937aea13443059fecd4b2b0f33622070fb11ba91b",
+          "size": 3331
+        },
+        {
+          "path": "include/dusklight_online/game/randomizer_check_names.hpp",
+          "sha256": "bebf70ae47b602442683412ff947b453aa91114f1bb1cd6fce885dc1f3674b78",
+          "size": 268
+        },
+        {
+          "path": "include/dusklight_online/game/randomizer_item_names.hpp",
+          "sha256": "c3a603b87ba965adcd030538211383a41780f3fa69526f4480cec4683e57d5e6",
+          "size": 384
+        },
+        {
+          "path": "include/dusklight_online/game/remote_actor_bridge.hpp",
+          "sha256": "912f3dcab77c65cb8079a187677521e2acb12355002b9d414d35dceab13afb12",
+          "size": 910
+        },
+        {
+          "path": "include/dusklight_online/game/remote_pose.hpp",
+          "sha256": "cd324e5209a159bfce1174d49e6f06eeb6e4e90ed66224b6250672369315f9d2",
+          "size": 1606
+        },
+        {
+          "path": "include/dusklight_online/game/remote_visibility.hpp",
+          "sha256": "ed4aad771e610022ca0186e040f9cf90b821b6df8a9f6399e08ca71da9a798aa",
+          "size": 2943
+        },
+        {
+          "path": "include/dusklight_online/game/save_recovery.hpp",
+          "sha256": "df3a5e9f1c39d499b8fa3c818e274bcbdcc170d091a0a50cad4147962987dc14",
+          "size": 5734
+        },
+        {
+          "path": "include/dusklight_online/game/speedrun_bridge.hpp",
+          "sha256": "209e4b4dc5dd9644ee9d06c73428712149597013d4f603302854f669004af23c",
+          "size": 944
+        },
+        {
+          "path": "include/dusklight_online/game/trade_item_sync.hpp",
+          "sha256": "4c329d6319139d817d7e4f29cb5448688b7e522d36fab2b562ccb9e047d75b8f",
+          "size": 1289
+        },
+        {
+          "path": "include/dusklight_online/game/visual_bridge.hpp",
+          "sha256": "56349bf2878494b493fa6767425d8bf51364c8770ed5f58467c6cb0b660ef74d",
+          "size": 2691
+        },
+        {
+          "path": "include/dusklight_online/game/voice_chat.hpp",
+          "sha256": "e427164ca5a2c7122720180826c8c21abd551fdb1ef48c68ab4f42ce47c347fb",
+          "size": 1118
+        },
+        {
+          "path": "include/dusklight_online/game/wet_state.hpp",
+          "sha256": "88539ece9dfe00d708bd7e906f01a849043902414007c90069b3662d7faa279a",
+          "size": 667
+        },
+        {
+          "path": "include/dusklight_online/logging.hpp",
+          "sha256": "141b999df9505e15cdf0dc745486c2c297d757b49ccdb095be5d670c351913b8",
+          "size": 143
+        },
+        {
+          "path": "include/dusklight_online/net/auth_code.hpp",
+          "sha256": "8acb2d5f7bf716100d8db56583044945a3271e5c76d5a71c79ecc23a7f1015d8",
+          "size": 1246
+        },
+        {
+          "path": "include/dusklight_online/net/cloud_cipher.hpp",
+          "sha256": "f86a6e290b977ab3e4fcf5683edd353f419e239e87b7154a81c2582a24f9d641",
+          "size": 1385
+        },
+        {
+          "path": "include/dusklight_online/net/datagram_scheduler.hpp",
+          "sha256": "a184b7ebec840b387841f55ae73af3be4bea0a7d9961638ac3ea4093f4a54222",
+          "size": 1272
+        },
+        {
+          "path": "include/dusklight_online/net/ice_agent.hpp",
+          "sha256": "d2c1a5bb889ff0085300fd139ffbb5e6320775eae72f2658329ada8d57a20090",
+          "size": 946
+        },
+        {
+          "path": "include/dusklight_online/net/peer_delivery.hpp",
+          "sha256": "6d50b16e61181f860fdaa13a9ec7245f501423f9001c13f7f70a9d9b9d7c11a0",
+          "size": 1517
+        },
+        {
+          "path": "include/dusklight_online/net/peer_tunnel.hpp",
+          "sha256": "aa676a9439a42d31b25ff9d47127556b5dfcb82438aa163774ebf086ae01137d",
+          "size": 2690
+        },
+        {
+          "path": "include/dusklight_online/net/pose_ack_history.hpp",
+          "sha256": "936722249d75e1df0c3c7beb1f9a496e66edc84613061e4ba01d6ed27a6fe85b",
+          "size": 1168
+        },
+        {
+          "path": "include/dusklight_online/net/reliable_json.hpp",
+          "sha256": "fef7b734df3faa6695c9fb8cd7b9703da427e5a050c850c33d617ec98f1fd851",
+          "size": 3590
+        },
+        {
+          "path": "include/dusklight_online/net/reliable_udp.hpp",
+          "sha256": "cb3436a295aa275d3512cb5128e11e3f8a8c627a0352845606a82b339ecf4b63",
+          "size": 1992
+        },
+        {
+          "path": "include/dusklight_online/net/sdk_room_channel.hpp",
+          "sha256": "2346f57e40b1f546e2eba5ce02d4d5378ab328ed2104c71611ef8b7bc1be1596",
+          "size": 170
+        },
+        {
+          "path": "include/dusklight_online/net/secure_datagram.hpp",
+          "sha256": "ce34f1e24ec99e0a9185ce7e7121e905affc5cb25ae228b64fa921e6b877e02a",
+          "size": 1946
+        },
+        {
+          "path": "include/dusklight_online/net/secure_random.hpp",
+          "sha256": "a12bf36cbcee4d3c6cffee43df4cf6bbfbf875d1b19c65690d74cf595e8420e4",
+          "size": 1026
+        },
+        {
+          "path": "include/dusklight_online/net/stun_binding.hpp",
+          "sha256": "fc6ab1c622d3a794feb942b7ee8af521f38921648ddca6a95498525d7c14e4e1",
+          "size": 2777
+        },
+        {
+          "path": "include/dusklight_online/net/transport.hpp",
+          "sha256": "929879311d5a7724d80102cbaa7736b9c315dc9e74f8a2dbbde8a075468c1b95",
+          "size": 9065
+        },
+        {
+          "path": "include/dusklight_online/net/udp_codec.hpp",
+          "sha256": "89aec70e43852901cb291c01603b2afb5d6ee6963fa7f034f860c0e9bad6e8d9",
+          "size": 4803
+        },
+        {
+          "path": "include/dusklight_online/net/udp_connection.hpp",
+          "sha256": "054378404c68294c6bd4764ba79f7d8a31496b1a041161350291f8104dd90d87",
+          "size": 3351
+        },
+        {
+          "path": "include/dusklight_online/net/wire_limits.hpp",
+          "sha256": "3fb75c8eee33188ac07113ea14fb45e7d2ab76a8c39507424564c7bf74253a1b",
+          "size": 358
+        },
+        {
+          "path": "include/dusklight_online/online_app.hpp",
+          "sha256": "f395e1156b8009e0b75cf36f5f7ef2ebe8df66bd0cd6479a2bf4ef9ffeb37ae0",
+          "size": 14881
+        },
+        {
+          "path": "mod.json",
+          "sha256": "520cee85c6cc8a33f006cbad5d86a7cbee39306e4ad3a8b7a72ccd79f3e89fc7",
+          "size": 1468
+        },
+        {
+          "path": "src/game/appearance.cpp",
+          "sha256": "fdfa7f5304d0beb200f68ef73c7f8379ae77b06a9a7985e4e3186cbcabd30450",
+          "size": 6815
+        },
+        {
+          "path": "src/game/audio_bridge.cpp",
+          "sha256": "2f4a3ae0ba66cf421e6a135bc6bde68a27233cb07b4b819cb67493b1725ced4b",
+          "size": 10384
+        },
+        {
+          "path": "src/game/bomb_bridge.cpp",
+          "sha256": "2d1c8346813acc483a26a538c7f60de4bb6c95399db22eab068026124525c04a",
+          "size": 3588
+        },
+        {
+          "path": "src/game/chat_emoji.cpp",
+          "sha256": "c27edf1a5e689c0df97a4a76d4ea5512ad9f82f795388af0b03c385510dd8fb5",
+          "size": 3112
+        },
+        {
+          "path": "src/game/chat_emoji_atlas.cpp",
+          "sha256": "dcab6477ee86ec34a57ca0297ece8ab75e5542db5f03c2a6659bb67ced338371",
+          "size": 3338
+        },
+        {
+          "path": "src/game/collectible_visual_bridge.cpp",
+          "sha256": "bfef7931b64643095e477b2f6e2433df0450202c0c4c98071a92c2e3c39c6b87",
+          "size": 38735
+        },
+        {
+          "path": "src/game/floor_switch_bridge.cpp",
+          "sha256": "dd5b1d15fb1de74132c5c76cb8c8d038b8794792356720f54888d3245b47e397",
+          "size": 16080
+        },
+        {
+          "path": "src/game/game_adapter.cpp",
+          "sha256": "9995546f7b5d7880434f5ff82a44971ad904e0fc26cdfa302ddfe4684d3e858d",
+          "size": 343159
+        },
+        {
+          "path": "src/game/local_pose.cpp",
+          "sha256": "908fcc0b5bd0d97e369c799a1178a4f494a68ffe8c333a061c05bc967910ecab",
+          "size": 50707
+        },
+        {
+          "path": "src/game/player_color.cpp",
+          "sha256": "fe5e2e4b24f50d5acc343cc3fa35ee7fbbcbb4ba4e7c05335f85c08b176fe40e",
+          "size": 4553
+        },
+        {
+          "path": "src/game/protocol_router.cpp",
+          "sha256": "a4481a043343e84b801cca43578a38c07260c716bd6412eb6bdce7ae108b0f3f",
+          "size": 12576
+        },
+        {
+          "path": "src/game/randomizer_check_names.cpp",
+          "sha256": "0f5dfb2370218b00353ad951fb0f3596699b99d1320d6b3f721139c25f7758bd",
+          "size": 38313
+        },
+        {
+          "path": "src/game/randomizer_item_names.cpp",
+          "sha256": "573e8f51635561cc63d55f410f08daf50388a0ca4fe2c1d6cb38222547c1c0ea",
+          "size": 8137
+        },
+        {
+          "path": "src/game/remote_actor_bridge.cpp",
+          "sha256": "b710bab28adb037be11d282a82868d9853409847b6f14df3135a543f9e47820e",
+          "size": 26592
+        },
+        {
+          "path": "src/game/remote_link.cpp",
+          "sha256": "fe7db01a0a47d9c7e03a5803e73601051352d2e569fbbcd7bd86f504e4c7d065",
+          "size": 1984
+        },
+        {
+          "path": "src/game/remote_link_dummy.cpp",
+          "sha256": "607039a3cd05c86c8284c95af5898abbe81499aadc33b6b0e8e53228da669342",
+          "size": 1064
+        },
+        {
+          "path": "src/game/remote_pose.cpp",
+          "sha256": "ace37b8b7fc45d96598a8409b7d23f922f68cc3d8773ca0b8b9f38c51cf696c4",
+          "size": 75335
+        },
+        {
+          "path": "src/game/speedrun_bridge.cpp",
+          "sha256": "e9f7958f8903ce2f9b1dd8ce3121eb81da0302abcf012241bf637d3fa3b55b62",
+          "size": 9907
+        },
+        {
+          "path": "src/game/visual_bridge.cpp",
+          "sha256": "eb4b0f6bb4e7cb7c942e9d2b7f87d76f9547414c184548b802334965a81c14e4",
+          "size": 99827
+        },
+        {
+          "path": "src/game/voice_chat.cpp",
+          "sha256": "cff5430576220f52d9510017aa0eedc0db3eb30d60b7ff39b4cf28b5decbf9be",
+          "size": 17614
+        },
+        {
+          "path": "src/mod.cpp",
+          "sha256": "872b6bea60bb149241a9e9265ac6b004fa4e1e64d3306fea3e8a6b36d2f7ebe4",
+          "size": 3830
+        },
+        {
+          "path": "src/net/auth_code.cpp",
+          "sha256": "71a667722cb110e30ef85c7945b907e046c9919a3327979f434c5b7027e3b3c6",
+          "size": 7839
+        },
+        {
+          "path": "src/net/cloud_cipher.cpp",
+          "sha256": "45dfd3bacb6df58499954f4aa45ec7da97efecec14d733a8ea790224a3a22d21",
+          "size": 5105
+        },
+        {
+          "path": "src/net/datagram_scheduler.cpp",
+          "sha256": "b409e41d6a987724f853479c94f4ba74e6cc668d4f2f56b77bb23e74b09b1201",
+          "size": 6042
+        },
+        {
+          "path": "src/net/ice_agent.cpp",
+          "sha256": "5e054f78868b4766bbe1c191fbc87ac5575ccd4f466529d9482cc0b048f4bca6",
+          "size": 4597
+        },
+        {
+          "path": "src/net/invite_code.cpp",
+          "sha256": "3ba2d3dbbed0f826da327662f3ca1c9fb7dea56754b9544f276489c1778d4c32",
+          "size": 12218
+        },
+        {
+          "path": "src/net/reliable_udp.cpp",
+          "sha256": "a38d41033b49afd434445b33e57335dcb209ce797b7b139cb47d6a4c385c8b2d",
+          "size": 10591
+        },
+        {
+          "path": "src/net/sdk_room_channel.cpp",
+          "sha256": "17a5ebe351446e18a2098361ef0fc931c16628843de79233052624eb3961d6e2",
+          "size": 2685
+        },
+        {
+          "path": "src/net/secure_datagram.cpp",
+          "sha256": "7ea18359278e8dc93b68469f9f0291773a01be9fd928e5ca5f410283ecc958b6",
+          "size": 9434
+        },
+        {
+          "path": "src/net/transport.cpp",
+          "sha256": "072b19bfd7a7fcf52705cfb56e146afe197c358ea08690d81b15d5ef88358aa0",
+          "size": 141252
+        },
+        {
+          "path": "src/net/udp_codec.cpp",
+          "sha256": "64b875b6119dbf724a1a527e1c7b74ffc8dbee5b87bd2e3768e0a76091fcff82",
+          "size": 20742
+        },
+        {
+          "path": "src/net/udp_connection.cpp",
+          "sha256": "ff576844c07bdff296f74238c5f4329d3a4a0b7208db07dbfa9cc7e23f4d95b7",
+          "size": 42564
+        },
+        {
+          "path": "src/online_app.cpp",
+          "sha256": "07af6e77b39d3f9b7f1d47638fdac5adb6385b46f12b17d2eafc0eac33c29b02",
+          "size": 147718
+        },
+        {
+          "path": "tools/cloud_rooms/.gitignore",
+          "sha256": "c3e367a2317ea7df5c051d023311cd5dde83e8c4777ce2dd3df64a85c17ea92d",
+          "size": 49
+        },
+        {
+          "path": "tools/cloud_rooms/PROTOCOL.md",
+          "sha256": "9a5f6ef7253627b9876afaaa5e6355ce999355766242e114db7929525f90623a",
+          "size": 4499
+        },
+        {
+          "path": "tools/cloud_rooms/package-lock.json",
+          "sha256": "fb50f6e0e1211379e4bc7de77284682d27a35e769b4217197cfdead5a546b0c2",
+          "size": 33670
+        },
+        {
+          "path": "tools/cloud_rooms/package.json",
+          "sha256": "465e452ae04cd5d11542d3f97202590fa1c8f000a924bbfda0be9cc2a99f61b1",
+          "size": 330
+        },
+        {
+          "path": "tools/cloud_rooms/src/cloud_cipher.js",
+          "sha256": "85c00d701e091d57649b89f27e4b262bce93d29a2a30ed9c168347151d24d952",
+          "size": 4043
+        },
+        {
+          "path": "tools/cloud_rooms/src/index.js",
+          "sha256": "44d7d2afc682351eb821cba6b9ad684071d78f5c32fe2d0e16aea51dcdc60233",
+          "size": 18902
+        },
+        {
+          "path": "tools/cloud_rooms/test.js",
+          "sha256": "6d6820e1281f22f0d88baae46623b151c437b2c509e73656a661e1fde03883cc",
+          "size": 20078
+        },
+        {
+          "path": "tools/cloud_rooms/test_client.js",
+          "sha256": "050a5b69c675adf5aabc072d9f4b3beff0f4a1846ac5bab26f505a4e579f1f30",
+          "size": 5327
+        },
+        {
+          "path": "tools/cloud_rooms/test_crypto.js",
+          "sha256": "14508f60be6cf688486373a12eb1ba93799e943559a3652dbed08a6e40912a0e",
+          "size": 2449
+        },
+        {
+          "path": "tools/cloud_rooms/test_local.js",
+          "sha256": "1c0bb952b7d1b09962d68387fcc36bb87ae3764daf118a445ba1fbcab0a6f937",
+          "size": 8874
+        },
+        {
+          "path": "tools/cloud_rooms/wrangler.jsonc",
+          "sha256": "5943a21e5e52ec90e37e0540dbbbcc32fd6c6890726f13431c69f4e2deeb1c3d",
+          "size": 523
+        },
+        {
+          "path": "tools/generate_randomizer_check_names.js",
+          "sha256": "6c96635c73e89f14733544a343b1909d3f25854aa02f6247fd61ac8316a6e630",
+          "size": 6068
+        },
+        {
+          "path": "tools/merge_mod.py",
+          "sha256": "e098a2464eac8b43a86387a6a606bbc2910c28d3cd9fa735fa4423f55bb2d4c0",
+          "size": 4797
+        },
+        {
+          "path": "tools/multiplayer_relay/CMakeLists.txt",
+          "sha256": "50458e9f99e9ef953d208107ebfc5c0bc219ec7861a705870ca324e9f058c0cc",
+          "size": 8182
+        },
+        {
+          "path": "tools/multiplayer_relay/CMakePresets.json",
+          "sha256": "74a83c4ce1f7d2a4109f117ed67c4eaab9e01997aac62602dec4e4b39fa91b24",
+          "size": 530
+        },
+        {
+          "path": "tools/multiplayer_relay/DEPLOYMENT.md",
+          "sha256": "e2e7109cd56c24bb5473361efb696830532f24db44e467ac3c5f6b0264710ab6",
+          "size": 1724
+        },
+        {
+          "path": "tools/multiplayer_relay/PROTOCOL.md",
+          "sha256": "ae4916287eabc99cc70f2ff82ffdc9ba83dc1095528c8cc7c216dda7b805e95b",
+          "size": 18519
+        },
+        {
+          "path": "tools/multiplayer_relay/README.md",
+          "sha256": "141ab506cc747ce527dbcdfaecf67bdb839d69d01f790c285643e674828b0fcf",
+          "size": 8680
+        },
+        {
+          "path": "tools/multiplayer_relay/SYNCING.md",
+          "sha256": "43fac67d53e13ec7f20fea5c787fc4563f6bc27c32cc69fbe8644df378e975fc",
+          "size": 783
+        },
+        {
+          "path": "tools/multiplayer_relay/THIRD_PARTY_NOTICES.md",
+          "sha256": "00c8415f771ce1dc0de752821c332d9a8272224e8f5188526197c3911048162a",
+          "size": 4581
+        },
+        {
+          "path": "tools/multiplayer_relay/container/Dockerfile",
+          "sha256": "bf5d856cef4b80dcdc41980a12af0cb0603c2f072ebbdc2a59f2c0d032134018",
+          "size": 922
+        },
+        {
+          "path": "tools/multiplayer_relay/container/entrypoint.sh",
+          "sha256": "d6072eeeaf9e1578080790bc9b98e27a69496188417fb06296cbdf157ca40117",
+          "size": 2501
+        },
+        {
+          "path": "tools/multiplayer_relay/launcher.cpp",
+          "sha256": "9c2bc61aa5724498613b49100c0cac81db33a89b3307c1c959131222de12573d",
+          "size": 15015
+        },
+        {
+          "path": "tools/multiplayer_relay/relay.cpp",
+          "sha256": "32e99410eebd22f8b5701b6f1622ac88b8fbaa6d513f869157576fb19535cdf1",
+          "size": 60708
+        },
+        {
+          "path": "tools/multiplayer_relay/test_relay.py",
+          "sha256": "36f6e85a671c22105ccbe15c7fef44f4e909c20c462af9d0b4b3289292ab109d",
+          "size": 41381
+        },
+        {
+          "path": "tools/multiplayer_relay/version.cmake",
+          "sha256": "53c15e20161b88592e0be55e731ef478f1a8c723a0dfc3595471305296058ced",
+          "size": 44
+        },
+        {
+          "path": "vendor/dusklight_remote_link/LICENSE.md",
+          "sha256": "6d489af6292662d9e36d34ce49423784984a5f6e41d7b58f49b01264df59fa03",
+          "size": 7047
+        },
+        {
+          "path": "vendor/dusklight_remote_link/include/d/actor/d_a_remote_link.h",
+          "sha256": "ea9e2414b9e3307e64de27f0b78081ddba317664344a6a067c27908ad2cb109e",
+          "size": 33481
+        },
+        {
+          "path": "vendor/dusklight_remote_link/include/dusk/multiplayer/remote_link_dummy.hpp",
+          "sha256": "0b5041a924c629747cde888f126850b83a30c496ad1dfd633c22b0032e6be28e",
+          "size": 927
+        },
+        {
+          "path": "vendor/dusklight_remote_link/res/AlegreyaSC-Bold.ttf",
+          "sha256": "f0edaf1f289b7eb1b94ba9290146d57e5b413364bcf723cd0196779faa557afa",
+          "size": 355388
+        },
+        {
+          "path": "vendor/dusklight_remote_link/res/Inter-Regular.ttf",
+          "sha256": "712fb3ae7568cc3812776eda49922ff8bca5521cb02c006dec80040e9260c262",
+          "size": 340556
+        },
+        {
+          "path": "vendor/dusklight_remote_link/src/d/actor/d_a_remote_link.cpp",
+          "sha256": "edcfbf47e93499f639cb6c1ae0caeab39c2ea1e71a9d7cd659e0908ee2a14128",
+          "size": 331043
+        },
+        {
+          "path": "vendor/dusklight_remote_link/src/dusk/multiplayer/remote_link_dummy.cpp",
+          "sha256": "8d863ac9c687d4049f54a0f21c85edaf2ed667997ba7700523a1cc7b857c1d67",
+          "size": 84413
+        },
+        {
+          "path": "vendor/kcp/LICENSE",
+          "sha256": "6587fd02a924b97dbd6758b0573ddec056fb494a84f3709c5aaa33ce1f7f029c",
+          "size": 1090
+        },
+        {
+          "path": "vendor/kcp/REVISION",
+          "sha256": "efdea9b2cea4cc99956a259a228d08d6832768129d6a25df4e58a3c5760224b3",
+          "size": 119
+        },
+        {
+          "path": "vendor/kcp/ikcp.c",
+          "sha256": "b4b337bb6267fb361a50b0b4f56c2fc34e067e75e8dc61cf48a603dcb5a7824a",
+          "size": 34907
+        },
+        {
+          "path": "vendor/kcp/ikcp.h",
+          "sha256": "a8b1613daa4a452bf22d25af1cc3dd7e558937e212e7a70761a1ccf5ea6c6ef5",
+          "size": 13608
+        },
+        {
+          "path": "vendor/monocypher/LICENCE.md",
+          "sha256": "a5781770269d2516e52ba4863f790c10a16da4089a1e81823aee19ff1e9026b0",
+          "size": 9256
+        },
+        {
+          "path": "vendor/monocypher/monocypher.c",
+          "sha256": "f1f838cdd483bdebe0df0ff5c5ed60535e496f769c6a2f933ac4c0b114207123",
+          "size": 102582
+        },
+        {
+          "path": "vendor/monocypher/monocypher.h",
+          "sha256": "fcaf6ed771358bb4f40fba016f6518ae86ec02b1b877d2cc35ad92d3a26fd7b3",
+          "size": 12177
+        },
+        {
+          "path": "vendor/stb/stb_image.h",
+          "sha256": "594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3",
+          "size": 283010
+        }
+      ],
+      "sources": [
+        "src/game/appearance.cpp",
+        "src/game/audio_bridge.cpp",
+        "src/game/bomb_bridge.cpp",
+        "src/game/chat_emoji.cpp",
+        "src/game/chat_emoji_atlas.cpp",
+        "src/game/collectible_visual_bridge.cpp",
+        "src/game/floor_switch_bridge.cpp",
+        "src/game/game_adapter.cpp",
+        "src/game/local_pose.cpp",
+        "src/game/player_color.cpp",
+        "src/game/protocol_router.cpp",
+        "src/game/randomizer_check_names.cpp",
+        "src/game/randomizer_item_names.cpp",
+        "src/game/remote_actor_bridge.cpp",
+        "src/game/remote_link.cpp",
+        "src/game/remote_link_dummy.cpp",
+        "src/game/remote_pose.cpp",
+        "src/game/speedrun_bridge.cpp",
+        "src/game/visual_bridge.cpp",
+        "src/game/voice_chat.cpp",
+        "src/mod.cpp",
+        "src/net/auth_code.cpp",
+        "src/net/cloud_cipher.cpp",
+        "src/net/datagram_scheduler.cpp",
+        "src/net/ice_agent.cpp",
+        "src/net/invite_code.cpp",
+        "src/net/reliable_udp.cpp",
+        "src/net/sdk_room_channel.cpp",
+        "src/net/secure_datagram.cpp",
+        "src/net/transport.cpp",
+        "src/net/udp_codec.cpp",
+        "src/net/udp_connection.cpp",
+        "src/online_app.cpp",
+        "vendor/kcp/ikcp.c",
+        "vendor/monocypher/monocypher.c"
+      ],
+      "features": [
+        "game"
+      ],
+      "metadataDefine": "DUSK_STATIC_PORT_30",
+      "metadataSection": "p30meta",
+      "download": {
+        "url": "https://twilitrealm.dev/download/dusklight/io.github.mdra5000.dusklight_online/0.2.0",
+        "sha256": "0e8ba76467f70fedee7c03c90967f758b9aa5652219240fe6ca24ddcf8608d0b",
+        "size": 19248857
+      },
+      "adaptations": [
+        {
+          "path": "CMakeLists.txt",
+          "controlPath": "native_ports/mfb/CMakeLists.txt",
+          "beforeSha256": "d48b8c344bf19923998c78f5af73d44b13015b29e06e0a529fc4c0569badd8ef",
+          "sha256": "80929e32d08a35627f0c38a7c78895bed378d3cc773683c877b2355e802ada54"
+        },
+        {
+          "path": "src/game/voice_chat.cpp",
+          "controlPath": "native_ports/mfb/src/game/voice_chat.cpp",
+          "beforeSha256": "cff5430576220f52d9510017aa0eedc0db3eb30d60b7ff39b4cf28b5decbf9be",
+          "sha256": "532e39a02f9a12c03a1af31edbb2f22df112d05ea86fe941add5fd8bd07b15eb"
+        },
+        {
+          "path": "src/game/xbox_voice_playback.hpp",
+          "controlPath": "native_ports/mfb/src/game/xbox_voice_playback.hpp",
+          "beforeSha256": null,
+          "sha256": "d82195db94226d022bee29715c601139605431df826aa0f34108bb5440b3ab82"
+        },
+        {
+          "path": "src/online_app.cpp",
+          "controlPath": "native_ports/mfb/src/online_app.cpp",
+          "beforeSha256": "07af6e77b39d3f9b7f1d47638fdac5adb6385b46f12b17d2eafc0eac33c29b02",
+          "sha256": "c3bd8845eeac295cc6e4f0a25768fe03187a400b77b6297187d8d839e010d700"
+        },
+        {
+          "path": "src/xbox_private_aliases.hpp",
+          "controlPath": "native_ports/mfb/src/xbox_private_aliases.hpp",
+          "beforeSha256": null,
+          "sha256": "7fbbc66769f2777f21362e04b4acb18bb2a35750690460348af3a09a46eec76c"
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "opus": "ddbe48383984d56acd9e1ab6a090c54ca6b735a6",
+    "libjuice": "85efaa9b5e1cb3d4d534fc85d69cc9f7b76a66d7"
+  },
+  "blocked": [
+    {
+      "id": "com.blueflaregames.zora_swim",
+      "reason": "The verified release contains desktop native binaries; rebuildable author source is unavailable."
+    },
+    {
+      "id": "com.peter.link_ragdoll",
+      "reason": "The verified release contains desktop native binaries; rebuildable author source is unavailable."
+    },
+    {
+      "id": "com.blueflaregames.dark_morpheel",
+      "reason": "The verified release contains desktop native binaries; rebuildable author source is unavailable."
+    },
+    {
+      "id": "hopex.dark_link",
+      "reason": "The verified release contains desktop native binaries; rebuildable author source is unavailable."
+    }
+  ],
+  "commonCmakeSha256": "8b653b52b6ad98af7eac586fb08947226fdc23ccb7a7518b4fd42b106db092f3"
+}
