@@ -239,7 +239,7 @@
     "scripts/package_natural_hair_members.py": "e7cb9a521877b17a5045200c580a5eacf9da682e0959a12775d2c168182af299",
     "native_ports/fierce_hair/mod.json": "43ab9010dff29a774fe3f8b0c661c296365337957336597d4480bb2605b79f18",
     "native_ports/fierce_hair/hair_spring.hpp": "44094404ee8b8ad63706920bb30effa77a221223dfab48777f802a19a5653692",
-    "native_ports/fierce_hair/test_hair_spring.cpp": "fad6467191a8aa177f3bd4505754e711393f829b03d4f1cb21896b43669ab7f1",
+    "native_ports/fierce_hair/test_hair_spring.cpp": "e1f25d913fc8a7eb3de0cdf83b7f31de46baccadab4e90d5d9a85819dca447ab",
     "native_ports/fierce_hair/CMakeLists.txt": "42751de050da16050283c0c0ad02aa3b38e669a3f9d087d0c039b405590b0b7f",
     "native_ports/fierce_hair/mod.cpp": "a25cb657268b40bdc61035cde333e8f87c5411235924af5a40edcb854b266796",
     "native_ports/fierce_hair/res/README.txt": "620f77054b348bca753a33fd10bc6d740421d74a6bdbaf7080e051db3bcedd76"

@@ -8,9 +8,10 @@ int main(){
     // Variable walking, turning, gust targets and abrupt movement over 50k
     // actual simulation frames. Limits must remain finite on every joint.
     for(int frame=0;frame<50000;++frame){
-        input.head_position={30*std::sin(frame*.021f),150+4*std::sin(frame*.19f),frame*.7f};
-        input.facing=std::remainder(frame*.04f,6.28318530718f);
-        for(int i=0;i<5;++i){input.target_x[i]=1.2f*std::sin(frame*.13f+i);input.target_z[i]=.8f*std::cos(frame*.07f+i);}
+        const float t=static_cast<float>(frame);
+        input.head_position={30.0f*std::sin(t*.021f),150.0f+4.0f*std::sin(t*.19f),t*.7f};
+        input.facing=std::remainder(t*.04f,6.28318530718f);
+        for(int i=0;i<5;++i){const float phase=static_cast<float>(i);input.target_x[i]=1.2f*std::sin(t*.13f+phase);input.target_z[i]=.8f*std::cos(t*.07f+phase);}
         out=sim.step(input);
         for(int i=0;i<5;++i){assert(std::isfinite(out.x[i])&&std::isfinite(out.z[i]));assert(std::abs(out.x[i])<=kLimits[i]+1e-6);assert(std::abs(out.z[i])<=kLimits[i]+1e-6);++checked;}
     }
