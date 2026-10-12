@@ -2046,7 +2046,13 @@
           "path": "src/xbox_private_aliases.hpp",
           "controlPath": "native_ports/albt/src/xbox_private_aliases.hpp",
           "beforeSha256": null,
-          "sha256": "49df9b28a6acd668a541390c86a144cc706b6f55235115291a71414a3df133d5"
+          "sha256": "a4ed68613c09b18ae66e5559ebdfc447abe9aa75eecf18378cd1a5f1d9675e27"
+        },
+        {
+          "path": "src/albw_gameinfo_compat.cpp",
+          "controlPath": "native_ports/albt/src/albw_gameinfo_compat.cpp",
+          "beforeSha256": "8d1d6ee7dd556c13d5872b72d166883e45a1dda79f037a420405591d077cb530",
+          "sha256": "176d2355a57e51ed70f244516cb41b8836880c9c75cfb5ad852c1c1bb5118683"
         }
       ]
     },

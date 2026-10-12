@@ -1149,7 +1149,10 @@
 #define sTaggedEnemies port_a_link_between_twilight_sTaggedEnemies
 #define s_albwMagicModelReady port_a_link_between_twilight_s_albwMagicModelReady
 #define scaleAmountU16 port_a_link_between_twilight_scaleAmountU16
+// On Windows this is a CRT import, not a private mod implementation.
+#if !defined(_WIN32)
 #define stricmp port_a_link_between_twilight_stricmp
+#endif
 #define strnicmp port_a_link_between_twilight_strnicmp
 #define svc_actor port_a_link_between_twilight_svc_actor
 #define svc_config port_a_link_between_twilight_svc_config
