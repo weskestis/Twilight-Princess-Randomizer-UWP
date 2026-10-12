@@ -19,6 +19,7 @@ jobs:
     runs-on: windows-2022
     permissions:
       contents: write
+      actions: read
     timeout-minutes: 240
     env:
       PYTHONUTF8: "1"
@@ -186,6 +187,21 @@ jobs:
               throw "Pinned SDL3.dll is missing UWP CRT import: $appCrt"
             }
           }
+
+      - name: Recover exact removed dependency from Xbox 745 delivery
+        uses: actions/download-artifact@v4
+        with:
+          name: Xbox745-Delivery-Evidence
+          run-id: 38304128568
+          github-token: ${{ github.token }}
+          path: ${{ env.TMP }}/hair-source-745
+
+      - name: Restore the original verified native source pin
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\restore-hair-build-source.py"
+          if ($LASTEXITCODE -ne 0) { throw 'Recovered native source verification failed.' }
 
       - name: Install pinned UI image build tool
         shell: powershell

@@ -242,7 +242,8 @@
     "native_ports/fierce_hair/test_hair_spring.cpp": "e1f25d913fc8a7eb3de0cdf83b7f31de46baccadab4e90d5d9a85819dca447ab",
     "native_ports/fierce_hair/CMakeLists.txt": "42751de050da16050283c0c0ad02aa3b38e669a3f9d087d0c039b405590b0b7f",
     "native_ports/fierce_hair/mod.cpp": "a25cb657268b40bdc61035cde333e8f87c5411235924af5a40edcb854b266796",
-    "native_ports/fierce_hair/res/README.txt": "620f77054b348bca753a33fd10bc6d740421d74a6bdbaf7080e051db3bcedd76"
+    "native_ports/fierce_hair/res/README.txt": "620f77054b348bca753a33fd10bc6d740421d74a6bdbaf7080e051db3bcedd76",
+    "scripts/restore-hair-build-source.py": "6f30ad65f91c61edda9e4d7f22750878487886f1a43e783245cf150753c3c3c3"
   },
   "effectBudget": {
     "dofBlurMaxHeight": 720,
