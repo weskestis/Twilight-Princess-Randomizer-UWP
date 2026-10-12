@@ -191,7 +191,7 @@
     "scripts/apply-744-release-identity.py": "824e3430846e3bfd7c0c064ce867e5f6fbf41c28737c1e7e85ddd4d59e00394b",
     "scripts/apply-744-xbox-fixes.py": "6df83f51121662c9d772365622461c40240c934ebe7dc0f8d4c84252714807e2",
     "scripts/prepare-744-delivery.py": "fe0c68c4a9e3109d011a1df8456ad7843996132653d5e92fcc5245001974d3a2",
-    "scripts/publish-744-draft.py": "e8a186ca4189aace425b570ad6b3edd800aa1ed13af971223595645e518cf162",
+    "scripts/publish-744-draft.py": "1d23dae6b49afb3bab0f97ef9dd8dd6e6bd0a1fd4a8e4c0fd827cc7c2eb03d9d",
     "scripts/stage-743-custom-mods.py": "9a2369de6bb7afe3c52a03e1ea0dd23866954cf5a2714883ad6eae9db69cf9f5",
     "scripts/stage-743-native-mods.py": "e6d1308a2b3026a3f304768074bde0509ca5eca33f2537d0b2b9bb145369855e",
     "scripts/stage-744-native-mods.py": "c83087088de7591331ffe592edd05f942e590ad797a664dee2ad1b6bf64295b5",

@@ -9,14 +9,25 @@ def digest(file):
 hashes={f.name:digest(f) for f in files}
 notes=a.evidence/'RELEASE-NOTES-744.md'
 notes.write_text('Xbox UWP 1.4.1.744, pinned Dusklight 2.0.1.\n\nPickup binding and message retry, lighting-aware pot/pumpkin tints, menu thumbnail/cache/panel changes, configurable DOF/VBAO budgets, Soul-gated combat rewards and release-mode shop resource guards.\n\nAdds signed source ports of Crests of Courage 1.10.0, A Link Between Twilight 0.3.0 and MFB Multiplayer 0.2.0. Native voice reception is included; Xbox microphone input is unavailable. Zora Swim, Ragdoll, Dark Morpheel and hopex Dark Link still require rebuildable author source.\n\nFresh 67-scenario strict generation, production regression/negative controls, all native metadata/symbol/import/resource checks and MSIX signature verified. Console retesting remains pending; the reported shop crash cause is unconfirmed.\n\nMSIX SHA-256: '+hashes[files[0].name]+'\n',encoding='utf-8')
-view=subprocess.run(['gh','release','view',tag,'--repo',repo],capture_output=True)
-if view.returncode:
+def find_release():
+    # Drafts may have an untagged browser URL and are absent from /tags/{tag}.
+    page=1
+    while True:
+        releases=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/releases?per_page=100&page='+str(page)]))
+        match=next((item for item in releases if item['tag_name']==tag),None)
+        if match:return match
+        if len(releases)<100:return None
+        page+=1
+release=find_release()
+if release is None:
     subprocess.run(['gh','release','create',tag,'--repo',repo,'--draft','--target',revision,'--title','Xbox UWP 1.4.1.744','--notes-file',str(notes)],check=True)
-else:
-    release=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/releases/tags/'+tag]))
-    if not release['draft']:raise RuntimeError('Refusing to replace assets of a published release')
-subprocess.run(['gh','release','upload',tag,*[str(f) for f in files],'--repo',repo,'--clobber'],check=True)
-release=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/releases/tags/'+tag]))
+    release=find_release()
+if not release or not release['draft']:raise RuntimeError('Refusing to replace assets of a published or unresolved release')
+assert release['target_commitish']==revision
+existing={item['name']:item for item in release['assets']}
+pending=[file for file in files if file.name not in existing or existing[file.name]['size']!=file.stat().st_size or existing[file.name].get('digest')!='sha256:'+hashes[file.name]]
+if pending:subprocess.run(['gh','release','upload',tag,*[str(f) for f in pending],'--repo',repo,'--clobber'],check=True)
+release=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/releases/'+str(release['id'])]))
 assert release['draft'] and release['target_commitish']==revision
 assets={x['name']:x for x in release['assets']};proof=[]
 for file in files:
