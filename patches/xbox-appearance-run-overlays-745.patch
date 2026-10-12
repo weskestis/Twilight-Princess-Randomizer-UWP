@@ -1,0 +1,754 @@
+diff --git a/include/dusk/menu_colors.h b/include/dusk/menu_colors.h
+index 3ed146d..e6c1f39 100644
+--- a/include/dusk/menu_colors.h
++++ b/include/dusk/menu_colors.h
+@@ -10,3 +10,11 @@ void apply_per_seed_menu_colors(const std::string& seedHash) noexcept;
+ void randomize_menu_colors_for_load_screen() noexcept;
+ 
+ }  // namespace dusk::ui
++
++#if defined(_UWP)
++extern "C" unsigned tpr_appearance_mode() noexcept;
++extern "C" unsigned long long tpr_appearance_revision() noexcept;
++extern "C" int tpr_appearance_speed() noexcept;
++extern "C" void tpr_appearance_set_mode(unsigned mode) noexcept;
++extern "C" const char* tpr_appearance_seed() noexcept;
++#endif
+diff --git a/mods/cosmetics/src/appearance_runtime.hpp b/mods/cosmetics/src/appearance_runtime.hpp
+new file mode 100644
+index 0000000..18ccfc3
+--- /dev/null
++++ b/mods/cosmetics/src/appearance_runtime.hpp
+@@ -0,0 +1,130 @@
++#pragma once
++
++#include <algorithm>
++#include <array>
++#include <cstdint>
++#include <limits>
++#include <random>
++#include <string>
++#include <string_view>
++#include <vector>
++
++// Port of the pre-2.0 scene palette rules. These values override getters only;
++// scene rolls must never overwrite the user's saved individual color choices.
++namespace dusk_xbox_appearance {
++enum class Mode : unsigned { Manual, Seed, Load, Rainbow };
++struct Target { std::uint64_t handle; std::string_view name; bool integer = false; };
++struct Color { unsigned r, g, b; };
++inline constexpr std::array<Color, 8> RainbowAnchors{{
++    {255, 0, 0}, {255, 128, 0}, {255, 255, 0}, {0, 255, 0},
++    {0, 255, 255}, {0, 0, 255}, {128, 0, 255}, {255, 0, 255}}};
++inline constexpr std::array<std::array<std::string_view, 3>, 8> HeartPalettes{{
++    {{"e53935", "f45151", "c62828"}}, {{"f57c00", "ff9800", "ef6c00"}},
++    {{"f9c80e", "fdd835", "d4ac0d"}}, {{"43a047", "66bb6a", "2e7d32"}},
++    {{"00acc1", "26c6da", "00838f"}}, {{"1e88e5", "42a5f5", "1565c0"}},
++    {{"8e24aa", "ab47bc", "6a1b9a"}}, {{"d81b60", "ec407a", "ad1457"}}}};
++
++inline std::uint64_t stable_hash(std::string_view seed, std::string_view name) noexcept {
++    std::uint64_t value = 1469598103934665603ULL;
++    for (unsigned char byte : seed) { value ^= byte; value *= 1099511628211ULL; }
++    value ^= 0xff; value *= 1099511628211ULL;
++    for (unsigned char byte : name) { value ^= byte; value *= 1099511628211ULL; }
++    value ^= value >> 30; value *= 0xbf58476d1ce4e5b9ULL;
++    value ^= value >> 27; value *= 0x94d049bb133111ebULL;
++    return value ^ (value >> 31);
++}
++inline std::string hex(Color color) {
++    constexpr char digits[] = "0123456789abcdef";
++    std::string result(6, '0');
++    const std::array<unsigned, 3> channels{{color.r, color.g, color.b}};
++    for (unsigned i = 0; i < 3; ++i) {
++        result[i * 2] = digits[channels[i] >> 4];
++        result[i * 2 + 1] = digits[channels[i] & 15];
++    }
++    return result;
++}
++inline std::string rainbow(std::uint64_t milliseconds, int speed) {
++    constexpr std::array<std::uint64_t, 3> segments{{4000, 2000, 1000}};
++    const auto duration = segments[std::clamp(speed, 0, 2)];
++    const auto first = (milliseconds / duration) % RainbowAnchors.size();
++    const auto next = (first + 1) % RainbowAnchors.size();
++    const auto t = milliseconds % duration;
++    const auto blend = [t, duration](unsigned a, unsigned b) {
++        return static_cast<unsigned>((a * (duration - t) + b * t + duration / 2) / duration);
++    };
++    return hex({blend(RainbowAnchors[first].r, RainbowAnchors[next].r),
++                blend(RainbowAnchors[first].g, RainbowAnchors[next].g),
++                blend(RainbowAnchors[first].b, RainbowAnchors[next].b)});
++}
++
++class Runtime {
++    struct Value { Target target; std::string text; std::int64_t number = 0; bool rainbow = false; };
++    std::vector<Value> values_;
++    Mode mode_ = Mode::Manual;
++    std::uint64_t revision_ = 0;
++    std::string seed_;
++    std::size_t heartFamily_ = HeartPalettes.size();
++    bool heartRainbow_ = false;
++public:
++    void clear() { *this = Runtime{}; }
++    void sync(const std::vector<Target>& targets, Mode mode, std::uint64_t revision,
++              std::string_view seed, std::uint64_t milliseconds, int speed) {
++        if (mode == Mode::Manual || (mode == Mode::Seed && seed.empty())) {
++            clear(); return;
++        }
++        const bool roll = mode != mode_ || (mode == Mode::Seed && seed != seed_) ||
++                          (mode == Mode::Load && revision != revision_) || values_.empty();
++        if (roll) {
++            if (mode != mode_) { heartFamily_ = HeartPalettes.size(); heartRainbow_ = false; }
++            values_.clear(); values_.reserve(targets.size());
++            std::mt19937_64 rng(stable_hash(std::to_string(revision), "load-scene-appearance"));
++            for (const auto target : targets) {
++                const auto random = mode == Mode::Seed ? stable_hash(seed, std::string("cosmetics.") + std::string(target.name)) : rng();
++                Value value{target};
++                value.rainbow = mode == Mode::Rainbow || random % 8 == 0;
++                if (target.name == "heartColor" && mode == Mode::Load) {
++                    value.rainbow = value.rainbow && !heartRainbow_;
++                    heartRainbow_ = value.rainbow;
++                    if (!value.rainbow) {
++                        std::array<std::size_t, 8> candidates{}; std::size_t count = 0;
++                        for (std::size_t i = 0; i < HeartPalettes.size(); ++i) {
++                            const auto distance = i > heartFamily_ ? i - heartFamily_ : heartFamily_ - i;
++                            if (heartFamily_ == HeartPalettes.size() || std::min(distance, 8 - distance) >= 2)
++                                candidates[count++] = i;
++                        }
++                        std::uniform_int_distribution<std::size_t> family(0, count - 1), shade(0, 2);
++                        heartFamily_ = candidates[family(rng)];
++                        value.text = HeartPalettes[heartFamily_][shade(rng)];
++                    }
++                }
++                if (target.integer) value.number = static_cast<std::int64_t>((random / 8) % 9);
++                else if (value.text.empty()) value.text = hex({32u + unsigned(random & 255) % 224,
++                    32u + unsigned((random >> 8) & 255) % 224,
++                    32u + unsigned((random >> 16) & 255) % 224});
++                values_.push_back(std::move(value));
++            }
++            mode_ = mode; revision_ = revision; seed_ = seed;
++        }
++        for (auto& value : values_) if (value.rainbow) {
++            if (value.target.integer) {
++                // Midna's selected-color getter interpolates all nine authored RGB registers.
++                value.number = 2;
++            } else value.text = rainbow((milliseconds / 50) * 50, speed);
++        }
++    }
++    bool is_rainbow(std::uint64_t handle) const {
++        for (const auto& value : values_) if (handle != 0 && value.target.handle == handle) return value.rainbow;
++        return false;
++    }
++    const std::string* string(std::uint64_t handle) const {
++        for (const auto& value : values_)
++            if (handle != 0 && value.target.handle == handle && !value.target.integer) return &value.text;
++        return nullptr;
++    }
++    const std::int64_t* integer(std::uint64_t handle) const {
++        for (const auto& value : values_)
++            if (handle != 0 && value.target.handle == handle && value.target.integer) return &value.number;
++        return nullptr;
++    }
++};
++}
+diff --git a/mods/cosmetics/src/midna_hair_color.cpp b/mods/cosmetics/src/midna_hair_color.cpp
+index 905a434..dffa250 100644
+--- a/mods/cosmetics/src/midna_hair_color.cpp
++++ b/mods/cosmetics/src/midna_hair_color.cpp
+@@ -72,6 +72,31 @@ constexpr std::array<std::array<GXColor, 9>, 10> kMidnaHairColors = {{
+     }}
+ }};
+ 
++GXColor xbox_blend_midna_color(const GXColor& a, const GXColor& b, uint64_t t, uint64_t duration) {
++    const auto channel = [t, duration](u8 from, u8 to) {
++        return static_cast<u8>((static_cast<uint64_t>(from) * (duration - t) +
++            static_cast<uint64_t>(to) * t + duration / 2) / duration);
++    };
++    return {channel(a.r,b.r),channel(a.g,b.g),channel(a.b,b.b),channel(a.a,b.a)};
++}
++GXColor xbox_selected_midna_color(ConfigVarHandle handle, size_t choice, size_t index) {
++#if defined(_UWP)
++    uint64_t milliseconds = 0, duration = 1;
++    if (get_xbox_midna_rainbow_phase(handle, milliseconds, duration)) {
++        constexpr std::array<size_t,8> anchors{{2,2,3,4,4,5,6,1}};
++        const auto color = [index, &anchors](size_t segment) {
++            segment %= 8;
++            if (segment == 1) return xbox_blend_midna_color(kMidnaHairColors[2][index],kMidnaHairColors[3][index],1,2);
++            if (segment == 4) return xbox_blend_midna_color(kMidnaHairColors[4][index],kMidnaHairColors[5][index],1,2);
++            return kMidnaHairColors[anchors[segment]][index];
++        };
++        const auto segment = milliseconds / duration;
++        return xbox_blend_midna_color(color(segment),color(segment+1),milliseconds % duration,duration);
++    }
++#endif
++    return kMidnaHairColors.at(choice)[index];
++}
++
+ size_t get_midna_hair_color_index(ConfigVarHandle handle) {
+     const auto optionIndex = get_int_option(handle, 0);
+     if (optionIndex < 0 || optionIndex >= static_cast<int64_t>(kMidnaHairColors.size())) {
+@@ -99,17 +124,17 @@ void set_all_midna_hair_colors() {
+     auto hairTipsColor = get_midna_hair_color_index(g_cvars.midnaHairTipsColor);
+ 
+     // Colors we have to convert to GXColorS10
+-    auto& normalColor = kMidnaHairColors.at(hairBaseColor)[2];
+-    auto& bigColor = kMidnaHairColors.at(hairBaseColor)[5];
+-    auto& lBigColor = kMidnaHairColors.at(hairBaseColor)[4];
++    auto normalColor = xbox_selected_midna_color(g_cvars.midnaHairBaseColor, hairBaseColor, 2);
++    auto bigColor = xbox_selected_midna_color(g_cvars.midnaHairBaseColor, hairBaseColor, 5);
++    auto lBigColor = xbox_selected_midna_color(g_cvars.midnaHairBaseColor, hairBaseColor, 4);
+ 
+     g_currentMidnaHairColors.normalColor = GXColorS10{normalColor.r, normalColor.g, normalColor.b};
+-    g_currentMidnaHairColors.normalKColor = kMidnaHairColors.at(hairBaseColor)[1];
+-    g_currentMidnaHairColors.normalKColor2 = kMidnaHairColors.at(hairTipsColor)[7];
++    g_currentMidnaHairColors.normalKColor = xbox_selected_midna_color(g_cvars.midnaHairBaseColor, hairBaseColor, 1);
++    g_currentMidnaHairColors.normalKColor2 = xbox_selected_midna_color(g_cvars.midnaHairTipsColor, hairTipsColor, 7);
+     g_currentMidnaHairColors.bigColor = GXColorS10{bigColor.r, bigColor.g, bigColor.b};
+-    g_currentMidnaHairColors.bigKColor = kMidnaHairColors.at(hairBaseColor)[3];
+-    g_currentMidnaHairColors.lNormalKColor = kMidnaHairColors.at(hairBaseColor)[0];
+-    g_currentMidnaHairColors.lNormalKColor2 = kMidnaHairColors.at(hairTipsColor)[6];
++    g_currentMidnaHairColors.bigKColor = xbox_selected_midna_color(g_cvars.midnaHairBaseColor, hairBaseColor, 3);
++    g_currentMidnaHairColors.lNormalKColor = xbox_selected_midna_color(g_cvars.midnaHairBaseColor, hairBaseColor, 0);
++    g_currentMidnaHairColors.lNormalKColor2 = xbox_selected_midna_color(g_cvars.midnaHairTipsColor, hairTipsColor, 6);
+     g_currentMidnaHairColors.lBigColor = GXColorS10{lBigColor.r, lBigColor.g, lBigColor.b};
+-    g_currentMidnaHairColors.lBigKColor2 = kMidnaHairColors.at(hairTipsColor)[8];
++    g_currentMidnaHairColors.lBigKColor2 = xbox_selected_midna_color(g_cvars.midnaHairTipsColor, hairTipsColor, 8);
+ }
+diff --git a/mods/cosmetics/src/mod.cpp b/mods/cosmetics/src/mod.cpp
+index c84b678..2a12c59 100644
+--- a/mods/cosmetics/src/mod.cpp
++++ b/mods/cosmetics/src/mod.cpp
+@@ -3,6 +3,11 @@
+ #include "hooks.hpp"
+ #include "midna_hair_color.hpp"
+ #include "texture_utils.hpp"
++#if defined(_UWP)
++#include "appearance_runtime.hpp"
++#include "dusk/menu_colors.h"
++#include <chrono>
++#endif
+ 
+ #include "mods/service.hpp"
+ #include "mods/svc/config.h"
+@@ -27,12 +32,20 @@ IMPORT_SERVICE(TextureService, svc_texture);
+ IMPORT_SERVICE(UiService, svc_ui);
+ 
+ static cvars g_cvars;
++#if defined(_UWP)
++static dusk_xbox_appearance::Runtime gAppearanceRuntime;
++static uint64_t gAppearanceMilliseconds = 0;
++static std::vector<dusk_xbox_appearance::Target> gAppearanceTargets;
++#endif
+ 
+ cvars& get_cvars() {
+     return g_cvars;
+ }
+ 
+ std::string get_str_option(ConfigVarHandle handle, const std::string& fallback) {
++#if defined(_UWP)
++    if (const auto* color = gAppearanceRuntime.string(handle)) return *color;
++#endif
+     std::string value{};
+     size_t outLength{};
+     svc_config->get_string(mod_ctx, handle, NULL, 0, &outLength);
+@@ -46,6 +59,9 @@ std::string get_str_option(ConfigVarHandle handle, const std::string& fallback)
+ }
+ 
+ int64_t get_int_option(ConfigVarHandle handle, int64_t fallback) {
++#if defined(_UWP)
++    if (const auto* index = gAppearanceRuntime.integer(handle)) return *index;
++#endif
+     int64_t value = fallback;
+     if (handle == 0 || svc_config->get_int(mod_ctx, handle, &value) != MOD_OK) {
+         return fallback;
+@@ -350,6 +366,30 @@ void on_cosmetics_menu_window_closed(ModContext*, UiWindowHandle, void*) {
+     g_cosmeticsWindow = 0;
+ }
+ 
++
++#if defined(_UWP)
++void get_appearance_mode_control(ModContext*, void*, UiControlValue* value) {
++    value->int_value = tpr_appearance_mode();
++}
++void set_appearance_mode_control(ModContext*, void*, const UiControlValue* value) {
++    tpr_appearance_set_mode(static_cast<unsigned>(value->int_value));
++}
++ModResult build_appearance_tab(ModContext*, UiWindowHandle, UiElementHandle left,
++                               UiElementHandle, void*, ModError*) {
++    static const char* modes[]{"Individual Colors", "Randomize All Per Seed",
++        "Randomize All Colors on Every Load Screen", "Rainbow All"};
++    UiControlDesc control = UI_CONTROL_DESC_INIT;
++    control.kind = UI_CONTROL_SELECT;
++    control.label = "Randomize Appearance";
++    control.help_rml = "Scene loads re-roll equipment, HUD, hearts, characters and menu colors once. "
++        "Rainbow is a possible result. Saved individual colors return when disabled.";
++    control.options = modes; control.option_count = 4;
++    control.get = get_appearance_mode_control; control.set = set_appearance_mode_control;
++    add_control(left, control);
++    return MOD_OK;
++}
++#endif
++
+ void on_open_cosmetics_menu(ModContext*, void*) {
+     if (g_cosmeticsWindow != 0) {
+         return;
+@@ -361,9 +401,18 @@ void on_open_cosmetics_menu(ModContext*, void*) {
+     tabs[1].build = build_ui_colors_tab;
+     tabs[2].title = "Characters";
+     tabs[2].build = build_misc_colors_tab;
++#if defined(_UWP)
++    UiTabDesc xboxTabs[]{UI_TAB_DESC_INIT, tabs[0], tabs[1], tabs[2]};
++    xboxTabs[0].title = "Randomize Appearance";
++    xboxTabs[0].build = build_appearance_tab;
++#endif
+     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
+     desc.tabs = tabs;
+     desc.tab_count = ARRAY_SIZE(tabs);
++#if defined(_UWP)
++    desc.tabs = xboxTabs;
++    desc.tab_count = ARRAY_SIZE(xboxTabs);
++#endif
+     desc.on_closed = on_cosmetics_menu_window_closed;
+     if (svc_ui->window_push(mod_ctx, &desc, &g_cosmeticsWindow) != MOD_OK) {
+         svc_log->error(mod_ctx, "failed to open cosmetics window");
+@@ -561,6 +610,57 @@ void unregister_all_texture_handles() {
+         return result;                                                                             \
+     }
+ 
++
++#if defined(_UWP)
++void sync_xbox_appearance() {
++    if (gAppearanceTargets.empty()) gAppearanceTargets = {
++        {g_cvars.herosTunicCapColor, "herosTunicCapColor", false},
++        {g_cvars.herosTunicTorsoColor, "herosTunicTorsoColor", false},
++        {g_cvars.herosTunicSkirtColor, "herosTunicSkirtColor", false},
++        {g_cvars.zoraArmorCapColor, "zoraArmorCapColor", false},
++        {g_cvars.zoraArmorHelmetColor, "zoraArmorHelmetColor", false},
++        {g_cvars.zoraArmorTorsoColor, "zoraArmorTorsoColor", false},
++        {g_cvars.zoraArmorScalesColor, "zoraArmorScalesColor", false},
++        {g_cvars.zoraArmorFlippersColor, "zoraArmorFlippersColor", false},
++        {g_cvars.lanternGlowColor, "lanternGlowColor", false},
++        {g_cvars.woodenSwordColor, "woodenSwordColor", false},
++        {g_cvars.ordonSwordBladeColor, "ordonSwordBladeColor", false},
++        {g_cvars.ordonSwordHandleColor, "ordonSwordHandleColor", false},
++        {g_cvars.msBladeColor, "msBladeColor", false},
++        {g_cvars.msHandleColor, "msHandleColor", false},
++        {g_cvars.lightSwordGlowColor, "lightSwordGlowColor", false},
++        {g_cvars.boomerangColor, "boomerangColor", false},
++        {g_cvars.ironBootsColor, "ironBootsColor", false},
++        {g_cvars.spinnerColor, "spinnerColor", false},
++        {g_cvars.heartColor, "heartColor", false},
++        {g_cvars.aButtonColor, "aButtonColor", false},
++        {g_cvars.bButtonColor, "bButtonColor", false},
++        {g_cvars.xButtonColor, "xButtonColor", false},
++        {g_cvars.yButtonColor, "yButtonColor", false},
++        {g_cvars.zButtonColor, "zButtonColor", false},
++        {g_cvars.midnaHairBaseColor, "midnaHairBaseColor", true},
++        {g_cvars.midnaHairTipsColor, "midnaHairTipsColor", true},
++        {g_cvars.midnaChargeRingColor, "midnaChargeRingColor", false},
++        {g_cvars.linkHairColor, "linkHairColor", false},
++        {g_cvars.wolfLinkColor, "wolfLinkColor", false},
++        {g_cvars.eponaColor, "eponaColor", false},
++    };
++    const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
++        std::chrono::steady_clock::now().time_since_epoch()).count();
++    gAppearanceMilliseconds = static_cast<uint64_t>(milliseconds / 50) * 50;
++    gAppearanceRuntime.sync(gAppearanceTargets, static_cast<dusk_xbox_appearance::Mode>(tpr_appearance_mode()),
++        tpr_appearance_revision(), tpr_appearance_seed(), static_cast<uint64_t>(milliseconds),
++        tpr_appearance_speed());
++}
++bool get_xbox_midna_rainbow_phase(ConfigVarHandle handle, uint64_t& milliseconds, uint64_t& duration) {
++    if (!gAppearanceRuntime.is_rainbow(handle)) return false;
++    constexpr std::array<uint64_t, 3> segments{{4000, 2000, 1000}};
++    milliseconds = gAppearanceMilliseconds;
++    duration = segments[std::clamp(tpr_appearance_speed(), 0, 2)];
++    return true;
++}
++#endif
++
+ extern "C" {
+ MOD_EXPORT ModResult mod_initialize(ModError* error) {
+     svc_log->info(mod_ctx, "cosmetics initialized");
+@@ -635,6 +735,9 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
+ }
+ 
+ MOD_EXPORT ModResult mod_update(ModError*) {
++#if defined(_UWP)
++    sync_xbox_appearance();
++#endif
+     update_rainbow_rgb(1.0f);
+     set_all_midna_hair_colors();
+ 
+@@ -654,6 +757,10 @@ MOD_EXPORT ModResult mod_update(ModError*) {
+ 
+ MOD_EXPORT ModResult mod_shutdown(ModError*) {
+     svc_log->info(mod_ctx, "cosmetics unloaded");
++#if defined(_UWP)
++    gAppearanceRuntime.clear();
++    gAppearanceTargets.clear();
++#endif
+     g_cosmeticsWindow = 0;
+     remove_all_hooks();
+     unregister_all_texture_handles();
+diff --git a/mods/cosmetics/src/mod.hpp b/mods/cosmetics/src/mod.hpp
+index 6d77949..15d906d 100644
+--- a/mods/cosmetics/src/mod.hpp
++++ b/mods/cosmetics/src/mod.hpp
+@@ -62,4 +62,7 @@ std::string get_str_option(ConfigVarHandle handle, const std::string& fallback);
+ 
+ int64_t get_int_option(ConfigVarHandle handle, int64_t fallback);
+ 
+-std::optional<GXColor> get_config_var_color(ConfigVarHandle handle, bool allowRainbow = false);
+\ No newline at end of file
++std::optional<GXColor> get_config_var_color(ConfigVarHandle handle, bool allowRainbow = false);
++#if defined(_UWP)
++bool get_xbox_midna_rainbow_phase(ConfigVarHandle handle, uint64_t& milliseconds, uint64_t& duration);
++#endif
+diff --git a/mods/randomizer/src/session.cpp b/mods/randomizer/src/session.cpp
+index e360ad8..0318d90 100644
+--- a/mods/randomizer/src/session.cpp
++++ b/mods/randomizer/src/session.cpp
+@@ -1438,3 +1438,18 @@ void update() {
+ }
+ 
+ }
++
++#if defined(_UWP)
++extern "C" bool tpr_run_overlay_active() noexcept {
++    return g_randomizerState.mInitialized && randomizer_IsActive() &&
++           !randomizer_GetContext().mCreatingSave &&
++           !g_randomizerState.getRoomReloadingState() && getStageID() != Title_Screen;
++}
++extern "C" uint64_t tpr_run_overlay_centiseconds() noexcept {
++    return tpr_run_overlay_active() ? randomizer_GetActiveGameTimeCentiseconds() : 0;
++}
++extern "C" const char* tpr_appearance_seed() noexcept {
++    return g_randomizerState.mInitialized && randomizer_IsActive() &&
++           !randomizer_GetContext().mCreatingSave ? randomizer_GetContext().mHash.c_str() : "";
++}
++#endif
+diff --git a/src/dusk/imgui/ImGuiConsole.cpp b/src/dusk/imgui/ImGuiConsole.cpp
+index 0c981f2..e025f02 100644
+--- a/src/dusk/imgui/ImGuiConsole.cpp
++++ b/src/dusk/imgui/ImGuiConsole.cpp
+@@ -375,6 +375,7 @@ namespace dusk {
+ 
+         m_menuTools.ShowInputViewer();
+         draw_pure_item_tracker();
++        draw_run_overlays();
+         draw_xbox_failure_report();
+ 
+         if (dusk::IsGameLaunched && !dusk::speedrun::isActive()) {
+diff --git a/src/dusk/imgui/PureItemTracker.cpp b/src/dusk/imgui/PureItemTracker.cpp
+index 8ad738c..30f3317 100644
+--- a/src/dusk/imgui/PureItemTracker.cpp
++++ b/src/dusk/imgui/PureItemTracker.cpp
+@@ -5,6 +5,8 @@
+ #include "dusk/settings.h"
+ #include "dusk/ui/icon_provider.hpp"
+ #include "m_Do/m_Do_controller_pad.h"
++#include "d/d_com_inf_game.h"
++#include <fmt/format.h>
+ 
+ #include <aurora/imgui.h>
+ 
+@@ -31,6 +33,8 @@ extern "C" const char* tpr_pure_tracker_slot_label(std::size_t index) noexcept;
+ extern "C" uint8_t tpr_pure_tracker_slot_icon(std::size_t index) noexcept;
+ extern "C" int tpr_pure_tracker_slot_max(std::size_t index) noexcept;
+ extern "C" int tpr_pure_tracker_slot_owned(std::size_t index) noexcept;
++extern "C" bool tpr_run_overlay_active() noexcept;
++extern "C" uint64_t tpr_run_overlay_centiseconds() noexcept;
+ 
+ namespace {
+ ImTextureID tracker_texture(uint8_t itemNo) {
+@@ -458,5 +462,70 @@ void draw_pure_item_tracker() {
+ #endif
+ }
+ 
++namespace {
++#if defined(_UWP)
++void draw_transparent_run_overlay(const char* id, const std::string& text,
++    const ImVec4 color, ConfigVar<float>& scale, ConfigVar<float>& x,
++    ConfigVar<float>& y, ConfigVar<bool>& locked, ConfigVar<bool>& reset) {
++    const auto* viewport = ImGui::GetMainViewport();
++    const auto bounded = [](float value, float fallback) {
++        return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : fallback;
++    };
++    // Xbox can place these ImGui overlays through the RmlUi settings controls.
++    const float fontScale = scale.getValue();
++    const float effectiveScale = std::isfinite(fontScale) ? std::clamp(fontScale, 0.75f, 2.0f) : 1.25f;
++    const ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
++    const ImVec2 size(textSize.x * effectiveScale + 10.0f, textSize.y * effectiveScale + 6.0f);
++    const ImVec2 travel(std::max(0.0f, viewport->WorkSize.x - size.x),
++                        std::max(0.0f, viewport->WorkSize.y - size.y));
++    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + travel.x * bounded(x.getValue(), 0.5f),
++        viewport->WorkPos.y + travel.y * bounded(y.getValue(), 0.03f)), ImGuiCond_Always);
++    if (reset.getValue()) { reset.setValue(false); config::save(); }
++    // Placement is saved by the controller controls. Never steal game input.
++    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
++        ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing |
++        ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
++    (void)locked;
++    ImGui::SetNextWindowBgAlpha(0.0f);
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 3.0f));
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
++    if (ImGui::Begin(id, nullptr, flags)) {
++        ImGui::SetWindowFontScale(effectiveScale);
++        const ImVec2 position = ImGui::GetCursorScreenPos();
++        const float outline = std::max(1.0f, ImGui::GetFontSize() * 0.075f);
++        for (int dx = -1; dx <= 1; ++dx) for (int dy = -1; dy <= 1; ++dy)
++            if (dx != 0 || dy != 0) ImGui::GetWindowDrawList()->AddText(
++                ImVec2(position.x + dx * outline, position.y + dy * outline),
++                IM_COL32(0, 0, 0, 235), text.c_str());
++        ImGui::TextColored(color, "%s", text.c_str());
++    }
++    ImGui::End();
++    ImGui::PopStyleVar(2);
++}
++#endif
++}
++
++void draw_run_overlays() {
++#if defined(_UWP)
++    auto& s = getSettings().game;
++    if ((!s.showDeathCounterOverlay.getValue() && !s.showGameTimerOverlay.getValue()) ||
++        !tpr_run_overlay_active()) return;
++    if (s.showDeathCounterOverlay.getValue()) draw_transparent_run_overlay(
++        "###DeathCounterOverlayV1", fmt::format("DEATHS  {}", dComIfGs_getDeathCount()),
++        ImVec4(1.0f, 0.20f, 0.20f, 1.0f), s.deathCounterOverlayScale,
++        s.deathCounterOverlayPositionX, s.deathCounterOverlayPositionY,
++        s.deathCounterOverlayLock, s.deathCounterOverlayResetLayoutRequested);
++    if (s.showGameTimerOverlay.getValue()) {
++        const auto hundredths = tpr_run_overlay_centiseconds();
++        draw_transparent_run_overlay("###GameTimerOverlayV1",
++            fmt::format("IGT  {:02}:{:02}:{:02}.{:02}", hundredths / 360000,
++                (hundredths / 6000) % 60, (hundredths / 100) % 60, hundredths % 100),
++            ImVec4(1.0f, 0.96f, 0.78f, 1.0f), s.gameTimerOverlayScale,
++            s.gameTimerOverlayPositionX, s.gameTimerOverlayPositionY,
++            s.gameTimerOverlayLock, s.gameTimerOverlayResetLayoutRequested);
++    }
++#endif
++}
++
+ }  // namespace dusk
+ 
+diff --git a/src/dusk/imgui/PureItemTracker.hpp b/src/dusk/imgui/PureItemTracker.hpp
+index f488481..f5e5ee1 100644
+--- a/src/dusk/imgui/PureItemTracker.hpp
++++ b/src/dusk/imgui/PureItemTracker.hpp
+@@ -3,4 +3,5 @@
+ namespace dusk {
+ void draw_xbox_failure_report();
+ void draw_pure_item_tracker();
++void draw_run_overlays();
+ }
+diff --git a/src/dusk/settings.cpp b/src/dusk/settings.cpp
+index 4a3a98a..7fe67cc 100644
+--- a/src/dusk/settings.cpp
++++ b/src/dusk/settings.cpp
+@@ -171,6 +171,18 @@ UserSettings g_userSettings = {
+         .removeQuestMapMarkers {"game.removeQuestMapMarkers", false},
+         .showInputViewer {"game.showInputViewer", false},
+         .showInputViewerGyro {"game.showInputViewerGyro", false},
++        .showDeathCounterOverlay {"game.showDeathCounterOverlay", false},
++        .deathCounterOverlayScale {"game.deathCounterOverlayScale", 1.25f},
++        .deathCounterOverlayPositionX {"game.deathCounterOverlayPositionX", 0.5f},
++        .deathCounterOverlayPositionY {"game.deathCounterOverlayPositionY", 0.054f},
++        .deathCounterOverlayLock {"game.deathCounterOverlayLock", false},
++        .deathCounterOverlayResetLayoutRequested {"game.deathCounterOverlayResetLayoutRequested", false},
++        .showGameTimerOverlay {"game.showGameTimerOverlay", false},
++        .gameTimerOverlayScale {"game.gameTimerOverlayScale", 1.25f},
++        .gameTimerOverlayPositionX {"game.gameTimerOverlayPositionX", 0.5f},
++        .gameTimerOverlayPositionY {"game.gameTimerOverlayPositionY", 0.015f},
++        .gameTimerOverlayLock {"game.gameTimerOverlayLock", false},
++        .gameTimerOverlayResetLayoutRequested {"game.gameTimerOverlayResetLayoutRequested", false},
+         .showPureItemTracker {"game.showPureItemTracker", true},
+         .pureItemTrackerScale {"game.pureItemTrackerScale", 1.0f},
+         .pureItemTrackerIconSize {"game.pureItemTrackerIconSize", 56},
+@@ -369,6 +381,18 @@ void registerSettings() {
+     Register(g_userSettings.game.removeQuestMapMarkers);
+     Register(g_userSettings.game.showInputViewer);
+     Register(g_userSettings.game.showInputViewerGyro);
++    Register(g_userSettings.game.showDeathCounterOverlay);
++    Register(g_userSettings.game.deathCounterOverlayScale);
++    Register(g_userSettings.game.deathCounterOverlayPositionX);
++    Register(g_userSettings.game.deathCounterOverlayPositionY);
++    Register(g_userSettings.game.deathCounterOverlayLock);
++    Register(g_userSettings.game.deathCounterOverlayResetLayoutRequested);
++    Register(g_userSettings.game.showGameTimerOverlay);
++    Register(g_userSettings.game.gameTimerOverlayScale);
++    Register(g_userSettings.game.gameTimerOverlayPositionX);
++    Register(g_userSettings.game.gameTimerOverlayPositionY);
++    Register(g_userSettings.game.gameTimerOverlayLock);
++    Register(g_userSettings.game.gameTimerOverlayResetLayoutRequested);
+     Register(g_userSettings.game.showPureItemTracker);
+     Register(g_userSettings.game.pureItemTrackerScale);
+     Register(g_userSettings.game.pureItemTrackerIconSize);
+diff --git a/src/dusk/settings.h b/src/dusk/settings.h
+index 7109892..62afa41 100644
+--- a/src/dusk/settings.h
++++ b/src/dusk/settings.h
+@@ -331,6 +331,18 @@ struct UserSettings {
+         ConfigVar<bool> removeQuestMapMarkers;
+         ConfigVar<bool> showInputViewer;
+         ConfigVar<bool> showInputViewerGyro;
++        ConfigVar<bool> showDeathCounterOverlay;
++        ConfigVar<float> deathCounterOverlayScale;
++        ConfigVar<float> deathCounterOverlayPositionX;
++        ConfigVar<float> deathCounterOverlayPositionY;
++        ConfigVar<bool> deathCounterOverlayLock;
++        ConfigVar<bool> deathCounterOverlayResetLayoutRequested;
++        ConfigVar<bool> showGameTimerOverlay;
++        ConfigVar<float> gameTimerOverlayScale;
++        ConfigVar<float> gameTimerOverlayPositionX;
++        ConfigVar<float> gameTimerOverlayPositionY;
++        ConfigVar<bool> gameTimerOverlayLock;
++        ConfigVar<bool> gameTimerOverlayResetLayoutRequested;
+         ConfigVar<bool> showPureItemTracker;
+         ConfigVar<float> pureItemTrackerScale;
+         ConfigVar<int> pureItemTrackerIconSize;
+diff --git a/src/dusk/ui/menu_colors.cpp b/src/dusk/ui/menu_colors.cpp
+index e30dc12..a4829e0 100644
+--- a/src/dusk/ui/menu_colors.cpp
++++ b/src/dusk/ui/menu_colors.cpp
+@@ -34,6 +34,8 @@ enum class MenuRole : std::size_t {
+ };
+ 
+ constexpr std::size_t kRoleCount = static_cast<std::size_t>(MenuRole::Count);
++std::uint64_t sAppearanceRevision = 0;
++
+ constexpr std::uint8_t kAllRoles = (1u << kRoleCount) - 1u;
+ constexpr std::string_view kThemeId = "tpr-user-menu-theme";
+ 
+@@ -463,6 +465,10 @@ void initialize_menu_colors() noexcept {
+ }
+ 
+ void update_menu_colors() noexcept {
++#if defined(_UWP)
++    const std::string_view seed = tpr_appearance_seed();
++    if (runtime_state().seedHash != seed) apply_per_seed_menu_colors(std::string(seed));
++#endif
+     update_menu_colors_impl(false);
+ }
+ 
+@@ -521,6 +527,7 @@ void randomize_menu_colors_for_load_screen() noexcept {
+         state.loadActive = true;
+         state.loadRainbow = value % 9 == 0;
+         state.loadPalette = palette_at(static_cast<std::size_t>(value));
++        sAppearanceRevision = value;
+         update_menu_colors_impl(true);
+     } catch (...) {
+         // Area loading must not fail because of cosmetics.
+@@ -551,7 +558,7 @@ MenuColorsWindow::MenuColorsWindow() {
+             });
+         };
+ 
+-        addMode("Rainbow All Menu Colors", settings.rainbowAllColors,
++        addMode("Rainbow All", settings.rainbowAllColors,
+             "Continuously fades the accent, background, text, and border through "
+             "contrast-safe coordinated palettes.",
+             [&settings](bool enabled) {
+@@ -562,8 +569,8 @@ MenuColorsWindow::MenuColorsWindow() {
+                 settings.rainbowAllColors.setValue(enabled);
+                 refresh_menu_colors();
+             });
+-        addMode("Randomize Menu Colors Per Seed", settings.randomizeAllColorsPerSeed,
+-            "Chooses a deterministic, readable menu palette from the active Randomizer seed.",
++        addMode("Randomize All Per Seed", settings.randomizeAllColorsPerSeed,
++            "Chooses equipment, HUD, hearts, character and menu colors from the active Randomizer seed. Rainbow is included.",
+             [&settings](bool enabled) {
+                 if (enabled) {
+                     settings.rainbowAllColors.setValue(false);
+@@ -572,8 +579,8 @@ MenuColorsWindow::MenuColorsWindow() {
+                 settings.randomizeAllColorsPerSeed.setValue(enabled);
+                 refresh_menu_colors();
+             });
+-        addMode("Randomize Menu Colors Every Load", settings.randomizeAllColorsEveryLoad,
+-            "Chooses a new readable menu palette after each completed area load.",
++        addMode("Randomize All Colors on Every Load Screen", settings.randomizeAllColorsEveryLoad,
++            "Re-rolls equipment, HUD, hearts, character and menu colors once per area load. Rainbow is included; individual saved colors resume when disabled.",
+             [&settings](bool enabled) {
+                 if (enabled) {
+                     settings.rainbowAllColors.setValue(false);
+@@ -686,3 +693,27 @@ MenuColorsWindow::MenuColorsWindow() {
+ }
+ 
+ }  // namespace dusk::ui
++
++#if defined(_UWP)
++extern "C" unsigned tpr_appearance_mode() noexcept {
++    const auto& s = dusk::getSettings().cosmetics;
++    return s.randomizeAllColorsEveryLoad.getValue() ? 2u :
++           s.rainbowAllColors.getValue() ? 3u : s.randomizeAllColorsPerSeed.getValue() ? 1u : 0u;
++}
++extern "C" unsigned long long tpr_appearance_revision() noexcept {
++    return dusk::ui::sAppearanceRevision;
++}
++extern "C" int tpr_appearance_speed() noexcept {
++    return dusk::getSettings().cosmetics.rainbowCycleSpeed.getValueForSave();
++}
++extern "C" void tpr_appearance_set_mode(unsigned mode) noexcept {
++    if (mode > 3u) return;
++    auto& s = dusk::getSettings().cosmetics;
++    s.randomizeAllColorsEveryLoad.setValue(mode == 2u);
++    s.randomizeAllColorsPerSeed.setValue(mode == 1u);
++    s.rainbowAllColors.setValue(mode == 3u);
++    if (mode == 2u) dusk::ui::randomize_menu_colors_for_load_screen();
++    else dusk::ui::refresh_menu_colors();
++    dusk::config::save();
++}
++#endif
+diff --git a/src/dusk/ui/settings.cpp b/src/dusk/ui/settings.cpp
+index 6814add..ad2bd69 100644
+--- a/src/dusk/ui/settings.cpp
++++ b/src/dusk/ui/settings.cpp
+@@ -1673,6 +1673,50 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
+                 .isDisabled = [] { return !getSettings().game.showInputViewer; },
+             });
+ 
++        leftPane.add_section("Transparent Run Overlays");
++        config_bool_select(leftPane, rightPane, getSettings().game.showDeathCounterOverlay,
++            {.key = "Show Death Counter", .helpText = "Display the current save file native death count in red."});
++        config_percent_select(leftPane, rightPane, getSettings().game.deathCounterOverlayScale,
++            "Death Counter Scale", "Resize the transparent text.", 75, 200, 5);
++        config_percent_select(leftPane, rightPane, getSettings().game.deathCounterOverlayPositionX,
++            "Death Counter Horizontal Position", "Place the text from left to right.", 0, 100, 1,
++            [] { return getSettings().game.deathCounterOverlayLock.getValue(); });
++        config_percent_select(leftPane, rightPane, getSettings().game.deathCounterOverlayPositionY,
++            "Death Counter Vertical Position", "Place the text from top to bottom.", 0, 100, 1,
++            [] { return getSettings().game.deathCounterOverlayLock.getValue(); });
++        config_bool_select(leftPane, rightPane, getSettings().game.deathCounterOverlayLock,
++            {.key = "Lock Death Counter Position", .helpText = "Keep the overlay at its saved position."});
++        auto& resetdeathCounter = leftPane.add_button(ControlledButton::Props{.text = "Reset Death Counter Layout"});
++        leftPane.register_control(resetdeathCounter.on_pressed([] {
++            auto& s = getSettings().game;
++            s.deathCounterOverlayScale.setValue(1.25f);
++            s.deathCounterOverlayPositionX.setValue(0.5f);
++            s.deathCounterOverlayPositionY.setValue(0.054f);
++            s.deathCounterOverlayResetLayoutRequested.setValue(true);
++            config::save();
++        }), rightPane, [](Pane& pane) { pane.clear(); pane.add_text("Restore the default scale and top-center position."); });
++        config_bool_select(leftPane, rightPane, getSettings().game.showGameTimerOverlay,
++            {.key = "Show Game Timer", .helpText = "Display active game time as HH:MM:SS.hh. Saved with the randomizer file; excludes pauses, loads and game-over."});
++        config_percent_select(leftPane, rightPane, getSettings().game.gameTimerOverlayScale,
++            "Game Timer Scale", "Resize the transparent text.", 75, 200, 5);
++        config_percent_select(leftPane, rightPane, getSettings().game.gameTimerOverlayPositionX,
++            "Game Timer Horizontal Position", "Place the text from left to right.", 0, 100, 1,
++            [] { return getSettings().game.gameTimerOverlayLock.getValue(); });
++        config_percent_select(leftPane, rightPane, getSettings().game.gameTimerOverlayPositionY,
++            "Game Timer Vertical Position", "Place the text from top to bottom.", 0, 100, 1,
++            [] { return getSettings().game.gameTimerOverlayLock.getValue(); });
++        config_bool_select(leftPane, rightPane, getSettings().game.gameTimerOverlayLock,
++            {.key = "Lock Game Timer Position", .helpText = "Keep the overlay at its saved position."});
++        auto& resetgameTimer = leftPane.add_button(ControlledButton::Props{.text = "Reset Game Timer Layout"});
++        leftPane.register_control(resetgameTimer.on_pressed([] {
++            auto& s = getSettings().game;
++            s.gameTimerOverlayScale.setValue(1.25f);
++            s.gameTimerOverlayPositionX.setValue(0.5f);
++            s.gameTimerOverlayPositionY.setValue(0.015f);
++            s.gameTimerOverlayResetLayoutRequested.setValue(true);
++            config::save();
++        }), rightPane, [](Pane& pane) { pane.clear(); pane.add_text("Restore the default scale and top-center position."); });
++
+         leftPane.add_section("Pure Item Tracker");
+         config_bool_select(leftPane, rightPane, getSettings().game.showPureItemTracker,
+             {
