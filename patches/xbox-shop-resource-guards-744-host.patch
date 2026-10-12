@@ -1,0 +1,158 @@
+diff --git a/src/d/actor/d_a_itembase.cpp b/src/d/actor/d_a_itembase.cpp
+index 474b03c..2aa238b 100644
+--- a/src/d/actor/d_a_itembase.cpp
++++ b/src/d/actor/d_a_itembase.cpp
+@@ -27,7 +27,19 @@ int daItemBase_c::CreateItemHeap(char const* i_arcName, s16 i_bmdName, s16 i_btk
+                                  s16 i_bckName, s16 i_bxaName, s16 i_brkName, s16 i_btpName) {
+     JUT_ASSERT(0, 0 <= m_itemNo && m_itemNo <= 255);
+ 
++#if defined(_UWP)
++    if (i_arcName == NULL) {
++        OSReport("Xbox item resource failure (744): item=%u archive=null\n", m_itemNo);
++        return 0;
++    }
++#endif
+     J3DModelData* modelData = (J3DModelData*)dComIfG_getObjectRes(i_arcName, i_bmdName);
++#if defined(_UWP)
++    if (modelData == NULL) {
++        OSReport("Xbox item resource failure (744): item=%u archive=%s model=%d\n", m_itemNo, i_arcName, i_bmdName);
++        return 0;
++    }
++#endif
+     JUT_ASSERT(0, modelData != NULL);
+ 
+     u32 flags = 0x11000084;
+@@ -58,6 +70,12 @@ int daItemBase_c::CreateItemHeap(char const* i_arcName, s16 i_bmdName, s16 i_btk
+     if (i_btkName > 0) {
+         J3DAnmTextureSRTKey* pbtk =
+             (J3DAnmTextureSRTKey*)dComIfG_getObjectRes(i_arcName, i_btkName);
++#if defined(_UWP)
++        if (pbtk == NULL) {
++            OSReport("Xbox item resource failure (744): item=%u archive=%s btk=%d\n", m_itemNo, i_arcName, i_btkName);
++            return 0;
++        }
++#endif
+         JUT_ASSERT(0, pbtk != NULL);
+ 
+         mpBtkAnm = JKR_NEW mDoExt_btkAnm();
+@@ -69,6 +87,12 @@ int daItemBase_c::CreateItemHeap(char const* i_arcName, s16 i_bmdName, s16 i_btk
+     mpBpkAnm = NULL;
+     if (i_bpkName > 0) {
+         J3DAnmColor* pbpk = (J3DAnmColor*)dComIfG_getObjectRes(i_arcName, i_bpkName);
++#if defined(_UWP)
++        if (pbpk == NULL) {
++            OSReport("Xbox item resource failure (744): item=%u archive=%s bpk=%d\n", m_itemNo, i_arcName, i_bpkName);
++            return 0;
++        }
++#endif
+         JUT_ASSERT(0, pbpk != NULL);
+ 
+         mpBpkAnm = JKR_NEW mDoExt_bpkAnm();
+@@ -80,6 +104,12 @@ int daItemBase_c::CreateItemHeap(char const* i_arcName, s16 i_bmdName, s16 i_btk
+     mpBckAnm = NULL;
+     if (i_bckName > 0) {
+         J3DAnmTransform* pbck = (J3DAnmTransform*)dComIfG_getObjectRes(i_arcName, i_bckName);
++#if defined(_UWP)
++        if (pbck == NULL) {
++            OSReport("Xbox item resource failure (744): item=%u archive=%s bck=%d\n", m_itemNo, i_arcName, i_bckName);
++            return 0;
++        }
++#endif
+         JUT_ASSERT(0, pbck != NULL);
+ 
+         mpBckAnm = JKR_NEW mDoExt_bckAnm();
+@@ -91,6 +121,12 @@ int daItemBase_c::CreateItemHeap(char const* i_arcName, s16 i_bmdName, s16 i_btk
+     mpBrkAnm = NULL;
+     if (i_brkName > 0) {
+         J3DAnmTevRegKey* pbrk = (J3DAnmTevRegKey*)dComIfG_getObjectRes(i_arcName, i_brkName);
++#if defined(_UWP)
++        if (pbrk == NULL) {
++            OSReport("Xbox item resource failure (744): item=%u archive=%s brk=%d\n", m_itemNo, i_arcName, i_brkName);
++            return 0;
++        }
++#endif
+         JUT_ASSERT(0, pbrk != NULL);
+ 
+         s8 tevFrm = getTevFrm();
+@@ -108,6 +144,12 @@ int daItemBase_c::CreateItemHeap(char const* i_arcName, s16 i_bmdName, s16 i_btk
+     mpBtpAnm = NULL;
+     if (i_btpName > 0) {
+         J3DAnmTexPattern* pbtp = (J3DAnmTexPattern*)dComIfG_getObjectRes(i_arcName, i_btpName);
++#if defined(_UWP)
++        if (pbtp == NULL) {
++            OSReport("Xbox item resource failure (744): item=%u archive=%s btp=%d\n", m_itemNo, i_arcName, i_btpName);
++            return 0;
++        }
++#endif
+         JUT_ASSERT(0, pbtp != NULL);
+ 
+         mpBtpAnm = JKR_NEW mDoExt_btpAnm();
+diff --git a/src/d/actor/d_a_shop_item.cpp b/src/d/actor/d_a_shop_item.cpp
+index edd16b9..c19eebc 100644
+--- a/src/d/actor/d_a_shop_item.cpp
++++ b/src/d/actor/d_a_shop_item.cpp
+@@ -140,6 +140,12 @@ u16 daShopItem_c::getHeapSize() {
+     };
+ 
+     u8 a_ShopItemID = getShopItemID();
++#if defined(_UWP)
++    if (a_ShopItemID >= sizeof(HeapSizeTbl) / sizeof(HeapSizeTbl[0])) {
++        OSReport("Xbox shop resource failure (744): item=%u shelf=%u invalid-heap-index\n", m_itemNo, a_ShopItemID);
++        return 0;
++    }
++#endif
+     OS_REPORT("ShopItemID [%u]\n", a_ShopItemID);
+     ASSERT(a_ShopItemID < SHOP_ITEMNO_MAX);
+ 
+@@ -266,17 +272,35 @@ int daShopItem_c::_create() {
+     mAngleY = 0;
+     m_itemNo = daShopItem_prm::getItemNo(this);
+ 
+-    if (getShopArcname() == NULL) {
++    const char* arcName = getShopArcname();
++    if (arcName == NULL) {
++#if defined(_UWP)
++        if (mItemOverridden) {
++            OSReport("Xbox shop resource failure (744): item=%u display=%u archive=null\n", m_itemNo, getDisplayItemNo());
++            return cPhs_ERROR_e;
++        }
++#endif
+         // "Display model archive name doesn't exist![%d]\n"
+         OS_REPORT("陳列用モデルのアーカイブ名がありません！[%d]\n", m_itemNo);
+         m_itemNo = dItemNo_NONE_e;
++        arcName = getShopArcname();
+     }
+ 
+-    int phase_state = dComIfG_resLoad(&mPhase, getShopArcname());
++#if defined(_UWP)
++    if (arcName == NULL) {
++        OSReport("Xbox shop resource failure (744): item=%u fallback-archive=null\n", m_itemNo);
++        return cPhs_ERROR_e;
++    }
++#endif
++    int phase_state = dComIfG_resLoad(&mPhase, arcName);
+     switch (phase_state) {
+     case cPhs_COMPLEATE_e:
+         if (phase_state == cPhs_COMPLEATE_e) {
+-            if (!fopAcM_entrySolidHeap(this, CheckShopItemCreateHeap, getHeapSize())) {
++            const u16 heapSize = getHeapSize();
++#if defined(_UWP)
++            if (heapSize == 0) return cPhs_ERROR_e;
++#endif
++            if (!fopAcM_entrySolidHeap(this, CheckShopItemCreateHeap, heapSize)) {
+                 return cPhs_ERROR_e;
+             }
+ 
+@@ -295,7 +319,11 @@ static int daShopItem_Create(void* i_this) {
+ }
+ 
+ int daShopItem_c::_delete() {
+-    DeleteBase(getShopArcname());
++    const char* arcName = getShopArcname();
++#if defined(_UWP)
++    if (arcName == NULL) return 1;
++#endif
++    DeleteBase(arcName);
+     return 1;
+ }
+ 

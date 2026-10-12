@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 743
+name: Build Dusklight 2.0.1 Xbox 744
 
 on:
   push:
@@ -10,13 +10,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-743-release-${{ github.ref }}
+  group: xbox-744-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   xbox-uwp-x64:
     name: Xbox UWP x64 package
     runs-on: windows-2022
+    permissions:
+      contents: write
     timeout-minutes: 240
     env:
       PYTHONUTF8: "1"
@@ -185,7 +187,14 @@ jobs:
             }
           }
 
-      - name: Apply reviewed source layers and advance 743 identity
+      - name: Install pinned UI image build tool
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --disable-pip-version-check --only-binary=:all: Pillow==12.3.0
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Pillow UI build dependency failed.' }
+
+      - name: Apply reviewed source layers and advance 744 identity
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
@@ -5709,16 +5718,12 @@ jobs:
           $potColor729 = [IO.File]::ReadAllText("$env:TPR_SRC\src\d\actor\d_a_obj_carry.cpp")
           $pumpkinColor729 = [IO.File]::ReadAllText("$env:TPR_SRC\src\d\actor\d_a_obj_pumpkin.cpp")
           foreach ($potColorMarker729 in @(
-            'tprPotMarkerColor->r = 102;',
-            'tprPotMarkerColor->g = 74;',
             'tprPotMarkerColor->b = 17;')) {
             if (-not $potColor729.Contains($potColorMarker729)) {
               throw "Xbox .729 dim gold-pot marker missing: $potColorMarker729"
             }
           }
           foreach ($pumpkinColorMarker729 in @(
-            'tprPumpkinMarkerColor->r = 10;',
-            'tprPumpkinMarkerColor->g = 102;',
             'tprPumpkinMarkerColor->b = 19;')) {
             if (-not $pumpkinColor729.Contains($pumpkinColorMarker729)) {
               throw "Xbox .729 dim green-pumpkin marker missing: $pumpkinColorMarker729"
@@ -6302,6 +6307,36 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Shared native namespace corruption was not reproduced.' }
           python "$env:TPR_CONTROL\scripts\apply-743-release-identity.py"
           if ($LASTEXITCODE -ne 0) { throw '.743 source/identity verification failed.' }
+
+          # .744 keeps .743 identities and source pins until its additive fixes pass.
+          python "$env:TPR_CONTROL\scripts\apply-744-xbox-fixes.py"
+          if ($LASTEXITCODE -ne 0) { throw '.744 production source layer failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-pickup-lifecycle.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.744 pickup-lifecycle regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-pickup-lifecycle.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.744 pickup-lifecycle .743 negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-menu-performance.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.744 menu-performance regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-menu-performance.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.744 menu-performance .743 negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-grotto-rewards.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.744 grotto-rewards regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-grotto-rewards.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.744 grotto-rewards .743 negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-shop-resources.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.744 shop-resources regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-shop-resources.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.744 shop-resources .743 negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-render-budget.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.744 lighting/effect/panel budget regressions failed.' }
+          python "$env:TPR_CONTROL\scripts\test-735-shop-idle.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.735 shop stock/message preservation failed after .744.' }
+          python "$env:TPR_CONTROL\scripts\test-734-souls-breakables.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.734 Soul/breakable preservation failed after .744.' }
+          python "$env:TPR_CONTROL\scripts\stage-744-ui-thumbnails.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.744 original resource/UI thumbnail staging failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-744-release-identity.py"
+          if ($LASTEXITCODE -ne 0) { throw '.744 complete source/identity verification failed.' }
           git -C "$env:TPR_SRC" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
@@ -6391,13 +6426,12 @@ jobs:
           $pot720 = Get-Content "$env:TPR_SRC\src\d\actor\d_a_obj_carry.cpp" -Raw
           $pumpkin720 = Get-Content "$env:TPR_SRC\src\d\actor\d_a_obj_pumpkin.cpp" -Raw
           foreach ($breakableColorMarker in @(
+            'dusk::breakable_tint::apply(',
             'tprPotMarkerColor->r = 102;',
             'tprPotMarkerColor->g = 74;',
-            'tprPotMarkerColor->b = 17;',
             '*tprPotMarkerColor = tprPotSavedMarkerColor;',
             'tprPumpkinMarkerColor->r = 10;',
             'tprPumpkinMarkerColor->g = 102;',
-            'tprPumpkinMarkerColor->b = 19;',
             '*tprPumpkinMarkerColor = tprPumpkinSavedMarkerColor;')) {
             if (-not ($pot720.Contains($breakableColorMarker) -or $pumpkin720.Contains($breakableColorMarker))) {
               throw "Breakable color lifecycle marker missing: $breakableColorMarker"
@@ -6792,7 +6826,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
 
-      - name: Verify and collect full 743 package
+      - name: Verify and collect full 744 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6802,7 +6836,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.743_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.744_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6816,7 +6850,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.743"',
+            'Version="1.4.1.744"',
             'Name="internetClient"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
@@ -6956,8 +6990,13 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($releaseFixMarker742 in @(
-            '1.4.1.743',
-            'xbox-startup-stage-743.txt',
+            '1.4.1.744',
+            'xbox-startup-stage-744.txt',
+            'Recovered missing breakable pickup text (744)',
+            'Xbox item resource failure (744)',
+            'Xbox shop resource failure (744)',
+            'Blur Height Limit',
+            'Xbox Balanced at High Resolution',
             'Pure Tracker Horizontal Position',
             'Pure Tracker Vertical Position',
             'menu.mods.open.launcher',
@@ -7141,13 +7180,16 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-743.md" $out -Force
-          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-743.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-744.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-744.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
           python "$env:TPR_CONTROL\scripts\verify-743-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw 'Restored custom/native packaged resource proof failed.' }
+          python "$env:TPR_CONTROL\scripts\verify-744-ui-thumbnails.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.744 packaged UI thumbnails or original images changed.' }
+          Copy-Item "$env:TPR_SRC\platforms\uwp\optional_mods\UI-THUMBNAILS-744.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\NATIVE_MODS-743.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\CUSTOM_MODS-743.json" $out -Force
 
@@ -7160,7 +7202,7 @@ jobs:
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.743'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.744'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -7230,7 +7272,7 @@ jobs:
             nativePackageStartupTests = 'PASS: compiled production package preparation and native path binding under bundle, manifest, config, native, logging and conversion faults; no partial entries or stale contexts'
             xboxAssetScanPatchSha256 = 'aca3b58253a9a6e4ed41f53a09eb29517e5346bb39aa96a65526f116527fc7fe'
             nativeAssetScanTests = 'PASS: compiled production scoped lexical bundle scans, UWP idle dirty flag, runtime overlays, failed listing/size rollback, open handles, disable/retry and texture priority preservation; reverse-patch negative control reproduces shipped .739 defects'
-            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-743.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
+            xboxModLoadingDiagnostics = 'Package ID/version, exact operation and measured memory in xbox-startup-stage-744.txt and xbox-mod-load.txt; retained exception report xbox-mod-load-failure.txt'
             xboxMemoryBudget = 'Pre-Play guard only for a measured Xbox App allowance; Game, desktop UWP and unavailable probes keep normal launch'
             cppCompilerCacheEnabled = ($env:TPR_CPP_CACHE_ENABLED -eq 'true')
             cppCompilerCache = $cacheDescription739
@@ -7239,8 +7281,8 @@ jobs:
             bundledUserMods = 35
             additionalNativeSourcePorts = 28
             essentialsSourcePort = '2.5.0 from recovered BeZide93 fork; matching source and assets; newer 2.7.1 source unavailable'
-            xbox743HardwareValidation = 'Pending console retest; full native fixtures and signed package checks do not confirm Xbox gameplay behavior'
-            xbox743SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-743.json" -Raw | ConvertFrom-Json).sourceControls
+            xbox744HardwareValidation = 'Pending console retest; full native fixtures and signed package checks do not confirm Xbox gameplay behavior'
+            xbox744SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-744.json" -Raw | ConvertFrom-Json).sourceControls
             catalogPackagesDownloadedAndVerified = 62
             additionalSignedPorts = @('controller_ui 1.3.2','luau_runtime 1.0.0') + @((Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json).mods | ForEach-Object { $_.target + ' ' + $_.version })
             literalModResourcePaths = 'Windows SDK unpack decodes OPC-encoded ZIP names before byte-exact catalog checks; original dollar-sign texture filenames verified'
@@ -7260,7 +7302,7 @@ jobs:
             xboxVanillaCardPatchSha256 = '3cbddc7019f6d044797e668248b2e2c747bd0d4b7696bd2eb6a043aed718180e'
             pureTrackerPosition = '.742 saved controller horizontal/vertical percentages; viewport clamping, reset, dragging and context recreation'
             nativeTrackerPositionTests = 'PASS: production tracker with pinned ImGui at 720p, 1080p and 4K, bounds, invalid settings, reset, hide/show, UI recreation, idle write suppression and locked movement'
-            xboxModMenu = '.743 36 MiB pre-decode PNG budget, 16 MiB cache, 256px icons and 768px previews; cache eviction, safe styles, active-first list and crash journals retained'
+            xboxModMenu = '.744 build-prepared 128px icons/768px previews, icon-preserving 16 MiB LRU cache, no UI mipmaps and 100ms settled-focus native panel construction; original assets retained'
             nativeModMenuImageTests = 'PASS: production pre-decode limits, aspect ratio, cache eviction, allocation and decode failures; Windows line endings and reversed .742 negative control verified'
             xboxModMenuPatchSha256 = 'bb5db42f39ca7aa7c408b254ff7dc4125e8aba15aff4b699323943e895b7fb44'
             xboxSlotA = '.742 native filesystem fallback after SDL directory creation failure, preservation of saves and obstructions, and real initialization probe/check diagnostics'
@@ -7268,19 +7310,29 @@ jobs:
             xboxSlotAHostPatchSha256 = 'b802144df97122991eea293e1e90323e77d2cd94bfb0a5236589c3ecda4503e9'
             xboxSlotAAuroraPatchSha256 = 'b0364e82e6e58d6312576b970c28ff1640cadbb268d272e5736ac9ff8ba95580'
             xbox742HardwareValidation = 'Pending console tracker, Mods launcher/gameplay and vanilla Slot A retest; native fault fixtures do not confirm Xbox crash causes'
+            xbox744SourcePatches = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-744.json" -Raw | ConvertFrom-Json).sourcePatches
+            xbox744Pickup = 'Exact wide item/check handoff to display actor, idempotent grants, original native teardown, 0/stale message-ID retry and guarded five-second missing breakable text recovery; visible/creating/NPC messages retain native timing'
+            xbox744PickupTests = 'PASS: 206 pot/pumpkin lifecycles, all Soul IDs, early/late/canceled child demos, real native checkEndMessage, missing/visible/creating messages; .743 reverse-patch failure reproduced'
+            xbox744GrottoRewards = 'Native all-die and chest combat rewards wait for pending Soul-blocked room enemies; after Soul acquisition actual living enemies still count; escape query unchanged'
+            xbox744GrottoTests = 'PASS: production room query and native reward actors, missing Souls, real defeat, countdown/switch/event behavior, inactive/other rooms and failure containment; .743 negative control'
+            xbox744ShopResources = 'Release-mode null archive/model/all-five-animation checks, heap index and creation/deletion guards; reported console shop crash cause unconfirmed'
+            xbox744ShopResourceTests = 'PASS: production release-mode item heap/shop functions with invalid/missing/healthy resources, load phases, index and allocation failures; .743 negative control'
+            xbox744MarkerTints = 'Multiply scene-light RGB, preserve alpha, restore original material immediately after draw for pots and pumpkins; no channel amplification'
+            xbox744EffectBudgets = 'DOF default blur height 720, 0 unlimited; VBAO optional balanced half AO and at most 5 slices/2 steps above 1080 scene height; full-resolution temporal history and original shaders retained; game resolution/FPS cap unchanged'
+            xbox744PerformanceValidation = 'Production bounds/cache/timing tests pass; no console FPS measurement available'
             generatorScenarios = 67
             generatorScenarioAttempts = 50
             workflowRun = $env:GITHUB_RUN_ID
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-743.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-744.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.743-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.744-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) -and $_.Extension -ne '.msix' }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7289,8 +7341,60 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.743-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.744-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
 
+
+      - name: Prepare verified MSIX transfer parts and recovered source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\prepare-744-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-744-Delivery"
+          if ($LASTEXITCODE -ne 0) { throw 'Verified MSIX transfer/source preservation failed.' }
+
+      - name: Deliver verified MSIX draft release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\publish-744-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-744-Delivery\evidence"
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub MSIX delivery/digest verification failed.' }
+
+      - name: Upload verified MSIX transfer part 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xbox744-MSIX-Part-1
+          path: TPR-744-Delivery/part1/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload verified MSIX transfer part 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xbox744-MSIX-Part-2
+          path: TPR-744-Delivery/part2/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload verified MSIX transfer part 3
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xbox744-MSIX-Part-3
+          path: TPR-744-Delivery/part3/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload package delivery evidence and support
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xbox744-Delivery-Evidence
+          path: TPR-744-Delivery/evidence/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
