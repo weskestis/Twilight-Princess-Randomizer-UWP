@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 746
+name: Build Dusklight 2.0.1 Xbox 747
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-746-release-${{ github.ref }}
+  group: xbox-747-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -6380,6 +6380,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.746 mod navigation source patch failed.' }
           python "$env:TPR_CONTROL\scripts\apply-746-release-identity.py"
           if ($LASTEXITCODE -ne 0) { throw '.746 complete source/identity verification failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-747-companion.py"
+          if ($LASTEXITCODE -ne 0) { throw '.747 companion source/capability patch failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-747-release-identity.py"
+          if ($LASTEXITCODE -ne 0) { throw '.747 complete source/identity verification failed.' }
           git -C "$env:TPR_SRC" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
@@ -6648,6 +6652,17 @@ jobs:
             }
           }
 
+      - name: Verify companion TCP protocol and controller pairing
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\test-747-companion.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
+          if ($LASTEXITCODE -ne 0) { throw '.747 real TCP pairing/snapshot/reconnect regression failed.' }
+          cmake --build "$env:TPR_FEED" --target rmlui_core --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned companion UI fixture dependency build failed.' }
+          python "$env:TPR_CONTROL\scripts\test-747-companion-ui.py" "$env:TPR_SRC" --feed "$env:TPR_FEED"
+          if ($LASTEXITCODE -ne 0) { throw '.747 actual companion controller/QR/layout regression failed.' }
+
       - name: Decide whether full generator certification is required
         shell: powershell
         run: |
@@ -6914,7 +6929,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.746_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.747_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6928,8 +6943,10 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.746"',
+            'Version="1.4.1.747"',
             'Name="internetClient"',
+            'Name="internetClientServer"',
+            'Name="privateNetworkClientServer"',
             'Name="codeGeneration"')) {
             if (-not $manifest.Contains($identity)) { throw "MSIX manifest is missing: $identity" }
           }
@@ -7068,7 +7085,8 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($releaseFixMarker742 in @(
-            '1.4.1.746',
+            '1.4.1.747',
+            'xbox-startup-stage-747.txt',
             'xbox-startup-stage-746.txt',
             'xbox-startup-stage-745.txt',
             'Recovered missing breakable pickup text (744)',
@@ -7264,10 +7282,12 @@ jobs:
           }
           Copy-Item $dependencies[0].FullName $out -Force
           Copy-Item "$env:GITHUB_WORKSPACE\TwilightPrincessRandomizer.cer" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-746.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-747.md" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-744.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-745.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-746.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-747.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\COMPANION_API-747.md" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
           if ($LASTEXITCODE -ne 0) { throw '.736 packaged mod resource proof failed.' }
@@ -7291,7 +7311,7 @@ jobs:
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.746'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.747'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -7400,6 +7420,12 @@ jobs:
             xbox746SourcePatches = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-746.json" -Raw | ConvertFrom-Json).sourcePatches
             xbox746SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-746.json" -Raw | ConvertFrom-Json).sourceControls
             xbox746HardwareValidation = 'Pending console menu retest; no Xbox GPU/FPS benchmark claimed'
+            xbox747CompanionApi = 'v1: read-only LAN IPv4 HTTP 18473; QR/PIN with Xbox matching-code approval; full seed/check/inventory/entrance/dungeon/IGT/death snapshots'
+            xbox747SourcePatches = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-747.json" -Raw | ConvertFrom-Json).sourcePatches
+            xbox747SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-747.json" -Raw | ConvertFrom-Json).sourceControls
+            xbox747CompanionTests = 'PASS: production Borealis TCP/auth/expiry/reconnect/ETag/scope/limits and actual pinned RmlUi/controller QR pairing at 720p/1080p/4K'
+            xbox747HardwareValidation = 'Pending physical Xbox/Android LAN pairing; Android APK is a separate deliverable'
+
             nativeModMenuImageTests = 'PASS: production pre-decode limits, aspect ratio, cache eviction, allocation and decode failures; Windows line endings and reversed .742 negative control verified'
             xboxModMenuPatchSha256 = 'bb5db42f39ca7aa7c408b254ff7dc4125e8aba15aff4b699323943e895b7fb44'
             xboxSlotA = '.742 native filesystem fallback after SDL directory creation failure, preservation of saves and obstructions, and real initialization probe/check diagnostics'
@@ -7429,7 +7455,7 @@ jobs:
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.746-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.747-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) -and $_.Extension -ne '.msix' }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7438,7 +7464,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.746-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.747-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
@@ -7448,7 +7474,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\prepare-746-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-746-Delivery"
+          python "$env:TPR_CONTROL\scripts\prepare-747-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-747-Delivery"
           if ($LASTEXITCODE -ne 0) { throw 'Verified MSIX transfer/source preservation failed.' }
 
       - name: Deliver verified MSIX draft release
@@ -7457,15 +7483,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\publish-746-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-746-Delivery\evidence"
+          python "$env:TPR_CONTROL\scripts\publish-747-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-747-Delivery\evidence"
           if ($LASTEXITCODE -ne 0) { throw 'GitHub MSIX delivery/digest verification failed.' }
 
       - name: Upload verified MSIX transfer part 1
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox746-MSIX-Part-1
-          path: TPR-746-Delivery/part1/*
+          name: Xbox747-MSIX-Part-1
+          path: TPR-747-Delivery/part1/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7474,8 +7500,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox746-MSIX-Part-2
-          path: TPR-746-Delivery/part2/*
+          name: Xbox747-MSIX-Part-2
+          path: TPR-747-Delivery/part2/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7484,8 +7510,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox746-MSIX-Part-3
-          path: TPR-746-Delivery/part3/*
+          name: Xbox747-MSIX-Part-3
+          path: TPR-747-Delivery/part3/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7494,8 +7520,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox746-Delivery-Evidence
-          path: TPR-746-Delivery/evidence/*
+          name: Xbox747-Delivery-Evidence
+          path: TPR-747-Delivery/evidence/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
