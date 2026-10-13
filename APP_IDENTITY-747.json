@@ -148,7 +148,7 @@
     "xbox-shop-resource-guards-744-host.patch": "260ccfdb5a2a03737ca138c5b20886b2b95458b70192c05cff890bc35e71d605",
     "xbox-appearance-run-overlays-745.patch": "8e21ddf0d25cd1cdcb40b6e62ae0a46f6987de7b877718d49afd226c01e3a115",
     "xbox-menu-navigation-746.patch": "eeba84c3af04297759100878cb19b7e1954f9d43c69d5a1d6e0b8209049ebf9f",
-    "xbox-companion-747.patch": "81c2c46a459a1644c8f796a99778eb165f351f9f5102b7f409fa72e75564d6e5"
+    "xbox-companion-747.patch": "3f1a145e788d6e0cc172ad0022de34f5303921d8b9bca5be2c8869a583b0087b"
   },
   "bundledCatalogMods": 49,
   "catalogInventoryCount": 62,

@@ -2310,7 +2310,7 @@ index b366ebb..5d85b87 100644
          mTabBar->set_active_tab(-1);
          const auto dismiss = [](Modal& modal) { modal.pop(); };
 diff --git a/src/dusk/ui/prelaunch.cpp b/src/dusk/ui/prelaunch.cpp
-index 45e5048..9ec1f3b 100644
+index 45e5048..99bf83e 100644
 --- a/src/dusk/ui/prelaunch.cpp
 +++ b/src/dusk/ui/prelaunch.cpp
 @@ -18,6 +18,9 @@
@@ -2329,7 +2329,7 @@ index 45e5048..9ec1f3b 100644
  
 +#if defined(_UWP)
 +        mMenuButtons.push_back(std::make_unique<Button>(menuList, "Companion Tracker"));
-+        mMenuButtons.back()->on_pressed([] { push(std::make_unique<CompanionWindow>()); });
++        mMenuButtons.back()->on_pressed([this] { push(std::make_unique<CompanionWindow>()); });
 +#endif
          mMenuButtons.push_back(std::make_unique<Button>(menuList, "Quit"));
          mMenuButtons.back()->on_pressed([] { IsRunning = false; });
