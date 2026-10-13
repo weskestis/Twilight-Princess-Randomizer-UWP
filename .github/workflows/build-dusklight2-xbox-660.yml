@@ -32,6 +32,27 @@ jobs:
         with:
           path: _control
 
+      - name: Preserve exact build source for release delivery
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          @'
+          import json,os,subprocess
+          repo=os.environ['GITHUB_REPOSITORY'];sha=os.environ['GITHUB_SHA']
+          ref='heads/codex/build-source-'+os.environ['GITHUB_RUN_ID']
+          result=subprocess.run(['gh','api','repos/'+repo+'/git/ref/'+ref],capture_output=True,text=True)
+          if result.returncode==0:
+              receipt=json.loads(result.stdout)
+          else:
+              if '(HTTP 404)' not in result.stderr:raise RuntimeError('Build source reference lookup failed: '+result.stderr)
+              receipt=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/git/refs','--method','POST','-f','ref=refs/'+ref,'-f','sha='+sha]))
+          assert receipt['object']['sha']==sha,'Existing build source reference targets another commit'
+          print('PASS: exact source commit retained for release delivery: '+sha)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Exact build source reference preservation failed.' }
+
       - name: Enable MSVC x64
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -7440,6 +7461,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'GitHub MSIX delivery/digest verification failed.' }
 
       - name: Upload verified MSIX transfer part 1
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Xbox746-MSIX-Part-1
@@ -7449,6 +7471,7 @@ jobs:
           retention-days: 30
 
       - name: Upload verified MSIX transfer part 2
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Xbox746-MSIX-Part-2
@@ -7458,6 +7481,7 @@ jobs:
           retention-days: 30
 
       - name: Upload verified MSIX transfer part 3
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Xbox746-MSIX-Part-3
@@ -7467,6 +7491,7 @@ jobs:
           retention-days: 30
 
       - name: Upload package delivery evidence and support
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Xbox746-Delivery-Evidence
