@@ -6650,6 +6650,25 @@ jobs:
             }
           }
 
+      - name: Compile and inspect the new hair port before the full build
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --build "$env:TPR_FEED" --target port_fierce_hair_package --parallel -- -k 0
+          if ($LASTEXITCODE -ne 0) { throw 'Hair SDK port compilation failed.' }
+          foreach ($file in @("$env:TPR_FEED\mods\uwp_ports\port_fierce_hair\port_fierce_hair.lib", "$env:TPR_FEED\bundled_mods\port_fierce_hair.dusk")) {
+            if (-not (Test-Path $file -PathType Leaf)) { throw "Compiled hair output missing: $file" }
+          }
+          python -c "import json,zipfile,os; from pathlib import Path; p=Path(os.environ['TPR_FEED'])/'bundled_mods/port_fierce_hair.dusk'; z=zipfile.ZipFile(p); m=json.loads(z.read('mod.json')); assert z.testzip() is None; assert m['id']=='tpr.optional.fierce_deity_hair_physics' and m['version']=='0.1.0'; assert not any(n.startswith('lib/') for n in z.namelist()); print('PASS: compiled signed hair library and resource-only bundle')"
+          if ($LASTEXITCODE -ne 0) { throw 'Hair resource bundle inspection failed.' }
+
+      - name: Preserve the compiled hair bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: FierceHair-Compiled-Port
+          path: ${{ env.TPR_FEED }}/bundled_mods/port_fierce_hair.dusk
+          if-no-files-found: error
+
       - name: Decide whether full generator certification is required
         shell: powershell
         run: |
@@ -6715,6 +6734,7 @@ jobs:
           $nativePorts744 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-744.json" -Raw | ConvertFrom-Json
           $nativePorts743.mods = @($nativePorts743.mods) + @($nativePorts744.mods)
           $nativeTargets743 = @($nativePorts743.mods | ForEach-Object { $_.target })
+          $nativeTargets743 += 'port_fierce_hair'
           cmake --build "$env:TPR_FEED" --target $nativeTargets743 --parallel -- -k 0
           if ($LASTEXITCODE -ne 0) { throw 'Source-built native UWP mods failed to compile.' }
           $opus744 = Get-ChildItem "$env:TPR_FEED" -Recurse -File -Filter 'opus.lib' | Select-Object -First 1
@@ -6747,6 +6767,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.738 production RmlUi picker navigation/layout tests failed.' }
           $targets = @('dusklight', 'randomizer_package', 'cosmetics_package', 'controller_ui_package', 'luau_runtime_package')
           $targets += @($nativePorts743.mods | ForEach-Object { $_.target + '_package' })
+          $targets += 'port_fierce_hair_package'
           if ($env:RUN_GENERATOR_SUITE -eq 'true') {
             $targets += 'randomizer_generator_tests'
           }
