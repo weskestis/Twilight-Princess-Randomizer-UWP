@@ -13,9 +13,10 @@ DEFINE_HOOK(&daAlink_c::execute,LinkFrame);
 namespace {
 fierce_hair::Spring spring;
 daAlink_c* owner=nullptr;
-void before_frame(ModContext*,void* args,void*,void*) {
+HookAction before_frame(ModContext*,void* args,void*,void*) {
     auto link=mods::arg<daAlink_c*>(args,0);
     if(!link||link->checkWolf()||owner!=link){spring.reset();owner=link;}
+    return HOOK_CONTINUE;
 }
 void update_hair(ModContext*,void* args,void*,void*) {
     daAlink_c* link=mods::arg<daAlink_c*>(args,0);
