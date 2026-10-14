@@ -1,0 +1,71 @@
+diff --git a/mods/randomizer/src/hooks.cpp b/mods/randomizer/src/hooks.cpp
+index 43e1575..e248824 100644
+--- a/mods/randomizer/src/hooks.cpp
++++ b/mods/randomizer/src/hooks.cpp
+@@ -2924,7 +2924,8 @@ void recoverMissingPickupMessage(daAlink_c* link, u32 messageId, BOOL& finished,
+     // messageSet returns 0 when the shared message actor is not ready. The
+     // vanilla caller stores that as a live ID and otherwise never retries.
+     if (message == nullptr && !creating) link->mMsgClassID = fpcM_ERROR_PROCESS_ID_e;
+-    const bool unavailable = message == nullptr || message->mode == fopMsg_MODE_MSG_PREPARING_e;
++    const bool unavailable = message == nullptr || message->mode == fopMsg_MODE_MSG_PREPARING_e ||
++        message->mode == fopMsg_MODE_MSG_DESTROYED_e;
+     if (!s_pickupMessageGuard.expired(fopAcM_GetID(link), fopAcM_GetID(partner),
+                                     messageId, unavailable, creating, now)) return;
+     if (message != nullptr) message->mode = fopMsg_MODE_MSG_DESTROYED_e;
+@@ -2933,7 +2934,7 @@ void recoverMissingPickupMessage(daAlink_c* link, u32 messageId, BOOL& finished,
+     finished = TRUE;
+     s_pickupMessageGuard.reset();
+     try {
+-        mods::log::warn("Recovered missing breakable pickup text (744)");
++        mods::log::warn("Recovered missing breakable pickup text (744) via native guard (748)");
+         if (session::svc_mng.ui != nullptr) {
+             UiToastDesc toast = UI_TOAST_DESC_INIT;
+             toast.title_rml = "Reward received";
+@@ -2949,6 +2950,15 @@ void hookPostCheckEndPickupMessage(ModContext*, void* args, void* retval, void*)
+                                 *static_cast<BOOL*>(retval), PickupMessageGuard::Clock::now());
+ }
+ 
++extern "C" BOOL tpr_complete_breakable_pickup_message(daAlink_c* link, u32 messageId, BOOL finished) noexcept {
++    try {
++        recoverMissingPickupMessage(link, messageId, finished, PickupMessageGuard::Clock::now());
++    } catch (...) {
++        // A recovery diagnostic must never interrupt native item cleanup.
++    }
++    return finished;
++}
++
+ HookAction hookPreProcCoGetItem(ModContext*, void* args, void*, void*) {
+     auto* link = mods::arg<daAlink_c*>(args, 0);
+     if (link->field_0x32cc != 0) return HOOK_CONTINUE;
+diff --git a/src/d/actor/d_a_alink_demo.inc b/src/d/actor/d_a_alink_demo.inc
+index aaa38f5..dbf0d56 100644
+--- a/src/d/actor/d_a_alink_demo.inc
++++ b/src/d/actor/d_a_alink_demo.inc
+@@ -4,6 +4,9 @@
+  */
+ 
+ #include "d/actor/d_a_alink.h"
++#if defined(_UWP)
++extern "C" BOOL tpr_complete_breakable_pickup_message(daAlink_c*, u32, BOOL) noexcept;
++#endif
+ #include "d/d_com_inf_game.h"
+ #include "d/d_demo.h"
+ #include "d/d_gameover.h"
+@@ -2573,7 +2576,16 @@ int daAlink_c::procCoGetItem() {
+                     }
+                 }
+ 
+-                if (field_0x32cc != 0 && checkEndMessage(field_0x32cc)) {
++                BOOL pickupMessageFinished = FALSE;
++                if (field_0x32cc != 0) {
++                    pickupMessageFinished = checkEndMessage(field_0x32cc);
++#if defined(_UWP)
++                    // This call remains in the release pickup path even when checkEndMessage is inlined.
++                    pickupMessageFinished = tpr_complete_breakable_pickup_message(
++                        this, field_0x32cc, pickupMessageFinished);
++#endif
++                }
++                if (pickupMessageFinished) {
+                     if (field_0x32cc < 0x164) {
+                         if (mProcVar2.field_0x300c >= 0xC0 && mProcVar2.field_0x300c <= 0xD7 &&
+                             dComIfGs_isItemFirstBit(mProcVar2.field_0x300c))

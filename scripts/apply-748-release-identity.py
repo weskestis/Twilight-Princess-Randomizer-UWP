@@ -22,6 +22,9 @@ required = {
     'src/dusk/ui/companion_window.cpp': ['Pair Android', 'Approve matching code'],
     'src/dusk/ui/mods_window.cpp': ['std::chrono::milliseconds(180)', 'commit_detail(true);', 'if (mCulled) return;'],
     'src/dusk/imgui/PureItemTracker.cpp': ['###GameTimerOverlayV1', '###DeathCounterOverlayV1'],
+    'mods/randomizer/generator/logic/hints.cpp': ['Pot Hint Location', 'Pumpkin Hint Location', 'vagueLocation.Replace'],
+    'mods/randomizer/src/hooks.cpp': ['tpr_complete_breakable_pickup_message', 'message->mode == fopMsg_MODE_MSG_DESTROYED_e'],
+    'src/d/actor/d_a_alink_demo.inc': ['pickupMessageFinished = tpr_complete_breakable_pickup_message('],
 }
 for name, markers in required.items():
     text = (r / name).read_text()

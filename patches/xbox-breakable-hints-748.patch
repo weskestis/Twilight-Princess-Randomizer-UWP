@@ -1,0 +1,154 @@
+diff --git a/mods/randomizer/generator/logic/hints.cpp b/mods/randomizer/generator/logic/hints.cpp
+index 0a991a2..a4fd4e5 100644
+--- a/mods/randomizer/generator/logic/hints.cpp
++++ b/mods/randomizer/generator/logic/hints.cpp
+@@ -63,6 +63,15 @@ namespace randomizer::logic::hints {
+         for (const auto& region : regions) {
+             regionTexts.push_back(textObjectExists(region) ? getTextObject(region, type) : Text{region});
+         }
++        if (location->HasCategories("Breakable")) {
++            // Keep precise check identity for logic/spoilers; player hints name only the container and region.
++            auto vagueLocation = getTextObject(location->HasCategories("Pumpkin")
++                ? "Pumpkin Hint Location" : "Pot Hint Location");
++            const auto generalRegion = regionTexts.empty()
++                ? getTextObject("Breakable Hint Region Fallback") : makeTextListing(regionTexts);
++            vagueLocation.Replace("<regions>", generalRegion);
++            return vagueLocation;
++        }
+         if (!regionTexts.empty()) {
+             label += " - ";
+             label += makeTextListing(regionTexts);
+diff --git a/mods/randomizer/generator/data/text/languages/english.yaml b/mods/randomizer/generator/data/text/languages/english.yaml
+index cce37f5..53dd213 100644
+--- a/mods/randomizer/generator/data/text/languages/english.yaml
++++ b/mods/randomizer/generator/data/text/languages/english.yaml
+@@ -8306,3 +8306,17 @@ Dungeon Item Inventory Yes Text:
+ Dungeon Item Inventory No Text:
+   Standard:
+     Text: No
++
++# General container locations; never expose internal check IDs or room numbers.
++Pot Hint Location:
++  Standard:
++    Text: "a pot in <regions>"
++
++Pumpkin Hint Location:
++  Standard:
++    Text: "a pumpkin in <regions>"
++
++Breakable Hint Region Fallback:
++  Standard:
++    Text: "Hyrule"
++
+diff --git a/mods/randomizer/generator/data/text/languages/german.yaml b/mods/randomizer/generator/data/text/languages/german.yaml
+index e4d4999..b0cfa1c 100644
+--- a/mods/randomizer/generator/data/text/languages/german.yaml
++++ b/mods/randomizer/generator/data/text/languages/german.yaml
+@@ -8317,3 +8317,17 @@ Dungeon Item Inventory Yes Text:
+ Dungeon Item Inventory No Text:
+   Standard:
+     Text: Nein
++
++# General container locations; never expose internal check IDs or room numbers.
++Pot Hint Location:
++  Standard:
++    Text: "einen Krug in <regions>"
++
++Pumpkin Hint Location:
++  Standard:
++    Text: "einen Kürbis in <regions>"
++
++Breakable Hint Region Fallback:
++  Standard:
++    Text: "Hyrule"
++
+diff --git a/mods/randomizer/generator/data/text/languages/french.yaml b/mods/randomizer/generator/data/text/languages/french.yaml
+index f28979d..f50b1bf 100644
+--- a/mods/randomizer/generator/data/text/languages/french.yaml
++++ b/mods/randomizer/generator/data/text/languages/french.yaml
+@@ -8318,3 +8318,17 @@ Dungeon Item Inventory Yes Text:
+ Dungeon Item Inventory No Text:
+   Standard:
+     Text: No
++
++# General container locations; never expose internal check IDs or room numbers.
++Pot Hint Location:
++  Standard:
++    Text: "un pot dans <regions>"
++
++Pumpkin Hint Location:
++  Standard:
++    Text: "une citrouille dans <regions>"
++
++Breakable Hint Region Fallback:
++  Standard:
++    Text: "Hyrule"
++
+diff --git a/mods/randomizer/generator/data/text/languages/spanish.yaml b/mods/randomizer/generator/data/text/languages/spanish.yaml
+index 73a5866..c1daec6 100644
+--- a/mods/randomizer/generator/data/text/languages/spanish.yaml
++++ b/mods/randomizer/generator/data/text/languages/spanish.yaml
+@@ -8317,4 +8317,17 @@ Dungeon Item Inventory Yes Text:
+ 
+ Dungeon Item Inventory No Text:
+   Standard:
+-    Text: No
+\ No newline at end of file
++    Text: No
++# General container locations; never expose internal check IDs or room numbers.
++Pot Hint Location:
++  Standard:
++    Text: "una vasija en <regions>"
++
++Pumpkin Hint Location:
++  Standard:
++    Text: "una calabaza en <regions>"
++
++Breakable Hint Region Fallback:
++  Standard:
++    Text: "Hyrule"
++
+diff --git a/mods/randomizer/generator/data/text/languages/italian.yaml b/mods/randomizer/generator/data/text/languages/italian.yaml
+index ff28455..8b95762 100644
+--- a/mods/randomizer/generator/data/text/languages/italian.yaml
++++ b/mods/randomizer/generator/data/text/languages/italian.yaml
+@@ -8318,3 +8318,17 @@ Dungeon Item Inventory Yes Text:
+ Dungeon Item Inventory No Text:
+   Standard:
+     Text: No
++
++# General container locations; never expose internal check IDs or room numbers.
++Pot Hint Location:
++  Standard:
++    Text: "un vaso in <regions>"
++
++Pumpkin Hint Location:
++  Standard:
++    Text: "una zucca in <regions>"
++
++Breakable Hint Region Fallback:
++  Standard:
++    Text: "Hyrule"
++
+diff --git a/mods/randomizer/generator/data/text/languages/japanese.yaml b/mods/randomizer/generator/data/text/languages/japanese.yaml
+index df20516..1962b51 100644
+--- a/mods/randomizer/generator/data/text/languages/japanese.yaml
++++ b/mods/randomizer/generator/data/text/languages/japanese.yaml
+@@ -8270,3 +8270,17 @@ Zant Soul Get Item Text:
+       <fast>You claimed the <red>Soul of
+       Zant<white>! You may now challenge
+       Zant.
++
++# General container locations; never expose internal check IDs or room numbers.
++Pot Hint Location:
++  Standard:
++    Text: "<regions>にあるツボ"
++
++Pumpkin Hint Location:
++  Standard:
++    Text: "<regions>にあるカボチャ"
++
++Breakable Hint Region Fallback:
++  Standard:
++    Text: "ハイラル"
++
