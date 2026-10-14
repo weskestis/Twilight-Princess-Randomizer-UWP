@@ -1,0 +1,344 @@
+diff --git a/mods/cosmetics/src/appearance_runtime.hpp b/mods/cosmetics/src/appearance_runtime.hpp
+index 18ccfc3..65345e9 100644
+--- a/mods/cosmetics/src/appearance_runtime.hpp
++++ b/mods/cosmetics/src/appearance_runtime.hpp
+@@ -12,7 +12,8 @@
+ // Port of the pre-2.0 scene palette rules. These values override getters only;
+ // scene rolls must never overwrite the user's saved individual color choices.
+ namespace dusk_xbox_appearance {
+-enum class Mode : unsigned { Manual, Seed, Load, Rainbow };
++// Keep the .745/.747 values stable; Vanilla is an additional mode.
++enum class Mode : unsigned { Manual, Seed, Load, Rainbow, Vanilla };
+ struct Target { std::uint64_t handle; std::string_view name; bool integer = false; };
+ struct Color { unsigned r, g, b; };
+ inline constexpr std::array<Color, 8> RainbowAnchors{{
+@@ -69,6 +70,16 @@ public:
+     void clear() { *this = Runtime{}; }
+     void sync(const std::vector<Target>& targets, Mode mode, std::uint64_t revision,
+               std::string_view seed, std::uint64_t milliseconds, int speed) {
++        if (mode == Mode::Vanilla) {
++            if (mode_ != Mode::Vanilla || values_.empty()) {
++                clear();
++                values_.reserve(targets.size());
++                // Empty color strings and Midna's index zero are the authored defaults.
++                for (const auto target : targets) values_.push_back(Value{target});
++                mode_ = Mode::Vanilla;
++            }
++            return;
++        }
+         if (mode == Mode::Manual || (mode == Mode::Seed && seed.empty())) {
+             clear(); return;
+         }
+diff --git a/mods/cosmetics/src/mod.cpp b/mods/cosmetics/src/mod.cpp
+index 2a12c59..1151d24 100644
+--- a/mods/cosmetics/src/mod.cpp
++++ b/mods/cosmetics/src/mod.cpp
+@@ -42,25 +42,34 @@ cvars& get_cvars() {
+     return g_cvars;
+ }
+ 
+-std::string get_str_option(ConfigVarHandle handle, const std::string& fallback) {
+-#if defined(_UWP)
+-    if (const auto* color = gAppearanceRuntime.string(handle)) return *color;
+-#endif
++std::string get_saved_str_option(ConfigVarHandle handle, const std::string& fallback) {
++    if (handle == 0) return fallback;
+     std::string value{};
+     size_t outLength{};
+-    svc_config->get_string(mod_ctx, handle, NULL, 0, &outLength);
++    if (svc_config->get_string(mod_ctx, handle, NULL, 0, &outLength) != MOD_OK) return fallback;
+     value.resize(outLength);
+-    if (handle == 0 || svc_config->get_string(
+-                           mod_ctx, handle, value.data(), value.size() + 1, &outLength) != MOD_OK)
+-    {
+-        return fallback;
+-    }
++    if (svc_config->get_string(mod_ctx, handle, value.data(), value.size() + 1, &outLength) != MOD_OK) return fallback;
+     return value;
+ }
+ 
++std::string get_str_option(ConfigVarHandle handle, const std::string& fallback) {
++#if defined(_UWP)
++    const auto mode = tpr_appearance_mode();
++    if (mode == static_cast<unsigned>(dusk_xbox_appearance::Mode::Vanilla)) return {};
++    if (mode != static_cast<unsigned>(dusk_xbox_appearance::Mode::Manual)) {
++        if (const auto* color = gAppearanceRuntime.string(handle)) return *color;
++    }
++#endif
++    return get_saved_str_option(handle, fallback);
++}
++
+ int64_t get_int_option(ConfigVarHandle handle, int64_t fallback) {
+ #if defined(_UWP)
+-    if (const auto* index = gAppearanceRuntime.integer(handle)) return *index;
++    const auto mode = tpr_appearance_mode();
++    if (mode == static_cast<unsigned>(dusk_xbox_appearance::Mode::Vanilla)) return 0;
++    if (mode != static_cast<unsigned>(dusk_xbox_appearance::Mode::Manual)) {
++        if (const auto* index = gAppearanceRuntime.integer(handle)) return *index;
++    }
+ #endif
+     int64_t value = fallback;
+     if (handle == 0 || svc_config->get_int(mod_ctx, handle, &value) != MOD_OK) {
+@@ -217,20 +226,63 @@ void add_control(UiElementHandle pane, const UiControlDesc& desc) {
+     }
+ }
+ 
++#if defined(_UWP)
++void get_manual_color_control(ModContext*, void* user, UiControlValue* value) {
++    // The service copies the string before returning to the UI; retain its storage until then.
++    static thread_local std::string savedColor;
++    savedColor = get_saved_str_option(*static_cast<ConfigVarHandle*>(user), "");
++    value->string_value = savedColor.c_str();
++}
++void set_manual_color_control(ModContext*, void* user, const UiControlValue* value) {
++    const std::string color = value->string_value ? value->string_value : "";
++    if (!color.empty() && color != "rainbow" && color != "Rainbow" && !is_valid_hex_color_str(color)) return;
++    if (svc_config->set_string(mod_ctx, *static_cast<ConfigVarHandle*>(user), color.c_str()) == MOD_OK) {
++        tpr_appearance_set_mode(0u);
++        gAppearanceRuntime.clear();
++    }
++}
++bool is_manual_color_modified(ModContext*, void* user) {
++    return !get_saved_str_option(*static_cast<ConfigVarHandle*>(user), "").empty();
++}
++void get_manual_midna_control(ModContext*, void* user, UiControlValue* value) {
++    value->int_value = 0;
++    svc_config->get_int(mod_ctx, *static_cast<ConfigVarHandle*>(user), &value->int_value);
++}
++void set_manual_midna_control(ModContext*, void* user, const UiControlValue* value) {
++    if (value->int_value < 0 || value->int_value >= 10) return;
++    if (svc_config->set_int(mod_ctx, *static_cast<ConfigVarHandle*>(user), value->int_value) == MOD_OK) {
++        tpr_appearance_set_mode(0u);
++        gAppearanceRuntime.clear();
++    }
++}
++bool is_manual_midna_modified(ModContext*, void* user) {
++    int64_t index = 0;
++    return svc_config->get_int(mod_ctx, *static_cast<ConfigVarHandle*>(user), &index) == MOD_OK && index != 0;
++}
++#endif
++
+ template <size_t N>
+ void add_cosmetic_option(
+-    UiElementHandle pane, ConfigVarHandle cvar, const char* name, const char* const (&presets)[N]) {
++    UiElementHandle pane, ConfigVarHandle& cvar, const char* name, const char* const (&presets)[N]) {
+     UiControlDesc control = UI_CONTROL_DESC_INIT;
+     control.kind = UI_CONTROL_COLOR;
+     control.label = name;
+     control.binding = UI_BINDING_CONFIG_VAR;
+     control.config_var = cvar;
++#if defined(_UWP)
++    control.binding = UI_BINDING_CALLBACKS;
++    control.get = get_manual_color_control;
++    control.set = set_manual_color_control;
++    control.is_modified = is_manual_color_modified;
++    control.user_data = &cvar;
++    control.help_rml = "Choosing a color turns appearance randomization off and keeps your saved colors.";
++#endif
+     control.color_presets = presets;
+     control.color_preset_count = N;
+     add_control(pane, control);
+ }
+ 
+-void add_midna_hair_option(UiElementHandle left, ConfigVarHandle cvar, const std::string& name) {
++void add_midna_hair_option(UiElementHandle left, ConfigVarHandle& cvar, const std::string& name) {
+     static const char* kMidnaHairOptions[] = {
+         "Default", "Pink", "Red", "Yellow", "Green", "Blue", "Purple", "Brown", "White", "Black"};
+     UiControlDesc control = UI_CONTROL_DESC_INIT;
+@@ -239,6 +291,14 @@ void add_midna_hair_option(UiElementHandle left, ConfigVarHandle cvar, const std
+     control.help_rml = "Choose Midna's hair color.";
+     control.binding = UI_BINDING_CONFIG_VAR;
+     control.config_var = cvar;
++#if defined(_UWP)
++    control.binding = UI_BINDING_CALLBACKS;
++    control.get = get_manual_midna_control;
++    control.set = set_manual_midna_control;
++    control.is_modified = is_manual_midna_modified;
++    control.user_data = &cvar;
++    control.help_rml = "Choosing a color turns appearance randomization off and keeps your saved colors.";
++#endif
+     control.options = kMidnaHairOptions;
+     control.option_count = 10;
+     add_control(left, control);
+@@ -368,22 +428,30 @@ void on_cosmetics_menu_window_closed(ModContext*, UiWindowHandle, void*) {
+ 
+ 
+ #if defined(_UWP)
++constexpr std::array<unsigned, 5> kAppearanceUiModes{{0u, 4u, 1u, 2u, 3u}};
+ void get_appearance_mode_control(ModContext*, void*, UiControlValue* value) {
+-    value->int_value = tpr_appearance_mode();
++    const auto mode = tpr_appearance_mode();
++    value->int_value = 0;
++    for (size_t i = 0; i < kAppearanceUiModes.size(); ++i) {
++        if (kAppearanceUiModes[i] == mode) value->int_value = static_cast<int64_t>(i);
++    }
+ }
+ void set_appearance_mode_control(ModContext*, void*, const UiControlValue* value) {
+-    tpr_appearance_set_mode(static_cast<unsigned>(value->int_value));
++    if (value->int_value < 0 || value->int_value >= static_cast<int64_t>(kAppearanceUiModes.size())) return;
++    tpr_appearance_set_mode(kAppearanceUiModes[static_cast<size_t>(value->int_value)]);
+ }
+ ModResult build_appearance_tab(ModContext*, UiWindowHandle, UiElementHandle left,
+                                UiElementHandle, void*, ModError*) {
+-    static const char* modes[]{"Individual Colors", "Randomize All Per Seed",
++    static const char* modes[]{"Off - Keep My Colors", "Vanilla Colors", "Randomize All Per Seed",
+         "Randomize All Colors on Every Load Screen", "Rainbow All"};
+     UiControlDesc control = UI_CONTROL_DESC_INIT;
+     control.kind = UI_CONTROL_SELECT;
+     control.label = "Randomize Appearance";
+-    control.help_rml = "Scene loads re-roll equipment, HUD, hearts, characters and menu colors once. "
+-        "Rainbow is a possible result. Saved individual colors return when disabled.";
+-    control.options = modes; control.option_count = 4;
++    control.help_rml = "Off uses your saved individual colors, including any colors you set to Rainbow. "
++        "Vanilla Colors uses the original equipment, HUD, heart, character and menu colors. "
++        "Your saved colors are kept. Some HUD colors refresh on the next area load. "
++        "Per-seed and per-load modes can choose Rainbow.";
++    control.options = modes; control.option_count = ARRAY_SIZE(modes);
+     control.get = get_appearance_mode_control; control.set = set_appearance_mode_control;
+     add_control(left, control);
+     return MOD_OK;
+diff --git a/src/dusk/settings.h b/src/dusk/settings.h
+index 7109892..7e326cd 100644
+--- a/src/dusk/settings.h
++++ b/src/dusk/settings.h
+@@ -365,6 +365,7 @@ struct UserSettings {
+         ConfigVar<std::string> menuBackgroundColor;
+         ConfigVar<std::string> menuTextColor;
+         ConfigVar<std::string> menuBorderColor;
++        ConfigVar<bool> vanillaAppearance;
+         ConfigVar<bool> rainbowAllColors;
+         ConfigVar<bool> randomizeAllColorsPerSeed;
+         ConfigVar<bool> randomizeAllColorsEveryLoad;
+diff --git a/src/dusk/settings.cpp b/src/dusk/settings.cpp
+index 4a3a98a..f6b0a06 100644
+--- a/src/dusk/settings.cpp
++++ b/src/dusk/settings.cpp
+@@ -202,6 +202,7 @@ UserSettings g_userSettings = {
+         .menuBackgroundColor {"cosmetics.menuBackgroundColor", ""},
+         .menuTextColor {"cosmetics.menuTextColor", ""},
+         .menuBorderColor {"cosmetics.menuBorderColor", ""},
++        .vanillaAppearance {"cosmetics.vanillaAppearance", false},
+         .rainbowAllColors {"cosmetics.rainbowAllColors", false},
+         .randomizeAllColorsPerSeed {"cosmetics.randomizeAllColorsPerSeed", false},
+         .randomizeAllColorsEveryLoad {"cosmetics.randomizeAllColorsEveryLoad", false},
+@@ -442,6 +443,7 @@ void registerSettings() {
+     Register(g_userSettings.cosmetics.menuBackgroundColor);
+     Register(g_userSettings.cosmetics.menuTextColor);
+     Register(g_userSettings.cosmetics.menuBorderColor);
++    Register(g_userSettings.cosmetics.vanillaAppearance);
+     Register(g_userSettings.cosmetics.rainbowAllColors);
+     Register(g_userSettings.cosmetics.randomizeAllColorsPerSeed);
+     Register(g_userSettings.cosmetics.randomizeAllColorsEveryLoad);
+diff --git a/src/dusk/ui/menu_colors.cpp b/src/dusk/ui/menu_colors.cpp
+index a4829e0..314ff74 100644
+--- a/src/dusk/ui/menu_colors.cpp
++++ b/src/dusk/ui/menu_colors.cpp
+@@ -238,6 +238,7 @@ void set_per_seed_enabled(ConfigVar<std::string>& option, bool enabled) {
+ }
+ 
+ std::uint8_t selected_seed_mask() {
++    if (getSettings().cosmetics.vanillaAppearance.getValue()) return 0;
+     if (getSettings().cosmetics.randomizeAllColorsPerSeed.getValue()) {
+         return kAllRoles;
+     }
+@@ -403,6 +404,12 @@ void update_menu_colors_impl(bool force) noexcept {
+     try {
+         auto& settings = getSettings().cosmetics;
+         auto& state = runtime_state();
++        if (settings.vanillaAppearance.getValue()) {
++            state.rainbowFrame = std::numeric_limits<std::uint64_t>::max();
++            apply_runtime_palette(default_palette(), kAllRoles);
++            if (force) apply_menu_theme();
++            return;
++        }
+         const bool everyLoad = settings.randomizeAllColorsEveryLoad.getValue();
+         const bool seedMode = !everyLoad && state.seedMask != 0 && !state.seedHash.empty();
+         const bool rainbow = settings.rainbowAllColors.getValue() || saved_menu_rainbow() ||
+@@ -515,7 +522,8 @@ void apply_per_seed_menu_colors(const std::string& seedHash) noexcept {
+ 
+ void randomize_menu_colors_for_load_screen() noexcept {
+     try {
+-        if (!getSettings().cosmetics.randomizeAllColorsEveryLoad.getValue()) {
++        if (getSettings().cosmetics.vanillaAppearance.getValue() ||
++            !getSettings().cosmetics.randomizeAllColorsEveryLoad.getValue()) {
+             return;
+         }
+         static std::atomic<std::uint64_t> counter{0};
+@@ -558,11 +566,24 @@ MenuColorsWindow::MenuColorsWindow() {
+             });
+         };
+ 
++#if defined(_UWP)
++        left.add_button(ControlledButton::Props{
++            .text = "Off - Keep My Colors",
++            .isSelected = [] { return tpr_appearance_mode() == 0u; },
++        }).on_pressed([] { tpr_appearance_set_mode(0u); });
++        left.add_button(ControlledButton::Props{
++            .text = "Vanilla Colors",
++            .isSelected = [] { return tpr_appearance_mode() == 4u; },
++        }).on_pressed([] { tpr_appearance_set_mode(4u); });
++        left.add_text("Vanilla Colors uses the originals and keeps your saved colors.");
++#endif
++
+         addMode("Rainbow All", settings.rainbowAllColors,
+             "Continuously fades the accent, background, text, and border through "
+             "contrast-safe coordinated palettes.",
+             [&settings](bool enabled) {
+                 if (enabled) {
++                    settings.vanillaAppearance.setValue(false);
+                     settings.randomizeAllColorsPerSeed.setValue(false);
+                     settings.randomizeAllColorsEveryLoad.setValue(false);
+                 }
+@@ -573,6 +594,7 @@ MenuColorsWindow::MenuColorsWindow() {
+             "Chooses equipment, HUD, hearts, character and menu colors from the active Randomizer seed. Rainbow is included.",
+             [&settings](bool enabled) {
+                 if (enabled) {
++                    settings.vanillaAppearance.setValue(false);
+                     settings.rainbowAllColors.setValue(false);
+                     settings.randomizeAllColorsEveryLoad.setValue(false);
+                 }
+@@ -583,6 +605,7 @@ MenuColorsWindow::MenuColorsWindow() {
+             "Re-rolls equipment, HUD, hearts, character and menu colors once per area load. Rainbow is included; individual saved colors resume when disabled.",
+             [&settings](bool enabled) {
+                 if (enabled) {
++                    settings.vanillaAppearance.setValue(false);
+                     settings.rainbowAllColors.setValue(false);
+                     settings.randomizeAllColorsPerSeed.setValue(false);
+                 }
+@@ -659,7 +682,7 @@ MenuColorsWindow::MenuColorsWindow() {
+                         },
+                         .isDisabled = [] {
+                             const auto& colors = getSettings().cosmetics;
+-                            return colors.rainbowAllColors.getValue() ||
++                            return colors.vanillaAppearance.getValue() || colors.rainbowAllColors.getValue() ||
+                                    colors.randomizeAllColorsPerSeed.getValue() ||
+                                    colors.randomizeAllColorsEveryLoad.getValue();
+                         },
+@@ -682,7 +705,7 @@ MenuColorsWindow::MenuColorsWindow() {
+                         },
+                         .isDisabled = [] {
+                             const auto& colors = getSettings().cosmetics;
+-                            return colors.rainbowAllColors.getValue() ||
++                            return colors.vanillaAppearance.getValue() || colors.rainbowAllColors.getValue() ||
+                                    colors.randomizeAllColorsPerSeed.getValue() ||
+                                    colors.randomizeAllColorsEveryLoad.getValue();
+                         },
+@@ -697,6 +720,7 @@ MenuColorsWindow::MenuColorsWindow() {
+ #if defined(_UWP)
+ extern "C" unsigned tpr_appearance_mode() noexcept {
+     const auto& s = dusk::getSettings().cosmetics;
++    if (s.vanillaAppearance.getValue()) return 4u;
+     return s.randomizeAllColorsEveryLoad.getValue() ? 2u :
+            s.rainbowAllColors.getValue() ? 3u : s.randomizeAllColorsPerSeed.getValue() ? 1u : 0u;
+ }
+@@ -707,8 +731,9 @@ extern "C" int tpr_appearance_speed() noexcept {
+     return dusk::getSettings().cosmetics.rainbowCycleSpeed.getValueForSave();
+ }
+ extern "C" void tpr_appearance_set_mode(unsigned mode) noexcept {
+-    if (mode > 3u) return;
++    if (mode > 4u) return;
+     auto& s = dusk::getSettings().cosmetics;
++    s.vanillaAppearance.setValue(mode == 4u);
+     s.randomizeAllColorsEveryLoad.setValue(mode == 2u);
+     s.randomizeAllColorsPerSeed.setValue(mode == 1u);
+     s.rainbowAllColors.setValue(mode == 3u);
