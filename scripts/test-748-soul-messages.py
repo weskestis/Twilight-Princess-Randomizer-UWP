@@ -101,8 +101,9 @@ else:
             assert(read_bits<uint16_t>(variant->entry.bytes+4)==id&&variant->text.back()==0);
             assert(flow::valid_encoded_text(variant->text.data(),variant->text.size()));
             const std::string text(reinterpret_cast<const char*>(variant->text.data()));
-            if(source==ENEMY_SOUL_MESSAGE_BASE+0x2F)assert(text=="Huge Poe Soul legacy seed text");
-            else if(source>=ENEMY_SOUL_MESSAGE_BASE)assert(text.find(randomizer::enemy_souls::kDefinitions[source-ENEMY_SOUL_MESSAGE_BASE].item)!=std::string::npos);
+            assert(text.starts_with("You found the Soul of ")&&text.ends_with("!\nThey are now unlocked in Hyrule."));
+            if(source==ENEMY_SOUL_MESSAGE_BASE+0x2F)assert(text=="You found the Soul of Huge Poe!\nThey are now unlocked in Hyrule.");
+            else if(source>=ENEMY_SOUL_MESSAGE_BASE)assert(text.find(randomizer::enemy_souls::kDefinitions[source-ENEMY_SOUL_MESSAGE_BASE].enemy)!=std::string::npos);
         }
     }
     assert(pickup_message_id(325)==325&&pickup_message_id(335)==335&&pickup_message_id(huge)==huge);
@@ -113,7 +114,7 @@ else:
     context.mTextOverrides.clear();assert(register_soul_pickup_messages(context)==MOD_OK);
     const auto newHuge=pickup_message_id(ENEMY_SOUL_MESSAGE_BASE+0x2F);
     assert(newHuge!=huge&&flow::s_messages.size()==93);
-    assert(std::string(reinterpret_cast<const char*>(flow::s_messages.at(newHuge)->variants.at(0)->text.data())).find("Huge Poe Soul")!=std::string::npos);
+    assert(std::string(reinterpret_cast<const char*>(flow::s_messages.at(newHuge)->variants.at(0)->text.data()))=="You found the Soul of Huge Poe!\nThey are now unlocked in Hyrule.");
     s_soulPickupMessages.clear();s_messages.clear();flow::s_nextMessage=0xffff;
     assert(register_soul_pickup_messages(context)==MOD_UNAVAILABLE&&s_soulPickupMessages.empty());
     puts("PASS: actual SDK/native registry routes 85 Enemy + 8 Boss Soul item textboxes in group 0 across six languages, migrates old Huge Poe seeds, supplies missing text and retires mappings on restart");

@@ -16,7 +16,7 @@ Also retains .744 pickup/shop/grotto fixes and native ports, .745 run overlays, 
 
 Pot and pumpkin hints now describe their container and general hint region, without internal check numbers, room numbers or stage codes. For example: "They say that the reward for a pot in the City in the Sky is a Clawshot." Generate a new seed for this wording; text already stored in older seed files is unchanged.
 
-Enemy and Boss Soul rewards now register real item-get textboxes in the native common message group. This fixes the rejected message-group path used by rewards such as Huge Poe Soul, including Soul purchases in shops. Existing seeds get these messages too. Huge Poe Soul is an Enemy Souls permission item that unlocks Huge Poe enemies; it is separate from Jovani's regular Poe Soul count.
+Enemy and Boss Soul rewards now register real item-get textboxes in the native common message group. This fixes the rejected message-group path used by rewards such as Huge Poe Soul, including Soul purchases in shops. Existing seeds get these messages too. Each message reads "You found the Soul of [enemy or boss]! They are now unlocked in Hyrule." Huge Poe Soul is an Enemy Souls permission item that unlocks Huge Poe enemies; it is separate from Jovani's regular Poe Soul count.
 
 The missing-reward-text recovery now runs directly inside the native pickup routine and also handles destroyed message actors. It covers pot/pumpkin rewards and bound Enemy Soul pickups, including shop purchases, as well as Boss Souls. It keeps normal item-animation cleanup and the existing exact-once reward/save binding.
 

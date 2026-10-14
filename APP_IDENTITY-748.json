@@ -160,7 +160,7 @@
     "xbox-cosmetics-off-748.patch": "8b9c8963d86ebe959795c0ead2ec744485375ab4776057b1b74c7a5fa15848fc",
     "xbox-breakable-hints-748.patch": "052fe425861b5edad6e1ac53ab81adc98866a440ec03f1fb1700fb481de73a16",
     "xbox-native-pickup-recovery-748.patch": "3e0db64b05ac3d846a9d82f16f549b081c52f49399dc19a06ad7b23c1be202b3",
-    "xbox-soul-pickup-text-748.patch": "b6a42403c00466d88b2b03dbb3053e27cec71528135d34513be1e361d5b16b7a"
+    "xbox-soul-pickup-text-748.patch": "acb822638cfac21078772fc93791fa0247265d1a6d27ec9252d54be017d3de6b"
   },
   "bundledCatalogMods": 49,
   "catalogInventoryCount": 62,
@@ -278,11 +278,11 @@
     "tests/cosmetics_off_748.cpp": "834d3b4e56e791b8173f778e9b489839cd14ce45c1655ad6dc16f3ff17e3d650",
     "scripts/prepare-748-delivery.py": "56029b3e42b9fee70d6639d6bba7e2ed06b8827c918edf5649e31b102c1a475d",
     "scripts/publish-748-draft.py": "1ff546410004d6a16571423deeadb1e1f15d225f1e4e744dc8bcd50328f4e80f",
-    "INSTALL_XBOX-748.md": "00b43276bdfb2af892302cc52d744f1fe7476313eea3c3316d7948faca7d4ae5",
+    "INSTALL_XBOX-748.md": "41d8d3353144eafdce02c62b92a551ae57a197bce1bfb1325d51dcbf9c517705",
     "scripts/apply-748-gameplay.py": "07d83ade07063d1873fbab43e2b559cc56485d737bd061e3d936eacc262f4004",
     "scripts/test-748-breakable-hints.py": "524e36733ff8320d03895742169b07369c250194b18317be35aa62b65502e30b",
     "scripts/test-748-pickup-recovery.py": "6ddc1f41d6c344d6bb6504322b81c59019ff1f252ee02c7e9593783cc1a32e1f",
-    "scripts/test-748-soul-messages.py": "5d584b2cc9eb9b57a42219959e7fd16389529431c3562dd18638876097006181"
+    "scripts/test-748-soul-messages.py": "c20f6950fff4fd535b9c6a994f0b1e747231c7fce28c5bc268b1f2ac5fd45f07"
   },
   "effectBudget": {
     "dofBlurMaxHeight": 720,
