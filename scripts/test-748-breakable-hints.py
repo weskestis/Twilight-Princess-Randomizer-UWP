@@ -58,7 +58,13 @@ struct Location {
     std::string name; std::unordered_set<std::string> categories;
     std::list<area::LocationAccess*> access; item::Item original{"Nothing"}, reward{"Clawshot"};
     std::string GetName() const { return name; }
-    bool HasCategories(const char* category) const { return categories.contains(category); }
+    bool HasCategories(const char* category) const {
+        // A pots-only world need not register Pumpkin, and vice versa.
+        const std::string name(category);
+        if ((name == "Pumpkin" || name == "Pot") && !categories.contains(name)) throw std::runtime_error("Unregistered optional container category");
+        return categories.contains(name);
+    }
+    const auto& GetCategories() const { return categories; }
     auto GetAccessList() const { return access; }
     item::Item* GetOriginalItem() { return &original; }
     item::Item* GetCurrentItem() { return &reward; }

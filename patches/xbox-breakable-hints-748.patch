@@ -1,14 +1,14 @@
 diff --git a/mods/randomizer/generator/logic/hints.cpp b/mods/randomizer/generator/logic/hints.cpp
-index 0a991a2..a4fd4e5 100644
+index 0a991a2..6c04cc0 100644
 --- a/mods/randomizer/generator/logic/hints.cpp
 +++ b/mods/randomizer/generator/logic/hints.cpp
 @@ -63,6 +63,15 @@ namespace randomizer::logic::hints {
          for (const auto& region : regions) {
              regionTexts.push_back(textObjectExists(region) ? getTextObject(region, type) : Text{region});
          }
-+        if (location->HasCategories("Breakable")) {
++        if (location->GetCategories().contains("Breakable")) {
 +            // Keep precise check identity for logic/spoilers; player hints name only the container and region.
-+            auto vagueLocation = getTextObject(location->HasCategories("Pumpkin")
++            auto vagueLocation = getTextObject(location->GetCategories().contains("Pumpkin")
 +                ? "Pumpkin Hint Location" : "Pot Hint Location");
 +            const auto generalRegion = regionTexts.empty()
 +                ? getTextObject("Breakable Hint Region Fallback") : makeTextListing(regionTexts);
@@ -18,6 +18,24 @@ index 0a991a2..a4fd4e5 100644
          if (!regionTexts.empty()) {
              label += " - ";
              label += makeTextListing(regionTexts);
+@@ -76,7 +85,7 @@ namespace randomizer::logic::hints {
+ 
+     static Text GetLocationTextObject(location::Location* location, Text::Type type) {
+         if (!textObjectExists(location->GetName()) &&
+-            (location->HasCategories("Breakable") || location->HasCategories("Enemy First Defeat"))) {
++            (location->GetCategories().contains("Breakable") || location->GetCategories().contains("Enemy First Defeat"))) {
+             return GetGeneratedLocationTextObject(location, type);
+         }
+         // If this location has the same name as an item, add the "Check" text to the end of the key
+@@ -88,7 +97,7 @@ namespace randomizer::logic::hints {
+ 
+     static Text GetLocationTextObjectForTemplate(location::Location* location, Text::Type type, const std::string& textTemplate) {
+         if (!textObjectExists(location->GetName()) &&
+-            (location->HasCategories("Breakable") || location->HasCategories("Enemy First Defeat"))) {
++            (location->GetCategories().contains("Breakable") || location->GetCategories().contains("Enemy First Defeat"))) {
+             return GetGeneratedLocationTextObject(location, type);
+         }
+         // If this location has the same name as an item, add the "Check" text to the end of the key
 diff --git a/mods/randomizer/generator/data/text/languages/english.yaml b/mods/randomizer/generator/data/text/languages/english.yaml
 index cce37f5..53dd213 100644
 --- a/mods/randomizer/generator/data/text/languages/english.yaml
