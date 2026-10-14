@@ -23,8 +23,12 @@ required = {
     'src/dusk/ui/mods_window.cpp': ['std::chrono::milliseconds(180)', 'commit_detail(true);', 'if (mCulled) return;'],
     'src/dusk/imgui/PureItemTracker.cpp': ['###GameTimerOverlayV1', '###DeathCounterOverlayV1'],
     'mods/randomizer/generator/logic/hints.cpp': ['Pot Hint Location', 'Pumpkin Hint Location', 'vagueLocation.Replace'],
-    'mods/randomizer/src/hooks.cpp': ['tpr_complete_breakable_pickup_message', 'message->mode == fopMsg_MODE_MSG_DESTROYED_e'],
-    'src/d/actor/d_a_alink_demo.inc': ['pickupMessageFinished = tpr_complete_breakable_pickup_message('],
+    'mods/randomizer/src/hooks.cpp': ['tpr_complete_breakable_pickup_message', 'message->mode == fopMsg_MODE_MSG_DESTROYED_e',
+        'tpr_resolve_soul_pickup_message', 'enemySoulPickup', 'bossSoulPickup'],
+    'mods/randomizer/src/messages.cpp': ['register_soul_pickup_messages(context)', 'mods::flow::register_message(0, variants)',
+        'Registered Soul pickup messages (748)', 's_soulPickupMessages.clear();'],
+    'src/d/actor/d_a_alink_demo.inc': ['pickupMessageFinished = tpr_complete_breakable_pickup_message(',
+        'field_0x32cc = tpr_resolve_soul_pickup_message(field_0x32cc);'],
 }
 for name, markers in required.items():
     text = (r / name).read_text()

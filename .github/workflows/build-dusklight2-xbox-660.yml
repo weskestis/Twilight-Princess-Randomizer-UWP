@@ -6396,12 +6396,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.747 internal container hint negative control failed.' }
           python "$env:TPR_CONTROL\scripts\test-748-pickup-recovery.py" "$env:TPR_SRC" --negative-control
           if ($LASTEXITCODE -ne 0) { throw '.747 unhooked native pickup negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\test-748-soul-messages.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.747 Huge Poe text registration failure did not reproduce.' }
           python "$env:TPR_CONTROL\scripts\apply-748-gameplay.py"
           if ($LASTEXITCODE -ne 0) { throw '.748 hint/native pickup source patches failed.' }
           python "$env:TPR_CONTROL\scripts\test-748-breakable-hints.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.748 production vague container hint regression failed.' }
           python "$env:TPR_CONTROL\scripts\test-748-pickup-recovery.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.748 direct native message recovery regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-748-soul-messages.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.748 native Soul message registration/routing regression failed.' }
           python "$env:TPR_CONTROL\scripts\test-744-pickup-lifecycle.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.748 inherited exact-once item/Soul/persistence regression failed.' }
           python "$env:TPR_CONTROL\scripts\apply-748-release-identity.py"
@@ -7116,6 +7120,8 @@ jobs:
             'Pot Hint Location',
             'Pumpkin Hint Location',
             'via native guard (748)',
+            'Registered Soul pickup messages (748)',
+            'Recovered missing Soul pickup text (748)',
             'xbox-startup-stage-746.txt',
             'xbox-startup-stage-745.txt',
             'Recovered missing breakable pickup text (744)',
@@ -7459,7 +7465,8 @@ jobs:
             xbox748Cosmetics = 'Off - Keep My Colors / Vanilla Colors; manual color edits exit automatic modes even for unchanged saved choices; saved palette preserved'
             xbox748CosmeticsTests = 'PASS: actual mode/UI/getters and real ConfigVar layers; 1000 vanilla scenes; 4000 manual red cap scene loads; restart; unchanged color; failed write; shipped .747 negative control'
             xbox748BreakableHints = 'General region plus pot/pumpkin type in all six languages; no check IDs, stage codes or rooms; freshly generated seeds'
-            xbox748PickupRecovery = 'Direct native completion call survives checkEndMessage inlining; missing/destroyed messages recover after five seconds; existing exact-once grant/save bindings retained'
+            xbox748PickupRecovery = 'Direct native completion survives inlining; missing/destroyed messages for pot/pumpkin rewards and shop/field Enemy and Boss Soul pickups recover after five seconds; exact-once bindings retained'
+            xbox748SoulPickupText = 'All 85 Enemy and 8 Boss Soul texts registered as real common-group item-get entries; native resolver migrates reserved IDs from existing seeds; Huge Poe legacy failure reproduced and corrected using actual SDK/native registry'
             xbox748SourcePatches = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-748.json" -Raw | ConvertFrom-Json).sourcePatches
             xbox748SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-748.json" -Raw | ConvertFrom-Json).sourceControls
 

@@ -1,10 +1,10 @@
-"""Apply vague container hints and a direct native pickup guard to the complete .747 stack."""
+"""Apply vague container hints, native Soul text and pickup recovery to the complete .747 stack."""
 import hashlib, json, os, subprocess, tempfile
 from pathlib import Path
 r=Path(os.environ['TPR_SRC']); c=Path(os.environ['TPR_CONTROL'])
 identity=json.loads((c/'APP_IDENTITY-748.json').read_text())
 assert 'Version="1.4.1.747"' in (r/'platforms/uwp/Package.appxmanifest').read_text()
-names=['xbox-breakable-hints-748.patch','xbox-native-pickup-recovery-748.patch']
+names=['xbox-breakable-hints-748.patch','xbox-native-pickup-recovery-748.patch','xbox-soul-pickup-text-748.patch']
 originals={}
 try:
     with tempfile.TemporaryDirectory(prefix='gameplay-748-') as temp:
@@ -27,4 +27,4 @@ except Exception:
         if before is None: path.unlink(missing_ok=True)
         else: path.write_bytes(before)
     raise
-print('Applied general-region pot/pumpkin hints and native missing/destroyed-message completion guard')
+print('Applied general-region pot/pumpkin hints, native Soul text registration and missing-message recovery for bound rewards')

@@ -1,0 +1,128 @@
+diff --git a/mods/randomizer/src/messages.cpp b/mods/randomizer/src/messages.cpp
+--- a/mods/randomizer/src/messages.cpp
++++ b/mods/randomizer/src/messages.cpp
+@@ -12,6 +12,7 @@
+ #include "d/d_stage.h"
+ #include "custom_flow_ids.hpp"
+ #include "shop_items.hpp"
++#include "enemy_soul_catalog.hpp"
+ 
+ #include <mods/svc/flow.hpp>
+ #include <mods/svc/log.hpp>
+@@ -46,6 +47,7 @@
+ std::vector<mods::flow::Graph> s_graphs;
+ std::vector<mods::flow::RegisteredMessage> s_messages;
+ std::vector<mods::flow::MessageOverride> s_overrides;
++std::unordered_map<std::uint32_t, MessageId> s_soulPickupMessages;
+ std::string s_lastActivationError{};
+ 
+ uint32_t read_parameter(const uint8_t parameters[4]) {
+@@ -208,6 +210,57 @@
+     return true;
+ }
+ 
++bool is_soul_pickup_message(std::uint32_t messageId) noexcept {
++    return (messageId >= BOSS_SOUL_MESSAGE_BASE &&
++            messageId < BOSS_SOUL_MESSAGE_BASE + BOSS_SOUL_MESSAGE_COUNT) ||
++           (messageId >= ENEMY_SOUL_MESSAGE_BASE &&
++            messageId < ENEMY_SOUL_MESSAGE_BASE + ENEMY_SOUL_MESSAGE_COUNT);
++}
++
++ModResult register_soul_pickup_messages(const RandomizerContext& context) {
++    constexpr std::array<const char*, BOSS_SOUL_MESSAGE_COUNT> bossNames{
++        "Diababa", "Fyrus", "Morpheel", "Stallord", "Blizzeta", "Armogohma", "Argorok", "Zant"};
++    constexpr std::array<MessageLanguage, 6> languages{
++        MESSAGE_LANGUAGE_ENGLISH, MESSAGE_LANGUAGE_GERMAN, MESSAGE_LANGUAGE_FRENCH,
++        MESSAGE_LANGUAGE_SPANISH, MESSAGE_LANGUAGE_ITALIAN, MESSAGE_LANGUAGE_JAPANESE};
++    const auto style = mods::flow::MessageStyle{}
++        .box_kind(MESSAGE_BOX_ITEM_GET).draw_type(MESSAGE_DRAW_INSTANT)
++        .box_position(MESSAGE_POSITION_MIDDLE).speaker(0x24).trailing_data(0x0400);
++    for (std::size_t index = 0; index < BOSS_SOUL_MESSAGE_COUNT + ENEMY_SOUL_MESSAGE_COUNT; ++index) {
++        const bool boss = index < BOSS_SOUL_MESSAGE_COUNT;
++        const std::size_t catalogIndex = boss ? index : index - BOSS_SOUL_MESSAGE_COUNT;
++        const std::uint32_t sourceId = boss ? BOSS_SOUL_MESSAGE_BASE + catalogIndex
++                                           : ENEMY_SOUL_MESSAGE_BASE + catalogIndex;
++        const std::uint32_t sourceKey = (CUSTOM_BMG_GROUP << 16) | sourceId;
++        const std::string fallback = boss
++            ? std::string("You claimed the Soul of ") + bossNames[catalogIndex] +
++                "!\nYou may now challenge " + bossNames[catalogIndex] + "."
++            : std::string("You found the ") + std::string(enemy_souls::kDefinitions[catalogIndex].item) +
++                "!\nThat enemy type can now appear.";
++        std::vector<mods::flow::MessageVariant> variants;
++        for (const auto language : languages) {
++            const std::string* text = &fallback;
++            if (const auto languageIt = context.mTextOverrides.find(language);
++                languageIt != context.mTextOverrides.end()) {
++                if (const auto found = languageIt->second.find(sourceKey);
++                    found != languageIt->second.end() && !found->second.empty()) text = &found->second;
++            }
++            variants.emplace_back(static_cast<MessageLanguage>(language), style.data(), encoded_text(*text));
++        }
++        // Seed group 9 is synthetic. Register real entries in common group 0,
++        // whose resource is available in shops, chests and field pickups.
++        auto message = mods::flow::register_message(0, variants);
++        if (!message) {
++            s_lastActivationError = "Soul pickup message registration failed (748)";
++            return message.result();
++        }
++        s_soulPickupMessages.emplace(sourceId, message.id());
++        s_messages.push_back(std::move(message));
++    }
++    mods::log::info("Registered Soul pickup messages (748)");
++    return MOD_OK;
++}
++
+ ModResult register_native_overrides(const RandomizerContext& context) {
+     for (const auto& [language, overrides] : context.mTextOverrides) {
+         if (language < MESSAGE_LANGUAGE_ENGLISH || language > MESSAGE_LANGUAGE_JAPANESE) {
+@@ -216,6 +269,7 @@
+         for (const auto& [key, value] : overrides) {
+             const uint16_t group = key >> 16;
+             const uint16_t messageId = static_cast<uint16_t>(key);
++            if (group == CUSTOM_BMG_GROUP && is_soul_pickup_message(messageId)) continue;
+             if (group >= kMessageGroupCount) {
+                 mods::log::warn(
+                     "Skipping invalid native message override: group {}, id {}, language {}",
+@@ -602,6 +656,9 @@
+             "Custom message registration failed (result {})", static_cast<int>(result));
+     }
+     if (result == MOD_OK) {
++        result = register_soul_pickup_messages(context);
++    }
++    if (result == MOD_OK) {
+         result = register_native_overrides(context);
+         if (result != MOD_OK && s_lastActivationError.empty()) {
+             s_lastActivationError = fmt::format(
+@@ -628,7 +685,13 @@
+     return s_lastActivationError;
+ }
+ 
++std::uint32_t pickup_message_id(std::uint32_t seedMessageId) noexcept {
++    const auto found = s_soulPickupMessages.find(seedMessageId);
++    return found == s_soulPickupMessages.end() ? seedMessageId : found->second;
++}
++
+ void deactivate() {
++    s_soulPickupMessages.clear();
+     s_graphs.clear();
+     s_overrides.clear();
+     s_messages.clear();
+diff --git a/mods/randomizer/src/messages.hpp b/mods/randomizer/src/messages.hpp
+--- a/mods/randomizer/src/messages.hpp
++++ b/mods/randomizer/src/messages.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <mods/api.h>
+ 
++#include <cstdint>
+ #include <string>
+ 
+ class RandomizerContext;
+@@ -11,6 +12,7 @@
+ ModResult initialize();
+ ModResult activate(RandomizerContext& context);
+ const std::string& lastActivationError();
++std::uint32_t pickup_message_id(std::uint32_t seedMessageId) noexcept;
+ void deactivate();
+ 
+ }  // namespace randomizer::messages
