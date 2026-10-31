@@ -10,6 +10,7 @@
 #include "JSystem/J3DGraphBase/J3DShape.h"
 #include <cmath>
 #include <memory>
+#include <new>
 #include <string>
 
 DEFINE_MOD();
@@ -49,7 +50,13 @@ public:
     std::uint64_t revision=0;
     std::size_t clip=0;
     int create() {
-        fopAcM_ct(this,PreviewActor);
+        if(!fopAcM_CheckCondition(this,fopAcCnd_INIT_e)) {
+            // The engine owns this memory. Standard placement new has the matching
+            // no-op placement delete MSVC expects; default initialization preserves
+            // engine-populated base fields, exactly as fopAcM_ct does on TARGET_PC.
+            ::new (static_cast<void*>(this)) PreviewActor;
+            fopAcM_OnCondition(this,fopAcCnd_INIT_e);
+        }
         held=asset;
         if(!held || !world_ready()) { actor_id=fpcM_ERROR_PROCESS_ID_e; return cPhs_ERROR_e; }
         packet.owner=this;
