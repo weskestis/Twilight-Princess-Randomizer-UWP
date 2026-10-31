@@ -1,0 +1,28 @@
+name: Verify private preview packaging format on Windows
+on:
+  push:
+    branches: [codex/pokemon-signing-proof]
+permissions:
+  contents: read
+jobs:
+  signature-format:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Verify Linux-produced package with the Microsoft signing and packaging tools
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Certificate -FilePath tests/fixtures/msix-signing/probe.cer -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+          signtool verify /pa /v tests/fixtures/msix-signing/probe.msix
+          if ($LASTEXITCODE -ne 0) { throw 'Microsoft signature verification rejected the package.' }
+          makeappx unpack /p tests/fixtures/msix-signing/probe.msix /d probe-unpacked /o
+          if ($LASTEXITCODE -ne 0) { throw 'Windows SDK extraction failed.' }
+          signtool verify /pa /v probe-unpacked/AppxMetadata/CodeIntegrity.cat
+          if ($LASTEXITCODE -ne 0) { throw 'Microsoft signature verification rejected the code catalog.' }
+          python tests/verify-pokemon-signing-probe.py
+          if ($LASTEXITCODE -ne 0) { throw 'Installed payload/hash verification failed.' }
