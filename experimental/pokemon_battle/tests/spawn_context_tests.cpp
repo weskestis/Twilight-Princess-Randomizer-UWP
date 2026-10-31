@@ -53,6 +53,8 @@ fopAc_ac_c::~fopAc_ac_c()=default;
 dEvt_info_c::dEvt_info_c()=default;
 const J3DLightInfo j3dDefaultLightInfo{};
 J3DLightInfo& J3DLightInfo::operator=(const J3DLightInfo&)=default;
+// MSVC emits cleanup for the actor's unused texture members in this fixture.
+extern "C" void GXDestroyTexObj(GXTexObj*) {}
 int J3DPacket::entry(J3DDrawBuffer*) { return 0; }
 void J3DPacket::draw() {}
 void J3DDrawBuffer::initialize() { mpBuffer=nullptr; mEntryTableSize=1; }
