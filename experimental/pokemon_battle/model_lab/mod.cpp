@@ -2,6 +2,7 @@
 #include "mods/service.hpp"
 #include "mods/svc/actor.h"
 #include "mods/svc/file.h"
+#include "mods/svc/resource.h"
 #include "mods/svc/ui.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_bg_s_gnd_chk.h"
@@ -17,6 +18,7 @@ DEFINE_MOD();
 IMPORT_SERVICE(UiService, svc_ui);
 IMPORT_SERVICE(FileService, svc_file);
 IMPORT_SERVICE(ActorService, svc_actor);
+IMPORT_SERVICE(ResourceService, svc_resource);
 
 namespace {
 using namespace pokemon_battle::runtime;
@@ -63,6 +65,7 @@ public:
         revision=clip_revision; clip=selected_clip;
         held->model().sample(clip,0,clip==0,pose);
         fopAcM_SetMtx(this,matrix);
+        fopAcM_setCullSizeBox(this,-150.f,-30.f,-150.f,150.f,250.f,150.f);
         attention_info.flags=0;
         actor_id=fopAcM_GetID(this);
         remove_requested=false;
@@ -121,6 +124,24 @@ bool cannot_load(ModContext*,void*) { return picking || has_actor(); }
 bool cannot_spawn(ModContext*,void*) { return picking || !asset || has_actor() || !world_ready(); }
 bool cannot_remove(ModContext*,void*) { return !has_actor() || remove_requested; }
 bool cannot_clip(ModContext*,void*) { return !asset; }
+void install_model(std::span<const std::uint8_t> bytes) {
+    Model model; std::string error;
+    if(!model.load(bytes,error)) { message(error); return; }
+    auto replacement=std::make_shared<GxAsset>(std::move(model));
+    asset=std::move(replacement); selected_clip=0; ++clip_revision;
+    message("Pikachu ready: "+std::to_string(asset->model().clips().size())+" clips. Spawn beside Link to begin.");
+}
+void load_bundled(ModContext*,void*) {
+    if(cannot_load(nullptr,nullptr)) return;
+    ResourceBuffer buffer=RESOURCE_BUFFER_INIT;
+    try {
+        const auto result=svc_resource->load(mod_ctx,"pikachu.dpkm",&buffer);
+        if(result!=MOD_OK) { message("Bundled Pikachu is unavailable. You can load a .dpkm model pack."); return; }
+        if(!buffer.data || buffer.size<60 || buffer.size>max_pack_bytes) message("Bundled Pikachu has an invalid size.");
+        else install_model({static_cast<const std::uint8_t*>(buffer.data),buffer.size});
+    } catch(const std::exception& e) { message(std::string("Load failed: ")+e.what()); }
+    svc_resource->free(mod_ctx,&buffer);
+}
 void picked(ModContext*,ModResult result,const char* const* locations,std::uint32_t count,const char*,void* token) {
     if(!alive || reinterpret_cast<std::uintptr_t>(token)!=generation) return;
     picking=false;
@@ -136,11 +157,7 @@ void picked(ModContext*,ModResult result,const char* const* locations,std::uint3
         const auto read_result=svc_file->read(mod_ctx,handle,bytes.data(),size,&read);
         const auto close_result=svc_file->close(mod_ctx,handle); handle=0;
         if(read_result!=MOD_OK || close_result!=MOD_OK || read!=size) { message("Runtime pack could not be read completely."); return; }
-        Model model; std::string error;
-        if(!model.load(bytes,error)) { message(error); return; }
-        auto replacement=std::make_shared<GxAsset>(std::move(model));
-        asset=std::move(replacement); selected_clip=0; ++clip_revision;
-        message("Loaded Pikachu: "+std::to_string(asset->model().clips().size())+" clips. Spawn beside Link, then use Next clip.");
+        install_model(bytes);
     } catch(const std::exception& e) {
         if(handle) svc_file->close(mod_ctx,handle);
         message(std::string("Load failed: ")+e.what());
@@ -202,19 +219,22 @@ ModResult button(UiElementHandle pane,const char* text,UiPressedFn action,UiPred
 }
 ModResult build_panel(ModContext*,UiElementHandle pane,void*,ModError*) {
     status_handle=0; dirty=true;
+    // Load lazily when the panel is opened, avoiding model allocations at game startup.
+    if(!asset && !picking) load_bundled(nullptr,nullptr);
     auto r=svc_ui->pane_add_section(mod_ctx,pane,"Pokemon Model Lab"); if(r!=MOD_OK) return r;
-    r=svc_ui->pane_add_text(mod_ctx,pane,"Spawn an animated Pikachu preview beside Link. Choose a .dpkm model pack to begin.",nullptr); if(r!=MOD_OK) return r;
+    r=svc_ui->pane_add_text(mod_ctx,pane,"Load your save, stand on open ground, then spawn Pikachu beside Link. Next clip plays each animation.",nullptr); if(r!=MOD_OK) return r;
     r=svc_ui->pane_add_text(mod_ctx,pane,status.c_str(),&status_handle); if(r!=MOD_OK) return r;
-    r=button(pane,"Load model pack",load,cannot_load); if(r!=MOD_OK) return r;
     r=button(pane,"Spawn beside Link",spawn,cannot_spawn); if(r!=MOD_OK) return r;
     r=button(pane,"Next clip",next,cannot_clip); if(r!=MOD_OK) return r;
     r=button(pane,"Play idle",idle,cannot_clip); if(r!=MOD_OK) return r;
-    return button(pane,"Remove preview",remove,cannot_remove);
+    r=button(pane,"Remove preview",remove,cannot_remove); if(r!=MOD_OK) return r;
+    r=button(pane,"Reload bundled Pikachu",load_bundled,cannot_load); if(r!=MOD_OK) return r;
+    return button(pane,"Load another model pack",load,cannot_load);
 }
 }
 extern "C" {
 MOD_EXPORT ModResult mod_initialize(ModError* error) {
-    if(!svc_ui || !svc_file || !svc_actor) return mods::set_error(error,MOD_UNAVAILABLE,"UI, file and actor services required");
+    if(!svc_ui || !svc_file || !svc_actor || !svc_resource) return mods::set_error(error,MOD_UNAVAILABLE,"UI, file, actor and resource services required");
     ++generation; alive=true; picking=false;
     auto r=svc_actor->register_actor(mod_ctx,&descriptor,&profile,&registration);
     if(r!=MOD_OK) { alive=false; return r; }
