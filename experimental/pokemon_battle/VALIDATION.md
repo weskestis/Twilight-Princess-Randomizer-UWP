@@ -62,3 +62,26 @@ XD import. Frames spanning idle, attack, damage, and faint were inspected visual
 This validates an offline import, not equivalence with every original game frame,
 move-effect rendering, or an Xbox/Dusklight encounter. Model files remain editable
 Blender assets; no runtime-loader integration is claimed.
+
+## Light refinement validation
+
+Both final refined Pikachu imports passed the same skin/texture/pose checks.
+The rig and all animation-curve hashes match their respective sources. The
+refinement preserves 295 head vertices and 97 vertices in the rear-detail region
+of the subdivided body; these groups overlap. Coincident vertices were checked
+for matching weights before welding.
+
+Results for each variant: 2,061 vertices, 3,833 triangles, 14 texture images at
+2x dimensions, 50 bones, and 15 original clips. The maximum skin-weight sum error
+is approximately `4.47e-8`, with at most four influences and zero discarded
+weight. The largest sampled bounding-coordinate change across all clips is
+approximately `0.0010232` model units (limit `0.03`). This bound check is a gross
+deformation check, not a proof of every vertex's position.
+
+Packed textures are explicitly loaded when validating reopened Blender files.
+The earlier importer assumed images were already resident; this check now also
+works after reopening a saved asset.
+
+Front/rear comparison renders and the updated animation preview are the visual
+checks for facial-card shading, ear joins, stripes, and pose continuity. The
+native rendering/actor integration and Xbox performance remain unvalidated.

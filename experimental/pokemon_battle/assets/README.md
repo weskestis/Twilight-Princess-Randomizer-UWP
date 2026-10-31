@@ -92,3 +92,40 @@ Then bind a regular enemy actor to the battle session, handle camera/input owner
 and rewards, register the static UWP module, and test a signed Xbox package.
 Bosses/minibosses remain outside the randomization scope. Capture and the six-member
 party remain follow-on gameplay work.
+
+## Light Pikachu refinement
+
+The requested modest visual update is implemented by `refine_pikachu.py` for both
+CP2 Pikachu imports. This is a species-specific preset; do not apply its named
+bone and attachment rules to other models without inspecting their geometry.
+
+- Join the six body draw batches and weld 87 duplicate vertices after verifying
+  their skin weights agree.
+- Subdivide once, retaining original UV/skin interpolation, and blend the belly
+  and limbs 65% toward the rounded surface. The head, ear connections, facial
+  cards, and rear stripe attachment region retain their original surface.
+- Transfer the game's authored normals to avoid shading seams at the face cards.
+  Ear and lightning-tail geometry retains its sharp shape.
+- Resample all 14 packed texture images to twice their width and height. Atlas
+  layout and normalized UV animation stay intact. This is resampling of the
+  supplied art, not newly painted detail or a generative texture replacement.
+- Verify that the rig hierarchy/rest matrices and all bone/material animation
+  curves have the same hash before and after refinement.
+
+Each refined model has 2,061 vertices and 3,833 triangles (the source has 660 and
+913). Skin weights remain normalized, with at most four influences and no weight
+discarded in either tested import. Total texture pixels increase from 50,688 to
+202,752. This asset cost has not yet been benchmarked inside Dusklight on Xbox.
+
+```sh
+python refine_pikachu.py --model /path/to/original/model.blend \
+  --out /path/to/new-refined-output
+python compare_models.py --original /path/to/original/model.blend \
+  --refined /path/to/new-refined-output/model.blend --out /path/to/comparison.png
+```
+
+The comparison renders both assets under the same orthographic camera and
+directional lighting. `--view back` produces a rear comparison for checking the
+stripe and tail attachments. Use `preview_model.py` for an animation preview.
+The updated private package contains both original and refined assets; no game
+or model bytes are added to this repository.

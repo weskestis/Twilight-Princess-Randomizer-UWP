@@ -83,6 +83,9 @@ def inspect_scene(bpy):
     for img in bpy.data.images:
         if img.type != 'IMAGE':
             continue
+        # Packed images are lazy-loaded when a saved .blend is reopened.
+        if not img.has_data and len(img.pixels):
+            _ = img.pixels[0]
         if not img.has_data or min(img.size) < 1:
             raise ValueError(f'Missing texture data: {img.name}')
         report['textures'].append({'name': img.name, 'width': img.size[0], 'height': img.size[1]})

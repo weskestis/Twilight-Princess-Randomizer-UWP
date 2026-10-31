@@ -23,6 +23,9 @@ The production .749 workflow, application identity, and gameplay patches are unc
 - CP2 asset intake: both supplied game images verified, with the original Pikachu
   model, textures, skeleton, and 15 clips imported from each game. See
   [the asset workflow and validation limits](assets/README.md).
+- Optional light Pikachu refinement smooths the belly and limbs, doubles packed
+  texture dimensions, and verifies the original rig and animation curves stay
+  intact. Both Colosseum and XD source assets have been processed.
 
 This is **not an installable Xbox MSIX or a working overworld Pokemon encounter**.
 The native panel is compiled and exercised against the upstream SDK headers used
