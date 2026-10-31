@@ -158,7 +158,7 @@ def main():
     p.add_argument('--makemsix', type=Path, required=True)
     p.add_argument('--osslsigncode', type=Path, required=True)
     p.add_argument('--commit', required=True)
-    p.add_argument('--version', default='1.4.1.750')
+    p.add_argument('--version', default='1.4.1.751')
     a = p.parse_args()
     assert re.fullmatch('[a-f0-9]{40}', a.commit)
     assert re.fullmatch(r'\d+\.\d+\.\d+\.\d+', a.version)
@@ -202,8 +202,9 @@ def main():
         assert identity.attrib['Version'] == '1.4.1.749'
         assert identity.attrib['ProcessorArchitecture'] == 'x64'
         mod = json.loads((payload / 'mods/port_pokemon_model_lab/mod.json').read_text())
-        assert mod['id'] == 'dev.weskestis.pokemon_model_lab' and mod['version'] == '0.3.0'
         control = Path(__file__).resolve().parents[1]
+        expected_mod = json.loads((control / 'experimental/pokemon_battle/model_lab/mod.json').read_text())
+        assert mod == expected_mod, 'Preview implementation and resource bundle versions differ'
         run(['python', control / 'scripts/verify-pokemon-uwp.py', payload], 'verify-preview-native-metadata')
         identity_proof = json.loads((a.identity_dir / 'Separate-App-Identity.json').read_text())
         assert identity_proof['sourcePackageName'] == BASE_NAME

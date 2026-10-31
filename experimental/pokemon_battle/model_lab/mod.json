@@ -1,7 +1,7 @@
 {
   "id": "dev.weskestis.pokemon_model_lab",
   "name": "Pokemon Model Lab",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "Wes Kestis",
   "description": "Animated Pikachu preview actor. Load a private DPKM asset pack; no enemy replacement or save changes."
 }

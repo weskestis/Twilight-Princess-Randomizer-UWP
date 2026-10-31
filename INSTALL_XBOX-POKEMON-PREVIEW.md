@@ -3,9 +3,9 @@
 **Dusklight Pokémon Preview** is a separate test app built from the complete
 .749 game. Keep your normal .749 app installed. The preview has its own app
 identity, saves and settings. Pikachu's model, textures and all 15 animation
-clips are included. Its installer version is 1.4.1.750.
+clips are included. Its installer version is 1.4.1.751.
 
-1. Download `DusklightPokemonPreview_1.4.1.750_x64.msix`.
+1. Download `DusklightPokemonPreview_1.4.1.751_x64.msix`.
 2. Add it through Xbox Device Portal as a new app. It appears as
    **Dusklight Pokémon Preview** alongside your existing app. If Device Portal
    requests VCLibs, select `Microsoft.VCLibs.x64.14.00.appx` from the support ZIP.
@@ -28,3 +28,10 @@ The first Xbox check is whether Pikachu appears with correct textures, stays on
 the ground, plays its animations, and can be removed and spawned again. Physical
 Xbox testing is still required. This build previews the model; combat, ordinary
 enemy replacement, catching and companions are later steps.
+
+The .751 preview corrects scene ownership when **Spawn beside Link** is pressed
+from the mod menu. The .750 request could place Pikachu on the root layer,
+causing two submissions of the same draw packet and a cyclic render queue.
+The regression check reproduces that cycle with the game's actual packet-list
+code and verifies one draw for the corrected scene-owned spawn. Xbox validation
+of this fix is still required.

@@ -66,6 +66,7 @@ def stage(root, control):
     edit('src/dusk/mods/loader/natives.cpp', loader)
     port = root / 'mods/uwp_ports' / target
     for name in ['model_lab/mod.cpp', 'model_lab/gx_renderer.cpp', 'model_lab/gx_renderer.hpp',
+                 'model_lab/spawn_context.hpp',
                  'runtime/model.cpp', 'runtime/model.hpp']:
         staged[port / name] = (experiment / name).read_text()
     staged[port / 'CMakeLists.txt'] = (experiment / 'model_lab/CMakeLists.uwp.txt').read_text()

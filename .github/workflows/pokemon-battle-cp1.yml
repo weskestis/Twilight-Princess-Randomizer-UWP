@@ -60,6 +60,7 @@ jobs:
             include
             assets/GZ2E01
             libs/JSystem/include
+            libs/JSystem/src/J3DGraphBase
             sdk
             extern/aurora
       - name: Initialize the exact Aurora submodule

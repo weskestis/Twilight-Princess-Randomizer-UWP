@@ -38,7 +38,7 @@ build. The CI package contains the native port and resource loader.
 
 `scripts/finalize-pokemon-msix.py` privately adds the refined XD Pikachu pack and
 uses a separate `DusklightPokemonPreview` installation family, visible tile name
-and PhoneProductId at version `1.4.1.750`. The normal .749 app stays installed
+and PhoneProductId at version `1.4.1.751`. The normal .749 app stays installed
 with its own saves/settings. Windows MakePri reindexes the exact original
 `resources.pri` into the new identity and verifies every resource candidate;
 the finalizer requires that input hash to match the actual new CI package.

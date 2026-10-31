@@ -7,6 +7,18 @@ import subprocess
 import tempfile
 
 
+def source_function(source, signature):
+    start=source.index(signature)
+    opening=source.index('{',start)
+    depth=1
+    end=opening+1
+    while depth:
+        if source[end]=='{': depth+=1
+        elif source[end]=='}': depth-=1
+        end+=1
+    return source[start:end]
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dusk',type=Path,required=True)
@@ -47,7 +59,21 @@ def main():
         subprocess.run(native+[str(root/'runtime/model.cpp'),str(root/'model_lab/gx_renderer.cpp'),
                               str(root/'tests/gx_tests.cpp')]+(['/Fe:'+str(exe)] if windows else ['-o',str(exe)]),cwd=build,check=True)
         subprocess.run([str(exe)]+[str(x.resolve()) for x in args.pack],check=True)
-        print('PASS: runtime parsing/sampling, recorded GX draws, and native .749 header compilation')
+        # Compile the unchanged packet insertion/traversal functions from the
+        # pinned game, with only their profiling macro disabled in this host.
+        draw_source=(dusk/'libs/JSystem/src/J3DGraphBase/J3DDrawBuffer.cpp').read_text()
+        draw=build/'real_draw_queue.cpp'
+        draw.write_text('#include "JSystem/J3DGraphBase/J3DDrawBuffer.h"\n'
+                        '#include "JSystem/J3DGraphBase/J3DPacket.h"\n'
+                        '#define ZoneScoped\n'+
+                        source_function(draw_source,'int J3DDrawBuffer::entryImm(')+'\n'+
+                        source_function(draw_source,'void J3DDrawBuffer::drawHead()')+'\n')
+        exe=build/('spawn-tests.exe' if windows else 'spawn-tests')
+        spawn_native=native+[('/D' if windows else '-D')+'DUSK_STATIC_BUILTIN_MOD=1']
+        subprocess.run(spawn_native+[str(root/'tests/spawn_context_tests.cpp'),str(draw)]+
+                       (['/Fe:'+str(exe)] if windows else ['-o',str(exe)]),cwd=build,check=True)
+        subprocess.run([str(exe)],check=True)
+        print('PASS: runtime parsing/sampling, recorded GX draws, native .749 headers, and actual draw-queue spawn regression')
 
 
 if __name__=='__main__':main()

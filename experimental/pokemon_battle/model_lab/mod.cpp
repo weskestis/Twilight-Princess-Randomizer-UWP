@@ -1,4 +1,5 @@
 #include "gx_renderer.hpp"
+#include "spawn_context.hpp"
 #include "mods/service.hpp"
 #include "mods/svc/actor.h"
 #include "mods/svc/file.h"
@@ -34,7 +35,7 @@ bool picking=false, alive=false, dirty=true, remove_requested=false;
 std::uintptr_t generation=0;
 void message(std::string text) { status=std::move(text); dirty=true; }
 bool world_ready() {
-    return dComIfGp_getPlayer(0) && !dComIfGp_isEnableNextStage() && !dComIfGp_event_runCheck();
+    return player_scene_ready(dComIfGp_getPlayer(0)) && !dComIfGp_event_runCheck();
 }
 class PreviewActor;
 class Packet final : public J3DPacket {
@@ -94,7 +95,8 @@ public:
     }
     int destroy() {
         if(actor_id==fopAcM_GetID(this)) { actor_id=fpcM_ERROR_PROCESS_ID_e; remove_requested=false; }
-        this->~PreviewActor();
+        // Base creation can reject an actor before our constructor runs.
+        if(fopAcM_CheckCondition(this,fopAcCnd_INIT_e)) this->~PreviewActor();
         return 1;
     }
 };
@@ -186,7 +188,7 @@ void spawn(ModContext*,void*) {
     params.room_num=static_cast<std::int8_t>(fopAcM_GetRoomNo(player));
     params.position={at.x,height,at.z}; params.scale={1,1,1};
     params.angle.y=static_cast<std::int16_t>(std::uint16_t(player->shape_angle.y)+0x8000u);
-    if(svc_actor->create_actor(mod_ctx,profile,&params,&actor_id)!=MOD_OK) {
+    if(create_in_player_scene(svc_actor,mod_ctx,player,profile,params,actor_id)!=MOD_OK) {
         actor_id=fpcM_ERROR_PROCESS_ID_e; message("Pikachu preview could not spawn.");
     } else message("Pikachu preview requested.");
 }
