@@ -2,7 +2,9 @@
 
 Experimental turn-based combat work starts from **Xbox .749**, control commit
 `8b1a9bc011032b32b5e123af8d76ba644b28a971`, on `codex/pokemon-battle-cp1`.
-The production .749 workflow, application identity, and gameplay patches are unchanged.
+The production branch still builds .749. The experiment adds an opt-in preview
+stage after all .749 source checks, and preserves the inherited gameplay patches.
+Private final packaging advances the preview installer to .750 for an in-place update.
 
 ## Current checkpoint
 
@@ -30,13 +32,16 @@ The production .749 workflow, application identity, and gameplay patches are unc
 - CP3 adds a native model loader, GX renderer, and a preview actor with load,
   spawn-beside-Link, clip selection and removal controls. Both refined imports
   now have private runtime packs. The module builds/links with the pinned desktop
-  SDK; game and Xbox execution are still pending. See [CP3](runtime/README.md).
+  SDK; live game and Xbox execution are still pending. See [the runtime](runtime/README.md).
+- CP4 registers the Model Lab in the signed UWP host, with an independent SDK
+  namespace, context, metadata section and exact version gate. Its panel loads
+  the bundled Pikachu automatically. The private packager adds the model, signs
+  the package, and verifies all inherited files and installed resource names.
 
-This is **not an installable Xbox MSIX or a working overworld Pokemon encounter**.
-The native panel is compiled and exercised against the upstream SDK headers used
-by .749, using a test UI host. No live Dusklight renderer, controller, or Xbox
-package has been tested. CP2 validates the model separately in Blender.
-CP1 does not modify a game save or grant actual
+The Xbox target is an animated model preview. Hardware validation and binding
+the combat simulation to an ordinary enemy remain pending. The battle panel is
+compiled and exercised against the upstream SDK with a test UI host; it is not
+yet connected to the preview. CP1 does not modify a game save or grant actual
 randomizer rewards. The authored demo balance is not the Colosseum battle formula;
 type effectiveness, accuracy, speed priority, abilities, and full move effects
 are future work.
@@ -69,17 +74,17 @@ ctest --test-dir build/pokemon-battle --output-on-failure
 The console demo accepts `--autoplay`, or interactively accepts 1–5 and q. Its
 output deliberately distinguishes simulated results from actual game rewards.
 
-`native/CMakeLists.txt` follows the upstream mod SDK's `add_mod` interface for
-desktop development. Xbox requires additional static registration, unique
-metadata sections/context names, packaging, and signed-host linking. A desktop
-module cannot simply be copied into Xbox's mods directory. Those additions and
-the full .749 host build are **not claimed by these tests**.
+`native/CMakeLists.txt` builds the combat panel through the desktop SDK. The
+Model Lab has a separate Xbox target in `model_lab/CMakeLists.uwp.txt`, staged by
+`scripts/stage-pokemon-uwp.py`. The full Xbox workflow checks all 36 independent
+signed implementations after linking. Portable unit tests alone do not establish
+that the game or its renderer runs correctly on hardware.
 
 ## Next playable encounter
 
-1. CP3 supplies a runtime representation and compiled native preview actor.
-   Exercise the actor in a real host, then add static UWP registration and test
-   rendering, transitions, cleanup and performance on Xbox. Editable source rigs
+1. CP3 supplies the runtime and actor; CP4 adds signed UWP integration and private
+   packaging. Test rendering, transitions, cleanup and performance on Xbox.
+   Editable source rigs
    remain intact; the preview representation uses baked vertex animation.
 2. Bind an eligible ordinary enemy spawn to the Pokemon actor. Preserve the
    user's rule that bosses/minibosses remain vanilla unless changed explicitly.
@@ -90,7 +95,7 @@ the full .749 host build are **not claimed by these tests**.
    grant mechanism. Settlement must be idempotent by persistent encounter/check
    identity; the interface alone cannot make a game reward atomic.
 5. Connect model animation completion to event acknowledgements, test defeat,
-   escape, resets, and transitions, then register/link/package the static UWP module.
+   escape, resets, and transitions, then register/link/package the combat module.
 6. Verify the signed Xbox build on hardware before calling the encounter playable.
 
 ## Capturing and companions — accepted follow-on direction

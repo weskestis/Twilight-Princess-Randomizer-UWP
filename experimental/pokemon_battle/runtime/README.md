@@ -1,4 +1,4 @@
-# CP3 runtime model and native preview actor
+# Runtime model and signed native preview actor
 
 Base remains Xbox **.749**, control commit `8b1a9bc011032b32b5e123af8d76ba644b28a971`.
 Game ABI: Dusklight `422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7`;
@@ -15,17 +15,43 @@ GX ABI: its Aurora submodule `d0933b745abe0eb9815bedcea8047575da18698d`.
   handled explicitly.
 - Native GX texture creation, opaque depth-tested drawing, texture release, and
   J3D packet submission. Draw packets reset J3D/GX state around custom drawing.
-- A real `ActorService` profile and Mods panel in `../model_lab`: load a private
+- A real `ActorService` profile and Mods panel in `../model_lab`: automatically
+  load the bundled Pikachu through ResourceService, or select another private
   `.dpkm` through FileService, spawn on nearby ground in front of Link, select
   clips, and remove it. The actor holds its asset until destruction. Cutscenes
   and pending transitions block spawning and remove the preview. Engine room
   cleanup and mod profile unregistration own destruction. No ordinary enemy is
   replaced at this checkpoint.
 
-The desktop module **builds and links** with the pinned minimal SDK on Linux.
-The native actor translation unit compiles against real game headers. These are
-not an executed game, GPU capture, Xbox package, or proof of hardware behavior.
-No signed static UWP registration or release workflow change is included.
+The desktop module builds and links with the pinned minimal SDK on Linux.
+CP4 also stages a static `port_pokemon_model_lab` in the verified .749 tree,
+including its own SDK context, `pkmmeta` section, resource bundle and version gate.
+The opt-in Xbox workflow compiles the full game and inspects the resulting PE.
+Live game execution and Xbox hardware behavior still require testing.
+
+## Xbox packaging
+
+`scripts/stage-pokemon-uwp.py` runs after the inherited .749 source/identity
+checks. The normal production branch keeps its existing behavior; a commit
+containing `[xbox-preview]` on the experiment branch requests the full preview
+build. The CI package contains the native port and resource loader.
+
+`scripts/finalize-pokemon-msix.py` privately adds the refined XD Pikachu pack and
+advances only the installer version to `1.4.1.750`. It verifies the source
+signature, all block-map hashes, native metadata, unchanged inherited payload,
+the final signature, and SDK-extracted filenames and contents. Signing keys are
+temporary; retail assets are not uploaded to the public repository.
+
+The packaging tools used are Microsoft MSIX SDK
+`25a65f5c1690930813bcc10cdf1d59fa865f2bb1` and osslsigncode
+`868d6e95c603a8057e89336f12fe12b5d2258e00`. A full .749-package trial preserved all
+3,190 inherited payload files and the exact model. Microsoft SignTool verified
+the package and catalog signatures from the same process, and MakeAppx verified
+the fixture's installed names and bytes in
+[the Windows compatibility check](https://github.com/weskestis/Twilight-Princess-Randomizer-UWP/actions/runs/41236479296).
+This checks packaging compatibility, not game activation or rendering.
+
+See [Xbox installation and preview controls](../../../INSTALL_XBOX-POKEMON-PREVIEW.md).
 
 ## Private asset results
 
@@ -79,7 +105,7 @@ by a fake world. LeakSanitizer is disabled only in traced local runs that cannot
 inspect `/proc`; address/UB checks remain enabled.
 
 In a desktop development build, load the generated `pokemon_model_lab.dusk`,
-open **Pokemon Model Lab**, choose **Load model pack**, then **Spawn beside Link**.
+open **Pokemon Model Lab**, choose **Load another model pack**, then **Spawn beside Link**.
 **Next clip**, **Play idle**, and **Remove preview** control the single preview.
 This desktop bundle must not be presented as an Xbox-installable module.
 

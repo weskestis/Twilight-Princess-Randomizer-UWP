@@ -6800,6 +6800,10 @@ jobs:
           $nativePorts743 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json
           $nativePorts744 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-744.json" -Raw | ConvertFrom-Json
           $nativePorts743.mods = @($nativePorts743.mods) + @($nativePorts744.mods)
+          if ($env:GITHUB_REF_NAME -eq 'codex/pokemon-battle-cp1') {
+            # Both the native archive and its resource bundle are explicit feed targets.
+            $nativePorts743.mods += [pscustomobject]@{ target = 'port_pokemon_model_lab' }
+          }
           $nativeTargets743 = @($nativePorts743.mods | ForEach-Object { $_.target })
           cmake --build "$env:TPR_FEED" --target $nativeTargets743 --parallel -- -k 0
           if ($LASTEXITCODE -ne 0) { throw 'Source-built native UWP mods failed to compile.' }
