@@ -18,7 +18,7 @@ jobs:
     name: Recreate and test Xbox 748 source
     runs-on: windows-2022
     permissions:
-      contents: read
+      contents: write
     timeout-minutes: 60
     env:
       PYTHONUTF8: "1"
