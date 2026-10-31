@@ -1,0 +1,2 @@
+# Python 3.11; use an isolated environment for Blender's embedded Python API.
+bpy==4.5.7

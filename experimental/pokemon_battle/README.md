@@ -1,4 +1,4 @@
-# Pokemon Battle CP1
+# Pokemon Battle — .749 experiment
 
 Experimental turn-based combat work starts from **Xbox .749**, control commit
 `8b1a9bc011032b32b5e123af8d76ba644b28a971`, on `codex/pokemon-battle-cp1`.
@@ -20,11 +20,15 @@ The production .749 workflow, application identity, and gameplay patches are unc
 - A separately tested host-session contract: world acquisition/release, scene
   invalidation, bounded presentation/settlement waits, and idempotent settlement IDs.
   The concrete Twilight Princess host implementation is **not implemented**.
+- CP2 asset intake: both supplied game images verified, with the original Pikachu
+  model, textures, skeleton, and 15 clips imported from each game. See
+  [the asset workflow and validation limits](assets/README.md).
 
 This is **not an installable Xbox MSIX or a working overworld Pokemon encounter**.
 The native panel is compiled and exercised against the upstream SDK headers used
-by .749, using a test UI host. No live renderer, controller, Xbox package, or
-3D Pokemon model has been tested. CP1 does not modify a game save or grant actual
+by .749, using a test UI host. No live Dusklight renderer, controller, or Xbox
+package has been tested. CP2 validates the model separately in Blender.
+CP1 does not modify a game save or grant actual
 randomizer rewards. The authored demo balance is not the Colosseum battle formula;
 type effectiveness, accuracy, speed priority, abilities, and full move effects
 are future work.
@@ -65,9 +69,9 @@ the full .749 host build are **not claimed by these tests**.
 
 ## Next playable encounter
 
-1. Obtain a Colosseum/XD disc dump or extracted FSYS/PKX model archives supplied
-   by the user. Convert and visually verify one model, its textures/skin weights,
-   and the required animation clips. Keep asset provenance separate from code.
+1. CP2 has verified both supplied game images and imported Pikachu into Blender.
+   Convert this source asset to a Dusklight runtime representation, preserving
+   textures, skinning, material animation, scale, and clip timing.
 2. Bind an eligible ordinary enemy spawn to the Pokemon actor. Preserve the
    user's rule that bosses/minibosses remain vanilla unless changed explicitly.
 3. Implement `Host` using .749's actual actor generation, input, pause, camera,
@@ -101,4 +105,6 @@ build scripts. `source-intake.json` records archive hashes, counts, and useful
 source locations. They contain no `.fsys`, `.pkx`, `.dat`, disc image, or exported
 3D model files. Their code explains formats/behavior; it is not the missing model
 asset pack. The Colosseum README's matching claims were not independently rebuilt.
-No source from either archive has been copied into this module.
+No source from either archive has been copied into this module. The subsequently
+supplied game images contain the missing assets; [CP2](assets/README.md) records
+their verification and the first model import.
