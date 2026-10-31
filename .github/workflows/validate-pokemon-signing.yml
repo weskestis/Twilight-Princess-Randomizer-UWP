@@ -13,16 +13,29 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-      - name: Verify Linux-produced package with the Microsoft signing and packaging tools
+      - name: Trust the fixture certificate in the disposable runner
+        timeout-minutes: 1
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          Import-Certificate -FilePath tests/fixtures/msix-signing/probe.cer -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+          Import-Certificate -FilePath tests/fixtures/msix-signing/probe.cer -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+      - name: Verify package signature with Microsoft SignTool
+        timeout-minutes: 2
+        shell: powershell
+        run: |
           signtool verify /pa /v tests/fixtures/msix-signing/probe.msix
           if ($LASTEXITCODE -ne 0) { throw 'Microsoft signature verification rejected the package.' }
+      - name: Extract with the Windows SDK
+        timeout-minutes: 2
+        shell: powershell
+        run: |
           makeappx unpack /p tests/fixtures/msix-signing/probe.msix /d probe-unpacked /o
           if ($LASTEXITCODE -ne 0) { throw 'Windows SDK extraction failed.' }
+      - name: Verify catalog signature with Microsoft SignTool
+        timeout-minutes: 2
+        shell: powershell
+        run: |
           signtool verify /pa /v probe-unpacked/AppxMetadata/CodeIntegrity.cat
           if ($LASTEXITCODE -ne 0) { throw 'Microsoft signature verification rejected the code catalog.' }
-          python tests/verify-pokemon-signing-probe.py
-          if ($LASTEXITCODE -ne 0) { throw 'Installed payload/hash verification failed.' }
+      - name: Check every installed payload and literal resource filename
+        run: python tests/verify-pokemon-signing-probe.py
