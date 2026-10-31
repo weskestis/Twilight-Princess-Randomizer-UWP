@@ -1,0 +1,41 @@
+name: Pokemon battle CP1 on Xbox 749 source
+
+on:
+  push:
+    branches: [codex/pokemon-battle-cp1]
+    paths:
+      - experimental/pokemon_battle/**
+      - scripts/test-pokemon-battle-cp1.py
+      - .github/workflows/pokemon-battle-cp1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  combat-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the exact upstream SDK used by Xbox 749
+        uses: actions/checkout@v4
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7
+          path: _dusk_sdk_reference
+          sparse-checkout: sdk
+      - name: Enable MSVC x64
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Compile and run combat, host contract, and real SDK panel tests
+        run: python scripts/test-pokemon-battle-cp1.py --sdk _dusk_sdk_reference/sdk
+      - name: Address and undefined behavior sanitizers
+        if: runner.os == 'Linux'
+        run: python scripts/test-pokemon-battle-cp1.py --sdk _dusk_sdk_reference/sdk --sanitize

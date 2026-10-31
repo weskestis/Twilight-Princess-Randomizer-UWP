@@ -1,0 +1,37 @@
+{
+  "inspected_on": "2026-10-31",
+  "xbox_base_version": "1.4.1.749",
+  "xbox_base_commit": "8b1a9bc011032b32b5e123af8d76ba644b28a971",
+  "archives": [
+    {
+      "filename": "pkmn-colosseum-master.zip",
+      "sha256": "59935b5ef0aeb0d4bee7d2f95becfaf703595bd67e99b68b5315a7a383269576",
+      "archive_bytes": 13771986,
+      "file_count": 4230,
+      "uncompressed_bytes": 75423993,
+      "model_or_disc_files": []
+    },
+    {
+      "filename": "xd-decomp-main.zip",
+      "sha256": "90442a58e0487657a30a1d2ef42c4554d7afba1fde83e02b7e4464c111781d73",
+      "archive_bytes": 1334005,
+      "file_count": 410,
+      "uncompressed_bytes": 7294895,
+      "model_or_disc_files": []
+    }
+  ],
+  "colosseum_references": [
+    "include/game/fsys/fsys.h",
+    "include/game/gs_model.h",
+    "include/game/gs_model_anim.h",
+    "include/game/pokemon_data.h",
+    "src/rel/common_rel/pokemon_data.c",
+    "src/rel/common_rel/waza_data.c"
+  ],
+  "conclusions": {
+    "assets_present": false,
+    "matching_build_reproduced": false,
+    "source_code_imported_into_cp1": false,
+    "use": "Reference for model format, animations, species and move data; original models still required"
+  }
+}
