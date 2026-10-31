@@ -187,6 +187,15 @@ jobs:
             }
           }
 
+      - name: Restore preserved pinned native source
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\restore-748-native-source.py"
+          if ($LASTEXITCODE -ne 0) { throw 'Preserved native source verification failed.' }
+
       - name: Install pinned UI image build tool
         shell: powershell
         run: |
