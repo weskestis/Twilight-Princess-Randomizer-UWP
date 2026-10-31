@@ -10,3 +10,8 @@ for name,expected in inventory.items():
     assert module.sha(root/'probe-unpacked'/name)==expected['sha256'],name
 assert (root/'probe-unpacked/literal$atlas%25.txt').read_bytes()==bytes(range(256))*1000
 print('PASS Microsoft Signtool signatures, Microsoft MakeAppx extraction, every payload hash and literal dollar/percent filename')
+
+# MakeAppx deliberately omits this reserved footprint when unpacking.
+import zipfile
+with zipfile.ZipFile(root/'tests/fixtures/msix-signing/probe.msix') as archive:
+    (root/'probe-code-integrity.cat').write_bytes(archive.read('AppxMetadata/CodeIntegrity.cat'))

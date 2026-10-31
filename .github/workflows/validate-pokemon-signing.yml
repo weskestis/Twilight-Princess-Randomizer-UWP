@@ -31,11 +31,11 @@ jobs:
         run: |
           makeappx unpack /p tests/fixtures/msix-signing/probe.msix /d probe-unpacked /o
           if ($LASTEXITCODE -ne 0) { throw 'Windows SDK extraction failed.' }
+      - name: Check every installed payload and literal resource filename
+        run: python tests/verify-pokemon-signing-probe.py
       - name: Verify catalog signature with Microsoft SignTool
         timeout-minutes: 2
         shell: powershell
         run: |
-          signtool verify /pa /v probe-unpacked/AppxMetadata/CodeIntegrity.cat
+          signtool verify /pa /v probe-code-integrity.cat
           if ($LASTEXITCODE -ne 0) { throw 'Microsoft signature verification rejected the code catalog.' }
-      - name: Check every installed payload and literal resource filename
-        run: python tests/verify-pokemon-signing-probe.py
