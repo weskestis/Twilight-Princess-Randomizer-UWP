@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 748
+name: Build Dusklight 2.0.1 Xbox 749
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-748-release-${{ github.ref }}
+  group: xbox-749-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -207,6 +207,15 @@ jobs:
               throw "Pinned SDL3.dll is missing UWP CRT import: $appCrt"
             }
           }
+
+      - name: Restore preserved pinned native source
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\restore-748-native-source.py"
+          if ($LASTEXITCODE -ne 0) { throw 'Preserved native source verification failed.' }
 
       - name: Install pinned UI image build tool
         shell: powershell
@@ -6410,6 +6419,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '.748 inherited exact-once item/Soul/persistence regression failed.' }
           python "$env:TPR_CONTROL\scripts\apply-748-release-identity.py"
           if ($LASTEXITCODE -ne 0) { throw '.748 complete source/identity verification failed.' }
+          python "$env:TPR_CONTROL\scripts\test-749-soul-pickup-native.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.748 late/native Soul routing defect did not reproduce.' }
+          python "$env:TPR_CONTROL\scripts\apply-749-gameplay.py"
+          if ($LASTEXITCODE -ne 0) { throw '.749 native Soul identity source patch failed.' }
+          python "$env:TPR_CONTROL\scripts\test-749-soul-pickup-native.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.749 full native Soul pickup regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-748-soul-messages.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.749 inherited Soul registration regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-748-pickup-recovery.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.749 inherited native recovery regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-744-pickup-lifecycle.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw '.749 inherited exact-once reward regression failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-749-release-identity.py"
+          if ($LASTEXITCODE -ne 0) { throw '.749 complete source/identity verification failed.' }
           git -C "$env:TPR_SRC" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
@@ -6955,7 +6978,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.748_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.749_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6969,7 +6992,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.748"',
+            'Version="1.4.1.749"',
             'Name="internetClient"',
             'Name="internetClientServer"',
             'Name="privateNetworkClientServer"',
@@ -7111,8 +7134,8 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($releaseFixMarker742 in @(
-            '1.4.1.748',
-            'xbox-startup-stage-748.txt',
+            '1.4.1.749',
+            'xbox-startup-stage-749.txt',
             'xbox-startup-stage-747.txt',
             'Off - Keep My Colors',
             'Vanilla Colors',
@@ -7323,7 +7346,8 @@ jobs:
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-746.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-747.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-748.json" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-748.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-749.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-749.md" $out -Force
           Copy-Item "$env:TPR_CONTROL\COMPANION_API-747.md" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
@@ -7348,7 +7372,7 @@ jobs:
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.748'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.749'
             upstreamRelease = 'Dusklight v2.0.1'
             dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
             aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
@@ -7469,6 +7493,10 @@ jobs:
             xbox748SoulPickupText = 'All 85 Enemy and 8 Boss Soul texts registered as real common-group item-get entries; native resolver migrates reserved IDs from existing seeds; Huge Poe legacy failure reproduced and corrected using actual SDK/native registry'
             xbox748SourcePatches = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-748.json" -Raw | ConvertFrom-Json).sourcePatches
             xbox748SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-748.json" -Raw | ConvertFrom-Json).sourceControls
+            xbox749NativeSoulRouting = 'Direct native identity selection after actor/item readiness; preserves open dialogue and inactive sessions'
+            xbox749NativeSoulTests = 'PASS: .748 negative control; 465 message routes; 279 missing/preparing/destroyed-message native cleanups; real Boss Soul predicate and item mapping; ordinary items and inactive-session preservation'
+            xbox749SourcePatches = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-749.json" -Raw | ConvertFrom-Json).sourcePatches
+            xbox749SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-749.json" -Raw | ConvertFrom-Json).sourceControls
 
             nativeModMenuImageTests = 'PASS: production pre-decode limits, aspect ratio, cache eviction, allocation and decode failures; Windows line endings and reversed .742 negative control verified'
             xboxModMenuPatchSha256 = 'bb5db42f39ca7aa7c408b254ff7dc4125e8aba15aff4b699323943e895b7fb44'
@@ -7499,7 +7527,7 @@ jobs:
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.748-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.749-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) -and $_.Extension -ne '.msix' }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7508,7 +7536,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.748-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.749-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
@@ -7518,7 +7546,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\prepare-748-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-748-Delivery"
+          python "$env:TPR_CONTROL\scripts\prepare-749-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-749-Delivery"
           if ($LASTEXITCODE -ne 0) { throw 'Verified MSIX transfer/source preservation failed.' }
 
       - name: Deliver verified MSIX draft release
@@ -7527,15 +7555,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\publish-748-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-748-Delivery\evidence"
+          python "$env:TPR_CONTROL\scripts\publish-749-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-749-Delivery\evidence"
           if ($LASTEXITCODE -ne 0) { throw 'GitHub MSIX delivery/digest verification failed.' }
 
       - name: Upload verified MSIX transfer part 1
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox748-MSIX-Part-1
-          path: TPR-748-Delivery/part1/*
+          name: Xbox749-MSIX-Part-1
+          path: TPR-749-Delivery/part1/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7544,8 +7572,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox748-MSIX-Part-2
-          path: TPR-748-Delivery/part2/*
+          name: Xbox749-MSIX-Part-2
+          path: TPR-749-Delivery/part2/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7554,8 +7582,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox748-MSIX-Part-3
-          path: TPR-748-Delivery/part3/*
+          name: Xbox749-MSIX-Part-3
+          path: TPR-749-Delivery/part3/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7564,8 +7592,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox748-Delivery-Evidence
-          path: TPR-748-Delivery/evidence/*
+          name: Xbox749-Delivery-Evidence
+          path: TPR-749-Delivery/evidence/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30

@@ -1,0 +1,74 @@
+diff --git a/mods/randomizer/src/messages.cpp b/mods/randomizer/src/messages.cpp
+--- a/mods/randomizer/src/messages.cpp
++++ b/mods/randomizer/src/messages.cpp
+@@ -684,6 +684,10 @@
+     return found == s_soulPickupMessages.end() ? seedMessageId : found->second;
+ }
+ 
++bool soul_pickup_messages_active() noexcept {
++    return !s_soulPickupMessages.empty();
++}
++
+ void deactivate() {
+     s_soulPickupMessages.clear();
+     s_graphs.clear();
+diff --git a/mods/randomizer/src/messages.hpp b/mods/randomizer/src/messages.hpp
+--- a/mods/randomizer/src/messages.hpp
++++ b/mods/randomizer/src/messages.hpp
+@@ -13,6 +13,7 @@
+ ModResult activate(RandomizerContext& context);
+ const std::string& lastActivationError();
+ std::uint32_t pickup_message_id(std::uint32_t seedMessageId) noexcept;
++bool soul_pickup_messages_active() noexcept;
+ void deactivate();
+ 
+ }  // namespace randomizer::messages
+diff --git a/mods/randomizer/src/hooks.cpp b/mods/randomizer/src/hooks.cpp
+--- a/mods/randomizer/src/hooks.cpp
++++ b/mods/randomizer/src/hooks.cpp
+@@ -2973,6 +2973,19 @@
+     return messages::pickup_message_id(seedMessageId);
+ }
+ 
++extern "C" u32 tpr_resolve_soul_pickup_for_actor(u8 physicalItemId, const fopAc_ac_c* itemActor) noexcept {
++    // Static UWP calls also run in vanilla play. Only consult randomizer
++    // bindings while this session owns the native Soul message entries.
++    if (!messages::soul_pickup_messages_active() || itemActor == nullptr ||
++        session::svc_mng.item == nullptr) return 0;
++    try {
++        return messages::pickup_message_id(getSoulItemMessageID(physicalItemId, itemActor));
++    } catch (...) {
++        // Leave ordinary native selection and pickup recovery available.
++        return 0;
++    }
++}
++
+ HookAction hookPreProcCoGetItem(ModContext*, void* args, void*, void*) {
+     auto* link = mods::arg<daAlink_c*>(args, 0);
+     if (link->field_0x32cc != 0) return HOOK_CONTINUE;
+diff --git a/src/d/actor/d_a_alink_demo.inc b/src/d/actor/d_a_alink_demo.inc
+--- a/src/d/actor/d_a_alink_demo.inc
++++ b/src/d/actor/d_a_alink_demo.inc
+@@ -7,6 +7,7 @@
+ #if defined(_UWP)
+ extern "C" BOOL tpr_complete_breakable_pickup_message(daAlink_c*, u32, BOOL) noexcept;
+ extern "C" u32 tpr_resolve_soul_pickup_message(u32) noexcept;
++extern "C" u32 tpr_resolve_soul_pickup_for_actor(u8, const fopAc_ac_c*) noexcept;
+ #endif
+ #include "d/d_com_inf_game.h"
+ #include "d/d_demo.h"
+@@ -2543,6 +2544,14 @@
+ 
+         if (item_partner_p != NULL) {
+             if (!fpcM_IsCreating(fpcM_GetID(item_partner_p))) {
++#if defined(_UWP)
++                // Resolve after native item discovery, including late partners
++                // and direct calls that do not pass through the mod pre-hook.
++                if (field_0x32cc == 0 && mProcVar2.field_0x300c != -1) {
++                    field_0x32cc = tpr_resolve_soul_pickup_for_actor(
++                        static_cast<u8>(mProcVar2.field_0x300c), item_partner_p);
++                }
++#endif
+                 if (field_0x32cc == 0 && mProcVar2.field_0x300c != -1) {
+                     if (mProcVar2.field_0x300c == 0x70 && checkStageName("F_SP115")) {
+                         field_0x32cc = 0x6E;
