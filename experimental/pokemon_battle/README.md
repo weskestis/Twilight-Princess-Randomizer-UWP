@@ -4,7 +4,8 @@ Experimental turn-based combat work starts from **Xbox .749**, control commit
 `8b1a9bc011032b32b5e123af8d76ba644b28a971`, on `codex/pokemon-battle-cp1`.
 The production branch still builds .749. The experiment adds an opt-in preview
 stage after all .749 source checks, and preserves the inherited gameplay patches.
-Private final packaging advances the preview installer to .750 for an in-place update.
+Private final packaging creates a separate .750 `DusklightPokemonPreview` app,
+with its own installation identity and saves/settings, alongside the normal .749 app.
 
 ## Current checkpoint
 

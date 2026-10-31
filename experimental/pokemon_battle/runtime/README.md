@@ -37,8 +37,13 @@ containing `[xbox-preview]` on the experiment branch requests the full preview
 build. The CI package contains the native port and resource loader.
 
 `scripts/finalize-pokemon-msix.py` privately adds the refined XD Pikachu pack and
-advances only the installer version to `1.4.1.750`. It verifies the source
-signature, all block-map hashes, native metadata, unchanged inherited payload,
+uses a separate `DusklightPokemonPreview` installation family, visible tile name
+and PhoneProductId at version `1.4.1.750`. The normal .749 app stays installed
+with its own saves/settings. Windows MakePri reindexes the exact original
+`resources.pri` into the new identity and verifies every resource candidate;
+the finalizer requires that input hash to match the actual new CI package.
+It verifies the source signature, all block-map hashes, native metadata, unchanged inherited payload
+apart from the manifest and resource index,
 the final signature, and SDK-extracted filenames and contents. Signing keys are
 temporary; retail assets are not uploaded to the public repository.
 

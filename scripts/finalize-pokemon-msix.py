@@ -13,11 +13,15 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 from urllib.parse import unquote
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pokemon_package_identity import BASE_NAME, PREVIEW_NAME, DISPLAY_NAME, PHONE_ID, preview_manifest
 
 FOOTPRINTS = {'AppxBlockMap.xml', '[Content_Types].xml', 'AppxSignature.p7x',
               'AppxMetadata/CodeIntegrity.cat'}
@@ -148,6 +152,8 @@ def main():
     p.add_argument('--input', type=Path, required=True)
     p.add_argument('--source-cert', type=Path, required=True)
     p.add_argument('--model', type=Path, required=True)
+    p.add_argument('--identity-dir', type=Path, required=True,
+                   help='Verified Windows MakePri output for the separate preview app')
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--makemsix', type=Path, required=True)
     p.add_argument('--osslsigncode', type=Path, required=True)
@@ -158,10 +164,10 @@ def main():
     assert re.fullmatch(r'\d+\.\d+\.\d+\.\d+', a.version)
     assert tuple(map(int, a.version.split('.'))) > (1, 4, 1, 749)
     assert all(int(x) <= 65535 for x in a.version.split('.'))
-    for field in ['input', 'source_cert', 'model', 'output', 'makemsix', 'osslsigncode']:
+    for field in ['input', 'source_cert', 'model', 'identity_dir', 'output', 'makemsix', 'osslsigncode']:
         setattr(a, field, getattr(a, field).resolve())
     a.output.mkdir(parents=True, exist_ok=True)
-    package = a.output / ('TwilightPrincessRandomizer_' + a.version + '_PikachuPreview_x64.msix')
+    package = a.output / (PREVIEW_NAME + '_' + a.version + '_x64.msix')
     assert not package.exists(), 'Refusing to replace a delivered package'
     blob = a.model.read_bytes()
     assert blob[:8] == b'DPKM0001'
@@ -199,11 +205,23 @@ def main():
         assert mod['id'] == 'dev.weskestis.pokemon_model_lab' and mod['version'] == '0.3.0'
         control = Path(__file__).resolve().parents[1]
         run(['python', control / 'scripts/verify-pokemon-uwp.py', payload], 'verify-preview-native-metadata')
-        # Change only the installer version; the complete executable remains the .749 build.
-        assert xml.count('Version="1.4.1.749"') == 1
-        manifest.write_text(xml.replace('Version="1.4.1.749"', 'Version="' + a.version + '"'), encoding='utf-8')
+        identity_proof = json.loads((a.identity_dir / 'Separate-App-Identity.json').read_text())
+        assert identity_proof['sourcePackageName'] == BASE_NAME
+        assert identity_proof['packageName'] == PREVIEW_NAME
+        assert identity_proof['displayName'] == DISPLAY_NAME and identity_proof['phoneProductId'] == PHONE_ID
+        assert identity_proof['allResourceCandidatesPreserved'] and identity_proof['resourceCount'] > 0
+        assert identity_proof['sourcePriSha256'] == sha(payload / 'resources.pri'), 'New build needs Windows PRI reindexing'
+        assert identity_proof['previewPriSha256'] == sha(a.identity_dir / 'resources.pri')
+        # Change the installation family as well as its visible name. Reindexing the
+        # PRI is required: Windows checks its resource map against the package Name.
+        manifest.write_text(preview_manifest(xml, a.version), encoding='utf-8')
+        shutil.copyfile(a.identity_dir / 'resources.pri', payload / 'resources.pri')
         shutil.copyfile(a.model, payload / MODEL_PATH)
         proof = {'version': a.version, 'baseVersion': '1.4.1.749', 'sourceCommit': a.commit,
+                 'finalizerSha256': sha(Path(__file__)),
+                 'identityCodeSha256': sha(control / 'scripts/pokemon_package_identity.py'),
+                 'packageName': PREVIEW_NAME, 'sourcePackageName': BASE_NAME, 'separateApp': True,
+                 'displayName': DISPLAY_NAME, 'phoneProductId': PHONE_ID, 'resourceIdentity': identity_proof,
                  'sourcePackageSha256': sha(a.input), 'modelSha256': sha(a.model),
                  'modelBytes': a.model.stat().st_size, 'triangles': indices // 3, 'clips': clips,
                  'hardwareTested': False, 'mode': 'animated model preview; combat not connected'}
@@ -214,7 +232,7 @@ def main():
              '-addext', 'basicConstraints=critical,CA:FALSE', '-addext', 'keyUsage=critical,digitalSignature',
              '-addext', 'extendedKeyUsage=codeSigning'], 'create-preview-certificate')
         os.chmod(key, 0o600)
-        public_cert = a.output / 'TwilightPrincessRandomizer-PikachuPreview.cer'
+        public_cert = a.output / 'DusklightPokemonPreview.cer'
         run(['openssl', 'x509', '-in', cert, '-outform', 'DER', '-out', public_cert], 'export-preview-certificate')
         unsigned = work / 'unsigned.msix'
         run([a.makemsix, 'pack', '-d', payload, '-p', unsigned], 'pack-preview')
@@ -237,9 +255,10 @@ def main():
         after = inventory(candidate)
         assert set(after) == set(before) | {MODEL_PATH, PROOF_PATH}
         for name, expected in before.items():
-            if name != 'AppxManifest.xml':
+            if name not in {'AppxManifest.xml', 'resources.pri'}:
                 assert after[name] == expected, 'Inherited .749 payload changed: ' + name
         assert after[MODEL_PATH]['sha256'] == proof['modelSha256']
+        assert after['resources.pri']['sha256'] == identity_proof['previewPriSha256']
         # Independent SDK unpack verifies the finalized block map and the installed names.
         checked = work / 'checked'
         run([a.makemsix, 'unpack', '-p', candidate, '-d', checked, '-ss'], 'verify-sdk-unpack')

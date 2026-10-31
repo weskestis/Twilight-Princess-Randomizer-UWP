@@ -1,14 +1,18 @@
 # Pikachu preview for Xbox
 
-This is the .750 preview installer built from the complete .749 game. Pikachu's
-model, textures and all 15 animation clips are included.
+**Dusklight Pokémon Preview** is a separate test app built from the complete
+.749 game. Keep your normal .749 app installed. The preview has its own app
+identity, saves and settings. Pikachu's model, textures and all 15 animation
+clips are included. Its installer version is 1.4.1.750.
 
-1. Download `TwilightPrincessRandomizer_1.4.1.750_PikachuPreview_x64.msix`.
-2. Install it over .749 through Xbox Device Portal, using the same app entry.
-   The package keeps the existing identity for saves and settings. If Device
-   Portal requests VCLibs, select `Microsoft.VCLibs.x64.14.00.appx` from the
-   support ZIP.
-3. Launch the game and load a save. Stand on open ground with Link.
+1. Download `DusklightPokemonPreview_1.4.1.750_x64.msix`.
+2. Add it through Xbox Device Portal as a new app. It appears as
+   **Dusklight Pokémon Preview** alongside your existing app. If Device Portal
+   requests VCLibs, select `Microsoft.VCLibs.x64.14.00.appx` from the support ZIP.
+3. Launch the preview and select your supported Twilight Princess GameCube disc
+   image during its initial setup. If asked for a data folder, choose a new
+   folder for the preview. Start a test save and stand on open ground
+   with Link. Existing .749 saves/settings are not copied into this app.
 4. Open **Mods → Pokemon Model Lab** and enable the mod. Opening its panel
    loads the included Pikachu automatically.
 5. Select **Spawn beside Link**, then close the menu to see the preview.
