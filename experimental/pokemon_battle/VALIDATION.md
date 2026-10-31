@@ -85,3 +85,27 @@ works after reopening a saved asset.
 Front/rear comparison renders and the updated animation preview are the visual
 checks for facial-card shading, ear joins, stripes, and pose continuity. The
 native rendering/actor integration and Xbox performance remain unvalidated.
+
+## CP3 native model preview
+
+Both final private DPKM packs passed the production C++ loader and every one of
+their 1,218 sampled frames. Each has 2,032 render vertices, 3,749 visible triangles,
+15 batches, and all 15 clips. Seven hidden helper meshes are omitted. Texture
+atlases retain 2x source dimensions. Quantization error is at most approximately
+1.98e-5 model units across all baked frames.
+
+Malformed-file, checksum, bounds, transactional replacement, clip timing,
+interpolation, material-step and recording-GX tests passed locally. The real
+preview actor compiles against the pinned game headers, and the desktop module
+builds, links and packages through the upstream CMake SDK on Linux. The root
+CMake combat/UI/runtime suite also passes. This does not validate an executed
+actor or GPU in a game host. The CI matrix adds Linux and Windows/MSVC checks;
+its actual run status remains authoritative.
+
+Poses decoded by the production C++ loader were rendered in Blender for visual
+QA. This found and fixed visible helper boxes in the first export; final idle,
+damage and attack poses were inspected. These renders are not gameplay captures.
+
+Still pending: signed static UWP registration, a native game run, Xbox packaging
+and hardware testing, world enemy replacement and turn-based encounter binding.
+No production .749 workflow or game-save behavior was changed.

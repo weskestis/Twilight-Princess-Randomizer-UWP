@@ -9,3 +9,6 @@ __pycache__/
 *.rar
 *.png
 *.mp4
+
+*.dpkm
+*.rgba8

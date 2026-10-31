@@ -129,3 +129,11 @@ directional lighting. `--view back` produces a rear comparison for checking the
 stripe and tail attachments. Use `preview_model.py` for an animation preview.
 The updated private package contains both original and refined assets; no game
 or model bytes are added to this repository.
+
+## Native runtime conversion (CP3)
+
+`export_runtime.py` converts either refined Pikachu into the private DPKM format.
+It omits hidden helper meshes and samples original geometry and facial UV tracks.
+The production C++ loader can export poses through `runtime/snapshot.cpp`;
+`preview_runtime.py` renders those decoded poses for visual QA. See
+[the native preview actor, format and limitations](../runtime/README.md).

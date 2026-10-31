@@ -27,6 +27,11 @@ The production .749 workflow, application identity, and gameplay patches are unc
   texture dimensions, and verifies the original rig and animation curves stay
   intact. Both Colosseum and XD source assets have been processed.
 
+- CP3 adds a native model loader, GX renderer, and a preview actor with load,
+  spawn-beside-Link, clip selection and removal controls. Both refined imports
+  now have private runtime packs. The module builds/links with the pinned desktop
+  SDK; game and Xbox execution are still pending. See [CP3](runtime/README.md).
+
 This is **not an installable Xbox MSIX or a working overworld Pokemon encounter**.
 The native panel is compiled and exercised against the upstream SDK headers used
 by .749, using a test UI host. No live Dusklight renderer, controller, or Xbox
@@ -72,9 +77,10 @@ the full .749 host build are **not claimed by these tests**.
 
 ## Next playable encounter
 
-1. CP2 has verified both supplied game images and imported Pikachu into Blender.
-   Convert this source asset to a Dusklight runtime representation, preserving
-   textures, skinning, material animation, scale, and clip timing.
+1. CP3 supplies a runtime representation and compiled native preview actor.
+   Exercise the actor in a real host, then add static UWP registration and test
+   rendering, transitions, cleanup and performance on Xbox. Editable source rigs
+   remain intact; the preview representation uses baked vertex animation.
 2. Bind an eligible ordinary enemy spawn to the Pokemon actor. Preserve the
    user's rule that bosses/minibosses remain vanilla unless changed explicitly.
 3. Implement `Host` using .749's actual actor generation, input, pause, camera,

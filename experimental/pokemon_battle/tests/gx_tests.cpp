@@ -1,0 +1,71 @@
+#include "../model_lab/gx_renderer.hpp"
+#include "runtime_fixture.hpp"
+#include <dolphin/gx/GXExtra.h>
+#include <cmath>
+#include <iostream>
+using fixture::require;
+namespace {
+std::size_t created=0,destroyed=0,loaded=0,draws=0,vertices=0,expected=0,in_draw=0;
+}
+extern "C" {
+void GXInitTexObj(GXTexObj*,const void* data,u16 w,u16 h,GXTexFmt format,GXTexWrapMode s,GXTexWrapMode t,GXBool mip) {
+    require(data && w>=4 && h>=4 && format==GX_TF_RGBA8 && s==GX_CLAMP && t==GX_CLAMP && !mip,"texture setup");++created;
+}
+void GXInitTexObjLOD(GXTexObj*,GXTexFilter a,GXTexFilter b,f32,f32,f32,GXBool,GXBool,GXAnisotropy) { require(a==GX_LINEAR && b==GX_LINEAR,"filter"); }
+void GXDestroyTexObj(GXTexObj*) { ++destroyed; }
+void GXLoadTexObj(GXTexObj*,GXTexMapID) { ++loaded; }
+void GXClearVtxDesc() {}
+void GXSetVtxDesc(GXAttr,GXAttrType) {}
+void GXSetVtxAttrFmt(GXVtxFmt,GXAttr,GXCompCnt,GXCompType,u8) {}
+void GXSetNumChans(u8) {}
+void GXSetChanCtrl(GXChannelID,GXBool,GXColorSrc,GXColorSrc,u32,GXDiffuseFn,GXAttnFn) {}
+void GXSetNumTexGens(u8) {}
+void GXSetTexCoordGen2(GXTexCoordID,GXTexGenType,GXTexGenSrc,u32,GXBool,u32) {}
+void GXSetNumTevStages(u8) {}
+void GXSetNumIndStages(u8) {}
+void GXSetTevDirect(GXTevStageID) {}
+void GXSetTevOrder(GXTevStageID,GXTexCoordID,GXTexMapID,GXChannelID) {}
+void GXSetTevSwapMode(GXTevStageID,GXTevSwapSel,GXTevSwapSel) {}
+void GXSetTevSwapModeTable(GXTevSwapSel,GXTevColorChan,GXTevColorChan,GXTevColorChan,GXTevColorChan) {}
+void GXSetTevOp(GXTevStageID,GXTevMode) {}
+void GXSetBlendMode(GXBlendMode,GXBlendFactor,GXBlendFactor,GXLogicOp) {}
+void GXSetAlphaCompare(GXCompare,u8,GXAlphaOp,GXCompare,u8) {}
+void GXSetZCompLoc(GXBool) {}
+void GXSetZMode(GXBool enabled,GXCompare compare,GXBool write) {require(enabled && compare==GX_LEQUAL && write,"depth setup");}
+void GXSetCullMode(GXCullMode) {}
+void GXSetColorUpdate(GXBool) {}
+void GXSetAlphaUpdate(GXBool) {}
+void GXSetFog(GXFogType,f32,f32,f32,f32,GXColor) {}
+void GXLoadPosMtxImm(const void*,u32) {}
+void GXSetCurrentMtx(u32) {}
+void GXBegin(GXPrimitive primitive,GXVtxFmt,u16 count) {
+    require(!in_draw && primitive==GX_TRIANGLES && count%3==0,"begin");
+    ++draws;expected=count;in_draw=1;
+}
+void GXPosition3f32(f32 x,f32 y,f32 z) {require(in_draw && expected && std::isfinite(x+y+z),"vertex");--expected;++vertices;}
+void GXColor4u8(u8,u8,u8,u8 a) {require(a==255,"opacity");}
+void GXTexCoord2f32(f32 s,f32 t) {require(std::isfinite(s+t),"texture coordinate");}
+void GXEnd() {require(in_draw && expected==0,"end vertex count");in_draw=0;}
+}
+int main(int argc,char** argv) {
+    for(int input=0;input<argc;++input) {
+        auto bytes=input==0?fixture::make():fixture::read(argv[input]);
+        pokemon_battle::runtime::Model model;std::string error;
+        require(model.load(bytes,error),error.c_str());
+        const auto nindices=model.indices().size(), nbatches=model.batches().size(), ntextures=model.textures().size();
+        const auto before=created;
+        {
+            pokemon_battle::runtime::GxAsset asset(std::move(model));
+            pokemon_battle::runtime::Pose pose;
+            Mtx matrix{{1,0,0,0},{0,1,0,0},{0,0,1,0}};
+            for(std::size_t c=0;c<asset.model().clips().size();++c) {
+                require(asset.model().sample(c,0,false,pose),"sample");
+                draws=vertices=loaded=0;asset.draw(pose,matrix);
+                require(draws==nbatches && loaded==nbatches && vertices==nindices,"draw coverage");
+            }
+            pose.vertices.clear();draws=0;asset.draw(pose,matrix);require(draws==0,"invalid pose drawn");
+        }
+        require(created==before+ntextures && created==destroyed,"texture lifetime");
+    }
+    std::cout<<"PASS: production GX renderer draw coverage, texture setup, depth, invalid pose and cleanup (recording host)\n";
+}

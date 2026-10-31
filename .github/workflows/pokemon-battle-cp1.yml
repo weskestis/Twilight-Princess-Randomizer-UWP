@@ -6,6 +6,7 @@ on:
     paths:
       - experimental/pokemon_battle/**
       - scripts/test-pokemon-battle-cp1.py
+      - scripts/test-pokemon-runtime.py
       - .github/workflows/pokemon-battle-cp1.yml
   workflow_dispatch:
 
@@ -39,3 +40,37 @@ jobs:
       - name: Address and undefined behavior sanitizers
         if: runner.os == 'Linux'
         run: python scripts/test-pokemon-battle-cp1.py --sdk _dusk_sdk_reference/sdk --sanitize
+
+  model-runtime-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out .749 game ABI and pinned GX headers
+        uses: actions/checkout@v4
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7
+          path: _dusk_runtime_reference
+          sparse-checkout: |
+            include
+            assets/GZ2E01
+            libs/JSystem/include
+            sdk
+            extern/aurora
+      - name: Initialize the exact Aurora submodule
+        run: git -C _dusk_runtime_reference submodule update --init --depth 1 extern/aurora
+      - name: Enable MSVC x64
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Test runtime codec and GX submissions; compile the real preview actor
+        run: python scripts/test-pokemon-runtime.py --dusk _dusk_runtime_reference
+      - name: Address and undefined behavior sanitizers
+        if: runner.os == 'Linux'
+        run: python scripts/test-pokemon-runtime.py --dusk _dusk_runtime_reference --sanitize
