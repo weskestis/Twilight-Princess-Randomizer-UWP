@@ -1,0 +1,156 @@
+{
+  "schema": 1,
+  "base": "8b1a9bc011032b32b5e123af8d76ba644b28a971",
+  "checkpoint": "CP2 asset intake",
+  "date": "2026-10-31",
+  "runtime_ready": false,
+  "tools": {
+    "nodtool": "v2.0.0-alpha.12",
+    "nodtool_commit": "ebd80cac99b48a323200d84365e07a58cc27412d",
+    "nodtool_binary_sha256": "ee8345c004248eb82a86dd0c6068e0fcf3dc75baf68d18fe949bf4589822f5a5",
+    "addon_repository": "https://github.com/StarsMmd/Blender-Addon-Gamecube-Models",
+    "addon_commit": "dc71de837978a6a2fe8c5082f2840cfafb135235",
+    "bpy": "4.5.7"
+  },
+  "games": [
+    {
+      "key": "colosseum",
+      "id": "GC6E01",
+      "revision": 0,
+      "rar_parts": [
+        {
+          "name": "Pokemon Colosseum (USA).part1.rar",
+          "bytes": 314572800,
+          "sha256": "2dc06bb757cf298cac160503757a380decb5f355fb49efc867a74e53d2a03fd0"
+        },
+        {
+          "name": "Pokemon Colosseum (USA).part2.rar",
+          "bytes": 254635721,
+          "sha256": "d57dd9f28b60ab49deeab6ff6caedba5fc72aaa952227d5d19538e3b5be105ac"
+        }
+      ],
+      "image": {
+        "name": "Pokemon Colosseum (USA).rvz",
+        "bytes": 576136444,
+        "sha256": "f278e568b5c2dafb153ec932edc95051146cecf5ebc1d3843d71745cd0c1861e",
+        "format": "RVZ",
+        "lossless": true
+      },
+      "verification": {
+        "method": "nodtool verify, bundled Redump database",
+        "passed": true,
+        "disc_sha1": "96b2b686d202a13dd15261fb7cffbcb2f08c0a77",
+        "disc_crc32": "0704554f"
+      },
+      "extracted": {
+        "files": 1877,
+        "bytes": 660794065,
+        "fsys_archives": 1852,
+        "pkx_archives": 527,
+        "pkx_count_is_species_count": false
+      },
+      "selected_model": {
+        "path": "files/pkx_pikachu.fsys",
+        "bytes": 258272,
+        "sha256": "c650a21cc69407b87d4f65ebf09f8109eeac4734f274b84018c65deacbcd4e56",
+        "meshes": 27,
+        "vertices": 660,
+        "triangles": 913,
+        "bones": 50,
+        "texture_images": 14,
+        "animation_clips": 15,
+        "import_errors": 0,
+        "import_leniencies": {
+          "degenerate_faces_pruned": 16,
+          "missing_vertex_colors": 27,
+          "near_zero_bone_rescued": 1
+        },
+        "faces": 871
+      },
+      "pikachu_effect_archives_found": [
+        "wzx_10manvolt_pikachu.fsys",
+        "wzx_dengekiha_pikachu.fsys",
+        "wzx_denjiha_pikachu.fsys",
+        "wzx_denjihou_pikachu.fsys",
+        "wzx_denkishock_pikachu.fsys",
+        "wzx_gaman_pikachu.fsys",
+        "wzx_iwakudaki_pikachu.fsys",
+        "wzx_juuden_pikachu.fsys",
+        "wzx_kaminari_pikachu.fsys",
+        "wzx_kawarawari_pikachu.fsys"
+      ]
+    },
+    {
+      "key": "xd",
+      "id": "GXXE01",
+      "revision": 0,
+      "rar_parts": [
+        {
+          "name": "Pokemon XD - Gale of Darkness (USA).part1.rar",
+          "bytes": 419430400,
+          "sha256": "118c750867f4164c1c588ed82be30da43b5c8d2ae7f89b40293282db285c3a40"
+        },
+        {
+          "name": "Pokemon XD - Gale of Darkness (USA).part2.rar",
+          "bytes": 419430400,
+          "sha256": "d64b97237b03bf42cb9d09ee10388ada4c636941af80879762c0c59945d2685d"
+        },
+        {
+          "name": "Pokemon XD - Gale of Darkness (USA).part3.rar",
+          "bytes": 90419792,
+          "sha256": "eb0df084dd8f45c46429881d037558d6661eeede6785568dee2e8ebd7efd628a"
+        }
+      ],
+      "image": {
+        "name": "Pokemon XD - Gale of Darkness (USA).rvz",
+        "bytes": 960244616,
+        "sha256": "b7ce993cb588a0fdd2509367d49db5666feb01c288ae6a13e0a5f550be32ba6c",
+        "format": "RVZ",
+        "lossless": true
+      },
+      "verification": {
+        "method": "nodtool verify, bundled Redump database",
+        "passed": true,
+        "disc_sha1": "c1b5218f832403d15aa500ac4d6aacc8865c792d",
+        "disc_crc32": "c0f69d18"
+      },
+      "extracted": {
+        "files": 2567,
+        "bytes": 1093382325,
+        "fsys_archives": 2540,
+        "pkx_archives": 603,
+        "pkx_count_is_species_count": false
+      },
+      "selected_model": {
+        "path": "files/pkx_pikachu.fsys",
+        "bytes": 286656,
+        "sha256": "eee863dfd4c225a99ddff5e91b8623444d464d2f5211163f661c5d860d8f5bd7",
+        "meshes": 27,
+        "vertices": 660,
+        "triangles": 913,
+        "bones": 50,
+        "texture_images": 14,
+        "animation_clips": 15,
+        "import_errors": 0,
+        "import_leniencies": {
+          "degenerate_faces_pruned": 16,
+          "missing_vertex_colors": 27,
+          "near_zero_bone_rescued": 1
+        },
+        "faces": 871
+      },
+      "pikachu_effect_archives_found": [
+        "wzx_10manvolt_pikachu.fsys",
+        "wzx_dengekiha_pikachu.fsys",
+        "wzx_denjiha_pikachu.fsys",
+        "wzx_denjihou_pikachu.fsys",
+        "wzx_denkishock_pikachu.fsys",
+        "wzx_gaman_pikachu.fsys",
+        "wzx_iwakudaki_pikachu.fsys",
+        "wzx_juuden_pikachu.fsys",
+        "wzx_kaminari_pikachu.fsys",
+        "wzx_kawarawari_pikachu.fsys"
+      ]
+    }
+  ]
+}

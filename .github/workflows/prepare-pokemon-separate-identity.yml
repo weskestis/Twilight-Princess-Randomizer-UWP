@@ -1,0 +1,46 @@
+name: Prepare separate Pokemon app identity
+on:
+  push:
+    branches: [codex/pokemon-separate-app]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  identity:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore exact .749 resource index and prepare separate manifest
+        shell: pwsh
+        run: |
+          @'
+          import base64,hashlib,sys
+          from pathlib import Path
+          sys.path.insert(0,str(Path('scripts').resolve()))
+          from pokemon_package_identity import preview_manifest
+          source=Path('tests/pokemon-package-identity')
+          pri=base64.b64decode((source/'source-pri.base64').read_text(),validate=True)
+          assert hashlib.sha256(pri).hexdigest()=='a6ffb195e85fa44e9108b70ff81ca33a7a8f50ff198758a898d7956192346865'
+          Path('source.pri').write_bytes(pri)
+          output=Path('separate-identity');output.mkdir()
+          (output/'AppxManifest.xml').write_text(preview_manifest((source/'source-manifest.xml').read_text(),'1.4.1.750'),encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Source PRI or separate manifest failed validation.' }
+      - name: Reindex and compare all UWP resource candidates
+        shell: pwsh
+        run: |
+          $sdk = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Directory |
+            Where-Object { $_.Name -match '^10\.0\.\d+\.0$' -and (Test-Path (Join-Path $_.FullName 'x64\makepri.exe')) } |
+            Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          if (-not $sdk) { throw 'Windows SDK MakePri was not found.' }
+          python scripts/reindex-pokemon-pri.py --source-pri source.pri --output separate-identity --makepri (Join-Path $sdk.FullName 'x64\makepri.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Separate resource-map verification failed.' }
+      - name: Upload separate identity and resource evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PokemonPreview-Separate-Identity
+          path: separate-identity/*
+          if-no-files-found: error
+          retention-days: 30

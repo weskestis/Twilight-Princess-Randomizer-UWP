@@ -1,9 +1,11 @@
 name: Build Dusklight 2.0.1 Xbox 749
+run-name: ${{ github.ref_name == 'codex/pokemon-battle-cp1' && 'Xbox .749 Pikachu preview' || 'Xbox .749 release' }}
 
 on:
   push:
     branches:
       - codex/xbox-680-from-679
+      - codex/pokemon-battle-cp1
   workflow_dispatch:
 
 permissions:
@@ -15,6 +17,7 @@ concurrency:
 
 jobs:
   xbox-uwp-x64:
+    if: github.ref_name != 'codex/pokemon-battle-cp1' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[xbox-preview]')
     name: Xbox UWP x64 package
     runs-on: windows-2022
     permissions:
@@ -6438,6 +6441,16 @@ jobs:
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
 
+      - name: Add the optional Pikachu preview to verified .749
+        if: github.ref_name == 'codex/pokemon-battle-cp1'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\stage-pokemon-uwp.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Pokemon .749 signed native staging failed.' }
+          python "$env:TPR_CONTROL\scripts\test-pokemon-runtime.py" --dusk "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Pokemon runtime tests against assembled .749 failed.' }
+
       - name: Save reusable hash-verified mod downloads
         if: always() && steps.mod-download-cache.outputs.cache-hit != 'true'
         continue-on-error: true
@@ -6787,6 +6800,10 @@ jobs:
           $nativePorts743 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json
           $nativePorts744 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-744.json" -Raw | ConvertFrom-Json
           $nativePorts743.mods = @($nativePorts743.mods) + @($nativePorts744.mods)
+          if ($env:GITHUB_REF_NAME -eq 'codex/pokemon-battle-cp1') {
+            # Both the native archive and its resource bundle are explicit feed targets.
+            $nativePorts743.mods += [pscustomobject]@{ target = 'port_pokemon_model_lab' }
+          }
           $nativeTargets743 = @($nativePorts743.mods | ForEach-Object { $_.target })
           cmake --build "$env:TPR_FEED" --target $nativeTargets743 --parallel -- -k 0
           if ($LASTEXITCODE -ne 0) { throw 'Source-built native UWP mods failed to compile.' }
@@ -7533,6 +7550,14 @@ jobs:
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
           Get-Content (Join-Path $out 'SHA256SUMS.txt') | Out-Host
 
+      - name: Verify signed Pikachu preview metadata and packaged resources
+        if: github.ref_name == 'codex/pokemon-battle-cp1'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\verify-pokemon-uwp.py" "$env:TPR_MSIX_INSPECT"
+          if ($LASTEXITCODE -ne 0) { throw 'Pokemon signed package verification failed.' }
+
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
@@ -7550,6 +7575,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Verified MSIX transfer/source preservation failed.' }
 
       - name: Deliver verified MSIX draft release
+        if: github.ref_name != 'codex/pokemon-battle-cp1'
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}

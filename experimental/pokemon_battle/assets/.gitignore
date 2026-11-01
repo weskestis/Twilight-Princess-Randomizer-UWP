@@ -1,0 +1,14 @@
+__pycache__/
+*.blend*
+*.fsys
+*.pkx
+*.dat
+*.rvz
+*.iso
+*.gcm
+*.rar
+*.png
+*.mp4
+
+*.dpkm
+*.rgba8

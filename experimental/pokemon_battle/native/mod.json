@@ -1,0 +1,7 @@
+{
+  "id": "dev.weskestis.pokemon_battle_lab",
+  "name": "Pokemon Battle Lab (CP1)",
+  "version": "0.1.0",
+  "author": "Wes Kestis",
+  "description": "Experimental turn-based combat simulation. No game assets or overworld hooks."
+}
