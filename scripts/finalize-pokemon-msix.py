@@ -225,7 +225,7 @@ def main():
                  'displayName': DISPLAY_NAME, 'phoneProductId': PHONE_ID, 'resourceIdentity': identity_proof,
                  'sourcePackageSha256': sha(a.input), 'modelSha256': sha(a.model),
                  'modelBytes': a.model.stat().st_size, 'triangles': indices // 3, 'clips': clips,
-                 'hardwareTested': False, 'mode': 'animated model preview; combat not connected'}
+                 'hardwareTested': False, 'mode': 'real-time Pikachu encounters, capture and six-member party companions'}
         (payload / PROOF_PATH).write_text(json.dumps(proof, indent=2) + '\n')
         key, cert = work / 'key.pem', work / 'cert.pem'
         run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-nodes',
