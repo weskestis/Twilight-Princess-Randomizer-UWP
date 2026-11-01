@@ -292,7 +292,7 @@ public:
             const bool electric=combat.move==Move::ThunderShock;
             if(length>1) { const float reach=std::min(length,electric?100.f:55.f); center.x+=dx/length*reach; center.z+=dz/length*reach; }
             attack.SetAtAtp(combat.attack_power()+((weaken_timer && fopAcM_GetID(target)==weakened_target)?1:0));
-            attack.SetAtMtrl(electric?dCcD_MTRL_ELECTRIC:dCcD_MTRL_NONE);
+            attack.SetAtMtrl(static_cast<u8>(electric?dCcD_MTRL_ELECTRIC:dCcD_MTRL_NONE));
             attack.SetC(center); attack.SetR(electric?85.f:45.f); attack.OnAtSetBit(); dComIfG_Ccsp()->Set(&attack);
             spark_end=end;
         }
