@@ -1,37 +1,43 @@
-# Pikachu preview for Xbox
+# Pokemon encounters for Xbox
 
-**Dusklight Pokémon Preview** is a separate test app built from the complete
-.749 game. Keep your normal .749 app installed. The preview has its own app
-identity, saves and settings. Pikachu's model, textures and all 15 animation
-clips are included. Its installer version is 1.4.1.751.
+**Dusklight Pokémon Preview 1.4.1.752** remains a separate app built from the
+complete .749 game. Install it over the previous .750/.751 Pokémon Preview to
+retain that app's data. Keep the normal Twilight Princess Randomizer installed.
+The title screen still reports the underlying .749 game version.
 
-1. Download `DusklightPokemonPreview_1.4.1.751_x64.msix`.
-2. Add it through Xbox Device Portal as a new app. It appears as
-   **Dusklight Pokémon Preview** alongside your existing app. If Device Portal
-   requests VCLibs, select `Microsoft.VCLibs.x64.14.00.appx` from the support ZIP.
-3. In Xbox Dev Home, open the preview's **View details** and set **App type**
-   to **Game** ([setup reference](https://walbourn.github.io/directx-and-uwp-on-xbox-one/)).
-4. Launch the preview and select your supported Twilight Princess GameCube disc
-   image during its initial setup. If asked for a data folder, choose a new
-   folder for the preview. Start a test save and stand on open ground
-   with Link. Existing .749 saves/settings are not copied into this app.
-5. Open **Mods → Pokemon Model Lab** and enable the mod. Opening its panel
-   loads the included Pikachu automatically.
-6. Select **Spawn beside Link**, then close the menu to see the preview.
+1. Install `DusklightPokemonPreview_1.4.1.752_x64.msix` through Xbox Device Portal.
+   If needed, add `Microsoft.VCLibs.x64.14.00.appx` as the dependency.
+2. Set the Pokémon Preview's **App type** to **Game** in Xbox Dev Home.
+3. Choose **Play**, load a Zelda save, and stand on open ground with Link.
+4. Open **Mods → Pokemon Encounters**. The bundled Pikachu loads automatically.
+5. Select **Start wild encounter**, then close the menu. Up to three wild Pikachu
+   can be present. Fight using Link's weapons; the red bar shows enemy HP.
+6. Face a living Pikachu and use **Throw Poke Ball** in the panel, or hold the
+   GameCube **R** binding (normally Xbox **RT**) and press **D-pad Up**. Lower HP
+   improves capture odds. Fainted Pokémon cannot be caught.
+7. Select a party member, then **Summon / recall selected Pokemon**, or hold
+   **R + D-pad Down**. **R + Left/Right** changes the selected member.
+8. Start another wild encounter. Your companion follows Link and fights nearby
+   wild Pokémon and supported ordinary Zelda enemies. Its health bar is green.
+9. **Save through Zelda's normal save menu** before quitting. Load the same Zelda
+   save to restore the six-slot party, current HP, move PP, and remaining balls.
 
-Use **Next clip** to select each animation or **Play idle** to return to idle;
-close the menu to let the game run. Idle loops; the other clips play once and
-hold their final pose. **Remove preview** clears the actor. It also
-clears when entering a cutscene or changing areas, and can then be spawned again.
+Each Zelda save slot has its own party. Throwing costs one ball; an area change
+interrupts the throw without adding a Pokémon. A full party prevents throwing.
+Companions are recalled on room/scene changes and can be summoned again. Fainted
+companions remain in the party. Use **Clear encounter and recall**, close the
+menu briefly to allow actor removal, then **Rest party** to restore HP and PP.
+The practice panel also restocks the starting supply of 24 balls.
 
-The first Xbox check is whether Pikachu appears with correct textures, stays on
-the ground, plays its animations, and can be removed and spawned again. Physical
-Xbox testing is still required. This build previews the model; combat, ordinary
-enemy replacement, catching and companions are later steps.
+This milestone uses the supplied, lightly refined XD Pikachu and its 15 original
+animation clips. The existing **Pokemon Model Lab** preview controls remain
+below the encounter controls. Ordinary-enemy replacement, randomizer reward
+integration, a new item-ring slot, automatic wilderness population, and
+Colosseum story/map import remain future work. Bosses/minibosses retain their
+vanilla actors. Combat is real-time with authored action-game balance; it is not
+Colosseum's turn-based formula. Growl and Tail Whip affect Pokémon stats directly;
+against Link/vanilla actors, their temporary effects apply only within that
+Pokémon's own combat interaction.
 
-The .751 preview corrects scene ownership when **Spawn beside Link** is pressed
-from the mod menu. The .750 request could place Pikachu on the root layer,
-causing two submissions of the same draw packet and a cyclic render queue.
-The regression check reproduces that cycle with the game's actual packet-list
-code and verifies one draw for the corrected scene-owned spawn. Xbox validation
-of this fix is still required.
+The .751 spawn fix was confirmed by the user on Xbox. The new .752 encounter
+behavior requires a fresh hardware check after the build and packaging checks.

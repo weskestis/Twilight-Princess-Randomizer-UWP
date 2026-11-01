@@ -4,48 +4,48 @@ Experimental turn-based combat work starts from **Xbox .749**, control commit
 `8b1a9bc011032b32b5e123af8d76ba644b28a971`, on `codex/pokemon-battle-cp1`.
 The production branch still builds .749. The experiment adds an opt-in preview
 stage after all .749 source checks, and preserves the inherited gameplay patches.
-Private final packaging creates a separate .750 `DusklightPokemonPreview` app,
+Private final packaging creates a separate .752 `DusklightPokemonPreview` app,
 with its own installation identity and saves/settings, alongside the normal .749 app.
 
-## Current checkpoint
+## Current playable milestone
 
-- A real, compiled C++ combat core: introduction, player choice, player action,
-  enemy action, victory/defeat/escape, and completion.
-- Link commands: Sword, Bow, Bomb, Guard, Flee. Ammunition is consumed only after
-  a legal command is accepted. Guard and stat reductions affect damage.
-- Enemy selection from a weighted move pool with finite PP, deterministic seeded
-  randomness, and an exhausted-pool attack. The Pikachu sample uses ThunderShock,
-  Quick Attack, Growl, and Tail Whip.
-- Every presentation has an increasing identifier. Only its matching completion
-  can advance the battle; old callbacks and commands during another action are ignored.
-- A native Dusklight UI-service panel, with action availability and a manual
-  Continue button. It is a **simulation**, with isolated test HP/ammunition.
-- A separately tested host-session contract: world acquisition/release, scene
-  invalidation, bounded presentation/settlement waits, and idempotent settlement IDs.
-  The concrete Twilight Princess host implementation is **not implemented**.
-- CP2 asset intake: both supplied game images verified, with the original Pikachu
-  model, textures, skeleton, and 15 clips imported from each game. See
-  [the asset workflow and validation limits](assets/README.md).
-- Optional light Pikachu refinement smooths the belly and limbs, doubles packed
-  texture dimensions, and verifies the original rig and animation curves stay
-  intact. Both Colosseum and XD source assets have been processed.
+The user confirmed the .751 preview spawns on Xbox and subsequently reported it
+seems to work. Specific animation, cleanup, and transition checks were not
+individually documented. .752 adds the encounter implementation; hardware
+validation of these new features is still required.
 
-- CP3 adds a native model loader, GX renderer, and a preview actor with load,
-  spawn-beside-Link, clip selection and removal controls. Both refined imports
-  now have private runtime packs. The module builds/links with the pinned desktop
-  SDK; live game and Xbox execution are still pending. See [the runtime](runtime/README.md).
-- CP4 registers the Model Lab in the signed UWP host, with an independent SDK
-  namespace, context, metadata section and exact version gate. Its panel loads
-  the bundled Pikachu automatically. The private packager adds the model, signs
-  the package, and verifies all inherited files and installed resource names.
+- Opt-in real-time encounters with up to three wild Pikachu and one summoned
+  companion. Every instance shares the loaded 31 MB model and textures.
+- Link's real weapon collisions affect Pokémon HP; Pokémon attacks enter the
+  game's collision system. Targets, pauses, cutscenes, room changes, and pending
+  actor creation are checked before use. The .751 scene-ownership fix is retained.
+- Four randomly selected learned moves with finite PP, windup, strike, recovery,
+  damage and faint animations, and an exhausted-PP Struggle attack.
+- A visible Poke Ball flight and capture sequence, authored HP-dependent capture
+  odds, six individually identified party members, and selected-member recall.
+- Per-Zelda-slot party storage through the real SaveService. Explicit portable
+  encoding, version and checksum, length/range validation, unique identity checks,
+  transactional writes, and session epochs guard save changes and old callbacks.
+  The host flushes the staged blob when Zelda is saved; capture is not an autosave.
+- Companion combat against wild Pokémon and a conservative ordinary-enemy profile
+  allowlist. Zelda enemies retain their native damage and defeat behavior.
+- Controller shortcuts plus panel buttons, red/green HP bars, and electric attack
+  effects. Practice controls restore HP/PP and ball supplies after an encounter.
+- The previous model/clip preview and isolated turn-based CP1 simulation remain.
+  The CP1 Host contract is not the live encounter implementation: .752 follows
+  the user's original real-time idea and does not acquire a turn-based world lock.
 
-The Xbox target is an animated model preview. Hardware validation and binding
-the combat simulation to an ordinary enemy remain pending. The battle panel is
-compiled and exercised against the upstream SDK with a test UI host; it is not
-yet connected to the preview. CP1 does not modify a game save or grant actual
-randomizer rewards. The authored demo balance is not the Colosseum battle formula;
-type effectiveness, accuracy, speed priority, abilities, and full move effects
-are future work.
+The only imported species is Pikachu. Ordinary enemies are not replaced, bosses
+and minibosses retain their vanilla actors, and these added practice encounters
+never grant randomizer checks or mark vanilla room-clear flags. Broader enemy
+replacement will need idempotent reward settlement and Enemy Souls no-self-lock
+logic. Capture is a mod inventory action; no native item-ring slot is installed.
+Full Colosseum formulas, type matchups, abilities, roster, original effects/audio,
+world/story import, walk cycles, and room lighting remain future work.
+
+The actor reuses the supplied XD Pikachu, original textures/rig/15 clips, and
+light refinement from CP2–4. Both Colosseum and XD source assets have also been
+processed. See [the asset workflow](assets/README.md) and [the runtime](runtime/README.md).
 
 ## Run the code
 
@@ -81,37 +81,18 @@ Model Lab has a separate Xbox target in `model_lab/CMakeLists.uwp.txt`, staged b
 signed implementations after linking. Portable unit tests alone do not establish
 that the game or its renderer runs correctly on hardware.
 
-## Next playable encounter
+## Next integration work
 
-1. CP3 supplies the runtime and actor; CP4 adds signed UWP integration and private
-   packaging. Test rendering, transitions, cleanup and performance on Xbox.
-   Editable source rigs
-   remain intact; the preview representation uses baked vertex animation.
-2. Bind an eligible ordinary enemy spawn to the Pokemon actor. Preserve the
-   user's rule that bosses/minibosses remain vanilla unless changed explicitly.
-3. Implement `Host` using .749's actual actor generation, input, pause, camera,
-   and save state. Block incompatible cutscenes, transitions, pickups, multiplayer,
-   and existing encounters. Restore only the state the encounter owns.
-4. Commit victory rewards/room-clear flags once through the existing randomizer
-   grant mechanism. Settlement must be idempotent by persistent encounter/check
-   identity; the interface alone cannot make a game reward atomic.
-5. Connect model animation completion to event acknowledgements, test defeat,
-   escape, resets, and transitions, then register/link/package the combat module.
-6. Verify the signed Xbox build on hardware before calling the encounter playable.
+1. Hardware-test the .752 encounter, capture, companion, and same-slot reload loop.
+2. Expand the importer/roster and replace baked poses with a scalable shared
+   skeletal animation path before adding many species.
+3. Connect eligible ordinary-enemy replacement to existing room-clear and
+   first-defeat/randomizer reward settlement. Keep bosses/minibosses vanilla.
+4. Add authentic battle data, richer world/item integration, and Colosseum maps,
+   trainers, Shadow mechanics and story in later milestones.
 
-## Capturing and companions — accepted follow-on direction
-
-The user wants a Poké Ball item that captures enemy Pokemon, a maximum carried
-party of **six**, and throwing captured Pokemon out to fight other enemies.
-The initial request also says **“catch three”**. Its exact meaning is unresolved
-(possibly “catch these”); no three-captures-per-ball rule is implemented or locked in.
-Keep capture capacity/charges separate from party capacity when implementing it.
-This checkpoint intentionally has no nonfunctional capture/party buttons.
-
-Captured identity, move pool, health, ownership, recall, and party persistence
-will need a versioned save extension and progression rules. Capture versus defeat
-must not duplicate first-defeat rewards or strand room-clear checks. Enemy Souls
-integration must preserve the existing no-self-lock logic.
+The earlier phrase “catch three” remains ambiguous; .752 does not assign three
+charges per ball. Each throw spends one ball and the carried party has six slots.
 
 ## Uploaded source references
 

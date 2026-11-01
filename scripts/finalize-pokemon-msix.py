@@ -158,7 +158,7 @@ def main():
     p.add_argument('--makemsix', type=Path, required=True)
     p.add_argument('--osslsigncode', type=Path, required=True)
     p.add_argument('--commit', required=True)
-    p.add_argument('--version', default='1.4.1.751')
+    p.add_argument('--version', default='1.4.1.752')
     a = p.parse_args()
     assert re.fullmatch('[a-f0-9]{40}', a.commit)
     assert re.fullmatch(r'\d+\.\d+\.\d+\.\d+', a.version)

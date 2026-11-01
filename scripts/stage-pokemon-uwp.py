@@ -67,6 +67,10 @@ def stage(root, control):
     port = root / 'mods/uwp_ports' / target
     for name in ['model_lab/mod.cpp', 'model_lab/gx_renderer.cpp', 'model_lab/gx_renderer.hpp',
                  'model_lab/spawn_context.hpp',
+                 'model_lab/field.cpp', 'model_lab/field.hpp',
+                 'model_lab/party_save.hpp',
+                 'model_lab/field_effects.cpp', 'model_lab/field_effects.hpp',
+                 'field/party.cpp', 'field/party.hpp', 'field/combat.cpp', 'field/combat.hpp',
                  'runtime/model.cpp', 'runtime/model.hpp']:
         staged[port / name] = (experiment / name).read_text()
     staged[port / 'CMakeLists.txt'] = (experiment / 'model_lab/CMakeLists.uwp.txt').read_text()

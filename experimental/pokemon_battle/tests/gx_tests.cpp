@@ -1,4 +1,5 @@
 #include "../model_lab/gx_renderer.hpp"
+#include "../model_lab/field_effects.hpp"
 #include "runtime_fixture.hpp"
 #include <dolphin/gx/GXExtra.h>
 #include <cmath>
@@ -8,6 +9,21 @@ namespace {
 std::size_t created=0,destroyed=0,loaded=0,draws=0,vertices=0,expected=0,in_draw=0;
 }
 extern "C" {
+void C_MTXIdentity(Mtx matrix) { for(int r=0;r<3;++r) for(int c=0;c<4;++c) matrix[r][c]=r==c?1.f:0.f; }
+void C_MTXMultVec(const Mtx matrix,const Vec* from,Vec* to) {
+    const auto point=*from;
+    to->x=matrix[0][0]*point.x+matrix[0][1]*point.y+matrix[0][2]*point.z+matrix[0][3];
+    to->y=matrix[1][0]*point.x+matrix[1][1]*point.y+matrix[1][2]*point.z+matrix[1][3];
+    to->z=matrix[2][0]*point.x+matrix[2][1]*point.y+matrix[2][2]*point.z+matrix[2][3];
+}
+void C_MTXConcat(const Mtx a,const Mtx b,Mtx out) {
+    Mtx result{};
+    for(int r=0;r<3;++r) for(int c=0;c<4;++c) {
+        for(int k=0;k<3;++k) result[r][c]+=a[r][k]*b[k][c];
+        if(c==3) result[r][c]+=a[r][3];
+    }
+    for(int r=0;r<3;++r) for(int c=0;c<4;++c) out[r][c]=result[r][c];
+}
 void GXInitTexObj(GXTexObj*,const void* data,u16 w,u16 h,GXTexFmt format,GXTexWrapMode s,GXTexWrapMode t,GXBool mip) {
     require(data && w>=4 && h>=4 && format==GX_TF_RGBA8 && s==GX_CLAMP && t==GX_CLAMP && !mip,"texture setup");++created;
 }
@@ -67,5 +83,12 @@ int main(int argc,char** argv) {
         }
         require(created==before+ntextures && created==destroyed,"texture lifetime");
     }
-    std::cout<<"PASS: production GX renderer draw coverage, texture setup, depth, invalid pose and cleanup (recording host)\n";
+    Mtx view; C_MTXIdentity(view);
+    const cXyz from{20,30,-400},to{40,50,-600};
+    draws=vertices=0;
+    pokemon_battle::runtime::draw_health(from,0.5f,false,view);
+    pokemon_battle::runtime::draw_ball(from,0.3f,view);
+    pokemon_battle::runtime::draw_spark(from,to,view);
+    require(draws==3 && vertices==12+960+24 && !in_draw,"field effects finite geometry and complete submissions");
+    std::cout<<"PASS: production GX renderer and field effects, texture setup, depth, invalid pose and cleanup (recording host)\n";
 }

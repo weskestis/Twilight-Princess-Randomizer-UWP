@@ -1,10 +1,13 @@
 #include "gx_renderer.hpp"
 #include "spawn_context.hpp"
+#include "field.hpp"
 #include "mods/service.hpp"
 #include "mods/svc/actor.h"
 #include "mods/svc/file.h"
 #include "mods/svc/resource.h"
 #include "mods/svc/ui.h"
+#include "mods/svc/save.h"
+#include "mods/svc/hook.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_bg_s_gnd_chk.h"
 #include "f_op/f_op_actor_mng.h"
@@ -20,6 +23,8 @@ IMPORT_SERVICE(UiService, svc_ui);
 IMPORT_SERVICE(FileService, svc_file);
 IMPORT_SERVICE(ActorService, svc_actor);
 IMPORT_SERVICE(ResourceService, svc_resource);
+IMPORT_SERVICE(SaveService, svc_save);
+IMPORT_SERVICE(HookService, svc_hook);
 
 namespace {
 using namespace pokemon_battle::runtime;
@@ -122,7 +127,7 @@ const ActorProfileDesc descriptor={
     create_actor,delete_actor,execute_actor,can_delete,draw_actor
 };
 bool has_actor() { return actor_id!=fpcM_ERROR_PROCESS_ID_e; }
-bool cannot_load(ModContext*,void*) { return picking || has_actor(); }
+bool cannot_load(ModContext*,void*) { return picking || has_actor() || pokemon_battle::field::has_actors(); }
 bool cannot_spawn(ModContext*,void*) { return picking || !asset || has_actor() || !world_ready(); }
 bool cannot_remove(ModContext*,void*) { return !has_actor() || remove_requested; }
 bool cannot_clip(ModContext*,void*) { return !asset; }
@@ -131,6 +136,7 @@ void install_model(std::span<const std::uint8_t> bytes) {
     if(!model.load(bytes,error)) { message(error); return; }
     auto replacement=std::make_shared<GxAsset>(std::move(model));
     asset=std::move(replacement); selected_clip=0; ++clip_revision;
+    pokemon_battle::field::set_asset(asset);
     message("Pikachu ready: "+std::to_string(asset->model().clips().size())+" clips. Spawn beside Link to begin.");
 }
 void load_bundled(ModContext*,void*) {
@@ -209,6 +215,8 @@ void idle(ModContext*,void*) {
     selected_clip=0; ++clip_revision; message("Playing "+asset->model().clips()[0].name);
 }
 ModResult update_panel(ModContext*,void*,ModError*) {
+    const auto field_result=pokemon_battle::field::update_panel();
+    if(field_result!=MOD_OK) return field_result;
     if(!status_handle || !dirty) return MOD_OK;
     const auto result=svc_ui->elem_set_text(mod_ctx,status_handle,status.c_str());
     if(result==MOD_OK) dirty=false;
@@ -223,6 +231,8 @@ ModResult build_panel(ModContext*,UiElementHandle pane,void*,ModError*) {
     status_handle=0; dirty=true;
     // Load lazily when the panel is opened, avoiding model allocations at game startup.
     if(!asset && !picking) load_bundled(nullptr,nullptr);
+    const auto field_result=pokemon_battle::field::build_panel(pane);
+    if(field_result!=MOD_OK) return field_result;
     auto r=svc_ui->pane_add_section(mod_ctx,pane,"Pokemon Model Lab"); if(r!=MOD_OK) return r;
     r=svc_ui->pane_add_text(mod_ctx,pane,"Load your save, stand on open ground, then spawn Pikachu beside Link. Next clip plays each animation.",nullptr); if(r!=MOD_OK) return r;
     r=svc_ui->pane_add_text(mod_ctx,pane,status.c_str(),&status_handle); if(r!=MOD_OK) return r;
@@ -240,15 +250,19 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     ++generation; alive=true; picking=false;
     auto r=svc_actor->register_actor(mod_ctx,&descriptor,&profile,&registration);
     if(r!=MOD_OK) { alive=false; return r; }
+    r=pokemon_battle::field::initialize(error);
+    if(r!=MOD_OK) { svc_actor->unregister_actor(mod_ctx,registration); registration=0; alive=false; return r; }
     UiModsPanelDesc panel=UI_MODS_PANEL_DESC_INIT;
     panel.build=build_panel; panel.update=update_panel;
     r=svc_ui->register_mods_panel(mod_ctx,&panel);
-    if(r!=MOD_OK) { svc_actor->unregister_actor(mod_ctx,registration); registration=0; alive=false; }
+    if(r!=MOD_OK) { pokemon_battle::field::shutdown(); svc_actor->unregister_actor(mod_ctx,registration); registration=0; alive=false; }
     return r;
 }
-MOD_EXPORT ModResult mod_update(ModError*) { return MOD_OK; }
+MOD_EXPORT ModResult mod_update(ModError*) { pokemon_battle::field::update(); return MOD_OK; }
 MOD_EXPORT ModResult mod_shutdown(ModError*) {
     alive=false; ++generation;
+    const auto field_result=pokemon_battle::field::shutdown();
+    if(field_result!=MOD_OK) return field_result;
     // Unregister synchronously deletes this profile's actors before releasing code/assets.
     if(registration) {
         const auto r=svc_actor->unregister_actor(mod_ctx,registration);

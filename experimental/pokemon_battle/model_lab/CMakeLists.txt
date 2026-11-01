@@ -8,6 +8,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_subdirectory("${DUSK_DIR}/sdk" dusk-sdk EXCLUDE_FROM_ALL)
 endif()
 add_mod(pokemon_model_lab FEATURES game
-    SOURCES mod.cpp gx_renderer.cpp ../runtime/model.cpp
+    SOURCES mod.cpp gx_renderer.cpp field.cpp field_effects.cpp ../field/party.cpp ../field/combat.cpp ../runtime/model.cpp
     MOD_JSON mod.json)
 target_compile_features(pokemon_model_lab PRIVATE cxx_std_20)

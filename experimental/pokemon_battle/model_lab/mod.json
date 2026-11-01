@@ -1,7 +1,7 @@
 {
   "id": "dev.weskestis.pokemon_model_lab",
-  "name": "Pokemon Model Lab",
-  "version": "0.3.1",
+  "name": "Pokemon Encounters",
+  "version": "0.4.0",
   "author": "Wes Kestis",
-  "description": "Animated Pikachu preview actor. Load a private DPKM asset pack; no enemy replacement or save changes."
+  "description": "Real-time Pikachu encounters, Poke Balls, a six-member saved party, and summoned companions. Includes the animation preview lab."
 }
