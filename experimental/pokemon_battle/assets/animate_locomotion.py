@@ -55,10 +55,31 @@ def main():
     bones = list(rig.pose.bones)
     base = {b.name:b.matrix.copy() for b in bones}
     original_basis = {b.name:b.matrix_basis.copy() for b in bones}
-    local = {b.name:(base[b.parent.name].inverted() @ base[b.name] if b.parent else base[b.name]) for b in bones}
+    # Derive local transforms from rest space. Inverting the near-zero posed
+    # matrices used to hide the Surf prop amplifies floating-point noise and
+    # can expose a large red triangle during an otherwise unrelated walk.
+    local = {b.name:(b.parent.bone.matrix_local.inverted() @ b.bone.matrix_local @ original_basis[b.name]
+                    if b.parent else b.bone.matrix_local @ original_basis[b.name]) for b in bones}
     root = 'Bone_01'
     legs = [('Bone_02','Bone_03','Bone_04','Bone_07_FootLeft'),
             ('Bone_09','Bone_10','Bone_11','Bone_16_FootRight')]
+    controlled = {root,'Bone_18_Center','Bone_19','Bone_32','Bone_38','Bone_44','Bone_27','Bone_29',
+                  *[n for leg in legs for n in leg[:2]]}
+    prop_objects = [bpy.data.objects[f'pikachu_mesh_{i:02d}'] for i in range(2,8)]
+
+    def prop_radius():
+        graph = bpy.context.evaluated_depsgraph_get()
+        maximum = 0.0
+        for obj in prop_objects:
+            evaluated = obj.evaluated_get(graph)
+            mesh = evaluated.to_mesh()
+            points = [evaluated.matrix_world @ v.co for v in mesh.vertices]
+            center = sum(points, Vector()) / len(points)
+            maximum = max(maximum, max((v-center).length for v in points))
+            evaluated.to_mesh_clear()
+        return maximum
+
+    hidden_prop_radius = prop_radius()
     report = {'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
               'authored_clips':[], 'original_clips':[a.name for a in originals],
               'method':'Analytical two-bone IK, world-fixed stance feet, alternating arm swing and ear/tail follow-through'}
@@ -83,7 +104,7 @@ def main():
         action['stride_model_units'] = stride
         action['stance_fraction'] = stance
         action['authored_locomotion'] = True
-        max_foot_error = max_length_error = 0.0
+        max_foot_error = max_length_error = max_prop_radius = 0.0
         endpoints = []
         for frame in range(frames+1):
             scene.frame_set(frame)
@@ -145,12 +166,13 @@ def main():
                 desired[n] = matrix
                 rest = bone.bone.matrix_local
                 parent_space = desired[bone.parent.name] @ bone.parent.bone.matrix_local.inverted() @ rest if bone.parent else rest
-                bone.matrix_basis = parent_space.inverted() @ matrix
+                bone.matrix_basis = parent_space.inverted() @ matrix if n in controlled else original_basis[n]
                 bone.keyframe_insert('location', frame=frame, group=n)
                 rotation_path = 'rotation_quaternion' if bone.rotation_mode == 'QUATERNION' else 'rotation_axis_angle' if bone.rotation_mode == 'AXIS_ANGLE' else 'rotation_euler'
                 bone.keyframe_insert(rotation_path, frame=frame, group=n)
                 bone.keyframe_insert('scale', frame=frame, group=n)
             bpy.context.view_layer.update()
+            max_prop_radius = max(max_prop_radius, prop_radius())
             for side, (upper,lower,ankle,marker) in enumerate(legs):
                 phase_foot = (phase+side*0.5)%1
                 if phase_foot < stance:
@@ -163,6 +185,8 @@ def main():
         seam_error = max(abs(a-b) for n in endpoints[0] for a,b in zip(endpoints[0][n],endpoints[1][n]))
         if max_foot_error > 1e-4 or seam_error > 1e-4 or max_length_error > 1e-5:
             raise ValueError(f'Locomotion validation failed: feet={max_foot_error}, seam={seam_error}, lengths={max_length_error}')
+        if max_prop_radius > max(1e-4, hidden_prop_radius*1.05):
+            raise ValueError(f'Hidden Surf prop became visible: {max_prop_radius}, baseline {hidden_prop_radius}')
         for layer in action.layers:
             for strip in layer.strips:
                 for bag in strip.channelbags:
@@ -171,7 +195,8 @@ def main():
                             point.interpolation = 'LINEAR'
         report['authored_clips'].append({'name':name,'frames':frames+1,'fps':60,'stride_model_units':stride,
             'stance_fraction':stance,'max_stance_foot_error':max_foot_error,
-            'max_limb_length_error':max_length_error,'loop_seam_matrix_error':seam_error})
+            'max_limb_length_error':max_length_error,'loop_seam_matrix_error':seam_error,
+            'max_hidden_prop_radius':max_prop_radius})
         print(json.dumps(report['authored_clips'][-1]), flush=True)
     rig.animation_data.action = None
     for bone in bones:
