@@ -73,6 +73,10 @@ void captures() {
     require(session.begin_throw(21),"new-slot throw begins"); session.cancel_throw();
     require(session.party().balls==23 && !session.pending(),"area change cancels capture without refunding a thrown ball");
     require(session.finish_throw(21,session.epoch(),wild)==CaptureResult::Invalid,"cancelled flight cannot complete");
+    require(session.begin_throw(22),"a new throw can start after cancellation");
+    session.cancel_throw(21);
+    require(session.pending(),"late destruction of the cancelled actor cannot cancel a new throw");
+    session.cancel_throw(22); require(!session.pending(),"only the owning actor can cancel its throw");
     auto full=caught_party(); full.count=6; full.next_id=7;
     for(std::size_t i=0;i<6;++i) full.members[i].id=i+1;
     session.activate(full); require(!session.begin_throw(30) && session.party()==full,"full party costs no ball");

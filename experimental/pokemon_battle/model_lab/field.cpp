@@ -308,7 +308,7 @@ public:
         const auto reserved_slot=static_cast<std::size_t>(fopAcM_GetParam(this));
         if(reserved_slot<tickets.size() && tickets[reserved_slot].id==fopAcM_GetID(this)) tickets[reserved_slot]=Ticket{};
         if(fopAcM_CheckCondition(this,fopAcCnd_INIT_e)) {
-            if(ball_ticks>=0 && epoch==party.epoch()) party.cancel_throw();
+            if(ball_ticks>=0 && epoch==party.epoch()) party.cancel_throw(serial);
             this->~FieldActor();
         }
         return 1;

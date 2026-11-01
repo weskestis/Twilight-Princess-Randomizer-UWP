@@ -146,7 +146,9 @@ CaptureResult PartySession::finish_throw(std::uint64_t target,std::uint64_t epoc
     if(!commit(next)) return CaptureResult::SaveFailed;
     return caught?CaptureResult::Caught:CaptureResult::Escaped;
 }
-void PartySession::cancel_throw() { pending_target_=0; }
+void PartySession::cancel_throw(std::uint64_t target) {
+    if(target==0 || pending_target_==target) pending_target_=0;
+}
 bool PartySession::update_member(const Creature& creature,std::uint64_t epoch) {
     if(!active_ || epoch!=epoch_ || !valid_creature(creature,true)) return false;
     auto next=party_;

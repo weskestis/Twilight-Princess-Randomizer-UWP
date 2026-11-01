@@ -61,7 +61,7 @@ public:
     bool pending() const { return pending_target_!=0; }
     bool begin_throw(std::uint64_t target);
     CaptureResult finish_throw(std::uint64_t target, std::uint64_t epoch, const Creature& wild);
-    void cancel_throw();
+    void cancel_throw(std::uint64_t target=0);
     bool update_member(const Creature& creature, std::uint64_t epoch);
     bool select_next(int direction);
     bool rest();
