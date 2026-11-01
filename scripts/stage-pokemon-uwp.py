@@ -71,6 +71,7 @@ def stage(root, control):
                  'model_lab/party_save.hpp',
                  'model_lab/field_effects.cpp', 'model_lab/field_effects.hpp',
                  'field/party.cpp', 'field/party.hpp', 'field/combat.cpp', 'field/combat.hpp',
+                 'field/animation.cpp', 'field/animation.hpp',
                  'runtime/model.cpp', 'runtime/model.hpp']:
         staged[port / name] = (experiment / name).read_text()
     staged[port / 'CMakeLists.txt'] = (experiment / 'model_lab/CMakeLists.uwp.txt').read_text()

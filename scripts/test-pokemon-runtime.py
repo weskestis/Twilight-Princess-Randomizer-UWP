@@ -42,6 +42,11 @@ def main():
         subprocess.run(cmd+[str(root/'runtime/model.cpp'),str(root/'tests/runtime_tests.cpp')]+
                        (['/Fe:'+str(exe)] if windows else ['-o',str(exe)]),cwd=build,check=True)
         subprocess.run([str(exe)]+[str(x.resolve()) for x in args.pack],check=True)
+        exe=build/('animation-tests.exe' if windows else 'animation-tests')
+        subprocess.run(cmd+[str(root/path) for path in ['runtime/model.cpp','field/party.cpp','field/combat.cpp',
+                       'field/animation.cpp','tests/animation_tests.cpp']]+
+                       (['/Fe:'+str(exe)] if windows else ['-o',str(exe)]),cwd=build,check=True)
+        subprocess.run([str(exe)],check=True)
         # Actual SDK declarations; no substitute game headers or copied layouts.
         include=['include','assets/GZ2E01','libs/JSystem/include',
                  'extern/aurora/include/dolphin','extern/aurora/include','sdk/include']

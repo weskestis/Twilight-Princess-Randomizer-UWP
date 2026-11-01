@@ -42,6 +42,11 @@ void message(std::string text) { status=std::move(text); dirty=true; }
 bool world_ready() {
     return player_scene_ready(dComIfGp_getPlayer(0)) && !dComIfGp_event_runCheck();
 }
+bool looping_clip(const Model& model,std::size_t index) {
+    if(index>=model.clips().size()) return false;
+    const auto& name=model.clips()[index].name;
+    return index==0 || name=="pikachu_15_Walk" || name=="pikachu_16_Run";
+}
 class PreviewActor;
 class Packet final : public J3DPacket {
 public:
@@ -69,7 +74,7 @@ public:
         if(!held || !world_ready()) { actor_id=fpcM_ERROR_PROCESS_ID_e; return cPhs_ERROR_e; }
         packet.owner=this;
         revision=clip_revision; clip=selected_clip;
-        held->model().sample(clip,0,clip==0,pose);
+        held->model().sample(clip,0,looping_clip(held->model(),clip),pose);
         fopAcM_SetMtx(this,matrix);
         fopAcM_setCullSizeBox(this,-150.f,-30.f,-150.f,150.f,250.f,150.f);
         attention_info.flags=0;
@@ -83,7 +88,7 @@ public:
         if(remove_requested || !world_ready()) { fopAcM_delete(this); return 1; }
         if(revision!=clip_revision) { revision=clip_revision; clip=selected_clip; seconds=0; }
         if(!dComIfGp_isPauseFlag()) {
-            held->model().sample(clip,seconds,clip==0,pose);
+            held->model().sample(clip,seconds,looping_clip(held->model(),clip),pose);
             // The pinned .749 simulation executes actors at 30 Hz (presentation is separate).
             seconds+=1.0/30.0;
         }

@@ -33,7 +33,7 @@ int main(int argc,char** argv) {
     bad=good;for(std::size_t i=266;i<272;++i)bad[i]=0;fixture::checksum(bad);require(!model.load(bad,error),"zero normal accepted");
     for(int i=1;i<argc;++i) {
         auto bytes=fixture::read(argv[i]);require(model.load(bytes,error),error.c_str());
-        require(model.clips().size()==15 && model.indices().size()/3==3749,"unexpected Pikachu counts");
+        require((model.clips().size()==15 || model.clips().size()==17) && model.indices().size()/3==3749,"unexpected Pikachu counts");
         std::size_t samples=0;
         for(std::size_t c=0;c<model.clips().size();++c) {
             const auto& clip=model.clips()[c];

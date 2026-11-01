@@ -1,7 +1,7 @@
 {
   "id": "dev.weskestis.pokemon_model_lab",
   "name": "Pokemon Encounters",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "Wes Kestis",
-  "description": "Real-time Pikachu encounters, Poke Balls, a six-member saved party, and summoned companions. Includes the animation preview lab."
+  "description": "Real-time Pikachu encounters, Poke Balls, a saved six-member party and companions with distance-matched walking/running and blended battle animations."
 }

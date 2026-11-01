@@ -96,8 +96,10 @@ def main():
     bpy.ops.wm.open_mainfile(filepath=str(source), load_ui=False, use_scripts=False)
     scene = bpy.context.scene
     actions = sorted(bpy.data.actions, key=lambda a: a.name)
-    if len(actions) != 15 or not all(a.name.startswith('pikachu_') for a in actions):
+    if len(actions) not in (15, 17) or not all(a.name.startswith('pikachu_') for a in actions):
         raise ValueError('This checkpoint accepts the validated Pikachu imports only')
+    if len(actions) == 17 and [a.name for a in actions[15:]] != ['pikachu_15_Walk', 'pikachu_16_Run']:
+        raise ValueError('Expected the authored Pikachu locomotion clips after the original 15 clips')
     idle = actions[0]
     bind_action(bpy, idle)
     scene.frame_set(0)

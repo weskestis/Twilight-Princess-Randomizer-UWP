@@ -1,11 +1,11 @@
 # Pokemon encounters for Xbox
 
-**Dusklight Pokémon Preview 1.4.1.752** remains a separate app built from the
-complete .749 game. Install it over the previous .750/.751 Pokémon Preview to
+**Dusklight Pokémon Preview 1.4.1.753** remains a separate app built from the
+complete .749 game. Install it over the previous .750/.751/.752 Pokémon Preview to
 retain that app's data. Keep the normal Twilight Princess Randomizer installed.
 The title screen still reports the underlying .749 game version.
 
-1. Install `DusklightPokemonPreview_1.4.1.752_x64.msix` through Xbox Device Portal.
+1. Install `DusklightPokemonPreview_1.4.1.753_x64.msix` through Xbox Device Portal.
    If needed, add `Microsoft.VCLibs.x64.14.00.appx` as the dependency.
 2. Set the Pokémon Preview's **App type** to **Game** in Xbox Dev Home.
 3. Choose **Play**, load a Zelda save, and stand on open ground with Link.
@@ -29,8 +29,16 @@ companions remain in the party. Use **Clear encounter and recall**, close the
 menu briefly to allow actor removal, then **Rest party** to restore HP and PP.
 The practice panel also restocks the starting supply of 24 balls.
 
-This milestone uses the supplied, lightly refined XD Pikachu and its 15 original
-animation clips. The existing **Pokemon Model Lab** preview controls remain
+The .753 animation update adds authored walking and running on Pikachu's existing
+rig. Foot cycles follow actual ground travel, with gradual turning, acceleration
+and stopping. Idle, locomotion, attacks and damage blend over four simulation
+ticks; attack poses follow their windup, contact and recovery phases. Growl no
+longer uses Surf, Tail Whip uses a tail swing, and ThunderShock uses the charge
+animation. The original 15 clips remain in the model pack alongside the two new
+locomotion clips. Walk/run loop in the preview lab as well.
+
+This milestone uses the supplied, lightly refined XD Pikachu. The existing
+**Pokemon Model Lab** preview controls remain
 below the encounter controls. Ordinary-enemy replacement, randomizer reward
 integration, a new item-ring slot, automatic wilderness population, and
 Colosseum story/map import remain future work. Bosses/minibosses retain their
@@ -39,5 +47,8 @@ Colosseum's turn-based formula. Growl and Tail Whip affect Pokémon stats direct
 against Link/vanilla actors, their temporary effects apply only within that
 Pokémon's own combat interaction.
 
-The .751 spawn fix was confirmed by the user on Xbox. The new .752 encounter
-behavior requires a fresh hardware check after the build and packaging checks.
+The user confirmed spawning in .751 and the working encounter loop in .752,
+while reporting sliding and poor animations. The .753 animation changes need
+a fresh Xbox check after build and package validation: follow Link, stop, turn,
+walk into an obstruction, and watch attacks and damage recovery. Save/party
+format and capture balance are unchanged.

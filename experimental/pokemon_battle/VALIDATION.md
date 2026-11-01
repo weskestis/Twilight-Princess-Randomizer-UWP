@@ -1,5 +1,27 @@
 # Combat and model intake validation
 
+## .753 movement and animation update
+
+User hardware report: the .752 encounter loop functions, but Pikachu slides and
+the animations look poor. The movement path selected idle regardless of travel.
+
+Local checks pass for distance-driven walk/run, blocked and paused movement,
+shortest-arc turning, eased pose changes, stepped facial atlases, complete hurt
+recovery, and continuous attack windup/contact/recovery timing. The existing
+combat, capture, save-slot, failed-write, native SDK, GX recording and spawn
+regressions pass. Address/undefined-behavior sanitizer checks pass for the
+runtime and animation controller (LeakSanitizer disabled as described below).
+
+Offline animation QA renders cover all battle clips used by the field adapter
+and six poses across each new walk/run cycle. This caught the Surf/Growl and
+kick/Tail Whip assignment errors. Stance-foot chain error is below 8e-7 model
+units, loop endpoint matrices match exactly, and the authored leg solve preserves
+its segment lengths within 2e-8 model units. These checks do not establish final
+Xbox appearance or performance. The new full Xbox build and hardware retest
+must be reported separately from the local results.
+
+Historical checkpoint details follow.
+
 Base: Xbox .749 control commit `8b1a9bc011032b32b5e123af8d76ba644b28a971`.
 Date: 2026-10-31.
 

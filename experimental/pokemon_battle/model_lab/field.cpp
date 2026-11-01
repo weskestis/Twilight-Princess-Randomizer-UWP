@@ -3,6 +3,7 @@
 #include "spawn_context.hpp"
 #include "party_save.hpp"
 #include "../field/combat.hpp"
+#include "../field/animation.hpp"
 #include "mods/service.hpp"
 #include "mods/svc/actor.h"
 #include "mods/svc/hook.hpp"
@@ -115,10 +116,11 @@ public:
     std::size_t slot=0;
     std::uint64_t serial=0,epoch=0;
     ActorId target_id=no_actor,guarded_from=no_actor,weakened_target=no_actor;
-    int guard_timer=0,weaken_timer=0,ball_ticks=-1,animation_clip=-1;
-    double seconds=0;
+    int guard_timer=0,weaken_timer=0,ball_ticks=-1;
+    Animation animation;
+    float move_speed=0;
     cXyz ball_start{},ball_end{},ball_position{},spark_end{};
-    bool companion=false,closed=false;
+    bool companion=false,closed=false,following=false;
 
     int create() {
         if(!fopAcM_CheckCondition(this,fopAcCnd_INIT_e)) {
@@ -171,27 +173,36 @@ public:
         message("Party update failed. Recalling the companion to preserve your saved party.",true);
         tickets[slot].remove=true; return false;
     }
-    void pose_frame() {
-        const int clip=combat.clip();
-        if(animation_clip!=clip || combat.began_move) { animation_clip=clip; seconds=0; }
-        const auto index=static_cast<std::size_t>(std::max(0,clip));
-        held->model().sample(index<held->model().clips().size()?index:0,seconds,clip==0,pose);
+    void pose_frame(float traveled=0,bool advance=false) {
+        animation.sample(held->model(),combat,traveled,pose,advance);
         mDoMtx_stack_c::transS(current.pos.x,current.pos.y,current.pos.z);
         mDoMtx_stack_c::YrotM(shape_angle.y); mDoMtx_stack_c::scaleM(100,100,100);
         MTXCopy(mDoMtx_stack_c::get(),matrix);
         eyePos=current.pos; eyePos.y+=60; attention_info.position=eyePos;
     }
-    void walk_to(const cXyz& destination,float step) {
+    void face(const cXyz& destination) {
+        const auto angle=static_cast<s16>(std::atan2(destination.x-current.pos.x,destination.z-current.pos.z)*32768.0/3.14159265358979323846);
+        shape_angle.y=turn_toward(shape_angle.y,angle);
+    }
+    void walk_to(const cXyz& destination,float step,float stop_distance) {
         const float dx=destination.x-current.pos.x,dz=destination.z-current.pos.z;
         const float length=std::sqrt(dx*dx+dz*dz);
-        if(length<1) return;
-        shape_angle.y=static_cast<s16>(std::atan2(dx,dz)*32768.0/3.14159265358979323846);
-        cXyz next=current.pos; next.x+=dx/length*std::min(step,length); next.z+=dz/length*std::min(step,length);
+        if(length<=stop_distance+0.1f) { move_speed=0; return; }
+        const auto angle=static_cast<s16>(std::atan2(dx,dz)*32768.0/3.14159265358979323846);
+        shape_angle.y=turn_toward(shape_angle.y,angle);
+        const float alignment=forward_alignment(shape_angle.y,angle);
+        if(alignment<0.3f) { move_speed=0; return; }
+        const float wanted=std::min(step,(length-stop_distance)*0.35f)*alignment;
+        const float acceleration=step>6.f?2.5f:0.8f;
+        move_speed+=std::clamp(wanted-move_speed,-acceleration,acceleration);
+        const float travel=std::min(move_speed,length-stop_distance);
+        const double heading=double(shape_angle.y)*3.14159265358979323846/32768.0;
+        cXyz next=current.pos; next.x+=float(std::sin(heading))*travel; next.z+=float(std::cos(heading))*travel;
         cXyz from=current.pos,to=next; from.y+=35; to.y+=35;
-        if(!ground_at(next,45) || !clear_line(from,to,this)) return;
+        if(!ground_at(next,45) || !clear_line(from,to,this)) { move_speed=0; return; }
         const auto previous=current.pos; old.pos=current.pos; current.pos=next;
         ground.CrrPos(dComIfG_Bgsp());
-        if(!ground_at(current.pos,55)) current.pos=previous;
+        if(!ground_at(current.pos,55)) { current.pos=previous; move_speed=0; }
     }
     fopAc_ac_c* choose_target();
     void receive_hit() {
@@ -266,24 +277,34 @@ public:
         cXyz start=current.pos; start.y+=40;
         cXyz end=target?target->current.pos:current.pos; end.y+=40;
         const bool visible=target && clear_line(start,end,this);
-        if(target && visible) shape_angle.y=static_cast<s16>(std::atan2(end.x-start.x,end.z-start.z)*32768.0/3.14159265358979323846);
+        const cXyz previous_position=current.pos;
         const auto before=combat.creature;
         combat.tick(visible && range<200);
         if(combat.creature!=before && !persist()) return 1;
         if(combat.began_move) message(std::string(companion?"Your Pikachu used ":"Wild Pikachu used ")+move_info(combat.move)->name+"!",true);
         if(combat.began_strike && visible && range<220) status_move(target);
         if(combat.phase==Phase::Fainted) {
+            move_speed=0;
             if(combat.timer>=60) tickets[slot].remove=true;
         } else if(combat.phase==Phase::Ready) {
-            if(target && range>105) walk_to(target->current.pos,companion?4.f:2.8f);
+            if(target && range>105) walk_to(target->current.pos,companion?4.f:2.8f,100.f);
             else if(!target && companion) {
                 auto* player=dComIfGp_getPlayer(0);
-                if(distance(current.pos,player->current.pos)>140) walk_to(player->current.pos,5.f);
-            }
-        } else if(combat.phase==Phase::Strike && combat.move==Move::QuickAttack && target && visible && range>65)
-            walk_to(target->current.pos,12.f);
+                const float separation=distance(current.pos,player->current.pos);
+                if(separation>140) following=true;
+                if(separation<111) following=false;
+                if(following) walk_to(player->current.pos,5.f,110.f);
+                else move_speed=0;
+            } else { move_speed=0; if(target && visible) face(target->current.pos); }
+        } else if(combat.phase==Phase::Strike && combat.move==Move::QuickAttack && target && visible && range>65) {
+            walk_to(target->current.pos,12.f,60.f);
+        } else {
+            move_speed=0;
+            if(target && visible && combat.phase==Phase::Windup) face(target->current.pos);
+        }
         if(combat.creature.hp && !combat.invincible) {
-            body.OnTgSetBit(); body.SetC(start); body.SetR(35); dComIfG_Ccsp()->Set(&body);
+            cXyz center=current.pos; center.y+=40;
+            body.OnTgSetBit(); body.SetC(center); body.SetR(35); dComIfG_Ccsp()->Set(&body);
         }
         if(combat.attacking() && visible && range<220) {
             cXyz center=current.pos; center.y+=40;
@@ -296,7 +317,8 @@ public:
             attack.SetC(center); attack.SetR(electric?85.f:45.f); attack.OnAtSetBit(); dComIfG_Ccsp()->Set(&attack);
             spark_end=end;
         }
-        seconds+=1.0/30.0; pose_frame(); return 1;
+        const float dx=current.pos.x-previous_position.x,dz=current.pos.z-previous_position.z;
+        pose_frame(std::sqrt(dx*dx+dz*dz),true); return 1;
     }
     int draw_actor() {
         if(held && valid() && !closed) dComIfGd_getOpaList()->entryImm(&packet,0);

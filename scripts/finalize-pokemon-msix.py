@@ -158,7 +158,7 @@ def main():
     p.add_argument('--makemsix', type=Path, required=True)
     p.add_argument('--osslsigncode', type=Path, required=True)
     p.add_argument('--commit', required=True)
-    p.add_argument('--version', default='1.4.1.752')
+    p.add_argument('--version', default='1.4.1.753')
     a = p.parse_args()
     assert re.fullmatch('[a-f0-9]{40}', a.commit)
     assert re.fullmatch(r'\d+\.\d+\.\d+\.\d+', a.version)
@@ -173,7 +173,7 @@ def main():
     assert blob[:8] == b'DPKM0001'
     length, crc, vertices, indices, batches, textures, clips = struct.unpack_from('<7I', blob, 8)
     assert length == len(blob) and crc == zlib.crc32(blob[16:])
-    assert (vertices, indices, batches, textures, clips) == (2032, 11247, 15, 15, 15)
+    assert (vertices, indices, batches, textures, clips) == (2032, 11247, 15, 15, 17)
     del blob
     commands = []
     with tempfile.TemporaryDirectory(prefix='private-pikachu-package-', dir=a.output.parent) as temporary:

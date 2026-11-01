@@ -7,11 +7,14 @@
 namespace pokemon_battle::field {
 namespace {
 constexpr std::array<MoveInfo,5> moves{{
-    {Move::ThunderShock,"ThunderShock",30,7,true},
-    {Move::QuickAttack,"Quick Attack",30,9,true},
-    {Move::Growl,"Growl",40,5,false},
-    {Move::TailWhip,"Tail Whip",30,3,false},
-    {Move::Struggle,"Struggle",0,1,true}
+    // Visually inspected XD clips: electrical charge, physical lunge, angry
+    // display, tail swing, kick. Clip 5 is Surf, not a generic special attack;
+    // clip 9 travels away from the actor's collision origin at its end.
+    {Move::ThunderShock,"ThunderShock",30,8,true},
+    {Move::QuickAttack,"Quick Attack",30,2,true},
+    {Move::Growl,"Growl",40,4,false},
+    {Move::TailWhip,"Tail Whip",30,1,false},
+    {Move::Struggle,"Struggle",0,3,true}
 }};
 std::uint32_t checksum(std::span<const std::uint8_t> data) {
     std::uint32_t crc=0xffffffffu;

@@ -1,5 +1,28 @@
 # Runtime model and signed native preview actor
 
+## Current animation update (.753)
+
+The .752 gameplay loop was reported functioning on Xbox, but field actors moved
+while playing idle. `field/animation.*` now selects authored walk/run clips using
+actual post-collision travel, preserves gait phase, blends transitions, and maps
+complete battle clips to the simulation's windup/strike/recovery timing. Movement
+turns gradually, accelerates, and stops with follow-distance hysteresis.
+
+`assets/animate_locomotion.py` adds two looping clips to the supplied rig. Their
+28/40 game-unit strides match the controller at 100x model scale. Stance foot
+chains are held in place using an offline two-segment solve; torso, arms, tail
+and ears have supporting motion. These are authored animations, not extracted
+walking clips. All 15 original battle clips remain. The runtime pack adds 86
+frames (about 2.05 MiB); its topology and texture set are unchanged.
+
+Rendered inspection also corrected the move assignments: the previous Growl
+clip was Surf, the Tail Whip clip was a kick, and the previous Quick Attack clip
+ended away from the actor origin. The new assignments are adaptations of the
+inspected battle clips, not a claim of original Colosseum move dispatch parity.
+
+The notes below record the original preview implementation. The .753 motion
+changes still require a physical Xbox test; simulation remains 30 Hz.
+
 Base remains Xbox **.749**, control commit `8b1a9bc011032b32b5e123af8d76ba644b28a971`.
 Game ABI: Dusklight `422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7`;
 GX ABI: its Aurora submodule `d0933b745abe0eb9815bedcea8047575da18698d`.
