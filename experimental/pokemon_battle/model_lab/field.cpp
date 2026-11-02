@@ -343,10 +343,10 @@ public:
         else if(ball.stage()==BallStage::Flight) {
             ball_position=ball_start+(ball_end-ball_start)*f.progress;ball_position.y+=100*f.progress*(1-f.progress);
         } else if(ball.stage()==BallStage::Drop) {
-            ball_position=ball_end;const float ground=current.pos.y+8;
+            ball_position=ball_end;const float ground_y=current.pos.y+8;
             const float t=f.progress;
-            if(t<.45f)ball_position.y=ball_end.y+(ground-ball_end.y)*(t/.45f)*(t/.45f);
-            else ball_position.y=ground+18*std::abs(std::sin((t-.45f)/.55f*6.2831853f))*(1-t)/.55f;
+            if(t<.45f)ball_position.y=ball_end.y+(ground_y-ball_end.y)*(t/.45f)*(t/.45f);
+            else ball_position.y=ground_y+18*std::abs(std::sin((t-.45f)/.55f*6.2831853f))*(1-t)/.55f;
         } else if(ball.stage()==BallStage::Shake || ball.stage()==BallStage::Resolve || ball.stage()==BallStage::Success ||
                   ball.stage()==BallStage::EscapeOpen || ball.stage()==BallStage::Escape || ball.stage()==BallStage::EscapeClose) {
             ball_position=ball_end;ball_position.y=current.pos.y+8;
