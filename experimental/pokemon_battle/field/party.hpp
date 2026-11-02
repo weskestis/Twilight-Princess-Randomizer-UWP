@@ -11,8 +11,18 @@ namespace pokemon_battle::field {
 constexpr std::size_t party_capacity = 6;
 constexpr std::size_t move_capacity = 4;
 constexpr std::uint16_t ball_limit = 99;
-enum class Move : std::uint16_t { Growl=45, TailWhip=39, ThunderShock=84, QuickAttack=98, Struggle=165 };
-struct MoveInfo { Move move; const char* name; std::uint8_t pp; std::uint8_t clip; bool damaging; };
+enum class Move : std::uint16_t {
+#include "move_enum.inc"
+};
+enum class Visual { Impact,Slash,Wind,Vine,Needles,Bite,Tail,Sound,Flame,Water,Ice,Leaf,Solar,
+                    Poison,Dragon,Electric,Psychic,Hypnosis,Dash,Smoke,Confuse,Lick,Stars,Dark,Spin,Shadow,Bubble };
+enum class Status { None,AttackDown,DefenseDown,Poison,Paralysis,Sleep,AccuracyDown,Confusion };
+struct MoveInfo {
+    Move move; const char* name; std::uint8_t pp; std::uint8_t clip; bool damaging;
+    std::uint8_t type,power,accuracy;
+    Visual visual;
+    Status status;
+};
 const MoveInfo* move_info(Move move);
 struct Creature {
     std::uint64_t id=0;
@@ -64,6 +74,7 @@ public:
     void cancel_throw(std::uint64_t target=0);
     bool update_member(const Creature& creature, std::uint64_t epoch);
     bool select_next(int direction);
+    bool choose_starter(std::uint16_t species);
     bool rest();
     bool restock();
 private:

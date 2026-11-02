@@ -1,7 +1,7 @@
 name: Prepare separate Pokemon app identity
 on:
   push:
-    branches: [codex/pokemon-separate-app]
+    branches: [codex/pokemon-separate-app, codex/pokemon-mode-20]
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,7 +24,7 @@ jobs:
           assert hashlib.sha256(pri).hexdigest()=='a6ffb195e85fa44e9108b70ff81ca33a7a8f50ff198758a898d7956192346865'
           Path('source.pri').write_bytes(pri)
           output=Path('separate-identity');output.mkdir()
-          (output/'AppxManifest.xml').write_text(preview_manifest((source/'source-manifest.xml').read_text(),'1.4.1.750'),encoding='utf-8')
+          (output/'AppxManifest.xml').write_text(preview_manifest((source/'source-manifest.xml').read_text(),'1.4.1.754'),encoding='utf-8')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Source PRI or separate manifest failed validation.' }
       - name: Reindex and compare all UWP resource candidates

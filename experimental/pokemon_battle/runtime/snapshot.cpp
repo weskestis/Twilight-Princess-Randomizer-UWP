@@ -35,7 +35,7 @@ int main(int argc,char** argv) {
         for(std::size_t i=0;i<model.batches().size();++i) {
             if(i) { json<<','; }
             const auto& b=model.batches()[i];const auto& m=pose.materials[i];
-            json<<"{\"first\":"<<b.first<<",\"count\":"<<b.count<<",\"texture\":"<<b.texture<<",\"uv\":[";
+            json<<"{\"first\":"<<b.first<<",\"count\":"<<b.count<<",\"texture\":"<<b.texture<<",\"flags\":"<<b.flags<<",\"uv\":[";
             for(std::size_t x=0;x<m.uv.size();++x){if(x)json<<',';json<<m.uv[x];}
             json<<"],\"color\":[";
             for(std::size_t x=0;x<m.color.size();++x){if(x)json<<',';json<<m.color[x];}

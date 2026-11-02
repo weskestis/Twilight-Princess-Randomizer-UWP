@@ -9,6 +9,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--snapshot',required=True,type=Path)
     p.add_argument('--out',required=True,type=Path)
+    p.add_argument('--size',type=int,default=640)
     a=p.parse_args()
     import bpy
     import numpy as np
@@ -48,7 +49,11 @@ def main():
         node.inputs['Specular IOR Level'].default_value=0
         tex=mat.node_tree.nodes.new('ShaderNodeTexImage');tex.image=images[batch['texture']];tex.extension='EXTEND'
         mat.node_tree.links.new(tex.outputs['Color'],node.inputs['Base Color'])
-        if batch['texture']==0:node.inputs['Base Color'].default_value=batch['color']
+        mat.node_tree.links.new(tex.outputs['Alpha'],node.inputs['Alpha'])
+        if batch.get('flags',0)&8:
+            mat.node_tree.links.new(tex.outputs['Color'],node.inputs['Emission Color'])
+            node.inputs['Emission Strength'].default_value=1
+        if batch.get('flags',0)&6:tex.extension='REPEAT'
         obj.data.materials.append(mat)
     scene=bpy.context.scene
     center=Vector((points.min(axis=0)+points.max(axis=0))/2)
@@ -65,7 +70,7 @@ def main():
         obj.data.energy=energy;obj.data.shape='DISK';obj.data.size=size
     scene.render.engine='CYCLES';scene.cycles.device='CPU';scene.cycles.samples=16
     scene.render.threads_mode='FIXED';scene.render.threads=8
-    scene.render.resolution_x=scene.render.resolution_y=640;scene.render.resolution_percentage=100
+    scene.render.resolution_x=scene.render.resolution_y=a.size;scene.render.resolution_percentage=100
     scene.view_settings.view_transform='Standard';scene.render.image_settings.file_format='PNG'
     scene.render.filepath=str(a.out.resolve());bpy.ops.render.render(write_still=True)
     bpy.ops.wm.read_factory_settings(use_empty=True);bpy.ops.wm.quit_blender()

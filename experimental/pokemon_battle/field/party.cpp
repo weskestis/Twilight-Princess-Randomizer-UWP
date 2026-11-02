@@ -1,4 +1,5 @@
 #include "party.hpp"
+#include "roster.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -6,16 +7,9 @@
 
 namespace pokemon_battle::field {
 namespace {
-constexpr std::array<MoveInfo,5> moves{{
-    // Visually inspected XD clips: electrical charge, physical lunge, angry
-    // display, tail swing, kick. Clip 5 is Surf, not a generic special attack;
-    // clip 9 travels away from the actor's collision origin at its end.
-    {Move::ThunderShock,"ThunderShock",30,8,true},
-    {Move::QuickAttack,"Quick Attack",30,2,true},
-    {Move::Growl,"Growl",40,4,false},
-    {Move::TailWhip,"Tail Whip",30,1,false},
-    {Move::Struggle,"Struggle",0,3,true}
-}};
+constexpr MoveInfo moves[]{
+#include "move_data.inc"
+};
 std::uint32_t checksum(std::span<const std::uint8_t> data) {
     std::uint32_t crc=0xffffffffu;
     for(auto byte:data) {
@@ -39,7 +33,7 @@ const MoveInfo* move_info(Move move) {
     return nullptr;
 }
 bool valid_creature(const Creature& c,bool captured) {
-    if(c.species!=25 || c.level<1 || c.level>100 || c.max_hp!=((85u*c.level)/100u+c.level+10u) ||
+    if(!species_info(c.species) || c.level<1 || c.level>100 || c.max_hp!=stat_value(c.species,c.level,0) ||
        c.hp>c.max_hp || (captured ? c.id==0 : c.id!=0)) return false;
     for(std::size_t i=0;i<move_capacity;++i) {
         const auto* info=move_info(c.moves[i]);
@@ -161,6 +155,11 @@ bool PartySession::update_member(const Creature& creature,std::uint64_t epoch) {
         next.members[i]=creature; return commit(next);
     }
     return false;
+}
+bool PartySession::choose_starter(std::uint16_t species) {
+    if(!active_ || party_.count || pending() || (species!=1 && species!=4 && species!=7))return false;
+    auto next=party_;next.members[0]=make_creature(species,12);next.members[0].id=next.next_id++;
+    next.count=1;next.selected=0;return commit(next);
 }
 bool PartySession::select_next(int direction) {
     if(!active_ || !party_.count || (direction!=1 && direction!=-1)) return false;

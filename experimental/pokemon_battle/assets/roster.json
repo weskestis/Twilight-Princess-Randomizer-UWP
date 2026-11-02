@@ -1,0 +1,2176 @@
+{
+  "schema": 1,
+  "source": "Colosseum GC6E01 revision 0 species facts; source-intake.json",
+  "species": [
+    {
+      "id": 1,
+      "name": "Bulbasaur",
+      "asset": "fushigidane",
+      "types": [
+        12,
+        3
+      ],
+      "base_stats": [
+        45,
+        49,
+        49,
+        65,
+        65,
+        45
+      ],
+      "catch_rate": 45,
+      "base_exp": 64,
+      "evolutions": [
+        {
+          "method": 4,
+          "condition": 16,
+          "species": 2
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 4,
+          "move": 45
+        },
+        {
+          "level": 7,
+          "move": 73
+        },
+        {
+          "level": 10,
+          "move": 22
+        },
+        {
+          "level": 15,
+          "move": 77
+        },
+        {
+          "level": 15,
+          "move": 79
+        },
+        {
+          "level": 20,
+          "move": 75
+        },
+        {
+          "level": 25,
+          "move": 230
+        },
+        {
+          "level": 32,
+          "move": 74
+        },
+        {
+          "level": 39,
+          "move": 235
+        },
+        {
+          "level": 46,
+          "move": 76
+        }
+      ],
+      "locomotion": {
+        "root": 2,
+        "legs": [
+          [
+            3,
+            4,
+            5
+          ],
+          [
+            9,
+            10,
+            11
+          ],
+          [
+            27,
+            28,
+            29
+          ],
+          [
+            33,
+            34,
+            35
+          ]
+        ],
+        "arms": [],
+        "tail": 24,
+        "head": 15,
+        "hover": false
+      },
+      "field_height": 40,
+      "field_moves": [
+        33,
+        22,
+        75,
+        45
+      ],
+      "clips": {
+        "faint": 2,
+        "hurt": 3,
+        "physical": 4,
+        "special": 6,
+        "gesture": 1
+      }
+    },
+    {
+      "id": 2,
+      "name": "Ivysaur",
+      "asset": "fushigisou",
+      "types": [
+        12,
+        3
+      ],
+      "base_stats": [
+        60,
+        62,
+        63,
+        80,
+        80,
+        60
+      ],
+      "catch_rate": 45,
+      "base_exp": 141,
+      "evolutions": [
+        {
+          "method": 4,
+          "condition": 32,
+          "species": 3
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 45
+        },
+        {
+          "level": 1,
+          "move": 73
+        },
+        {
+          "level": 4,
+          "move": 45
+        },
+        {
+          "level": 7,
+          "move": 73
+        },
+        {
+          "level": 10,
+          "move": 22
+        },
+        {
+          "level": 15,
+          "move": 77
+        },
+        {
+          "level": 15,
+          "move": 79
+        },
+        {
+          "level": 22,
+          "move": 75
+        },
+        {
+          "level": 29,
+          "move": 230
+        },
+        {
+          "level": 38,
+          "move": 74
+        },
+        {
+          "level": 47,
+          "move": 235
+        },
+        {
+          "level": 56,
+          "move": 76
+        }
+      ],
+      "locomotion": {
+        "root": 3,
+        "legs": [
+          [
+            5,
+            6,
+            7
+          ],
+          [
+            12,
+            13,
+            14
+          ],
+          [
+            18,
+            19,
+            20
+          ],
+          [
+            24,
+            25,
+            26
+          ]
+        ],
+        "arms": [],
+        "tail": 39,
+        "head": 30,
+        "hover": false
+      },
+      "field_height": 65,
+      "field_moves": [
+        22,
+        75,
+        77,
+        45
+      ],
+      "clips": {
+        "faint": 6,
+        "hurt": 4,
+        "physical": 3,
+        "special": 1,
+        "gesture": 5
+      }
+    },
+    {
+      "id": 3,
+      "name": "Venusaur",
+      "asset": "fushigibana",
+      "types": [
+        12,
+        3
+      ],
+      "base_stats": [
+        80,
+        82,
+        83,
+        100,
+        100,
+        80
+      ],
+      "catch_rate": 45,
+      "base_exp": 208,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 45
+        },
+        {
+          "level": 1,
+          "move": 73
+        },
+        {
+          "level": 1,
+          "move": 22
+        },
+        {
+          "level": 4,
+          "move": 45
+        },
+        {
+          "level": 7,
+          "move": 73
+        },
+        {
+          "level": 10,
+          "move": 22
+        },
+        {
+          "level": 15,
+          "move": 77
+        },
+        {
+          "level": 15,
+          "move": 79
+        },
+        {
+          "level": 22,
+          "move": 75
+        },
+        {
+          "level": 29,
+          "move": 230
+        },
+        {
+          "level": 41,
+          "move": 74
+        },
+        {
+          "level": 53,
+          "move": 235
+        },
+        {
+          "level": 65,
+          "move": 76
+        }
+      ],
+      "locomotion": {
+        "root": 11,
+        "legs": [
+          [
+            26,
+            27,
+            28
+          ],
+          [
+            39,
+            40,
+            41
+          ],
+          [
+            32,
+            33,
+            34
+          ],
+          [
+            45,
+            46,
+            47
+          ]
+        ],
+        "arms": [],
+        "tail": 51,
+        "head": 12,
+        "hover": false
+      },
+      "field_height": 110,
+      "field_moves": [
+        75,
+        76,
+        22,
+        77
+      ],
+      "clips": {
+        "faint": 4,
+        "hurt": 7,
+        "physical": 3,
+        "special": 1,
+        "gesture": 1
+      }
+    },
+    {
+      "id": 4,
+      "name": "Charmander",
+      "asset": "hitokage",
+      "types": [
+        10,
+        10
+      ],
+      "base_stats": [
+        39,
+        52,
+        43,
+        60,
+        50,
+        65
+      ],
+      "catch_rate": 45,
+      "base_exp": 65,
+      "evolutions": [
+        {
+          "method": 4,
+          "condition": 16,
+          "species": 5
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 10
+        },
+        {
+          "level": 1,
+          "move": 45
+        },
+        {
+          "level": 7,
+          "move": 52
+        },
+        {
+          "level": 13,
+          "move": 108
+        },
+        {
+          "level": 19,
+          "move": 99
+        },
+        {
+          "level": 25,
+          "move": 184
+        },
+        {
+          "level": 31,
+          "move": 53
+        },
+        {
+          "level": 37,
+          "move": 163
+        },
+        {
+          "level": 43,
+          "move": 82
+        },
+        {
+          "level": 49,
+          "move": 83
+        }
+      ],
+      "locomotion": {
+        "root": 2,
+        "legs": [
+          [
+            24,
+            25,
+            27
+          ],
+          [
+            32,
+            33,
+            35
+          ]
+        ],
+        "arms": [
+          4,
+          9
+        ],
+        "tail": 40,
+        "head": 15,
+        "hover": false
+      },
+      "field_height": 45,
+      "field_moves": [
+        10,
+        52,
+        45,
+        108
+      ],
+      "clips": {
+        "faint": 4,
+        "hurt": 2,
+        "physical": 3,
+        "special": 6,
+        "gesture": 1
+      }
+    },
+    {
+      "id": 5,
+      "name": "Charmeleon",
+      "asset": "lizardo",
+      "types": [
+        10,
+        10
+      ],
+      "base_stats": [
+        58,
+        64,
+        58,
+        80,
+        65,
+        80
+      ],
+      "catch_rate": 45,
+      "base_exp": 142,
+      "evolutions": [
+        {
+          "method": 4,
+          "condition": 36,
+          "species": 6
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 10
+        },
+        {
+          "level": 1,
+          "move": 45
+        },
+        {
+          "level": 1,
+          "move": 52
+        },
+        {
+          "level": 7,
+          "move": 52
+        },
+        {
+          "level": 13,
+          "move": 108
+        },
+        {
+          "level": 20,
+          "move": 99
+        },
+        {
+          "level": 27,
+          "move": 184
+        },
+        {
+          "level": 34,
+          "move": 53
+        },
+        {
+          "level": 41,
+          "move": 163
+        },
+        {
+          "level": 48,
+          "move": 82
+        },
+        {
+          "level": 55,
+          "move": 83
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            4,
+            5,
+            6
+          ],
+          [
+            24,
+            25,
+            26
+          ]
+        ],
+        "arms": [
+          49,
+          59
+        ],
+        "tail": 15,
+        "head": 37,
+        "hover": false
+      },
+      "field_height": 70,
+      "field_moves": [
+        52,
+        53,
+        163,
+        108
+      ],
+      "clips": {
+        "faint": 5,
+        "hurt": 4,
+        "physical": 1,
+        "special": 3,
+        "gesture": 7
+      }
+    },
+    {
+      "id": 6,
+      "name": "Charizard",
+      "asset": "lizardon",
+      "types": [
+        10,
+        2
+      ],
+      "base_stats": [
+        78,
+        84,
+        78,
+        109,
+        85,
+        100
+      ],
+      "catch_rate": 45,
+      "base_exp": 209,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 10
+        },
+        {
+          "level": 1,
+          "move": 45
+        },
+        {
+          "level": 1,
+          "move": 52
+        },
+        {
+          "level": 1,
+          "move": 108
+        },
+        {
+          "level": 7,
+          "move": 52
+        },
+        {
+          "level": 13,
+          "move": 108
+        },
+        {
+          "level": 20,
+          "move": 99
+        },
+        {
+          "level": 27,
+          "move": 184
+        },
+        {
+          "level": 34,
+          "move": 53
+        },
+        {
+          "level": 36,
+          "move": 17
+        },
+        {
+          "level": 44,
+          "move": 163
+        },
+        {
+          "level": 54,
+          "move": 82
+        },
+        {
+          "level": 64,
+          "move": 83
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            2,
+            3,
+            5
+          ],
+          [
+            9,
+            10,
+            12
+          ]
+        ],
+        "arms": [
+          39,
+          45
+        ],
+        "tail": 51,
+        "head": 26,
+        "hover": false
+      },
+      "field_height": 125,
+      "field_moves": [
+        53,
+        17,
+        163,
+        82
+      ],
+      "clips": {
+        "faint": 3,
+        "hurt": 2,
+        "physical": 4,
+        "special": 5,
+        "gesture": 1
+      }
+    },
+    {
+      "id": 7,
+      "name": "Squirtle",
+      "asset": "zenigame",
+      "types": [
+        11,
+        11
+      ],
+      "base_stats": [
+        44,
+        48,
+        65,
+        50,
+        64,
+        43
+      ],
+      "catch_rate": 45,
+      "base_exp": 66,
+      "evolutions": [
+        {
+          "method": 4,
+          "condition": 16,
+          "species": 8
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 4,
+          "move": 39
+        },
+        {
+          "level": 7,
+          "move": 145
+        },
+        {
+          "level": 10,
+          "move": 110
+        },
+        {
+          "level": 13,
+          "move": 55
+        },
+        {
+          "level": 18,
+          "move": 44
+        },
+        {
+          "level": 23,
+          "move": 229
+        },
+        {
+          "level": 28,
+          "move": 182
+        },
+        {
+          "level": 33,
+          "move": 240
+        },
+        {
+          "level": 40,
+          "move": 130
+        },
+        {
+          "level": 47,
+          "move": 56
+        }
+      ],
+      "locomotion": {
+        "root": 2,
+        "legs": [
+          [
+            12,
+            13,
+            14
+          ],
+          [
+            23,
+            24,
+            25
+          ]
+        ],
+        "arms": [
+          18,
+          29
+        ],
+        "tail": 34,
+        "head": 4,
+        "hover": false
+      },
+      "field_height": 38,
+      "field_moves": [
+        55,
+        33,
+        39,
+        145
+      ],
+      "clips": {
+        "faint": 9,
+        "hurt": 10,
+        "physical": 8,
+        "special": 7,
+        "gesture": 6
+      }
+    },
+    {
+      "id": 8,
+      "name": "Wartortle",
+      "asset": "kameil",
+      "types": [
+        11,
+        11
+      ],
+      "base_stats": [
+        59,
+        63,
+        80,
+        65,
+        80,
+        58
+      ],
+      "catch_rate": 45,
+      "base_exp": 143,
+      "evolutions": [
+        {
+          "method": 4,
+          "condition": 36,
+          "species": 9
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 145
+        },
+        {
+          "level": 4,
+          "move": 39
+        },
+        {
+          "level": 7,
+          "move": 145
+        },
+        {
+          "level": 10,
+          "move": 110
+        },
+        {
+          "level": 13,
+          "move": 55
+        },
+        {
+          "level": 19,
+          "move": 44
+        },
+        {
+          "level": 25,
+          "move": 229
+        },
+        {
+          "level": 31,
+          "move": 182
+        },
+        {
+          "level": 37,
+          "move": 240
+        },
+        {
+          "level": 45,
+          "move": 130
+        },
+        {
+          "level": 53,
+          "move": 56
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            32,
+            33,
+            34
+          ],
+          [
+            56,
+            57,
+            58
+          ]
+        ],
+        "arms": [
+          49,
+          74
+        ],
+        "tail": 66,
+        "head": 12,
+        "hover": false
+      },
+      "field_height": 65,
+      "field_moves": [
+        55,
+        44,
+        229,
+        39
+      ],
+      "clips": {
+        "faint": 10,
+        "hurt": 9,
+        "physical": 11,
+        "special": 8,
+        "gesture": 7
+      }
+    },
+    {
+      "id": 9,
+      "name": "Blastoise",
+      "asset": "kamex",
+      "types": [
+        11,
+        11
+      ],
+      "base_stats": [
+        79,
+        83,
+        100,
+        85,
+        105,
+        78
+      ],
+      "catch_rate": 45,
+      "base_exp": 210,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 145
+        },
+        {
+          "level": 1,
+          "move": 110
+        },
+        {
+          "level": 4,
+          "move": 39
+        },
+        {
+          "level": 7,
+          "move": 145
+        },
+        {
+          "level": 10,
+          "move": 110
+        },
+        {
+          "level": 13,
+          "move": 55
+        },
+        {
+          "level": 19,
+          "move": 44
+        },
+        {
+          "level": 25,
+          "move": 229
+        },
+        {
+          "level": 31,
+          "move": 182
+        },
+        {
+          "level": 42,
+          "move": 240
+        },
+        {
+          "level": 55,
+          "move": 130
+        },
+        {
+          "level": 68,
+          "move": 56
+        }
+      ],
+      "locomotion": {
+        "root": 2,
+        "legs": [
+          [
+            4,
+            5,
+            6
+          ],
+          [
+            10,
+            11,
+            12
+          ]
+        ],
+        "arms": [
+          37,
+          42
+        ],
+        "tail": 34,
+        "head": 26,
+        "hover": false
+      },
+      "field_height": 105,
+      "field_moves": [
+        56,
+        55,
+        44,
+        229
+      ],
+      "clips": {
+        "faint": 10,
+        "hurt": 12,
+        "physical": 7,
+        "special": 9,
+        "gesture": 6
+      }
+    },
+    {
+      "id": 25,
+      "name": "Pikachu",
+      "asset": "pikachu",
+      "types": [
+        13,
+        13
+      ],
+      "base_stats": [
+        35,
+        55,
+        30,
+        50,
+        40,
+        90
+      ],
+      "catch_rate": 190,
+      "base_exp": 82,
+      "evolutions": [
+        {
+          "method": 7,
+          "condition": 96,
+          "species": 26
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 84
+        },
+        {
+          "level": 1,
+          "move": 45
+        },
+        {
+          "level": 6,
+          "move": 39
+        },
+        {
+          "level": 8,
+          "move": 86
+        },
+        {
+          "level": 11,
+          "move": 98
+        },
+        {
+          "level": 15,
+          "move": 104
+        },
+        {
+          "level": 20,
+          "move": 21
+        },
+        {
+          "level": 26,
+          "move": 85
+        },
+        {
+          "level": 33,
+          "move": 97
+        },
+        {
+          "level": 41,
+          "move": 87
+        },
+        {
+          "level": 50,
+          "move": 113
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            2,
+            3,
+            4
+          ],
+          [
+            9,
+            10,
+            11
+          ]
+        ],
+        "arms": [
+          32,
+          38
+        ],
+        "tail": 44,
+        "head": 19,
+        "hover": false
+      },
+      "field_height": 40,
+      "field_moves": [
+        84,
+        98,
+        45,
+        39
+      ],
+      "clips": {
+        "faint": 10,
+        "hurt": 11,
+        "physical": 2,
+        "special": 8,
+        "gesture": 4
+      }
+    },
+    {
+      "id": 26,
+      "name": "Raichu",
+      "asset": "raichu",
+      "types": [
+        13,
+        13
+      ],
+      "base_stats": [
+        60,
+        90,
+        55,
+        90,
+        80,
+        100
+      ],
+      "catch_rate": 75,
+      "base_exp": 122,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 84
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 98
+        },
+        {
+          "level": 1,
+          "move": 85
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            2,
+            3,
+            5
+          ],
+          [
+            37,
+            38,
+            40
+          ]
+        ],
+        "arms": [
+          27,
+          32
+        ],
+        "tail": 45,
+        "head": 12,
+        "hover": false
+      },
+      "field_height": 65,
+      "field_moves": [
+        85,
+        98,
+        39,
+        86
+      ],
+      "clips": {
+        "faint": 5,
+        "hurt": 2,
+        "physical": 3,
+        "special": 1,
+        "gesture": 7
+      }
+    },
+    {
+      "id": 92,
+      "name": "Gastly",
+      "asset": "ghos",
+      "types": [
+        7,
+        3
+      ],
+      "base_stats": [
+        30,
+        35,
+        30,
+        100,
+        35,
+        80
+      ],
+      "catch_rate": 190,
+      "base_exp": 95,
+      "evolutions": [
+        {
+          "method": 4,
+          "condition": 25,
+          "species": 93
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 95
+        },
+        {
+          "level": 1,
+          "move": 122
+        },
+        {
+          "level": 8,
+          "move": 180
+        },
+        {
+          "level": 13,
+          "move": 212
+        },
+        {
+          "level": 16,
+          "move": 174
+        },
+        {
+          "level": 21,
+          "move": 101
+        },
+        {
+          "level": 28,
+          "move": 109
+        },
+        {
+          "level": 33,
+          "move": 138
+        },
+        {
+          "level": 36,
+          "move": 194
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [],
+        "arms": [],
+        "tail": 3,
+        "head": 2,
+        "hover": true
+      },
+      "field_height": 65,
+      "field_moves": [
+        122,
+        109,
+        247,
+        95
+      ],
+      "clips": {
+        "faint": 2,
+        "hurt": 1,
+        "physical": 4,
+        "special": 3,
+        "gesture": 3
+      }
+    },
+    {
+      "id": 93,
+      "name": "Haunter",
+      "asset": "ghost",
+      "types": [
+        7,
+        3
+      ],
+      "base_stats": [
+        45,
+        50,
+        45,
+        115,
+        55,
+        95
+      ],
+      "catch_rate": 90,
+      "base_exp": 126,
+      "evolutions": [
+        {
+          "method": 5,
+          "condition": 0,
+          "species": 94
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 95
+        },
+        {
+          "level": 1,
+          "move": 122
+        },
+        {
+          "level": 1,
+          "move": 180
+        },
+        {
+          "level": 8,
+          "move": 180
+        },
+        {
+          "level": 13,
+          "move": 212
+        },
+        {
+          "level": 16,
+          "move": 174
+        },
+        {
+          "level": 21,
+          "move": 101
+        },
+        {
+          "level": 25,
+          "move": 325
+        },
+        {
+          "level": 31,
+          "move": 109
+        },
+        {
+          "level": 39,
+          "move": 138
+        },
+        {
+          "level": 48,
+          "move": 194
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [],
+        "arms": [
+          24,
+          33
+        ],
+        "tail": 1,
+        "head": 2,
+        "hover": true
+      },
+      "field_height": 75,
+      "field_moves": [
+        325,
+        247,
+        122,
+        95
+      ],
+      "clips": {
+        "faint": 2,
+        "hurt": 1,
+        "physical": 4,
+        "special": 3,
+        "gesture": 5
+      }
+    },
+    {
+      "id": 94,
+      "name": "Gengar",
+      "asset": "gangar",
+      "types": [
+        7,
+        3
+      ],
+      "base_stats": [
+        60,
+        65,
+        60,
+        130,
+        75,
+        110
+      ],
+      "catch_rate": 45,
+      "base_exp": 190,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 95
+        },
+        {
+          "level": 1,
+          "move": 122
+        },
+        {
+          "level": 1,
+          "move": 180
+        },
+        {
+          "level": 8,
+          "move": 180
+        },
+        {
+          "level": 13,
+          "move": 212
+        },
+        {
+          "level": 16,
+          "move": 174
+        },
+        {
+          "level": 21,
+          "move": 101
+        },
+        {
+          "level": 25,
+          "move": 325
+        },
+        {
+          "level": 31,
+          "move": 109
+        },
+        {
+          "level": 39,
+          "move": 138
+        },
+        {
+          "level": 48,
+          "move": 194
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            33,
+            34,
+            36
+          ],
+          [
+            40,
+            41,
+            43
+          ]
+        ],
+        "arms": [
+          3,
+          11
+        ],
+        "tail": 47,
+        "head": 19,
+        "hover": false
+      },
+      "field_height": 85,
+      "field_moves": [
+        247,
+        325,
+        95,
+        188
+      ],
+      "clips": {
+        "faint": 3,
+        "hurt": 2,
+        "physical": 4,
+        "special": 1,
+        "gesture": 5
+      }
+    },
+    {
+      "id": 133,
+      "name": "Eevee",
+      "asset": "eievui",
+      "types": [
+        0,
+        0
+      ],
+      "base_stats": [
+        55,
+        55,
+        50,
+        45,
+        65,
+        55
+      ],
+      "catch_rate": 45,
+      "base_exp": 92,
+      "evolutions": [
+        {
+          "method": 7,
+          "condition": 96,
+          "species": 135
+        },
+        {
+          "method": 7,
+          "condition": 97,
+          "species": 134
+        },
+        {
+          "method": 7,
+          "condition": 95,
+          "species": 136
+        },
+        {
+          "method": 2,
+          "condition": 0,
+          "species": 196
+        },
+        {
+          "method": 3,
+          "condition": 0,
+          "species": 197
+        }
+      ],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 270
+        },
+        {
+          "level": 8,
+          "move": 28
+        },
+        {
+          "level": 16,
+          "move": 45
+        },
+        {
+          "level": 23,
+          "move": 98
+        },
+        {
+          "level": 30,
+          "move": 44
+        },
+        {
+          "level": 36,
+          "move": 226
+        },
+        {
+          "level": 42,
+          "move": 36
+        }
+      ],
+      "locomotion": {
+        "root": 2,
+        "legs": [
+          [
+            43,
+            44,
+            45,
+            47
+          ],
+          [
+            50,
+            51,
+            52,
+            54
+          ],
+          [
+            31,
+            32,
+            34
+          ],
+          [
+            37,
+            38,
+            40
+          ]
+        ],
+        "arms": [],
+        "tail": 57,
+        "head": 16,
+        "hover": false
+      },
+      "field_height": 35,
+      "field_moves": [
+        33,
+        98,
+        44,
+        39
+      ],
+      "clips": {
+        "faint": 5,
+        "hurt": 1,
+        "physical": 4,
+        "special": 2,
+        "gesture": 6
+      }
+    },
+    {
+      "id": 134,
+      "name": "Vaporeon",
+      "asset": "showers",
+      "types": [
+        11,
+        11
+      ],
+      "base_stats": [
+        130,
+        65,
+        60,
+        110,
+        95,
+        65
+      ],
+      "catch_rate": 45,
+      "base_exp": 196,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 270
+        },
+        {
+          "level": 8,
+          "move": 28
+        },
+        {
+          "level": 16,
+          "move": 55
+        },
+        {
+          "level": 23,
+          "move": 98
+        },
+        {
+          "level": 30,
+          "move": 44
+        },
+        {
+          "level": 36,
+          "move": 62
+        },
+        {
+          "level": 42,
+          "move": 114
+        },
+        {
+          "level": 47,
+          "move": 151
+        },
+        {
+          "level": 52,
+          "move": 56
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            2,
+            3,
+            4,
+            5
+          ],
+          [
+            10,
+            11,
+            12,
+            13
+          ],
+          [
+            50,
+            51,
+            53
+          ],
+          [
+            56,
+            57,
+            59
+          ]
+        ],
+        "arms": [],
+        "tail": 62,
+        "head": 20,
+        "hover": false
+      },
+      "field_height": 65,
+      "field_moves": [
+        55,
+        56,
+        98,
+        62
+      ],
+      "clips": {
+        "faint": 5,
+        "hurt": 6,
+        "physical": 1,
+        "special": 4,
+        "gesture": 3
+      }
+    },
+    {
+      "id": 135,
+      "name": "Jolteon",
+      "asset": "thunders",
+      "types": [
+        13,
+        13
+      ],
+      "base_stats": [
+        65,
+        65,
+        60,
+        110,
+        95,
+        130
+      ],
+      "catch_rate": 45,
+      "base_exp": 197,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 270
+        },
+        {
+          "level": 8,
+          "move": 28
+        },
+        {
+          "level": 16,
+          "move": 84
+        },
+        {
+          "level": 23,
+          "move": 98
+        },
+        {
+          "level": 30,
+          "move": 24
+        },
+        {
+          "level": 36,
+          "move": 42
+        },
+        {
+          "level": 42,
+          "move": 86
+        },
+        {
+          "level": 47,
+          "move": 97
+        },
+        {
+          "level": 52,
+          "move": 87
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            9,
+            10,
+            11,
+            12
+          ],
+          [
+            16,
+            17,
+            18,
+            19
+          ],
+          [
+            53,
+            54,
+            56
+          ],
+          [
+            59,
+            60,
+            62
+          ]
+        ],
+        "arms": [],
+        "tail": 65,
+        "head": 25,
+        "hover": false
+      },
+      "field_height": 60,
+      "field_moves": [
+        84,
+        85,
+        42,
+        24
+      ],
+      "clips": {
+        "faint": 4,
+        "hurt": 3,
+        "physical": 7,
+        "special": 2,
+        "gesture": 6
+      }
+    },
+    {
+      "id": 136,
+      "name": "Flareon",
+      "asset": "booster",
+      "types": [
+        10,
+        10
+      ],
+      "base_stats": [
+        65,
+        130,
+        60,
+        95,
+        110,
+        65
+      ],
+      "catch_rate": 45,
+      "base_exp": 198,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 270
+        },
+        {
+          "level": 8,
+          "move": 28
+        },
+        {
+          "level": 16,
+          "move": 52
+        },
+        {
+          "level": 23,
+          "move": 98
+        },
+        {
+          "level": 30,
+          "move": 44
+        },
+        {
+          "level": 36,
+          "move": 83
+        },
+        {
+          "level": 42,
+          "move": 123
+        },
+        {
+          "level": 47,
+          "move": 43
+        },
+        {
+          "level": 52,
+          "move": 53
+        }
+      ],
+      "locomotion": {
+        "root": 3,
+        "legs": [
+          [
+            39,
+            40,
+            41,
+            43
+          ],
+          [
+            46,
+            47,
+            48,
+            50
+          ],
+          [
+            27,
+            28,
+            30
+          ],
+          [
+            33,
+            34,
+            36
+          ]
+        ],
+        "arms": [],
+        "tail": 53,
+        "head": 11,
+        "hover": false
+      },
+      "field_height": 60,
+      "field_moves": [
+        52,
+        53,
+        44,
+        98
+      ],
+      "clips": {
+        "faint": 4,
+        "hurt": 3,
+        "physical": 6,
+        "special": 5,
+        "gesture": 1
+      }
+    },
+    {
+      "id": 196,
+      "name": "Espeon",
+      "asset": "eifie",
+      "types": [
+        14,
+        14
+      ],
+      "base_stats": [
+        65,
+        65,
+        60,
+        130,
+        95,
+        110
+      ],
+      "catch_rate": 45,
+      "base_exp": 197,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 270
+        },
+        {
+          "level": 8,
+          "move": 28
+        },
+        {
+          "level": 16,
+          "move": 93
+        },
+        {
+          "level": 23,
+          "move": 98
+        },
+        {
+          "level": 30,
+          "move": 129
+        },
+        {
+          "level": 36,
+          "move": 60
+        },
+        {
+          "level": 42,
+          "move": 244
+        },
+        {
+          "level": 47,
+          "move": 94
+        },
+        {
+          "level": 52,
+          "move": 234
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            3,
+            4,
+            5,
+            8
+          ],
+          [
+            17,
+            18,
+            19,
+            22
+          ],
+          [
+            43,
+            44,
+            46
+          ],
+          [
+            53,
+            54,
+            56
+          ]
+        ],
+        "arms": [],
+        "tail": 30,
+        "head": 64,
+        "hover": false
+      },
+      "field_height": 65,
+      "field_moves": [
+        93,
+        94,
+        129,
+        98
+      ],
+      "clips": {
+        "faint": 0,
+        "hurt": 2,
+        "physical": 3,
+        "special": 3,
+        "gesture": 3
+      }
+    },
+    {
+      "id": 197,
+      "name": "Umbreon",
+      "asset": "blacky",
+      "types": [
+        17,
+        17
+      ],
+      "base_stats": [
+        95,
+        65,
+        110,
+        60,
+        130,
+        65
+      ],
+      "catch_rate": 45,
+      "base_exp": 197,
+      "evolutions": [],
+      "learnset": [
+        {
+          "level": 1,
+          "move": 33
+        },
+        {
+          "level": 1,
+          "move": 39
+        },
+        {
+          "level": 1,
+          "move": 270
+        },
+        {
+          "level": 8,
+          "move": 28
+        },
+        {
+          "level": 16,
+          "move": 228
+        },
+        {
+          "level": 23,
+          "move": 98
+        },
+        {
+          "level": 30,
+          "move": 109
+        },
+        {
+          "level": 36,
+          "move": 185
+        },
+        {
+          "level": 42,
+          "move": 212
+        },
+        {
+          "level": 47,
+          "move": 103
+        },
+        {
+          "level": 52,
+          "move": 236
+        }
+      ],
+      "locomotion": {
+        "root": 1,
+        "legs": [
+          [
+            4,
+            5,
+            6,
+            7
+          ],
+          [
+            17,
+            18,
+            19,
+            20
+          ],
+          [
+            27,
+            28,
+            29
+          ],
+          [
+            35,
+            36,
+            37
+          ]
+        ],
+        "arms": [],
+        "tail": 12,
+        "head": 47,
+        "hover": false
+      },
+      "field_height": 65,
+      "field_moves": [
+        228,
+        185,
+        109,
+        98
+      ],
+      "clips": {
+        "faint": 1,
+        "hurt": 3,
+        "physical": 5,
+        "special": 4,
+        "gesture": 2
+      }
+    }
+  ]
+}

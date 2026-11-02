@@ -1,11 +1,12 @@
 name: Build Dusklight 2.0.1 Xbox 749
-run-name: ${{ github.ref_name == 'codex/pokemon-battle-cp1' && 'Xbox .749 Pikachu preview' || 'Xbox .749 release' }}
+run-name: ${{ startsWith(github.ref_name, 'codex/pokemon-') && 'Xbox .749 Pokemon mode' || 'Xbox .749 release' }}
 
 on:
   push:
     branches:
       - codex/xbox-680-from-679
       - codex/pokemon-battle-cp1
+      - codex/pokemon-mode-20
   workflow_dispatch:
 
 permissions:
@@ -17,7 +18,7 @@ concurrency:
 
 jobs:
   xbox-uwp-x64:
-    if: github.ref_name != 'codex/pokemon-battle-cp1' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[xbox-preview]')
+    if: ${{ !startsWith(github.ref_name, 'codex/pokemon-') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[xbox-preview]') }}
     name: Xbox UWP x64 package
     runs-on: windows-2022
     permissions:
@@ -6441,8 +6442,8 @@ jobs:
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
 
-      - name: Add the optional Pikachu preview to verified .749
-        if: github.ref_name == 'codex/pokemon-battle-cp1'
+      - name: Add the optional Pokemon mode to verified .749
+        if: startsWith(github.ref_name, 'codex/pokemon-')
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -6800,7 +6801,7 @@ jobs:
           $nativePorts743 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-743.json" -Raw | ConvertFrom-Json
           $nativePorts744 = Get-Content "$env:TPR_CONTROL\NATIVE_MODS-744.json" -Raw | ConvertFrom-Json
           $nativePorts743.mods = @($nativePorts743.mods) + @($nativePorts744.mods)
-          if ($env:GITHUB_REF_NAME -eq 'codex/pokemon-battle-cp1') {
+          if ($env:GITHUB_REF_NAME -like 'codex/pokemon-*') {
             # Both the native archive and its resource bundle are explicit feed targets.
             $nativePorts743.mods += [pscustomobject]@{ target = 'port_pokemon_model_lab' }
           }
@@ -7550,8 +7551,8 @@ jobs:
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
           Get-Content (Join-Path $out 'SHA256SUMS.txt') | Out-Host
 
-      - name: Verify signed Pikachu preview metadata and packaged resources
-        if: github.ref_name == 'codex/pokemon-battle-cp1'
+      - name: Verify signed Pokemon mode metadata and packaged resources
+        if: startsWith(github.ref_name, 'codex/pokemon-')
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -7575,7 +7576,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Verified MSIX transfer/source preservation failed.' }
 
       - name: Deliver verified MSIX draft release
-        if: github.ref_name != 'codex/pokemon-battle-cp1'
+        if: ${{ !startsWith(github.ref_name, 'codex/pokemon-') }}
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}

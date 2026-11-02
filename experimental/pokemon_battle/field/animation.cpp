@@ -1,4 +1,5 @@
 #include "animation.hpp"
+#include "roster.hpp"
 #include <algorithm>
 #include <cmath>
 #include <string_view>
@@ -7,7 +8,7 @@ namespace pokemon_battle::field {
 namespace {
 constexpr double tick=1.0/30.0;
 std::size_t find_clip(const runtime::Model& model, std::string_view name, std::size_t fallback=0) {
-    for(std::size_t i=0;i<model.clips().size();++i) if(model.clips()[i].name==name) return i;
+    for(std::size_t i=0;i<model.clips().size();++i) if(model.clips()[i].name.ends_with(name)) return i;
     return fallback<model.clips().size()?fallback:0;
 }
 int angle_delta(std::int16_t angle,std::int16_t target) {
@@ -27,6 +28,7 @@ double attack_position(const Combat& combat) {
     case Move::Growl: contact=0.30; release=0.65; break;
     case Move::TailWhip: contact=0.48; release=0.72; break;
     case Move::Struggle: contact=0.35; release=0.55; break;
+    default:break;
     }
     if(combat.phase==Phase::Windup) return progress(combat.timer,23)*contact;
     if(combat.phase==Phase::Strike) return contact+progress(combat.timer,5)*(release-contact);
@@ -45,6 +47,8 @@ void blend(const runtime::Pose& from,runtime::Pose& to,float amount) {
         if(length>1e-10f) for(auto& n:out.normal) n/=std::sqrt(length);
         else out.normal={0,1,0};
     }
+    if(from.joints.size()==to.joints.size()) for(std::size_t j=0;j<to.joints.size();++j)
+        for(std::size_t axis=0;axis<3;++axis)to.joints[j][axis]=from.joints[j][axis]+(to.joints[j][axis]-from.joints[j][axis])*amount;
     // Facial atlases are discrete images: retain the destination UV state.
 }
 }
@@ -62,16 +66,21 @@ bool Animation::sample(const runtime::Model& model,const Combat& combat,float di
     if(model.clips().empty() || !std::isfinite(distance) || distance<0) return false;
     if(!advance && clip_!=static_cast<std::size_t>(-1)) return true;
     const bool moving=combat.phase==Phase::Ready && distance>0.02f;
-    const auto idle=find_clip(model,"pikachu_00_Idle");
-    const auto walk=find_clip(model,"pikachu_15_Walk",idle);
-    const auto run=find_clip(model,"pikachu_16_Run",walk);
+    const auto idle=find_clip(model,"_Idle");
+    const auto walk=find_clip(model,"_FieldWalk",find_clip(model,"_15_Walk",idle));
+    const auto run=find_clip(model,"_FieldRun",find_clip(model,"_16_Run",walk));
+    const auto* species=species_info(combat.creature.species);
+    const bool new_rig=model.bone_count()>0 && species;
+    const float walk_length=new_rig?species->walk_stride:walk_stride;
+    const float run_length=new_rig?species->run_stride:run_stride;
     std::size_t selected=idle;
     bool loop=false;
     if(moving) {
         // Hysteresis avoids rapid walk/run switching during gradual acceleration.
-        running_=running_?distance>3.8f:distance>4.5f;
+        const float threshold=new_rig?std::max(1.f,walk_length/18.f):4.5f;
+        running_=running_?distance>threshold*.8444444f:distance>threshold;
         selected=running_?run:walk;
-        if(advance) gait_phase_=std::fmod(gait_phase_+double(distance)/(running_?run_stride:walk_stride),1.0);
+        if(advance) gait_phase_=std::fmod(gait_phase_+double(distance)/std::max(.01f,running_?run_length:walk_length),1.0);
     } else if(combat.phase!=Phase::Ready) {
         const int requested=combat.clip();
         selected=requested>=0 && static_cast<std::size_t>(requested)<model.clips().size()?static_cast<std::size_t>(requested):idle;

@@ -39,7 +39,7 @@ def main():
             subprocess.run([str(executable)] + (arguments or []), cwd=build, check=True)
 
         run('battle_tests', core + [root / 'tests/battle_tests.cpp'])
-        run('field_tests', [root / 'field/party.cpp', root / 'field/combat.cpp', root / 'tests/field_tests.cpp'])
+        run('field_tests', [root / 'field/party.cpp', root / 'field/roster.cpp', root / 'field/ball.cpp', root / 'field/combat.cpp', root / 'tests/field_tests.cpp'])
         run('battle_demo', core + [root / 'demo/main.cpp'], arguments=['--autoplay'])
         if args.sdk:
             include = args.sdk.resolve() / 'include'
@@ -48,7 +48,7 @@ def main():
                      ['-isystem', str(include), '-Wno-attributes'])
             run('battle_ui_tests', [root / 'src/battle.cpp', root / 'native/mod.cpp',
                                     root / 'tests/ui_tests.cpp'], extra)
-            run('party_save_tests', [root / 'field/party.cpp', root / 'tests/party_save_tests.cpp'], extra)
+            run('party_save_tests', [root / 'field/party.cpp', root / 'field/roster.cpp', root / 'field/ball.cpp', root / 'tests/party_save_tests.cpp'], extra)
         else:
             print('SDK panel test skipped: pass --sdk to validate the adapter.')
 

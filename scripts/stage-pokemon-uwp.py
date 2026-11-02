@@ -31,6 +31,11 @@ def stage(root, control):
         raise RuntimeError('Pokemon preview must be staged on verified .749')
     if target in (root / 'mods/uwp_ports/CMakeLists.txt').read_text():
         raise RuntimeError('Pokemon preview is already staged')
+    edit('src/dusk/game_mode.cpp', lambda t: replace(t,
+        'GameMode vanilla{kVanillaGameModeId, "Vanilla"}',
+        'GameMode vanilla{kVanillaGameModeId, "Pokemon Vanilla"}'))
+    edit('mods/randomizer/src/session.cpp', lambda t: replace(t,
+        '.full_name = "Randomizer"', '.full_name = "Pokemon Randomizer"'))
     edit('mods/uwp_ports/CMakeLists.txt', lambda t: t + '\nadd_subdirectory(' + target + ')\n')
     edit('platforms/uwp/NativePorts743.cmake', lambda t: t + 'list(APPEND DUSK_UWP_ADDITIONAL_PORTS ' + target + ')\n')
 
@@ -68,15 +73,20 @@ def stage(root, control):
     for name in ['model_lab/mod.cpp', 'model_lab/gx_renderer.cpp', 'model_lab/gx_renderer.hpp',
                  'model_lab/spawn_context.hpp',
                  'model_lab/field.cpp', 'model_lab/field.hpp',
+                 'model_lab/content.cpp','model_lab/content.hpp',
                  'model_lab/party_save.hpp',
                  'model_lab/field_effects.cpp', 'model_lab/field_effects.hpp',
                  'field/party.cpp', 'field/party.hpp', 'field/combat.cpp', 'field/combat.hpp',
                  'field/animation.cpp', 'field/animation.hpp',
+                 'field/roster.cpp','field/roster.hpp','field/roster_data.inc',
+                 'field/move_enum.inc','field/move_data.inc',
+                 'field/type_chart.inc','field/ball.cpp','field/ball.hpp',
+                 'runtime/effects.cpp','runtime/effects.hpp',
                  'runtime/model.cpp', 'runtime/model.hpp']:
         staged[port / name] = (experiment / name).read_text()
     staged[port / 'CMakeLists.txt'] = (experiment / 'model_lab/CMakeLists.uwp.txt').read_text()
     staged[port / 'mod.json'] = json.dumps(manifest, indent=2) + '\n'
-    staged[port / 'res/model-pack.txt'] = 'Pikachu runtime pack is added to res/pikachu.dpkm during private final packaging.\n'
+    staged[port / 'res/model-pack.txt'] = '20 species packs and effects are added to res/pokemon/ during private final packaging.\n'
     proof = {'baseVersion': '1.4.1.749', 'baseCommit': '8b1a9bc011032b32b5e123af8d76ba644b28a971',
              'id': manifest['id'], 'version': manifest['version'], 'target': target,
              'metadataSection': metadata_section, 'sources': {}}

@@ -54,7 +54,9 @@ bool Model::load(std::span<const std::uint8_t> data, std::string& error) {
     try {
         require(data.size() >= 60 && data.size() <= max_pack_bytes, "Runtime model size outside limits");
         Reader r(data);
-        require(std::memcmp(r.take(8), "DPKM0001", 8) == 0, "Unsupported runtime model format");
+        const auto* magic=r.take(8);
+        const bool skeletal=std::memcmp(magic,"DPKM0002",8)==0;
+        require(skeletal || std::memcmp(magic, "DPKM0001", 8) == 0, "Unsupported runtime model format");
         require(r.integer() == data.size(), "Runtime model length mismatch");
         require(r.integer() == crc32(data.subspan(16)), "Runtime model checksum mismatch");
         const auto nv=r.integer(), ni=r.integer(), nb=r.integer(), nt=r.integer(), nc=r.integer();
@@ -63,17 +65,49 @@ bool Model::load(std::span<const std::uint8_t> data, std::string& error) {
         Model next;
         for (auto& x : next.lower_) x=r.number();
         for (auto& x : next.span_) { x=r.number(); require(x>0, "Invalid quantization bounds"); }
+        if(skeletal) {
+            next.bones_=r.integer();
+            require(next.bones_>0 && next.bones_<=256,"Invalid skeleton size");
+            for(std::uint32_t i=0;i<next.bones_;++i) {
+                const auto* name=r.take(64);
+                const auto* end=static_cast<const std::uint8_t*>(std::memchr(name,0,64));
+                require(end && end!=name,"Invalid joint name");
+                for(auto p=name;p!=end;++p)require(*p>=32 && *p<127,"Invalid joint name encoding");
+                Joint joint{std::string(reinterpret_cast<const char*>(name),std::size_t(end-name)),{}};
+                for(auto& value:joint.rest)value=r.number();
+                for(const auto& existing:next.joints_)require(existing.name!=joint.name,"Duplicate joint name");
+                next.joints_.push_back(std::move(joint));
+            }
+        }
         next.uv_.resize(nv);
-        for (auto& uv : next.uv_) for (auto& x : uv) x=r.number();
+        if(!skeletal) {
+            for (auto& uv : next.uv_) for (auto& x : uv) x=r.number();
+        } else {
+            next.skin_.resize(nv);
+            for(std::size_t i=0;i<nv;++i) {
+                auto& v=next.skin_[i];
+                for(auto& x:v.rest.position) x=r.number();
+                float norm=0;
+                for(auto& x:v.rest.normal) { x=r.number(); norm+=x*x; }
+                require(norm>0.98f && norm<1.02f,"Invalid rest normal");
+                for(auto& x:v.rest.uv) x=r.number();
+                next.uv_[i]=v.rest.uv;
+                for(auto& x:v.rest.color) { x=r.number(); require(x>=0 && x<=1,"Invalid vertex color"); }
+                for(auto& j:v.joints) { j=u16(r.take(2)); require(j<next.bones_,"Invalid skin joint"); }
+                float total=0;
+                for(auto& w:v.weights) { w=r.number(); require(w>=0 && w<=1,"Invalid skin weight"); total+=w; }
+                require(std::abs(total-1.f)<0.0001f,"Skin weights must sum to one");
+            }
+        }
         next.indices_.reserve(ni);
         for (std::uint32_t i=0; i<ni; ++i) {
             const auto v=r.integer(); require(v<nv, "Vertex index outside model"); next.indices_.push_back(v);
         }
         std::uint32_t covered=0;
         for (std::uint32_t i=0; i<nb; ++i) {
-            Batch b{r.integer(),r.integer(),r.integer()}; const auto flags=r.integer();
+            Batch b{r.integer(),r.integer(),r.integer(),r.integer()};
             require(b.first==covered && b.count>0 && b.count%3==0 && b.count<=65535 &&
-                    b.count<=ni-covered && b.texture<nt && flags==0, "Invalid model draw batch");
+                    b.count<=ni-covered && b.texture<nt && (skeletal?b.flags<=127:b.flags==0), "Invalid model draw batch");
             covered += b.count; next.batches_.push_back(b);
         }
         require(covered==ni, "Draw batches do not cover indices");
@@ -87,7 +121,8 @@ bool Model::load(std::span<const std::uint8_t> data, std::string& error) {
             next.textures_.push_back({static_cast<std::uint16_t>(w),static_cast<std::uint16_t>(h),r.offset,size});
             r.take(size);
         }
-        next.stride_=std::size_t(nv)*12+std::size_t(nb)*40;
+        const auto geometry_bytes=skeletal?std::size_t(next.bones_)*84:std::size_t(nv)*12;
+        next.stride_=geometry_bytes+std::size_t(nb)*40;
         std::uint32_t total_frames=0;
         for (std::uint32_t i=0; i<nc; ++i) {
             const auto* name=r.take(64);
@@ -101,7 +136,10 @@ bool Model::load(std::span<const std::uint8_t> data, std::string& error) {
             // Check size before iterating. This also bounds every sample offset.
             const auto* frame=r.take(next.stride_*clip.frames);
             for (std::uint32_t f=0; f<clip.frames; ++f, frame+=next.stride_) {
-                for (std::uint32_t v=0; v<nv; ++v) {
+                if(skeletal) {
+                    Reader matrices(std::span(frame,geometry_bytes));
+                    for(std::size_t n=0;n<geometry_bytes/4;++n) (void)matrices.number();
+                } else for (std::uint32_t v=0; v<nv; ++v) {
                     const auto* n=frame+std::size_t(v)*12+6;
                     float length=0;
                     for (int a=0; a<3; ++a) {
@@ -111,7 +149,7 @@ bool Model::load(std::span<const std::uint8_t> data, std::string& error) {
                     }
                     require(length>0.98f && length<1.02f, "Invalid normal length");
                 }
-                Reader materials(std::span(frame+std::size_t(nv)*12,std::size_t(nb)*40));
+                Reader materials(std::span(frame+geometry_bytes,std::size_t(nb)*40));
                 for (std::uint32_t b=0; b<nb; ++b) {
                     for(int x=0; x<6; ++x) (void)materials.number();
                     for(int x=0; x<4; ++x) {
@@ -144,9 +182,43 @@ bool Model::sample(std::size_t index, double seconds, bool loop, Pose& pose) con
     const auto* pb=bytes_.data()+clip.offset+std::size_t(b)*stride_;
     pose.vertices.resize(uv_.size()); pose.materials.resize(batches_.size());
     pose.finished=!loop && seconds>=double(clip.frames-1)/clip.fps;
+    // Interpolate the sampled skin matrices once per joint, then deform every
+    // vertex. Full authored timelines remain; twenty species no longer require
+    // a separate copy of every vertex in every frame.
+    std::array<std::array<float,21>,256> palette;
+    pose.joints.resize(bones_);
+    if(bones_) {
+        for(std::size_t j=0;j<bones_;++j) for(std::size_t k=0;k<21;++k) {
+            const auto offset=(j*21+k)*4;
+            const auto x=f32(pa+offset),y=f32(pb+offset);
+            palette[j][k]=x+(y-x)*mix;
+        }
+        for(std::size_t j=0;j<bones_;++j) for(std::size_t axis=0;axis<3;++axis) {
+            float value=palette[j][axis*4+3];
+            for(std::size_t k=0;k<3;++k)value+=palette[j][axis*4+k]*joints_[j].rest[k];
+            pose.joints[j][axis]=value;
+        }
+    }
     for(std::size_t v=0; v<uv_.size(); ++v) {
         auto& out=pose.vertices[v]; out.uv=uv_[v]; float length=0;
-        for(int axis=0; axis<3; ++axis) {
+        out.color={1,1,1,1};
+        if(bones_) {
+            const auto& s=skin_[v]; out.color=s.rest.color;
+            out.position={}; out.normal={};
+            for(std::size_t i=0;i<4;++i) if(s.weights[i]>0) {
+                const auto& matrix=palette[s.joints[i]];
+                for(std::size_t axis=0;axis<3;++axis) {
+                    float position=matrix[axis*4+3],normal=0;
+                    for(std::size_t k=0;k<3;++k) {
+                        position+=matrix[axis*4+k]*s.rest.position[k];
+                        normal+=matrix[12+axis*3+k]*s.rest.normal[k];
+                    }
+                    out.position[axis]+=position*s.weights[i];
+                    out.normal[axis]+=normal*s.weights[i];
+                }
+            }
+            for(auto n:out.normal) length+=n*n;
+        } else for(int axis=0; axis<3; ++axis) {
             const auto offset=v*12+std::size_t(axis)*2;
             const float x=float(u16(pa+offset)), y=float(u16(pb+offset));
             out.position[axis]=lower_[axis]+(x+(y-x)*mix)/65535.f*span_[axis];
@@ -157,7 +229,7 @@ bool Model::sample(std::size_t index, double seconds, bool loop, Pose& pose) con
         if(length>1e-10f) for(auto& n:out.normal) n/=std::sqrt(length);
         else out.normal={0,1,0};
     }
-    const auto* materials=pa+uv_.size()*12;
+    const auto* materials=pa+(bones_?std::size_t(bones_)*84:uv_.size()*12);
     for(auto& mat:pose.materials) {
         for(auto& x:mat.uv) { x=f32(materials); materials+=4; }
         for(auto& x:mat.color) { x=f32(materials); materials+=4; }

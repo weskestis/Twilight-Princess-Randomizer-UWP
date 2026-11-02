@@ -31,9 +31,26 @@ int main(int argc,char** argv) {
     bad=good;bad.push_back(0);fixture::checksum(bad);require(!model.load(bad,error),"trailing data accepted");
     bad=good;fixture::overwrite(bad,36,0x7fc00000u);fixture::checksum(bad);require(!model.load(bad,error),"NaN accepted");
     bad=good;for(std::size_t i=266;i<272;++i)bad[i]=0;fixture::checksum(bad);require(!model.load(bad,error),"zero normal accepted");
+    const auto skinned=fixture::skeletal();
+    require(model.load(skinned,error),error.c_str());
+    require(model.sample(0,1.0/120,false,pose),"skeletal sample");
+    require(std::abs(pose.vertices[0].position[0]-2.5f)<1e-6f,"two-joint weighted interpolation");
+    require(pose.vertices[0].normal[1]==1.f && pose.vertices[0].color[3]==.5f,"skin normal and source alpha");
+    require(pose.joints.size()==2 && pose.joints[1][0]==3.f,"animated attachment origin");
+    for(std::size_t n=0;n<skinned.size();++n) {
+        bad=skinned;bad.resize(n);if(n>=16)fixture::checksum(bad);
+        require(!model.load(bad,error),"skeletal truncation accepted");
+        require(model.bytes()==skinned.size() && model.joints().size()==2,"skeletal replacement must be transactional");
+    }
+    // Header, joint rest, rest normal/color, joint index and weights, flags,
+    // animation matrix and material all lie on independent validation paths.
+    for(auto offset:{60u,128u,228u,252u,264u,272u,456u,620u,788u}) {
+        bad=skinned;fixture::overwrite(bad,offset,0xffffffffu);fixture::checksum(bad);
+        require(!model.load(bad,error),"invalid skeleton/skin/frame accepted");
+    }
     for(int i=1;i<argc;++i) {
         auto bytes=fixture::read(argv[i]);require(model.load(bytes,error),error.c_str());
-        require((model.clips().size()==15 || model.clips().size()==17) && model.indices().size()/3==3749,"unexpected Pikachu counts");
+        require(!model.clips().empty() && model.indices().size()>=3,"empty supplied model");
         std::size_t samples=0;
         for(std::size_t c=0;c<model.clips().size();++c) {
             const auto& clip=model.clips()[c];

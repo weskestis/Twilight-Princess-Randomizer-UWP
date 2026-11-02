@@ -35,7 +35,7 @@ def preview_manifest(xml, version):
     assert display is not None and visual is not None
     display.text = DISPLAY_NAME
     visual.set('DisplayName', DISPLAY_NAME)
-    visual.set('Description', 'Separate Pikachu preview built from Dusklight Xbox .749')
+    visual.set('Description', 'Pokemon Vanilla and Randomizer with 20 animated species')
     # Retain executable, entry point, publisher, dependencies, capabilities and all
     # artwork paths. A different Name gives this app a separate package family.
     result = ET.tostring(root, encoding='unicode', xml_declaration=True)

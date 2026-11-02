@@ -12,6 +12,7 @@ struct Combat {
     int invincible=0;
     int attack_down=0;
     int defense_down=0;
+    int poison=0,paralysis=0,sleep=0,accuracy_down=0,confusion=0;
     bool began_move=false;
     bool began_strike=false;
     bool hit_landed=false;
@@ -19,6 +20,9 @@ struct Combat {
     void tick(bool can_attack, bool paused=false);
     bool damage(int amount);
     int attack_power() const;
+    int damage_against(const Creature& target) const;
+    bool accuracy_roll();
+    void apply_status(Status status);
     int clip() const;
     bool attacking() const { return phase==Phase::Strike && move_info(move)->damaging && !hit_landed; }
 };

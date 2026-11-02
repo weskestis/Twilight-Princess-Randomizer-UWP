@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 add_mod(port_pokemon_model_lab FEATURES game
-    SOURCES model_lab/mod.cpp model_lab/gx_renderer.cpp model_lab/field.cpp
-    model_lab/field_effects.cpp field/party.cpp field/combat.cpp field/animation.cpp runtime/model.cpp
+    SOURCES model_lab/mod.cpp model_lab/gx_renderer.cpp model_lab/field.cpp model_lab/content.cpp
+    model_lab/field_effects.cpp field/party.cpp field/combat.cpp field/roster.cpp field/animation.cpp runtime/model.cpp runtime/effects.cpp field/ball.cpp
     MOD_JSON mod.json RES_DIR res BUNDLE)
 target_compile_features(port_pokemon_model_lab PRIVATE cxx_std_20)
 # ModSDK.cmake supplies the common isolated SDK namespace, context and entrypoints.

@@ -14,8 +14,10 @@ GxAsset::GxAsset(Model model) : model_(std::move(model)), textures_(model_.textu
     }
 }
 GxAsset::~GxAsset() { for(auto& texture:textures_) GXDestroyTexObj(&texture); }
-void GxAsset::draw(const Pose& pose, const Mtx view_model) {
+void GxAsset::draw(const Pose& pose, const Mtx view_model,float opacity) {
     if(pose.vertices.size()!=model_.vertex_count() || pose.materials.size()!=model_.batches().size()) return;
+    opacity=std::clamp(opacity,0.f,1.f);
+    if(opacity<=.001f)return;
     GXClearVtxDesc();
     GXSetVtxDesc(GX_VA_POS,GX_DIRECT);
     GXSetVtxDesc(GX_VA_CLR0,GX_DIRECT);
@@ -44,20 +46,41 @@ void GxAsset::draw(const Pose& pose, const Mtx view_model) {
     GXSetFog(GX_FOG_NONE,0,1,0,1,GXColor{0,0,0,0});
     GXLoadPosMtxImm(view_model,GX_PNMTX0);
     GXSetCurrentMtx(GX_PNMTX0);
-    for(std::size_t b=0;b<model_.batches().size();++b) {
+    // Opaque surfaces establish depth before the source's transparent gas,
+    // fins and membranes. Translucent surfaces test depth without writing it.
+    for(int pass=0;pass<2;++pass) for(std::size_t b=0;b<model_.batches().size();++b) {
         const auto& batch=model_.batches()[b]; const auto& material=pose.materials[b];
+        const bool transparent=(batch.flags&1)!=0 || material.color[3]<1.f || opacity<1.f;
+        if(transparent!=(pass==1)) continue;
+        GXSetBlendMode(transparent?GX_BM_BLEND:GX_BM_NONE,transparent?GX_BL_SRCALPHA:GX_BL_ONE,
+                       transparent?GX_BL_INVSRCALPHA:GX_BL_ZERO,GX_LO_COPY);
+        GXSetZMode(GX_TRUE,GX_LEQUAL,transparent?GX_FALSE:GX_TRUE);
+        GXSetAlphaCompare(GX_GREATER,1,GX_AOP_AND,GX_ALWAYS,0);
+        GXSetZCompLoc(GX_FALSE);
+        GXInitTexObjWrapMode(&textures_[batch.texture],
+            (batch.flags&32)?GX_MIRROR:(batch.flags&2)?GX_REPEAT:GX_CLAMP,
+            (batch.flags&64)?GX_MIRROR:(batch.flags&4)?GX_REPEAT:GX_CLAMP);
         GXLoadTexObj(&textures_[batch.texture],GX_TEXMAP0);
         GXBegin(GX_TRIANGLES,GX_VTXFMT0,static_cast<u16>(batch.count));
         for(std::size_t i=batch.first;i<std::size_t(batch.first)+batch.count;++i) {
             const auto& v=pose.vertices[model_.indices()[i]];
             // Stable preview light, deliberately independent of TP's room-light state.
-            const float light=0.58f+0.42f*std::max(0.f,v.normal[0]*-0.36f+v.normal[1]*0.80f+v.normal[2]*0.48f);
-            const auto color=[&](std::size_t channel){return static_cast<u8>(std::clamp(material.color[channel]*light,0.f,1.f)*255.f+0.5f);};
+            const float light=(batch.flags&8)?1.f:0.58f+0.42f*std::max(0.f,v.normal[0]*-0.36f+v.normal[1]*0.80f+v.normal[2]*0.48f);
+            const auto color=[&](std::size_t channel){return static_cast<u8>(std::clamp(material.color[channel]*v.color[channel]*(channel==3?opacity:light),0.f,1.f)*255.f+0.5f);};
             GXPosition3f32(v.position[0],v.position[1],v.position[2]);
-            GXColor4u8(color(0),color(1),color(2),255);
+            GXColor4u8(color(0),color(1),color(2),color(3));
             const auto& t=material.uv;
-            GXTexCoord2f32(t[0]*v.uv[0]+t[1]*v.uv[1]+t[2],
-                          1.f-(t[3]*v.uv[0]+t[4]*v.uv[1]+t[5]));
+            if(batch.flags&16) {
+                // Source reflection texgen (Umbreon's rings), in view space.
+                float nx=0,ny=0,length=0;
+                for(int axis=0;axis<3;++axis) {
+                    float n=0;for(int k=0;k<3;++k)n+=view_model[axis][k]*v.normal[k];
+                    length+=n*n;if(axis==0)nx=n;if(axis==1)ny=n;
+                }
+                const float inverse=length>1e-10f?0.5f/std::sqrt(length):0.f;
+                GXTexCoord2f32(0.5f+nx*inverse,0.5f-ny*inverse);
+            } else GXTexCoord2f32(t[0]*v.uv[0]+t[1]*v.uv[1]+t[2],
+                                  1.f-(t[3]*v.uv[0]+t[4]*v.uv[1]+t[5]));
         }
         GXEnd();
     }

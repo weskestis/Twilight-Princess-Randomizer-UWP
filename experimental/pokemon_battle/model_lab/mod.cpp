@@ -1,6 +1,8 @@
 #include "gx_renderer.hpp"
 #include "spawn_context.hpp"
 #include "field.hpp"
+#include "content.hpp"
+#include "../field/roster.hpp"
 #include "mods/service.hpp"
 #include "mods/svc/actor.h"
 #include "mods/svc/file.h"
@@ -8,6 +10,7 @@
 #include "mods/svc/ui.h"
 #include "mods/svc/save.h"
 #include "mods/svc/hook.h"
+#include "mods/svc/config.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_bg_s_gnd_chk.h"
 #include "f_op/f_op_actor_mng.h"
@@ -25,17 +28,19 @@ IMPORT_SERVICE(ActorService, svc_actor);
 IMPORT_SERVICE(ResourceService, svc_resource);
 IMPORT_SERVICE(SaveService, svc_save);
 IMPORT_SERVICE(HookService, svc_hook);
+IMPORT_SERVICE(ConfigService, svc_config);
 
 namespace {
 using namespace pokemon_battle::runtime;
 std::shared_ptr<GxAsset> asset;
+std::uint16_t asset_species=25;
 ProfileName profile=-1;
 ActorHandle registration=0;
 ActorId actor_id=fpcM_ERROR_PROCESS_ID_e;
 std::size_t selected_clip=0;
 std::uint64_t clip_revision=0;
 UiElementHandle status_handle=0;
-std::string status="Load a Pikachu .dpkm runtime pack.";
+std::string status="Select a Pokemon to inspect its animations.";
 bool picking=false, alive=false, dirty=true, remove_requested=false;
 std::uintptr_t generation=0;
 void message(std::string text) { status=std::move(text); dirty=true; }
@@ -45,7 +50,8 @@ bool world_ready() {
 bool looping_clip(const Model& model,std::size_t index) {
     if(index>=model.clips().size()) return false;
     const auto& name=model.clips()[index].name;
-    return index==0 || name=="pikachu_15_Walk" || name=="pikachu_16_Run";
+    return name.ends_with("_Idle") || name.ends_with("_FieldWalk") || name.ends_with("_FieldRun") ||
+        name.ends_with("_15_Walk") || name.ends_with("_16_Run");
 }
 class PreviewActor;
 class Packet final : public J3DPacket {
@@ -80,7 +86,7 @@ public:
         attention_info.flags=0;
         actor_id=fopAcM_GetID(this);
         remove_requested=false;
-        message("Pikachu preview active. Select a clip to play it.");
+        message(std::string(pokemon_battle::field::species_info(asset_species)->name)+" preview active. Select a clip to play it.");
         execute();
         return cPhs_COMPLEATE_e;
     }
@@ -92,9 +98,10 @@ public:
             // The pinned .749 simulation executes actors at 30 Hz (presentation is separate).
             seconds+=1.0/30.0;
         }
-        mDoMtx_stack_c::transS(current.pos.x,current.pos.y,current.pos.z);
+        const auto& species=*pokemon_battle::field::species_info(asset_species);
+        mDoMtx_stack_c::transS(current.pos.x,current.pos.y+species.origin_y*species.scale,current.pos.z);
         mDoMtx_stack_c::YrotM(shape_angle.y);
-        mDoMtx_stack_c::scaleM(100.f,100.f,100.f);
+        mDoMtx_stack_c::scaleM(species.scale,species.scale,species.scale);
         MTXCopy(mDoMtx_stack_c::get(),matrix);
         eyePos=attention_info.position=current.pos;
         return 1;
@@ -136,24 +143,31 @@ bool cannot_load(ModContext*,void*) { return picking || has_actor() || pokemon_b
 bool cannot_spawn(ModContext*,void*) { return picking || !asset || has_actor() || !world_ready(); }
 bool cannot_remove(ModContext*,void*) { return !has_actor() || remove_requested; }
 bool cannot_clip(ModContext*,void*) { return !asset; }
-void install_model(std::span<const std::uint8_t> bytes) {
+void load_selected() {
+    std::string error;
+    auto replacement=pokemon_battle::content::get(asset_species,error);
+    if(!replacement) {message(error);return;}
+    asset=std::move(replacement);selected_clip=0;++clip_revision;
+    for(std::size_t i=0;i<asset->model().clips().size();++i)if(asset->model().clips()[i].name.ends_with("_Idle"))selected_clip=i;
+    message(std::string(pokemon_battle::field::species_info(asset_species)->name)+" ready: "+std::to_string(asset->model().clips().size())+" animation clips.");
+}
+void install_model(std::span<const std::uint8_t> bytes,const char* location) {
     Model model; std::string error;
     if(!model.load(bytes,error)) { message(error); return; }
-    auto replacement=std::make_shared<GxAsset>(std::move(model));
-    asset=std::move(replacement); selected_clip=0; ++clip_revision;
-    pokemon_battle::field::set_asset(asset);
-    message("Pikachu ready: "+std::to_string(asset->model().clips().size())+" clips. Spawn beside Link to begin.");
+    if(!pokemon_battle::content::install(std::move(model),location,asset_species,error)) {message(error);return;}
+    load_selected();
 }
 void load_bundled(ModContext*,void*) {
     if(cannot_load(nullptr,nullptr)) return;
-    ResourceBuffer buffer=RESOURCE_BUFFER_INIT;
-    try {
-        const auto result=svc_resource->load(mod_ctx,"pikachu.dpkm",&buffer);
-        if(result!=MOD_OK) { message("Bundled Pikachu is unavailable. You can load a .dpkm model pack."); return; }
-        if(!buffer.data || buffer.size<60 || buffer.size>max_pack_bytes) message("Bundled Pikachu has an invalid size.");
-        else install_model({static_cast<const std::uint8_t*>(buffer.data),buffer.size});
-    } catch(const std::exception& e) { message(std::string("Load failed: ")+e.what()); }
-    svc_resource->free(mod_ctx,&buffer);
+    std::string error;
+    if(!pokemon_battle::content::restore(asset_species,error)) {message(error);return;}
+    load_selected();
+}
+void next_species(ModContext*,void*) {
+    if(cannot_load(nullptr,nullptr))return;
+    const auto roster=pokemon_battle::field::roster();
+    for(std::size_t i=0;i<roster.size();++i)if(roster[i].id==asset_species) {asset_species=roster[(i+1)%roster.size()].id;break;}
+    asset.reset();load_selected();
 }
 void picked(ModContext*,ModResult result,const char* const* locations,std::uint32_t count,const char*,void* token) {
     if(!alive || reinterpret_cast<std::uintptr_t>(token)!=generation) return;
@@ -170,7 +184,7 @@ void picked(ModContext*,ModResult result,const char* const* locations,std::uint3
         const auto read_result=svc_file->read(mod_ctx,handle,bytes.data(),size,&read);
         const auto close_result=svc_file->close(mod_ctx,handle); handle=0;
         if(read_result!=MOD_OK || close_result!=MOD_OK || read!=size) { message("Runtime pack could not be read completely."); return; }
-        install_model(bytes);
+        install_model(bytes,locations[0]);
     } catch(const std::exception& e) {
         if(handle) svc_file->close(mod_ctx,handle);
         message(std::string("Load failed: ")+e.what());
@@ -178,7 +192,7 @@ void picked(ModContext*,ModResult result,const char* const* locations,std::uint3
 }
 void load(ModContext*,void*) {
     if(cannot_load(nullptr,nullptr)) return;
-    const FileFilter filter{"Pikachu runtime model","dpkm"};
+    const FileFilter filter{"Pokemon content patch","dpkm"};
     FilePickOptions options=FILE_PICK_OPTIONS_INIT;
     options.filters=&filter; options.filter_count=1;
     picking=true;
@@ -200,15 +214,15 @@ void spawn(ModContext*,void*) {
     params.position={at.x,height,at.z}; params.scale={1,1,1};
     params.angle.y=static_cast<std::int16_t>(std::uint16_t(player->shape_angle.y)+0x8000u);
     if(create_in_player_scene(svc_actor,mod_ctx,player,profile,params,actor_id)!=MOD_OK) {
-        actor_id=fpcM_ERROR_PROCESS_ID_e; message("Pikachu preview could not spawn.");
-    } else message("Pikachu preview requested.");
+        actor_id=fpcM_ERROR_PROCESS_ID_e; message("Pokemon preview could not spawn.");
+    } else message("Pokemon preview requested.");
 }
 void remove(ModContext*,void*) {
     if(!has_actor()) return;
     // The owned actor observes this even if a synchronous deletion is temporarily unavailable.
     remove_requested=true;
     svc_actor->delete_actor(mod_ctx,actor_id);
-    message("Removing Pikachu preview.");
+    message("Removing Pokemon preview.");
 }
 void next(ModContext*,void*) {
     if(!asset) return;
@@ -217,7 +231,8 @@ void next(ModContext*,void*) {
 }
 void idle(ModContext*,void*) {
     if(!asset) return;
-    selected_clip=0; ++clip_revision; message("Playing "+asset->model().clips()[0].name);
+    for(std::size_t i=0;i<asset->model().clips().size();++i)if(asset->model().clips()[i].name.ends_with("_Idle"))selected_clip=i;
+    ++clip_revision; message("Playing "+asset->model().clips()[selected_clip].name);
 }
 ModResult update_panel(ModContext*,void*,ModError*) {
     const auto field_result=pokemon_battle::field::update_panel();
@@ -235,17 +250,18 @@ ModResult button(UiElementHandle pane,const char* text,UiPressedFn action,UiPred
 ModResult build_panel(ModContext*,UiElementHandle pane,void*,ModError*) {
     status_handle=0; dirty=true;
     // Load lazily when the panel is opened, avoiding model allocations at game startup.
-    if(!asset && !picking) load_bundled(nullptr,nullptr);
+    if(!asset && !picking) load_selected();
     const auto field_result=pokemon_battle::field::build_panel(pane);
     if(field_result!=MOD_OK) return field_result;
     auto r=svc_ui->pane_add_section(mod_ctx,pane,"Pokemon Model Lab"); if(r!=MOD_OK) return r;
-    r=svc_ui->pane_add_text(mod_ctx,pane,"Load your save, stand on open ground, then spawn Pikachu beside Link. Next clip plays each animation.",nullptr); if(r!=MOD_OK) return r;
+    r=svc_ui->pane_add_text(mod_ctx,pane,"Inspect any of the 20 Pokemon beside Link. Content patches are remembered across launches; keep the selected file available.",nullptr); if(r!=MOD_OK) return r;
     r=svc_ui->pane_add_text(mod_ctx,pane,status.c_str(),&status_handle); if(r!=MOD_OK) return r;
     r=button(pane,"Spawn beside Link",spawn,cannot_spawn); if(r!=MOD_OK) return r;
     r=button(pane,"Next clip",next,cannot_clip); if(r!=MOD_OK) return r;
     r=button(pane,"Play idle",idle,cannot_clip); if(r!=MOD_OK) return r;
     r=button(pane,"Remove preview",remove,cannot_remove); if(r!=MOD_OK) return r;
-    r=button(pane,"Reload bundled Pikachu",load_bundled,cannot_load); if(r!=MOD_OK) return r;
+    r=button(pane,"Next preview Pokemon",next_species,cannot_load); if(r!=MOD_OK) return r;
+    r=button(pane,"Restore selected bundled Pokemon",load_bundled,cannot_load); if(r!=MOD_OK) return r;
     return button(pane,"Load another model pack",load,cannot_load);
 }
 }
@@ -253,14 +269,16 @@ extern "C" {
 MOD_EXPORT ModResult mod_initialize(ModError* error) {
     if(!svc_ui || !svc_file || !svc_actor || !svc_resource) return mods::set_error(error,MOD_UNAVAILABLE,"UI, file, actor and resource services required");
     ++generation; alive=true; picking=false;
+    std::string content_error;
+    if(!pokemon_battle::content::initialize(content_error)) {alive=false;return mods::set_error(error,MOD_UNAVAILABLE,content_error.c_str());}
     auto r=svc_actor->register_actor(mod_ctx,&descriptor,&profile,&registration);
-    if(r!=MOD_OK) { alive=false; return r; }
+    if(r!=MOD_OK) { pokemon_battle::content::shutdown();alive=false; return r; }
     r=pokemon_battle::field::initialize(error);
-    if(r!=MOD_OK) { svc_actor->unregister_actor(mod_ctx,registration); registration=0; alive=false; return r; }
+    if(r!=MOD_OK) { svc_actor->unregister_actor(mod_ctx,registration); registration=0; pokemon_battle::content::shutdown();alive=false; return r; }
     UiModsPanelDesc panel=UI_MODS_PANEL_DESC_INIT;
     panel.build=build_panel; panel.update=update_panel;
     r=svc_ui->register_mods_panel(mod_ctx,&panel);
-    if(r!=MOD_OK) { pokemon_battle::field::shutdown(); svc_actor->unregister_actor(mod_ctx,registration); registration=0; alive=false; }
+    if(r!=MOD_OK) { pokemon_battle::field::shutdown(); svc_actor->unregister_actor(mod_ctx,registration); registration=0; pokemon_battle::content::shutdown();alive=false; }
     return r;
 }
 MOD_EXPORT ModResult mod_update(ModError*) { pokemon_battle::field::update(); return MOD_OK; }
@@ -275,7 +293,8 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
     }
     registration=0; profile=-1; actor_id=fpcM_ERROR_PROCESS_ID_e;
     asset.reset(); picking=false; status_handle=0; remove_requested=false;
-    message("Load a Pikachu .dpkm runtime pack.");
+    pokemon_battle::content::shutdown();
+    message("Select a Pokemon to inspect its animations.");
     return MOD_OK;
 }
 }

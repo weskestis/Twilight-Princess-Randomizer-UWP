@@ -2,7 +2,7 @@ name: Pokemon battle CP1 on Xbox 749 source
 
 on:
   push:
-    branches: [codex/pokemon-battle-cp1]
+    branches: [codex/pokemon-battle-cp1, codex/pokemon-mode-20]
     paths:
       - experimental/pokemon_battle/**
       - scripts/test-pokemon-battle-cp1.py
