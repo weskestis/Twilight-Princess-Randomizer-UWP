@@ -175,7 +175,7 @@ void move(Frame& f,field::Visual visual,float t,const Origins& o,const Point& ta
     } else {
         if(!active)return;
         if(visual==Visual::Dash || visual==Visual::Dark)for(int i=0;i<7;++i)
-            ribbon(f,offset(o.body,(i-3)*5.f,3),offset(o.body,(i-3)*5.f,3,-30-8*i),2,{.8f,.9f,1,fade*.5f});
+            ribbon(f,offset(o.body,(i-3)*5.f,3),offset(o.body,(i-3)*5.f,3,-30.f-8.f*i),2,{.8f,.9f,1,fade*.5f});
         if(visual==Visual::Spin || visual==Visual::Wind)sprite(f,Image::Ring,o.body,o.size*1.4f,{.8f,.95f,1,fade*.6f},spin, .35f);
         if(visual==Visual::Slash || visual==Visual::Bite)for(int i=0;i<3;++i)
             ribbon(f,offset(target,-15+i*10.f,20),offset(target,5+i*10.f,-20),3,{1,.9f,.75f,fade});

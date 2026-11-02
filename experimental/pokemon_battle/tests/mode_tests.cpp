@@ -17,7 +17,7 @@ struct Storage:field::PartyStorage {
 fixture::Bytes effect_fixture() {
     fixture::Bytes b{'D','P','F','X','0','0','0','1'};fixture::integer(b,0);fixture::integer(b,0);fixture::integer(b,16);
     for(auto name:effects::image_names) {
-        char text[32]{};std::strcpy(text,name);b.insert(b.end(),text,text+32);
+        char text[32]{};std::memcpy(text,name,std::strlen(name)+1);b.insert(b.end(),text,text+32);
         for(auto n:{4u,4u,64u})fixture::integer(b,n);
         b.insert(b.end(),64,255);
     }

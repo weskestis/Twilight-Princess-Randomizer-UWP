@@ -101,7 +101,7 @@ int main(int argc,char** argv) {
     fixture::Bytes effects_bytes{'D','P','F','X','0','0','0','1'};
     fixture::integer(effects_bytes,0);fixture::integer(effects_bytes,0);fixture::integer(effects_bytes,16);
     for(auto name:pokemon_battle::effects::image_names) {
-        char label[32]{};std::strcpy(label,name);effects_bytes.insert(effects_bytes.end(),label,label+32);
+        char label[32]{};std::memcpy(label,name,std::strlen(name)+1);effects_bytes.insert(effects_bytes.end(),label,label+32);
         for(auto n:{4u,4u,64u})fixture::integer(effects_bytes,n);
         effects_bytes.insert(effects_bytes.end(),64,255);
     }
