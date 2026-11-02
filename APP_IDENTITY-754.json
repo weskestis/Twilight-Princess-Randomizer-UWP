@@ -305,7 +305,7 @@
     "scripts/prepare-749-delivery.py": "88266b80e696a293ff08abc669b3a145e868a072c2d50f07dcbc9a15f313f822",
     "scripts/publish-749-draft.py": "9ef8584f967188475416602a5340efc8027b39746d1cb9af532c29cba12a18ce",
     "INSTALL_XBOX-749.md": "af88bbf69fba114e4196a9c3d426e5892e614f00131a7ccc655007f0eccadbe0",
-    "UPSTREAM-754.json": "363ca68e2b2896c5d2f6dbee940c5c59ae936e7013bd1a8fb4845851dcc58738",
+    "UPSTREAM-754.json": "e91dccc4a1b908a34aeb787791aae5e635560b02e46abd4fe14327fc188d5503",
     "scripts/apply-754-stability.py": "3bec415e6e114d46c29d9e0740c06959759aca728efd1c67270c72628e13e78c",
     "scripts/apply-754-release-identity.py": "c15c84e36fd8048ba4f35e25755ee74d62b0d058e82086e921173cae82e41728",
     "scripts/test-754-save-lifecycle.py": "cbee8cdd956610002098d63d46e1716d58c67ef1d59f5e70a6fa1b9872f1690f",
@@ -330,7 +330,9 @@
     "ports/stability-754/src/dusk/xbox_vanilla_save.hpp": "ca09e473decdcb64d721e943d250161c6204afb9541c147a7f8154c668ef1b10",
     "ports/stability-754/src/m_Do/m_Do_MemCard.cpp": "fc8f4743e43e2166e101718c21fd7039da1f4c32923367434a0ae2ab5ac933f9",
     "ports/stability-754/src/m_Do/m_Do_main.cpp": "859e163b4a4ba1fbe8bf285a71b63271325b729b741d619b862222e7e50bff85",
-    "scripts/test-754-online-mod-storage.py": "4887e29a2be7c1161b19a3a650877eb5c15e175ff8c45cf65b9dc0930e689fce"
+    "scripts/test-754-online-mod-storage.py": "4887e29a2be7c1161b19a3a650877eb5c15e175ff8c45cf65b9dc0930e689fce",
+    "ports/stability-754/extern/aurora/include/aurora/gfx.hpp": "20575915b089845d6927d3f27d220119be8364cdf8373146c413a68bb014816f",
+    "scripts/test-754-gfx-headers.py": "59c27bddfbdf38a8b832422dcb7aa384af981f7926280c490149a691311fdc9e"
   },
   "effectBudget": {
     "dofBlurMaxHeight": 720,

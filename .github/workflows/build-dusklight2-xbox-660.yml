@@ -6448,6 +6448,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Reviewed 2.0.3 integration failed.' }
           python "$env:TPR_CONTROL\scripts\apply-754-release-identity.py"
           if ($LASTEXITCODE -ne 0) { throw '.754 source identity verification failed.' }
+          python "$env:TPR_CONTROL\scripts\test-754-gfx-headers.py" "$env:TPR_SRC" "$env:TPR_UWP_DEP\x64\include"
+          if ($LASTEXITCODE -ne 0) { throw '.754 production graphics header integration failed.' }
           foreach ($test in @('754-save-lifecycle','754-startup-diagnostics','742-slot-a','744-menu-performance','754-online-mod-storage','749-soul-pickup-native','748-soul-messages','748-pickup-recovery','748-cosmetics-off','748-breakable-hints','733-reset-transition')) {
             python "$env:TPR_CONTROL\scripts\test-$test.py" "$env:TPR_SRC"
             if ($LASTEXITCODE -ne 0) { throw ".754 regression failed: $test" }

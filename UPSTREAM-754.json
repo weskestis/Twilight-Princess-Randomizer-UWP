@@ -502,6 +502,10 @@
     "src/dusk/xbox_session_diagnostics.hpp": {
       "beforeSha256": null,
       "sha256": "59c741c030b66f4a5e44eb8b72b1ea86d7255f14a705a0e97f21999266a687b6"
+    },
+    "extern/aurora/include/aurora/gfx.hpp": {
+      "beforeSha256": "7b578358640770cbdcd4daaf6d3eb6f3c3e717d0be9bd101fda8a4335ece733a",
+      "sha256": "20575915b089845d6927d3f27d220119be8364cdf8373146c413a68bb014816f"
     }
   }
 }
