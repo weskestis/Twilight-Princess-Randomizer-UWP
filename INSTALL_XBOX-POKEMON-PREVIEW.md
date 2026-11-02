@@ -1,9 +1,14 @@
-# Pokémon Mode .754 for Xbox
+# Pokémon Mode .754 Compact for Xbox
 
-Install `DusklightPokemonPreview_1.4.1.754_x64.msix` over your existing Pokémon
+Install `DusklightPokemonPreview_1.4.1.754_x64_Compact.msix` over your existing Pokémon
 Preview to retain its saves and party. Keep **App type → Game** in Xbox Dev Home.
 Add `Microsoft.VCLibs.x64.14.00.appx` only if Device Portal requests the dependency.
 This remains the separate Pokémon app; the normal .749 Randomizer app is separate.
+
+The compact package omits the 35 disabled-by-default CP20 music and appearance
+packs, including Hour of Twilight, extra tunics, mounts and Wolf Link skins.
+It retains all 20 Pokémon, both game modes and the compiled gameplay mods.
+Those optional packs account for approximately 750 MiB of the full download.
 
 1. Choose **Pokemon Vanilla** or **Pokemon Randomizer**, then load a Zelda save.
    The underlying game version display still reports .749.

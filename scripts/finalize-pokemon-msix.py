@@ -147,6 +147,49 @@ def inventory(package, extract=None):
         return verified
 
 
+def omit_optional_content(payload, before):
+    """Omit complete, disabled-by-default CP20 content mods, never native code."""
+    catalog_name = 'mods/CUSTOM-MODS-743.json'
+    catalog_path = payload / catalog_name
+    catalog = json.loads(catalog_path.read_text(encoding='utf-8-sig'))
+    mods = catalog['mods']
+    assert catalog['activationDefault'] == 'disabled' and len(mods) == 35
+    ids = {mod['id'] for mod in mods}
+    assert len(ids) == 35 and all(value.startswith('tpr.optional.') for value in ids)
+    folders = {path.name: path for path in (payload / 'mods').glob('tpr.optional.*')}
+    assert set(folders) == ids
+    omitted = {name: item for name, item in before.items()
+               if name.startswith('mods/') and name.split('/')[1] in ids}
+    assert omitted and not any(PurePosixPath(name).suffix.lower() in {'.exe', '.dll', '.dusk'} for name in omitted)
+    # No retained mod is allowed to depend on one of the omitted content mods.
+    for manifest in (payload / 'mods').glob('*/mod.json'):
+        if manifest.parent.name in ids:
+            continue
+        data = json.loads(manifest.read_text(encoding='utf-8-sig'))
+        for key in ('dependencies', 'requires', 'depends'):
+            assert not any(value in json.dumps(data.get(key, [])) for value in ids), manifest
+    for folder in folders.values():
+        shutil.rmtree(folder)
+    catalog['mods'] = []
+    catalog['expectedSelectableMods'] = 0
+    catalog['expectedTextureFiles'] = 0
+    catalog['expectedOverlayFiles'] = 0
+    catalog['omittedForCompactPokemonPackage'] = [{'id': mod['id'], 'name': mod['name']} for mod in mods]
+    catalog_path.write_text(json.dumps(catalog, indent=2) + '\n')
+    changed = {catalog_name}
+    thumbnail_name = 'mods/UI-THUMBNAILS-744.json'
+    thumbnails_path = payload / thumbnail_name
+    thumbnails = json.loads(thumbnails_path.read_text(encoding='utf-8-sig'))
+    kept = [image for image in thumbnails['images'] if image['mod'] not in ids]
+    if kept != thumbnails['images']:
+        thumbnails['images'] = kept
+        thumbnails_path.write_text(json.dumps(thumbnails, indent=2) + '\n')
+        changed.add(thumbnail_name)
+    bundled = json.loads((payload / 'mods/BUNDLED-MODS.json').read_text(encoding='utf-8-sig'))
+    assert not any(mod['id'] in ids for mod in bundled['mods']), 'Unexpected dependency in the main bundled catalog'
+    return omitted, changed, catalog['omittedForCompactPokemonPackage']
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input', type=Path, required=True)
@@ -160,6 +203,7 @@ def main():
     p.add_argument('--osslsigncode', type=Path, required=True)
     p.add_argument('--commit', required=True)
     p.add_argument('--version', default='1.4.1.754')
+    p.add_argument('--compact', action='store_true', help='Omit the 35 disabled optional CP20 music/costume content packs')
     a = p.parse_args()
     assert re.fullmatch('[a-f0-9]{40}', a.commit)
     assert re.fullmatch(r'\d+\.\d+\.\d+\.\d+', a.version)
@@ -168,7 +212,7 @@ def main():
     for field in ['input', 'source_cert', 'content', 'validator', 'identity_dir', 'output', 'makemsix', 'osslsigncode']:
         setattr(a, field, getattr(a, field).resolve())
     a.output.mkdir(parents=True, exist_ok=True)
-    package = a.output / (PREVIEW_NAME + '_' + a.version + '_x64.msix')
+    package = a.output / (PREVIEW_NAME + '_' + a.version + '_x64' + ('_Compact' if a.compact else '') + '.msix')
     assert not package.exists(), 'Refusing to replace a delivered package'
     control = Path(__file__).resolve().parents[1]
     roster = json.loads((control / 'experimental/pokemon_battle/assets/roster.json').read_text())['species']
@@ -222,6 +266,9 @@ def main():
         expected_mod = json.loads((control / 'experimental/pokemon_battle/model_lab/mod.json').read_text())
         assert mod == expected_mod, 'Preview implementation and resource bundle versions differ'
         run(['python', control / 'scripts/verify-pokemon-uwp.py', payload], 'verify-preview-native-metadata')
+        omitted, changed_catalogs, omitted_mods = {}, set(), []
+        if a.compact:
+            omitted, changed_catalogs, omitted_mods = omit_optional_content(payload, before)
         identity_proof = json.loads((a.identity_dir / 'Separate-App-Identity.json').read_text())
         assert identity_proof['sourcePackageName'] == BASE_NAME
         assert identity_proof['packageName'] == PREVIEW_NAME
@@ -237,6 +284,7 @@ def main():
             (payload / destination).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, payload / destination)
         proof = {'version': a.version, 'baseVersion': '1.4.1.749', 'sourceCommit': a.commit,
+                 'compact': a.compact, 'omittedOptionalMods': omitted_mods, 'omittedOptionalFiles': omitted,
                  'finalizerSha256': sha(Path(__file__)),
                  'identityCodeSha256': sha(control / 'scripts/pokemon_package_identity.py'),
                  'packageName': PREVIEW_NAME, 'sourcePackageName': BASE_NAME, 'separateApp': True,
@@ -273,9 +321,9 @@ def main():
              '-in', unsigned, '-out', candidate], 'sign-preview-package')
         run([signing, 'verify', '-CAfile', cert, '-in', candidate], 'verify-preview-signature')
         after = inventory(candidate)
-        assert set(after) == set(before) | set(content_files) | {PROOF_PATH}
+        assert set(after) == (set(before) - set(omitted)) | set(content_files) | {PROOF_PATH}
         for name, expected in before.items():
-            if name not in {'AppxManifest.xml', 'resources.pri'}:
+            if name not in {'AppxManifest.xml', 'resources.pri'} | changed_catalogs | set(omitted):
                 assert after[name] == expected, 'Inherited .749 payload changed: ' + name
         for destination, item in content_proof.items():
             assert after[destination]['sha256'] == item['sha256']
