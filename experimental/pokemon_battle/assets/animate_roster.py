@@ -32,7 +32,17 @@ def main():
     names={int(b.name.split('_')[1]):b.name for b in bones}
     original_actions=list(bpy.data.actions)
     idle=next(x for x in original_actions if x.name.endswith('_Idle'))
+    # Vaporeon's source idle is seated. Its grounded movement stance is taken
+    # from the inspected all-fours part of its physical action instead.
     bind_action(bpy,idle);scene.frame_set(int(idle.frame_range[0]))
+    idle_origin=rig.pose.bones[names[cfg['root']]].matrix.translation.copy()
+    stance_action=next((x for x in original_actions if x.name==cfg.get('base_clip')),idle)
+    bind_action(bpy,stance_action);scene.frame_set(cfg.get('base_frame',int(stance_action.frame_range[0])))
+    if stance_action!=idle:
+        # Remove the attack's planar lunge from the reusable walking stance.
+        pose_root=rig.pose.bones[names[cfg['root']]];matrix=pose_root.matrix.copy()
+        matrix.translation.x=idle_origin.x;matrix.translation.y=idle_origin.y;pose_root.matrix=matrix
+        bpy.context.view_layer.update()
     base={b.name:b.matrix.copy() for b in bones}
     basis={b.name:b.matrix_basis.copy() for b in bones}
     local={b.name:(b.parent.bone.matrix_local.inverted()@b.bone.matrix_local@basis[b.name]
@@ -66,6 +76,16 @@ def main():
         target.y=(target.y+base[chain[0]].translation.y)*.5
         targets.append(target)
 
+    # A mid-attack stance can be airborne. Lower its pelvis so all four feet
+    # can reach the floor before solving the alternating planted-foot cycles.
+    root_drop=0.
+    if stance_action!=idle:
+        for chain,ls,target in zip(chains,lengths,targets):
+            hip=base[chain[0]].translation
+            horizontal=(hip.x-target.x)**2+(hip.y-target.y)**2
+            vertical=math.sqrt(max(0,(sum(ls)*.86)**2-horizontal))
+            root_drop=max(root_drop,hip.z-target.z-vertical)
+
     def rotate(m,angle,axis):
         result=Matrix.Rotation(angle,4,axis)@m;result.translation=m.translation;return result
 
@@ -89,11 +109,12 @@ def main():
         return points
 
     report={'species':a.species,'source_sha256':hashlib.sha256(a.model.read_bytes()).hexdigest(),
+            'movement_base_clip':stance_action.name,'root_drop':root_drop,
             'original_clips':[x.name for x in original_actions],'authored_clips':[]}
     for running in (False,True):
         count=36 if running else 48
         stance=.40 if running else .64
-        stride=leg_length*(2.5 if running else 1.8)
+        stride=leg_length*(2.5 if running else 1.8)*cfg.get('stride_scale',1)
         lift=leg_length*(.20 if running else .12)
         name=spec['asset']+('_FieldRun' if running else '_FieldWalk')
         frames=[]
@@ -118,7 +139,7 @@ def main():
                     matrix=desired[b.parent.name]@local[n] if b.parent else base[n].copy()
                     if n==root:
                         matrix.translation+=Vector((leg_length*.012*math.sin(cycle),0,
-                            -leg_length*.12+leg_length*.025*(1-math.cos(2*cycle))))
+                            -root_drop-leg_length*.12+leg_length*.025*(1-math.cos(2*cycle))))
                         matrix=rotate(matrix,.055 if running else .018,'X')
                     elif n==names[cfg['head']]:matrix=rotate(matrix,-.025 if running else -.01,'X')
                     elif n==names[cfg['tail']]:

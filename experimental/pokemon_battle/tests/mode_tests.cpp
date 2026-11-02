@@ -112,7 +112,7 @@ void effects_tests(const std::filesystem::path& assets) {
     effects::Frame fire,gas,electric;effects::ambient(fire,6,1,origins);effects::ambient(gas,92,1,origins);
     effects::move(electric,field::Visual::Electric,.8f,origins,{100,55,100});
     require(fire.sprites.size()==10 && gas.sprites.size()==14,"tail flame and Gastly gas accompany animated models");
-    require(electric.ribbons.size()==72 && electric.sprites.size()>10,"two-cheek branching layered ThunderShock with source sprites");
+    require(electric.ribbons.size()==96 && electric.sprites.size()>10,"two-cheek branching layered ThunderShock with source sprites");
 }
 }
 int main(int argc,char** argv) {

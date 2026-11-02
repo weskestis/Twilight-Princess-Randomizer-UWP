@@ -82,6 +82,12 @@ void move(Frame& f,field::Visual visual,float t,const Origins& o,const Point& ta
     const Point tip=mix(o.mouth,target,travel);
     Color hit{1,.8f,.4f,.8f};
     if(visual==Visual::Electric) {
+        const float aura=age<0?charge:fade;
+        sprite(f,Image::Glow,o.body,o.size*1.7f,{.2f,.42f,1,aura*.3f});
+        if(charge>.15f && age<.3f) {
+            sprite(f,Image::Bolt,o.body,o.size*1.8f,{.75f,.85f,1,aura*.95f},std::sin(t*17)*.25f);
+            sprite(f,Image::Pulse,o.body,o.size*(.9f+charge*.6f),{.35f,.55f,1,aura*.35f},-spin);
+        }
         for(const auto& cheek:{o.left,o.right}) {
             sprite(f,Image::Glow,cheek,5+charge*16,{1,.65f,.02f,age<0?charge*.8f:fade});
             if(charge>.25f && age<.35f)sprite(f,Image::Bolt,cheek,12+charge*o.size*.6f,{.65f,.82f,1,charge*.8f},spin);
@@ -93,9 +99,20 @@ void move(Frame& f,field::Visual visual,float t,const Origins& o,const Point& ta
                     ribbon(f,previous,p,7,{.25f,.48f,1,fade*.35f});
                     ribbon(f,previous,p,3.5f,{1,.72f,.04f,fade*.8f});
                     ribbon(f,previous,p,1.1f,{1,1,.9f,fade});previous=p;
-                    if(i%3==0)sprite(f,Image::BoltBranch,p,30,{.9f,.9f,1,fade*.75f},spin+i);
+                    if(i%3==0) {
+                        sprite(f,Image::BoltBranch,p,48+o.size*.3f,{.7f,.8f,1,fade},spin+i);
+                        const float side=i%2?1.f:-1.f;
+                        auto fork=offset(p,side*(10+noise(i+40,seed)*16),side*(14+noise(i+80,seed)*22));
+                        auto end=offset(fork,side*12,-side*6);
+                        ribbon(f,p,fork,3,{.4f,.65f,1,fade*.65f});ribbon(f,p,fork,1.1f,{1,1,.8f,fade});
+                        ribbon(f,fork,end,2,{.7f,.8f,1,fade*.75f});
+                    }
                 }
             }
+        }
+        if(active && age<.4f) {
+            sprite(f,Image::Bolt,target,65+o.size*.6f,{.7f,.85f,1,fade},spin*.3f);
+            sprite(f,Image::Pulse,target,24+age*160,{.55f,.7f,1,fade*.65f});
         }
         if(age>=0)burst(f,target,age,{1,.85f,.18f,.8f},seed);
         return;

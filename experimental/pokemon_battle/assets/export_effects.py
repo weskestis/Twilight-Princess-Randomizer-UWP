@@ -13,15 +13,15 @@ SOURCES=[
     ('Gas','pkx_ghos/00-00.png'),
     ('Bolt','wzx_denkishock_pikachu/00-00.png'),
     ('BoltBranch','wzx_denkishock_pikachu/00-01.png'),
-    ('Spark','wzx_denkishock_pikachu/00-02.png'),
+    ('Spark','wzx_denkishock_pikachu/00-03.png'),
     ('Vortex','wzx_denkishock_pikachu/00-07.png'),
-    ('Ring','wzx_monsterball_out/00-05.png'),
+    ('Ring','wzx_monsterball_out/00-06.png'),
     ('Flash','wzx_monsterball_open/01-03.png'),
     ('Rays','wzx_monsterball_open/01-04.png'),
     ('Mist','wzx_mizudeppou_attack/00-00.png'),
     ('Droplet','wzx_mizudeppou_attack/00-01.png'),
     ('Bubble','wzx_mizudeppou_attack/00-17.png'),
-    ('Star','wzx_kaenhousya_attack/00-13.png'),
+    ('Star','wzx_kaenhousya_attack/00-12.png'),
     ('Needle','wzx_monsterball_open/01-07.png'),
     ('Pulse','wzx_denkishock_pikachu/00-10.png'),
 ]
@@ -35,6 +35,10 @@ def main():
         path=a.source/source;image=Image.open(path).convert('RGBA');w,h=image.size
         data=np.asarray(image,dtype=np.float32)/255
         mask=np.mean(data[...,:3],axis=2)*data[...,3]
+        if name=='Rays':
+            # This source mask is one quarter of a radial flash. The original
+            # particle system mirrors it about its bottom-right corner.
+            mask=np.block([[mask,mask[:,::-1]],[mask[::-1],mask[::-1,::-1]]]);h,w=mask.shape
         rgba=np.full((h,w,4),255,dtype=np.uint8);rgba[...,3]=np.rint(mask*255)
         nw=max(4,(w+3)//4*4);nh=max(4,(h+3)//4*4)
         rgba=rgba[(np.arange(nh)*h//nh)[:,None],(np.arange(nw)*w//nw)[None,:]];w,h=nw,nh
