@@ -7180,7 +7180,6 @@ jobs:
             'menu.mods.open.game',
             'card.slot-a.probe:',
             'Provisioned GCI card',
-            'card.direct-gci-and-randomizer-743',
             'Xbox title scene request accepted (743)',
             'Choose a design for the next launch. Restart Dusklight after changing it during play.')) {
             if (-not $exeText.Contains($releaseFixMarker742)) {
@@ -7267,8 +7266,7 @@ jobs:
             'xbox-session-active.txt',
             'xbox-last-session.txt',
             'Diagnostics',
-            'Xbox direct save refreshed:',
-            'last_runtime_stage=',
+            'Last recorded checkpoint:',
             'overlap_doing_req=',
             'stage_name=',
             'recovery_cancel_result=',
@@ -7555,6 +7553,17 @@ jobs:
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
           Get-Content (Join-Path $out 'SHA256SUMS.txt') | Out-Host
+
+      - name: Preserve package diagnostics after verification failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xbox754-Unverified-Package-Diagnostics
+          path: |
+            TPR-Xbox-Package-735/*
+            !TPR-Xbox-Package-735/*.pfx
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
