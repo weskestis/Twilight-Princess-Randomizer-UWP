@@ -1,0 +1,507 @@
+{
+  "upstreamVersion": "2.0.3",
+  "customRandomizer": {
+    "revision": "d0ceae8f18bbef4a40287a72a2791a3c06c9aca5",
+    "description": "Existing .749 custom Souls, entrances, shops and hints retained; not replaced with bundled upstream 1.0.6"
+  },
+  "repositories": [
+    {
+      "path": ".",
+      "base": "422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7",
+      "target": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+      "deltaSha256": "0374100957fd39576d7a6fbb17f7c28dddd2c115c8ae040b988939f364e4dffc",
+      "files": [
+        {
+          "path": "CMakeLists.txt",
+          "status": "M"
+        },
+        {
+          "path": "CMakePresets.json",
+          "status": "M"
+        },
+        {
+          "path": "files.cmake",
+          "status": "M"
+        },
+        {
+          "path": "include/d/d_menu_window.h",
+          "status": "M"
+        },
+        {
+          "path": "include/m_Do/m_Do_MemCard.h",
+          "status": "M"
+        },
+        {
+          "path": "libs/JSystem/include/JSystem/JKernel/JKRAramPiece.h",
+          "status": "M"
+        },
+        {
+          "path": "res/rml/logs.rcss",
+          "status": "M"
+        },
+        {
+          "path": "res/rml/mods.rcss",
+          "status": "M"
+        },
+        {
+          "path": "res/rml/overlay.rcss",
+          "status": "M"
+        },
+        {
+          "path": "res/rml/window.rcss",
+          "status": "M"
+        },
+        {
+          "path": "sdk/include/mods/svc/actor.h",
+          "status": "M"
+        },
+        {
+          "path": "sdk/include/mods/svc/gfx.h",
+          "status": "M"
+        },
+        {
+          "path": "sdk/include/mods/svc/interp.h",
+          "status": "A"
+        },
+        {
+          "path": "sdk/include/mods/svc/interp.hpp",
+          "status": "A"
+        },
+        {
+          "path": "src/Z2AudioLib/Z2SceneMgr.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/d/actor/d_a_alink_damage.inc",
+          "status": "M"
+        },
+        {
+          "path": "src/d/actor/d_a_tag_firewall.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/d/d_event_data.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/d/d_menu_window.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/d/d_ovlp_fade2.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/d/d_ovlp_fade3.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/action_bindings.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/mods/item_checks.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/mods/svc/gfx.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/mods/svc/interp.cpp",
+          "status": "A"
+        },
+        {
+          "path": "src/dusk/mods/svc/registry.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/mods/svc/registry.hpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/save_manager.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/save_manager.hpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/speedrun.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/list.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/list.hpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/logs_window.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/logs_window.hpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/mod_texture_provider.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/overlay.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/overlay.hpp",
+          "status": "M"
+        },
+        {
+          "path": "src/dusk/ui/saves_window.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/m_Do/m_Do_MemCard.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/m_Do/m_Do_graphic.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/m_Do/m_Do_main.cpp",
+          "status": "M"
+        }
+      ]
+    },
+    {
+      "path": "extern/aurora",
+      "base": "d0933b745abe0eb9815bedcea8047575da18698d",
+      "target": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+      "deltaSha256": "d23df4b140d53f81d5a1ea26eb6e8cb248304536e6e9007bd5dd38fbb4764a65",
+      "files": [
+        {
+          "path": "cmake/aurora_core.cmake",
+          "status": "M"
+        },
+        {
+          "path": "cmake/aurora_dvd.cmake",
+          "status": "M"
+        },
+        {
+          "path": "extern/CMakeLists.txt",
+          "status": "M"
+        },
+        {
+          "path": "include/aurora/gfx.hpp",
+          "status": "M"
+        },
+        {
+          "path": "include/dolphin/ar.h",
+          "status": "M"
+        },
+        {
+          "path": "include/dolphin/arq.h",
+          "status": "A"
+        },
+        {
+          "path": "include/dolphin/dolphin.h",
+          "status": "M"
+        },
+        {
+          "path": "include/dolphin/gba.h",
+          "status": "A"
+        },
+        {
+          "path": "include/dolphin/gx/GXGet.h",
+          "status": "M"
+        },
+        {
+          "path": "include/dolphin/types.h",
+          "status": "M"
+        },
+        {
+          "path": "lib/dolphin/AR.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/dolphin/card.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/dolphin/dvd/dvd.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/dolphin/gx/GXFrameBuffer.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/dolphin/gx/GXGet.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/dolphin/pad/pad.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/clear.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/clear.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/encoding.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/encoding.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/frame_packet.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/pipeline_cache.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/pipeline_cache.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/recording.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/recording.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/tex_copy_conv.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gfx/tex_copy_conv.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gx/command_processor.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gx/gx.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gx/gx.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gx/pipeline.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gx/pipeline.hpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gx/regs.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/gx/shader.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/rmlui/pipeline.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/webgpu/gpu.cpp",
+          "status": "M"
+        },
+        {
+          "path": "lib/webgpu/gpu.hpp",
+          "status": "M"
+        },
+        {
+          "path": "tests/CMakeLists.txt",
+          "status": "M"
+        },
+        {
+          "path": "tests/gfx_recording_test.cpp",
+          "status": "M"
+        },
+        {
+          "path": "tests/gx_test_stubs.cpp",
+          "status": "M"
+        }
+      ]
+    },
+    {
+      "path": "extern/borealis",
+      "base": "0bdba6c50a46409c4862474c72b4a3a631fbe0ec",
+      "target": "4ac5e7052a8c49a122f8d57f626b5c75c5ca6968",
+      "deltaSha256": "11eb9a396b39dd1be6683918fade2702dba37b3da42eb5869338a85dd1e01c16",
+      "files": [
+        {
+          "path": ".clang-format",
+          "status": "M"
+        },
+        {
+          "path": "CMakeLists.txt",
+          "status": "M"
+        },
+        {
+          "path": "cmake/BorealisCurl.cmake",
+          "status": "A"
+        },
+        {
+          "path": "cmake/curl_probe/CMakeLists.txt",
+          "status": "A"
+        },
+        {
+          "path": "src/ca_bundle.hpp",
+          "status": "A"
+        },
+        {
+          "path": "src/file_select/ios.mm",
+          "status": "M"
+        },
+        {
+          "path": "src/file_select/ios_import.hpp",
+          "status": "A"
+        },
+        {
+          "path": "src/file_select/ios_import.mm",
+          "status": "A"
+        },
+        {
+          "path": "src/http/curl.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/http/curl_common.hpp",
+          "status": "M"
+        },
+        {
+          "path": "src/io.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/io_apple.mm",
+          "status": "M"
+        },
+        {
+          "path": "src/io_internal.hpp",
+          "status": "M"
+        },
+        {
+          "path": "src/sentry.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/ws/curl.cpp",
+          "status": "M"
+        },
+        {
+          "path": "src/ws/winhttp.cpp",
+          "status": "M"
+        },
+        {
+          "path": "tests/CMakeLists.txt",
+          "status": "M"
+        },
+        {
+          "path": "tests/file_select_test.cpp",
+          "status": "M"
+        },
+        {
+          "path": "tests/http_test.cpp",
+          "status": "M"
+        },
+        {
+          "path": "tests/io_apple_test.mm",
+          "status": "A"
+        },
+        {
+          "path": "tests/io_test.cpp",
+          "status": "M"
+        },
+        {
+          "path": "tests/ios_import_test.mm",
+          "status": "A"
+        },
+        {
+          "path": "tests/ws_backend_test.cpp",
+          "status": "M"
+        }
+      ]
+    }
+  ],
+  "reviewedPorts": {
+    "sdk/include/mods/svc/gfx.h": {
+      "beforeSha256": "0b37394ebfd654990687faa7424b9d94dd15c0643aab78d1113c0613d43f1ecb",
+      "sha256": "0b37394ebfd654990687faa7424b9d94dd15c0643aab78d1113c0613d43f1ecb"
+    },
+    "src/dusk/mods/svc/gfx.cpp": {
+      "beforeSha256": "9a718740b653d10d1995e4064434690367196b08fed0892bb4ced9b4f1ce877d",
+      "sha256": "52e18dd75c17f72282d19a67e8388060aca7b325027a131fba5593501da9aa30"
+    },
+    "src/dusk/ui/mod_texture_provider.cpp": {
+      "beforeSha256": "8577d29c19a677b6b2f0f973579cf4f7bbea0034316b9fc23d24a7e33e120218",
+      "sha256": "0c74258f3112c4e872e4391d2136404d1d7879046d109604cfaf183960bc15fc"
+    },
+    "src/dusk/ui/overlay.cpp": {
+      "beforeSha256": "4fe4b378e053b5a0e0c1d2bd7af8cf4634bdde3dc241890e2d0067bfade5c1ae",
+      "sha256": "57a5f07ebbb4a87911dd79d71d1d49bafe3adfb32aceee43d314e1e2a6c35b2a"
+    },
+    "src/dusk/ui/overlay.hpp": {
+      "beforeSha256": "b4c02d9aaa2e01e1489dd12330ad6808b127761f44296cb49f68d89f0c5a293c",
+      "sha256": "e1e782561f0e8abada52bc2a7c0ef47c6875fe393e4e173b0b358afe418ff1fa"
+    },
+    "src/m_Do/m_Do_MemCard.cpp": {
+      "beforeSha256": "891431c1cdbcc67ef46bc42f5bc1241d1ddc205de292d0279c4dd9f316d586e8",
+      "sha256": "fc8f4743e43e2166e101718c21fd7039da1f4c32923367434a0ae2ab5ac933f9"
+    },
+    "include/m_Do/m_Do_MemCard.h": {
+      "beforeSha256": "501847550a62402a1f32ed07816caee54663e12970a8b464fcf54730e54d0f38",
+      "sha256": "e4f7db998d491b3104f47648f9dff03be685aea2b5da67d171b88f6bbe70d96a"
+    },
+    "extern/aurora/cmake/aurora_core.cmake": {
+      "beforeSha256": "9364b08723fababce96de215f3d8b4e78d71b599574cf4e87b2767ddb36ab64b",
+      "sha256": "c9ec46c37c645a7c924047a214ea3ddca75cc1ffa1f7ac4c6da29ab1ad851cc8"
+    },
+    "extern/aurora/lib/gfx/recording.cpp": {
+      "beforeSha256": "27a286da1ca27b001196edc977e253f5464546a76037ef2e32e7df5ff8b43217",
+      "sha256": "ed9b7a110b0cd75176d37b202b39d4137699c547082cf4658073c03bc753b8e4"
+    },
+    "src/dusk/startup_guard.hpp": {
+      "beforeSha256": "2d3ca65de99120e81bb57266ee94a31f877a44e341582f40aeab85dca64fb629",
+      "sha256": "2f41c0892d7a5876de30f6f330b674a3222b4d153511e1bb70e76097b9312b42"
+    },
+    "src/dusk/ui/prelaunch.cpp": {
+      "beforeSha256": "2b596b4e1731773f29ae9aad2f52ddcb0780714463fc02f90a2f764660a49094",
+      "sha256": "2419021073126a6a200fcdcbf56f4bba4f2cc862c9fdec4a99cdb994f2610bad"
+    },
+    "src/m_Do/m_Do_main.cpp": {
+      "beforeSha256": "15bc12bc6325305cc84def810cde21cc145af36453fc81802b182419e67b6668",
+      "sha256": "859e163b4a4ba1fbe8bf285a71b63271325b729b741d619b862222e7e50bff85"
+    },
+    "src/dusk/xbox_vanilla_save.hpp": {
+      "beforeSha256": "b22cd6b70fb44665d135e757fc77bffe0dad68d4f7871962466943c16931d0d0",
+      "sha256": "ca09e473decdcb64d721e943d250161c6204afb9541c147a7f8154c668ef1b10"
+    },
+    "src/dusk/xbox_session_diagnostics.hpp": {
+      "beforeSha256": null,
+      "sha256": "59c741c030b66f4a5e44eb8b72b1ea86d7255f14a705a0e97f21999266a687b6"
+    }
+  }
+}

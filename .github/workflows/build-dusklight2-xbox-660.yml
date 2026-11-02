@@ -1,4 +1,4 @@
-name: Build Dusklight 2.0.1 Xbox 749
+name: Build Dusklight 2.0.3 Xbox 754
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: xbox-749-release-${{ github.ref }}
+  group: xbox-754-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -224,7 +224,7 @@ jobs:
           python -m pip install --disable-pip-version-check --only-binary=:all: Pillow==12.3.0
           if ($LASTEXITCODE -ne 0) { throw 'Pinned Pillow UI build dependency failed.' }
 
-      - name: Apply reviewed source layers and advance 744 identity
+      - name: Restore verified Xbox 749 source and regression baseline
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
@@ -6438,6 +6438,25 @@ jobs:
           git -C "$env:TPR_SRC\mods\randomizer" diff --check
           git -C "$env:TPR_SRC\extern\borealis" diff --check
 
+      - name: Integrate Dusklight 2.0.3 and verify Xbox stability
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python "$env:TPR_CONTROL\scripts\test-754-save-lifecycle.py" "$env:TPR_SRC" --negative-control
+          if ($LASTEXITCODE -ne 0) { throw '.749 save concurrency negative control failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-754-stability.py"
+          if ($LASTEXITCODE -ne 0) { throw 'Reviewed 2.0.3 integration failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-754-release-identity.py"
+          if ($LASTEXITCODE -ne 0) { throw '.754 source identity verification failed.' }
+          foreach ($test in @('754-save-lifecycle','754-startup-diagnostics','742-slot-a','744-menu-performance','754-online-mod-storage','749-soul-pickup-native','748-soul-messages','748-pickup-recovery','748-cosmetics-off','748-breakable-hints','733-reset-transition')) {
+            python "$env:TPR_CONTROL\scripts\test-$test.py" "$env:TPR_SRC"
+            if ($LASTEXITCODE -ne 0) { throw ".754 regression failed: $test" }
+          }
+          python "$env:TPR_CONTROL\scripts\test-743-gfx-snapshots.py" "$env:TPR_SRC" "$env:TPR_UWP_DEP\x64\include"
+          if ($LASTEXITCODE -ne 0) { throw '.754 graphics ABI regression failed.' }
+          git -C "$env:TPR_SRC" diff --check
+          if ($LASTEXITCODE -ne 0) { throw '.754 source whitespace/conflict verification failed.' }
+
       - name: Save reusable hash-verified mod downloads
         if: always() && steps.mod-download-cache.outputs.cache-hit != 'true'
         continue-on-error: true
@@ -6978,7 +6997,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.749_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.754_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -6992,7 +7011,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.749"',
+            'Version="1.4.1.754"',
             'Name="internetClient"',
             'Name="internetClientServer"',
             'Name="privateNetworkClientServer"',
@@ -7134,7 +7153,8 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($releaseFixMarker742 in @(
-            '1.4.1.749',
+            '1.4.1.754',
+            'xbox-startup-stage-754.txt',
             'xbox-startup-stage-749.txt',
             'xbox-startup-stage-747.txt',
             'Off - Keep My Colors',
@@ -7206,10 +7226,7 @@ jobs:
             'fap.frame-ready',
             'mods.frame-services-ready',
             'mods.update-ready',
-            'startup.diagnostic-prelaunch',
             'startup.post-mod-prelaunch-ready',
-            'Previous Xbox stage:',
-            'Xbox safe launch: choose a mode with Left/Right; hooks start only after Play.',
             'prelaunch.play-activation-ready',
             'prelaunch.play-ready',
             'Xbox runtime stable; applying deferred DVD overlays.',
@@ -7245,9 +7262,10 @@ jobs:
             'transition_overlap_stall',
             'fade_state_stall',
             'runtime_stall_unknown',
-            'hard_process_termination',
-            'Xbox Runtime Failure - Previous Session',
             'xbox-session-active.txt',
+            'xbox-last-session.txt',
+            'Diagnostics',
+            'Xbox direct save refreshed:',
             'last_runtime_stage=',
             'overlap_doing_req=',
             'stage_name=',
@@ -7347,7 +7365,10 @@ jobs:
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-747.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-748.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-749.json" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-749.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-754.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\UPSTREAM-754.json" $out -Force
+          Copy-Item "$env:TPR_SRC\SOURCE-754-INTEGRATION.json" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-754.md" $out -Force
           Copy-Item "$env:TPR_CONTROL\COMPANION_API-747.md" $out -Force
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-736-packaged-mods.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC\.uwp-mod-downloads-736"
@@ -7372,11 +7393,11 @@ jobs:
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.749'
-            upstreamRelease = 'Dusklight v2.0.1'
-            dusklight = '422d7bb1b6c8d973cccf8b3d0b226a57ac3cc8c7'
-            aurora = 'd0933b745abe0eb9815bedcea8047575da18698d + reviewed UWP and Xbox affinity patches'
-            borealis = '0bdba6c50a46409c4862474c72b4a3a631fbe0ec + 735 explicitly enabled UWP SDL_OpenIO/Win32 writer replacing the inactive 732 bridge'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.754'
+            upstreamRelease = 'Dusklight v2.0.3'
+            dusklight = '40457c6adb381928e4b5fef6ed459ed291edd5e2 + reviewed Xbox stability ports'
+            aurora = '3227d76c60e1e782ca576610bce61c9e7744d8be + reviewed UWP and Xbox patches'
+            borealis = '4ac5e7052a8c49a122f8d57f626b5c75c5ca6968 + 735 explicitly enabled UWP SDL_OpenIO/Win32 writer replacing the inactive 732 bridge'
             randomizer = 'd0ceae8f18bbef4a40287a72a2791a3c06c9aca5 + 662 runtime patch + 668 built-in static integration + 678 alternate new-save gate + 679 restored settings UI/schema checks + 731 direct-save seed handoff + 732 Ordon text FIFO/soul identity guard'
             xboxLoaderHotfix = 'Randomizer linked into the signed executable; Funchook uses AppContainer JIT allocation/protection APIs and write-or-execute transitions'
             threadAffinityPatchSha256 = '9b864a38ab17d1b3e6563c1c29a292966784639781239e48791482c64db7531f'
@@ -7521,13 +7542,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-744.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-754.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.749-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.754-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) -and $_.Extension -ne '.msix' }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7536,7 +7557,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.749-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.754-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
@@ -7546,7 +7567,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\prepare-749-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-749-Delivery"
+          python "$env:TPR_CONTROL\scripts\prepare-754-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-754-Delivery"
           if ($LASTEXITCODE -ne 0) { throw 'Verified MSIX transfer/source preservation failed.' }
 
       - name: Deliver verified MSIX draft release
@@ -7555,15 +7576,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\publish-749-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-749-Delivery\evidence"
+          python "$env:TPR_CONTROL\scripts\publish-754-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-754-Delivery\evidence"
           if ($LASTEXITCODE -ne 0) { throw 'GitHub MSIX delivery/digest verification failed.' }
 
       - name: Upload verified MSIX transfer part 1
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox749-MSIX-Part-1
-          path: TPR-749-Delivery/part1/*
+          name: Xbox754-MSIX-Part-1
+          path: TPR-754-Delivery/part1/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7572,8 +7593,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox749-MSIX-Part-2
-          path: TPR-749-Delivery/part2/*
+          name: Xbox754-MSIX-Part-2
+          path: TPR-754-Delivery/part2/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7582,8 +7603,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox749-MSIX-Part-3
-          path: TPR-749-Delivery/part3/*
+          name: Xbox754-MSIX-Part-3
+          path: TPR-754-Delivery/part3/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
@@ -7592,8 +7613,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox749-Delivery-Evidence
-          path: TPR-749-Delivery/evidence/*
+          name: Xbox754-Delivery-Evidence
+          path: TPR-754-Delivery/evidence/*
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
