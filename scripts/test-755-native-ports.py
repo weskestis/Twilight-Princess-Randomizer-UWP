@@ -56,3 +56,7 @@ with tempfile.TemporaryDirectory(prefix='ports-755-') as temp:
     else:cmd=[compiler,'-std=c++20','-I'+str(source/'src'),str(policy),'-o',str(exe)]
     subprocess.run(cmd,cwd=work,check=True,stdout=subprocess.DEVNULL);subprocess.run([str(exe)],check=True,cwd=work)
     print('PASS: every source-built native port has an exact version gate and disabled packaged default')
+
+# Exercise the actual Dawnlight bridge before the expensive final Xbox link.
+import sys
+subprocess.run([sys.executable, str(control/'scripts/test-755-dawnlight-host-link.py'), str(source)], check=True)

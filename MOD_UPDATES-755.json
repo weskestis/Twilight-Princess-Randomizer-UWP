@@ -4222,6 +4222,12 @@
           "controlPath": "native_ports/updates755/port_dawnlight/src/update_service.cpp",
           "beforeSha256": "82f13fd7f3d9ef0d90752082bfe60a881890793508e8b2f3d32f672eacc3079f",
           "sha256": "832fb166d7b5aa77788dae2a0deb533495b3f79afe895638ec6a51ae1b5de0a4"
+        },
+        {
+          "path": "src/survivors_integrity.cpp",
+          "controlPath": "native_ports/updates755/port_dawnlight/src/survivors_integrity.cpp",
+          "beforeSha256": "de5ac123c759a5c248c2c5ecbda413ec46c3ea7d3f6ca881b8d663be9ab7e7cc",
+          "sha256": "17b7e3a4e52b5abc47bb2502a8268910e6ff0925599fe7911a178df4fecd2c86"
         }
       ]
     },

@@ -17,14 +17,14 @@
   ],
   "hardwareValidation": "Physical Xbox testing pending",
   "sourceControls": {
-    "MOD_UPDATES-755.json": "998c8679f3dfbabba0feb80afb9e5dadd8dd89feac8f66503b1516c174744899",
+    "MOD_UPDATES-755.json": "60cad1a2b00ef30520608c2f598f0da44ad6e69b20af2a7b564f7058b3f46344",
     "INSTALL_XBOX-755.md": "96688ee3c7940030a2d990b51b5cec2005a4e70c00f551801ed278918aa2b4a1",
     "scripts/apply-755-release-identity.py": "d4cc39e1be19059424aa81bd7d4f3e00f59944ce572aeb0abd4b4896d3d85dfd",
     "scripts/prepare-755-delivery.py": "ec151e4b3b2d374f4ad5c103195f18bc4fd335e6db5687827971da4c7e0ca95f",
     "scripts/publish-755-draft.py": "083936e34b114311a974bab2c2244843ab50f3c7bdd0473084facd308bff0c67",
     "scripts/stage-755-mod-updates.py": "839bfb6801c709f918668a05575bf064e2c4c6749864ec2dfd50dd7a70fe309f",
     "scripts/test-755-mfb-author-suite.py": "ca43db377905f96f7412ccae45670579133bfc094c58c93bf3fc3cb8032fc05d",
-    "scripts/test-755-native-ports.py": "50c40172d78fd8f2d27d09bb02ba8f12e368bd2bae8f7eac443a2feb755a50dd",
+    "scripts/test-755-native-ports.py": "e2e3a6a7f3f9a765e542e9c39f21580720c9a23ac2e63a52c5e82bc41857b58f",
     "scripts/verify-755-mod-updates.py": "605651397c653af54a332d1fb2f1206d729974fbe5d17ec2b516afeafc966cfe",
     "native_ports/updates755/controller_ui/src/mod.cpp": "b6fe338f3ac138ba99ca9ec0e926824bff21d717664af4781afdd70357cb9631",
     "native_ports/updates755/port_dawnlight/src/update_service.cpp": "832fb166d7b5aa77788dae2a0deb533495b3f79afe895638ec6a51ae1b5de0a4",
@@ -33,6 +33,8 @@
     "native_ports/updates755/port_mfb_multiplayer/src/game/voice_chat.cpp": "532e39a02f9a12c03a1af31edbb2f22df112d05ea86fe941add5fd8bd07b15eb",
     "native_ports/updates755/port_mfb_multiplayer/src/game/xbox_voice_playback.hpp": "f11d543e20726414eb7b9111fc6e87898ce16c23fdac3953774d091186e115e2",
     "native_ports/updates755/port_mfb_multiplayer/src/online_app.cpp": "c3397e9ab523a7b4b1532cd18ddad285890cab9d711eaae2da6c5362ca3b04b2",
-    "native_ports/updates755/port_mfb_multiplayer/src/xbox_private_aliases.hpp": "7fbbc66769f2777f21362e04b4acb18bb2a35750690460348af3a09a46eec76c"
+    "native_ports/updates755/port_mfb_multiplayer/src/xbox_private_aliases.hpp": "7fbbc66769f2777f21362e04b4acb18bb2a35750690460348af3a09a46eec76c",
+    "native_ports/updates755/port_dawnlight/src/survivors_integrity.cpp": "17b7e3a4e52b5abc47bb2502a8268910e6ff0925599fe7911a178df4fecd2c86",
+    "scripts/test-755-dawnlight-host-link.py": "713e038a7d377cac9b76cf4953c7397df588b81b87e50232f0936d698d7af90f"
   }
 }
