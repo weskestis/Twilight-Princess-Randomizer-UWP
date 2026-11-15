@@ -12,7 +12,8 @@ p.add_argument('feed', type=Path)
 p.add_argument('output', type=Path)
 a = p.parse_args()
 control = Path(__file__).resolve().parents[1]
-mod = next(m for m in json.loads((control / 'MOD_UPDATES-755.json').read_text())['mods'] if m['target'] == 'port_mfb_multiplayer')
+# Asset-only updates have no native target; continue until the multiplayer port.
+mod = next(m for m in json.loads((control / 'MOD_UPDATES-755.json').read_text())['mods'] if m.get('target') == 'port_mfb_multiplayer')
 author = a.source.resolve() / '.uwp-native-source-755' / mod['target']
 import hashlib
 for entry in mod['sourceFiles']:

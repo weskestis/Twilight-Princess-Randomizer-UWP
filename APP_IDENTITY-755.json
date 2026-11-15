@@ -23,7 +23,7 @@
     "scripts/prepare-755-delivery.py": "ec151e4b3b2d374f4ad5c103195f18bc4fd335e6db5687827971da4c7e0ca95f",
     "scripts/publish-755-draft.py": "083936e34b114311a974bab2c2244843ab50f3c7bdd0473084facd308bff0c67",
     "scripts/stage-755-mod-updates.py": "839bfb6801c709f918668a05575bf064e2c4c6749864ec2dfd50dd7a70fe309f",
-    "scripts/test-755-mfb-author-suite.py": "78e9405aad373e1646f6bd40659e38ac5d637497512d4b9f147cc319d1c188f5",
+    "scripts/test-755-mfb-author-suite.py": "ca43db377905f96f7412ccae45670579133bfc094c58c93bf3fc3cb8032fc05d",
     "scripts/test-755-native-ports.py": "50c40172d78fd8f2d27d09bb02ba8f12e368bd2bae8f7eac443a2feb755a50dd",
     "scripts/verify-755-mod-updates.py": "605651397c653af54a332d1fb2f1206d729974fbe5d17ec2b516afeafc966cfe",
     "native_ports/updates755/controller_ui/src/mod.cpp": "b6fe338f3ac138ba99ca9ec0e926824bff21d717664af4781afdd70357cb9631",
