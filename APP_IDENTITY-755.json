@@ -1,0 +1,38 @@
+{
+  "name": "TwilightPrincessRandomizer",
+  "version": "1.4.1.755",
+  "architecture": "x64",
+  "base": "Standard .754 controls at c3bd6a03cf3a9b5b33bb4d429eec76d12f11caa7; Dusklight 2.0.3 and the custom Randomizer retained",
+  "startupJournal": "xbox-startup-stage-755.txt",
+  "updates": "MOD_UPDATES-755.json",
+  "updatedMods": 11,
+  "blocked": [
+    {
+      "id": "com.dusklight.twilit_essentials",
+      "name": "Twilit Essentials",
+      "installedVersion": "2.5.0",
+      "availableVersion": "3.0.2",
+      "reason": "Latest author and recovery-fork source repositories are unavailable. The official 3.0.2 bundle supplies desktop/other-platform binaries, not rebuildable Xbox source. Retain the exact archived 2.5.0 implementation and matching resources."
+    }
+  ],
+  "hardwareValidation": "Physical Xbox testing pending",
+  "sourceControls": {
+    "MOD_UPDATES-755.json": "998c8679f3dfbabba0feb80afb9e5dadd8dd89feac8f66503b1516c174744899",
+    "INSTALL_XBOX-755.md": "96688ee3c7940030a2d990b51b5cec2005a4e70c00f551801ed278918aa2b4a1",
+    "scripts/apply-755-release-identity.py": "d4cc39e1be19059424aa81bd7d4f3e00f59944ce572aeb0abd4b4896d3d85dfd",
+    "scripts/prepare-755-delivery.py": "ec151e4b3b2d374f4ad5c103195f18bc4fd335e6db5687827971da4c7e0ca95f",
+    "scripts/publish-755-draft.py": "083936e34b114311a974bab2c2244843ab50f3c7bdd0473084facd308bff0c67",
+    "scripts/stage-755-mod-updates.py": "839bfb6801c709f918668a05575bf064e2c4c6749864ec2dfd50dd7a70fe309f",
+    "scripts/test-755-mfb-author-suite.py": "78e9405aad373e1646f6bd40659e38ac5d637497512d4b9f147cc319d1c188f5",
+    "scripts/test-755-native-ports.py": "50c40172d78fd8f2d27d09bb02ba8f12e368bd2bae8f7eac443a2feb755a50dd",
+    "scripts/verify-755-mod-updates.py": "605651397c653af54a332d1fb2f1206d729974fbe5d17ec2b516afeafc966cfe",
+    "native_ports/updates755/controller_ui/src/mod.cpp": "b6fe338f3ac138ba99ca9ec0e926824bff21d717664af4781afdd70357cb9631",
+    "native_ports/updates755/port_dawnlight/src/update_service.cpp": "832fb166d7b5aa77788dae2a0deb533495b3f79afe895638ec6a51ae1b5de0a4",
+    "native_ports/updates755/port_dof_hq/src/mod.cpp": "05ce95bd216f4b737d71b808ca9c807220f9fe284d0ada3baa418e4f8587cd97",
+    "native_ports/updates755/port_mfb_multiplayer/CMakeLists.txt": "e18685342604cb96c03fdb016ce5f91fae919b7ca33210bfc96b49e942bad57c",
+    "native_ports/updates755/port_mfb_multiplayer/src/game/voice_chat.cpp": "532e39a02f9a12c03a1af31edbb2f22df112d05ea86fe941add5fd8bd07b15eb",
+    "native_ports/updates755/port_mfb_multiplayer/src/game/xbox_voice_playback.hpp": "f11d543e20726414eb7b9111fc6e87898ce16c23fdac3953774d091186e115e2",
+    "native_ports/updates755/port_mfb_multiplayer/src/online_app.cpp": "c3397e9ab523a7b4b1532cd18ddad285890cab9d711eaae2da6c5362ca3b04b2",
+    "native_ports/updates755/port_mfb_multiplayer/src/xbox_private_aliases.hpp": "7fbbc66769f2777f21362e04b4acb18bb2a35750690460348af3a09a46eec76c"
+  }
+}
