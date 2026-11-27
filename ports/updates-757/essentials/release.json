@@ -1,0 +1,29 @@
+{
+  "id": "com.dusklight.twilit_essentials",
+  "upstreamVersion": "2.5.0",
+  "upstreamCommit": "7682060c20e2e3757b2888a27bbd958506ccb4f7",
+  "upstreamSourceSha256": "9d70b091a2ec88c0959c5e0f241acb02279326fa97e4d7db49035e18c3d7ad23",
+  "xboxPackage": "1.4.1.757",
+  "fixes": [
+    "Boar camera recenter and safe restoration of ride-camera parameters",
+    "Quick Access consumes the chosen bottle and preserves equipped slots"
+  ],
+  "normalizedSourceSha256": {
+    "src/general/horse_cam.cpp": {
+      "before": "1863a2e4854b1c00e2c03cd3589648669237f030c26a4093a5da83fdae6699f2",
+      "after": "07020f2abec7ec901850946514f35c4c498f02d20166f2381c3c3019372fea97"
+    },
+    "src/general/horse_cam.hpp": {
+      "before": "73259644aa01ebd0ca548b5e643df135a43825fadbf212ab1e3e0556b79377e5",
+      "after": "b6939d655ed8ede3ee6a747332975587715b50c14d7a1ee79f64e0deee4995b4"
+    },
+    "src/general/general.cpp": {
+      "before": "9b60ea582edd765e0d5a11fc637208e0612487edc9d92281bcb67bb1060b59c2",
+      "after": "5344abf447231d821758c2e9c305835b255c148f844f26e587779a567762f461"
+    },
+    "src/quick_access/quick_access_bottles.cpp": {
+      "before": "2525261f72fb94b4174be80c6ee15f9865a911258baf35545bc4990df80042bf",
+      "after": "0be3402e042735300ca6f22366676fb07f54ef5c687d2b60ea25dc9f9b68e829"
+    }
+  }
+}

@@ -1,16 +1,16 @@
-name: Build Dusklight Xbox 756 World Lighting
+name: Build Dusklight Xbox 757 Mod Updates
 
 on:
   push:
     branches:
-      - codex/xbox-global-lighting-756
+      - codex/xbox-mod-updates-757
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: xbox-756-lighting-${{ github.ref }}
+  group: xbox-757-mods-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -133,6 +133,14 @@ jobs:
             ${{ env.TPR_SRC }}/.uwp-mod-downloads-736/*.dusk
           key: xbox-mod-downloads-743-${{ hashFiles('_control/CUSTOM_MODS-743.json', '_control/NATIVE_MODS-743.json', '_control/BUNDLED_MODS-736.json') }}
           restore-keys: xbox-mod-downloads-743-
+
+      - name: Restore verified Twilit Essentials source from the previous release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python "$env:TPR_CONTROL\scripts\restore-757-essentials-source.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Twilit Essentials 2.5.0 archived source restoration failed.' }
 
       - name: Fetch exact source and UWP dependency revisions
         shell: powershell
@@ -6476,6 +6484,27 @@ jobs:
           python "$env:TPR_CONTROL\scripts\apply-756-world-lighting.py" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw 'Global lighting integration failed.' }
 
+      - name: Update Crests of Courage and Twilit Essentials for Xbox
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($stage in @('stage-757-crests','stage-757-essentials','stage-757-quick-access','stage-757-z-slot','apply-757-mod-discovery','apply-757-release-identity')) {
+            python "$env:TPR_CONTROL\scripts\$stage.py" "$env:TPR_SRC"
+            if ($LASTEXITCODE -ne 0) { throw "Xbox mod update failed at $stage" }
+          }
+          python "$env:TPR_CONTROL\scripts\test-757-crests.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Crests of Courage 1.10.1 host regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-757-essentials.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Twilit Essentials Xbox regression failed.' }
+          python "$env:TPR_CONTROL\scripts\stage-757-essentials.py" --verify "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Twilit Essentials source proof failed.' }
+          python "$env:TPR_CONTROL\scripts\test-757-quick-access.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Quick Access Spinner regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-757-z-slot.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Essentials wolf-scent Z slot regression failed.' }
+          python "$env:TPR_CONTROL\scripts\test-757-mod-discovery.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Xbox mod selection regression failed.' }
+
       - name: Save reusable hash-verified mod downloads
         if: always() && steps.mod-download-cache.outputs.cache-hit != 'true'
         continue-on-error: true
@@ -7006,7 +7035,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed Xbox/UWP package build failed.' }
 
 
-      - name: Verify and collect full 744 package
+      - name: Verify and collect signed Xbox 757 package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -7016,7 +7045,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.756_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.757_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -7030,7 +7059,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.756"',
+            'Version="1.4.1.757"',
             'Name="internetClient"',
             'Name="internetClientServer"',
             'Name="privateNetworkClientServer"',
@@ -7172,7 +7201,8 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($releaseFixMarker742 in @(
-            '1.4.1.756',
+            '1.4.1.757',
+            'xbox-startup-stage-757.txt',
             'xbox-startup-stage-756.txt',
             'game.worldLighting',
             'World Lighting Gather',
@@ -7394,9 +7424,12 @@ jobs:
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-755.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\MOD_UPDATES-755.json" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-756.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-757.md" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-755-mod-updates.py" "$env:TPR_SRC" --package "$env:TPR_MSIX_INSPECT"
           if ($LASTEXITCODE -ne 0) { throw '.755 installed mod source/resource proof failed.' }
+          python "$env:TPR_CONTROL\scripts\stage-757-crests.py" "$env:TPR_SRC" --verify --package "$env:TPR_MSIX_INSPECT"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed Crests of Courage 1.10.1 proof failed.' }
+          Copy-Item "$env:TPR_SRC\platforms\uwp\optional_mods\ESSENTIALS-XBOX-757.json" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-744-ui-thumbnails.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC"
           if ($LASTEXITCODE -ne 0) { throw '.744 packaged UI thumbnails or original images changed.' }
           Copy-Item "$env:TPR_SRC\platforms\uwp\optional_mods\UI-THUMBNAILS-744.json" $out -Force
@@ -7413,7 +7446,7 @@ jobs:
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.756'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.757'
             upstreamRelease = 'Dusklight v2.0.3'
             dusklight = '40457c6adb381928e4b5fef6ed459ed291edd5e2 + reviewed Xbox stability ports'
             aurora = '3227d76c60e1e782ca576610bce61c9e7744d8be + reviewed UWP and Xbox patches'
@@ -7473,8 +7506,8 @@ jobs:
             soulPlacement = '.734 allows Enemy/Boss Souls at every enabled randomized item check under existing logic; extended IDs retained through serialization, grants, text and tracker'
             breakableSaveIdentity = '.734 preserves live pot/pumpkin, drop and shelf bindings across save callbacks; native scene/actor cleanup owns retirement'
             nativeSoulBreakableTests = 'PASS: compiled production award/resolver/sidecar functions; late callbacks, all 85 Soul IDs, native FIFO completion, Poe isolation and dedicated pickup text'
-            nativeOnlineMods = '.744 adds exact Crests of Courage 1.10.0, A Link Between Twilight 0.3.0 and MFB Multiplayer 0.2.0 source ports; four requested binary-only mods remain awaiting rebuildable source'
-            nativeMods744 = (Get-Content "$env:TPR_CONTROL\NATIVE_MODS-744.json" -Raw | ConvertFrom-Json)
+            nativeOnlineMods = 'Crests of Courage 1.10.1, A Link Between Twilight 0.3.0 and MFB Multiplayer 0.2.0 native Xbox ports'
+            nativeMods744 = (Get-Content "$env:TPR_SRC\platforms\uwp\optional_mods\NATIVE-MODS-744.json" -Raw | ConvertFrom-Json)
             xboxFilePicker = '.738 full-size controller browser; named Development Files and app folder entries, visible footer, B parent navigation, LB/RB pages and focus restoration; .737 main-thread callback and export lifecycle preserved'
             xboxPickerHostPatchSha256 = '307d580da7af383c72f614cf582312308aae1f844374730ff54e8da46f62fd0a'
             xboxPickerBorealisPatchSha256 = '2dcf8a727455c6e184a81fe0530a23a0b1fcee0a111cc2e94e13fa0e6645b9c8'
@@ -7492,7 +7525,8 @@ jobs:
             bundledCatalogMods = 49
             bundledUserMods = 35
             additionalNativeSourcePorts = 31
-            essentialsSourcePort = '2.5.0 from recovered BeZide93 fork; matching source and assets; 3.0.2 source unavailable; exact 2.5.0 implementation retained'
+            essentialsXbox757 = (Get-Content "$env:TPR_SRC\platforms\uwp\optional_mods\ESSENTIALS-XBOX-757.json" -Raw | ConvertFrom-Json)
+            essentialsSourcePort = 'Upstream 2.5.0 at 7682060c with Xbox fixes in .757. No Xbox-compatible 3.1.3 source or binary available.'
             xbox744HardwareValidation = 'Pending console retest; full native fixtures and signed package checks do not confirm Xbox gameplay behavior'
             xbox745SourceControls = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-745.json" -Raw | ConvertFrom-Json).sourceControls
             xbox745SourcePatches = (Get-Content "$env:TPR_CONTROL\APP_IDENTITY-745.json" -Raw | ConvertFrom-Json).sourcePatches
@@ -7563,13 +7597,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-756.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-757.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.756-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.757-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) -and $_.Extension -ne '.msix' }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7579,7 +7613,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox756-Unverified-Package-Diagnostics
+          name: Xbox757-Unverified-Package-Diagnostics
           path: |
             TPR-Xbox-Package-735/*
             !TPR-Xbox-Package-735/*.pfx
@@ -7589,7 +7623,7 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.756-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.757-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
@@ -7598,7 +7632,7 @@ jobs:
       - name: Upload single dependency
         uses: actions/upload-artifact@v4
         with:
-          name: Microsoft-VCLibs-x64-Xbox756
+          name: Microsoft-VCLibs-x64-Xbox757
           path: TPR-Xbox-Package-735/**/Microsoft.VCLibs.x64.14.00.appx
           if-no-files-found: error
           retention-days: 30
@@ -7610,8 +7644,5 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735"
-          $main = Get-Item "$out\TwilightPrincessRandomizer_1.4.1.756_x64.msix"
-          $dep = Get-ChildItem $out -Recurse -Filter Microsoft.VCLibs.x64.14.00.appx | Select-Object -First 1
-          $tag = "xbox-1.4.1.756-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          gh release create $tag $main.FullName $dep.FullName "$out\SHA256SUMS.txt" --draft --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Xbox UWP 1.4.1.756 - World Lighting" --notes-file "$out\INSTALL_XBOX-756.md"
+          python "$env:TPR_CONTROL\scripts\publish-757-draft.py" "$out"
           if ($LASTEXITCODE -ne 0) { throw 'Draft package delivery failed.' }

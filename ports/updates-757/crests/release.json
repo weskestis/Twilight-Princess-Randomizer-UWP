@@ -1,0 +1,183 @@
+{
+  "id": "dev.remiafterdark.coop_mod",
+  "previousVersion": "1.10.0",
+  "version": "1.10.1",
+  "sourceCommit": "21f1927a2f148896262852f5804fb4d679a2b43f",
+  "sourceArchive": {
+    "url": "https://codeload.github.com/remiafterdark/crests-of-courage/zip/21f1927a2f148896262852f5804fb4d679a2b43f",
+    "size": 17460099,
+    "sha256": "51a67950fe233c1fca7935032e45da768a4641fdc3fac861ee9e55cd54e4ad68"
+  },
+  "download": {
+    "url": "https://twilitrealm.dev/download/dusklight/dev.remiafterdark.coop_mod/1.10.1",
+    "size": 26563486,
+    "sha256": "68ac321e9195b95fd98dace7d677ac84ddf90dfff4d20d9a9fb6b73d893d29a4"
+  },
+  "sourceChanges": [
+    {
+      "path": "mod.json",
+      "size": 241,
+      "sha256": "50482c097bdf83e5583c59b8a432b807abefe4eeb642ea8dadad5ff4c2784909"
+    },
+    {
+      "path": "src/beast.cpp",
+      "size": 24656,
+      "sha256": "bf37dd36d10a98243517bbb360c0e5e39560a31c530143e334645145b72a3100"
+    },
+    {
+      "path": "src/boss.cpp",
+      "size": 77271,
+      "sha256": "c015a5052c4a71959b9e0fc1b51a6b13af348291597897b2159dcb54250271b0"
+    },
+    {
+      "path": "src/checks.cpp",
+      "size": 17706,
+      "sha256": "1f6e3539af5c28211af3cac6414581f44e318c2a6fe0f0f2d2ff719a4cdd9bc8"
+    },
+    {
+      "path": "src/colors.cpp",
+      "size": 40194,
+      "sha256": "2328d376270018f204132e7a108ea11b84bc178caabcf7be4e0e00a2361c7450"
+    },
+    {
+      "path": "src/crash_guard.cpp",
+      "size": 5246,
+      "sha256": "f298582d419e4491882bf8bb27811c74dd94c9a7e0401f6a0e36bbe41d26e1c4"
+    },
+    {
+      "path": "src/dungeon_blob_cases.inc",
+      "size": 11423,
+      "sha256": "0ef38954cd27078958f3c48104feccdc8f1135d63193776d995b51d869a87d38"
+    },
+    {
+      "path": "src/dungeon_blob_includes.inc",
+      "size": 1683,
+      "sha256": "83d68ad890e0ddd630fb7f8ab96e912341c988b7c58d90a52860a37fb4f8205f"
+    },
+    {
+      "path": "src/effects.cpp",
+      "size": 31076,
+      "sha256": "831ef913f4673fb098a6658908cea57039c1170505da4d000846ac16e345a2d7"
+    },
+    {
+      "path": "src/enemies.cpp",
+      "size": 234973,
+      "sha256": "321b417df6961a91e029a3f1e12f770689f380c393d3d557c5e79dbfe1103c44"
+    },
+    {
+      "path": "src/features.cpp",
+      "size": 95043,
+      "sha256": "ea7e1c36dc5478c5671857352bef899164de94bf00b5abe4968d3a1eb3ac29f2"
+    },
+    {
+      "path": "src/ganon.cpp",
+      "size": 41069,
+      "sha256": "a24e0f32c84024c9b800c07feab8f67c3efda2d8da0cdb446f6a4591a1a5c5c9"
+    },
+    {
+      "path": "src/global.cpp",
+      "size": 43284,
+      "sha256": "818066bfe98531200e0fcb34e8c25a7e6501fdbf4c4e53ad5dbdf0ee28407f16"
+    },
+    {
+      "path": "src/join_sync.cpp",
+      "size": 25006,
+      "sha256": "45f790b68d0c614b4e2b015e846c5eec20c388da4d543585e7a24638864f08cd"
+    },
+    {
+      "path": "src/menu.cpp",
+      "size": 80298,
+      "sha256": "9a9f40b550f883fd5d59a823b28c6ff2b1b6cad708a0881ac81de1141c2b5b34"
+    },
+    {
+      "path": "src/mod.cpp",
+      "size": 132626,
+      "sha256": "80af19339fe6b1d2e52ee5e2095ed743161c9aaf9aeb16d2d37f5d92526c094b"
+    },
+    {
+      "path": "src/mod.hpp",
+      "size": 29710,
+      "sha256": "62472fd3cf77ac5d25f824cb61f2a2e711ad06c833b097c414469679b50a84a4"
+    },
+    {
+      "path": "src/models.cpp",
+      "size": 31270,
+      "sha256": "f96e314d39fc2aacf15561be76f0acfa32fa342772070994289b060a0f1e8f79"
+    },
+    {
+      "path": "src/models.hpp",
+      "size": 1367,
+      "sha256": "7777d14e4569fa2ee9f00359b1a9db4bab1d22db355b4579175c2a97279be297"
+    },
+    {
+      "path": "src/net/messages.hpp",
+      "size": 15067,
+      "sha256": "4aeacc271b3777013df89a513543d8f708f9df02529a561729c51f43489d2aaa"
+    },
+    {
+      "path": "src/net/protocol.hpp",
+      "size": 8402,
+      "sha256": "09795d971332603479c14dd780d0a91833a5b85b6c64d7531cb4e6cec2e8eb67"
+    },
+    {
+      "path": "src/private_arc.cpp",
+      "size": 19459,
+      "sha256": "99fce7791a603b556785edefaaf7d9b0218de019c54e2e7ef74b0edacf38c312"
+    },
+    {
+      "path": "src/puppet.cpp",
+      "size": 260598,
+      "sha256": "773cb69d564bf1e37a498f74ae14e0dd10d9466952ae4c0bd548f6c54c34d864"
+    },
+    {
+      "path": "src/rando.cpp",
+      "size": 32423,
+      "sha256": "56920421bb8947df520b423f1c3056c4416aabda8ce0d4c00b52ca5db2a78910"
+    },
+    {
+      "path": "src/skins.cpp",
+      "size": 38871,
+      "sha256": "d95620df5dd86824445fef80a8ab2764054d3c0ddd9147a9a61b0062fed2f449"
+    },
+    {
+      "path": "src/softlocks.cpp",
+      "size": 8496,
+      "sha256": "9a07f80a3f5a0c002c6579817b547638744aa0cdcbe5174ce6843e14407ce506"
+    },
+    {
+      "path": "src/softlocks.inc",
+      "size": 2506,
+      "sha256": "0324a8a8e27e67b6d514e44ee110705108e205129a2c1b959c9238cb9aeadbb3"
+    },
+    {
+      "path": "src/sumo.cpp",
+      "size": 49944,
+      "sha256": "5394ef7e02a3405bd474395a4b32ef430ff179f1f1823b27d09b85a9971af246"
+    },
+    {
+      "path": "src/voice.cpp",
+      "size": 17952,
+      "sha256": "500198a52e8b952f6576841fc7dd810aa97cd6eb8af0fdd4c554ca0d7c0fedcd"
+    },
+    {
+      "path": "src/world.cpp",
+      "size": 112358,
+      "sha256": "a1f9ee2881235798f65ed1f8a6428cad1ac029ec9e5761f34b31bf38cc05c6fc"
+    }
+  ],
+  "patchAuthorFiles": [
+    "src/crash_guard.cpp",
+    "src/skins.cpp",
+    "src/voice.cpp"
+  ],
+  "patchSha256": "2a6f2a456a6bc7d8a3f8c48dc042314b2807c228db6bd5dd0372acf454563a7e",
+  "patchedSha256": {
+    "CMakeLists.txt": "27a1af020767cae53d648438de78924ef1bb0d6606a3915577003ad4709c5691",
+    "src/crash_guard.cpp": "080d29fa35a4c62268d22d94df759ecddca4382dd81778a04187e2c845c6d870",
+    "src/skins.cpp": "f4d237f90e72d0dd40c3f0fdcdfd8d03227b9699f56e1b5e6730e52d9c9315e1",
+    "src/voice.cpp": "8dbe65de28c8c613d7a3e5aa91c90e776027fd67b1b61cec50272b70d0738869",
+    "src/xbox_private_aliases.hpp": "177758edcc7393530f02162e4052ea905e044d3a85d1dbaac4f81c8f92d0e567"
+  },
+  "originalResourceCount": 298,
+  "originalResourceInventorySha256": "e9b2b3bc4958bb95f74e61991f32a11b63727bff3ed9b0ddb313c13e95e2c3bc"
+}

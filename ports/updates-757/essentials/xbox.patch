@@ -1,0 +1,189 @@
+--- a/src/general/horse_cam.cpp
++++ b/src/general/horse_cam.cpp
+@@ -8,51 +8,58 @@
+ 
+ bool g_configHorseCamNoRecenter = false;
+ 
++namespace {
++constexpr int recenterParams[] = {22, 24, 27};
++constexpr int rideCameraAlgorithm = 8;
++int patchedStyle = -1;
++dCamStyleData::StyleData* patchedTable = nullptr;
++f32 savedRates[3] = {};
++
++void restore_rates(dCamParam_c* prm) {
++    // Stage changes can destroy the old style table. Only use the live table.
++    if (prm && patchedStyle >= 0 && prm->mCamStyleData == patchedTable &&
++        patchedStyle < prm->mStyleNum) {
++        for (int i = 0; i < 3; ++i) {
++            prm->SetVal(patchedStyle, recenterParams[i], savedRates[i]);
++        }
++    }
++    patchedStyle = -1;
++    patchedTable = nullptr;
++}
++}
++
+ void update_horse_cam() {
++    camera_process_class* cam = dComIfGp_getCamera(0);
++    if (!cam) return;
++    dCamParam_c& prm = cam->mCamera.mCamParam;
++    const int style = cam->mCamera.mCamStyle;
+     daAlink_c* link = daAlink_getAlinkActorClass();
++    const f32 x = cam->mCamera.mPadInfo.mCStick.mLastPosX;
++    const f32 y = cam->mCamera.mPadInfo.mCStick.mLastPosY;
++    const bool riding = link && (link->checkHorseRide() || link->checkBoarRide());
++    const bool active = g_configHorseCamNoRecenter && riding && prm.mCamStyleData &&
++                        style >= 0 && style < prm.mStyleNum && prm.mStyleID == style &&
++                        prm.mCurrentStyle && prm.Algorythmn() == rideCameraAlgorithm &&
++                        x >= -0.15f && x <= 0.15f && y >= -0.15f && y <= 0.15f;
++
++    if (patchedStyle >= 0 && (!active || patchedStyle != style ||
++                              patchedTable != prm.mCamStyleData)) {
++        restore_rates(&prm);
++    }
++    if (!active) return;
++    if (patchedStyle < 0) {
++        patchedStyle = style;
++        patchedTable = prm.mCamStyleData;
++        for (int i = 0; i < 3; ++i) {
++            savedRates[i] = prm.Val(style, recenterParams[i]);
++        }
++    }
++    for (int index : recenterParams) {
++        prm.SetVal(style, index, 0.0f);
++    }
++}
++
++void shutdown_horse_cam() {
+     camera_process_class* cam = dComIfGp_getCamera(0);
+-    if (link == nullptr || cam == nullptr) return;
+-
+-    dCamParam_c& prm = cam->mCamera.mCamParam;
+-    const bool riding = link->checkHorseRide() != 0;
+-    const bool active = g_configHorseCamNoRecenter && riding &&
+-                        prm.Algorythmn() == 8 && prm.mCurrentStyle != nullptr;
+-
+-    const int style = cam->mCamera.mCamStyle;
+-    static int s_patchedStyle = -1;
+-    static f32 s_savedRate[3] = {0.0f, 0.0f, 0.0f};
+-
+-    if (!active) {
+-        if (s_patchedStyle >= 0 && prm.mStyleID == s_patchedStyle) {
+-            prm.SetVal(s_patchedStyle, 22, s_savedRate[0]);
+-            prm.SetVal(s_patchedStyle, 24, s_savedRate[1]);
+-            prm.SetVal(s_patchedStyle, 27, s_savedRate[2]);
+-        }
+-        s_patchedStyle = -1;
+-        return;
+-    }
+-
+-    const f32 stickX = cam->mCamera.mPadInfo.mCStick.mLastPosX;
+-    const f32 stickY = cam->mCamera.mPadInfo.mCStick.mLastPosY;
+-    const bool stickActive =
+-        (stickX > 0.15f || stickX < -0.15f || stickY > 0.15f || stickY < -0.15f);
+-    if (stickActive) {
+-        if (s_patchedStyle >= 0 && prm.mStyleID == s_patchedStyle) {
+-            prm.SetVal(s_patchedStyle, 22, s_savedRate[0]);
+-            prm.SetVal(s_patchedStyle, 24, s_savedRate[1]);
+-            prm.SetVal(s_patchedStyle, 27, s_savedRate[2]);
+-        }
+-        s_patchedStyle = -1;
+-        return;
+-    }
+-
+-    if (s_patchedStyle != style) {
+-        s_savedRate[0] = prm.Val(style, 22);
+-        s_savedRate[1] = prm.Val(style, 24);
+-        s_savedRate[2] = prm.Val(style, 27);
+-        s_patchedStyle = style;
+-    }
+-    prm.SetVal(style, 22, 0.0f);
+-    prm.SetVal(style, 24, 0.0f);
+-    prm.SetVal(style, 27, 0.0f);
++    restore_rates(cam ? &cam->mCamera.mCamParam : nullptr);
+ }
+--- a/src/general/horse_cam.hpp
++++ b/src/general/horse_cam.hpp
+@@ -3,3 +3,4 @@
+ extern bool g_configHorseCamNoRecenter;
+ 
+ void update_horse_cam();
++void shutdown_horse_cam();
+--- a/src/general/general.cpp
++++ b/src/general/general.cpp
+@@ -74,6 +74,7 @@
+ }
+ 
+ void shutdown_general() {
++    shutdown_horse_cam();
+     shutdown_skip_cutscenes();
+     shutdown_fast_forward_cutscenes();
+     shutdown_dominion_sword();
+--- a/src/quick_access/quick_access_bottles.cpp
++++ b/src/quick_access/quick_access_bottles.cpp
+@@ -59,6 +59,7 @@
+ static_assert(sizeof(BottleBlob) == 8, "blob size");
+ 
+ static u8 s_assignedSlot = 0xFF;
++static u8 s_pendingSlot = 0xFF;
+ 
+ static u8 bottle_item(int idx) {
+     if (idx < 0 || idx >= 4) {
+@@ -72,6 +73,7 @@
+ }
+ 
+ static void bottles_reset_assignment() {
++    s_pendingSlot = 0xFF;
+     s_assignedSlot = 0xFF;
+ }
+ 
+@@ -114,7 +116,6 @@
+ static const int QB_ITEM_PROC_COMMON_CHANGE_ITEM = 12;
+ static const int QB_ITEM_PROC_BOTTLE_SWING = 13;
+ 
+-static u8 s_pendingSlot = 0xFF;
+ static u8 s_pendingItem = 0;
+ static u16 s_pendingProc = 0;
+ static int s_pendingFrames = 0;
+@@ -151,20 +152,25 @@
+     const u8 result = (s_pendingItem == dItemNo_MILK_BOTTLE_e)
+                           ? static_cast<u8>(dItemNo_HALF_MILK_BOTTLE_e)
+                           : static_cast<u8>(dItemNo_EMPTY_BOTTLE_e);
++    if (s_pendingSlot >= 4) return;
++    const u8 usedIndex = SLOT_11 + s_pendingSlot;
+     if (bottle_item(s_pendingSlot) == s_pendingItem) {
+-        dComIfGs_setBottleItemIn(s_pendingItem, result);
++        dComIfGs_setItem(usedIndex, result);
++        // Refresh every equipped copy of this slot, including the custom Z slot.
++        for (int i = 0; i < 3; ++i) {
++            if (dComIfGs_getSelectItemIndex(i) == usedIndex) {
++                dComIfGp_setSelectItem(i);
++            }
++        }
+     }
+ 
+     if (dComIfGs_getSelectItemIndex(SELECT_ITEM_B) != s_preSelectIndex) {
+         dComIfGs_setSelectItemIndex(SELECT_ITEM_B, s_preSelectIndex);
+     }
+-    if (dComIfGp_getSelectItem(SELECT_ITEM_B) != s_preSelectPlay) {
++    if (s_preSelectIndex == usedIndex) {
++        dComIfGp_setSelectItem(SELECT_ITEM_B);
++    } else if (dComIfGp_getSelectItem(SELECT_ITEM_B) != s_preSelectPlay) {
+         g_dComIfG_gameInfo.play.setSelectItem(SELECT_ITEM_B, s_preSelectPlay);
+-    }
+-
+-    if (dComIfGs_getSelectItemIndex(SELECT_ITEM_B) == SLOT_11 + s_pendingSlot) {
+-        dComIfGs_setSelectItemIndex(SELECT_ITEM_B, 0xFF);
+-        g_dComIfG_gameInfo.play.setSelectItem(SELECT_ITEM_B, dItemNo_NONE_e);
+     }
+ 
+     qb_log("[qb] finish_pending: slot=%d item=0x%02X result=0x%02X", (int)s_pendingSlot,
+@@ -174,6 +180,7 @@
+ }
+ 
+ static void bottles_use_bottle(int slotIdx) {
++    if (s_pendingSlot != 0xFF) return;
+     QaSelectSlotScope bottleScope(SELECT_ITEM_B);
+     daAlink_c* link = static_cast<daAlink_c*>(daPy_getLinkPlayerActorClass());
+     if (link == nullptr) {
