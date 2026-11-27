@@ -1,0 +1,68 @@
+name: Deliver verified Xbox 756 installers
+on:
+  push:
+    branches: [codex/xbox-756-delivery]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Retrieve verified Xbox build output
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45931156936
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.756-Xbox
+          path: signed
+      - name: Verify installers and retain draft download assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          from urllib.parse import quote
+          root=Path('signed')
+          repo=os.environ['GITHUB_REPOSITORY']
+          tag='xbox-1.4.1.756-45931156936'
+          source='d4c518567d47b9d43f25d9ee4f326702717ffd4c'
+          expected={
+              'TwilightPrincessRandomizer_1.4.1.756_x64.msix':'629de73ff2f74e3cd3a9937ed632abe311528d2609691e099cad300536540386',
+              'Microsoft.VCLibs.x64.14.00.appx':'9c17b521f9d690a1f504da5108ed6eec5669eb3a8fd1331eef43e40d84e74283'
+          }
+          def digest(path):
+              with path.open('rb') as stream:
+                  return hashlib.file_digest(stream,'sha256').hexdigest()
+          def api(url,*args):
+              return json.loads(subprocess.check_output(['gh','api',url,*args]))
+          for name,value in expected.items():
+              assert digest(root/name)==value, name
+          assets={name:root/name for name in [*expected,'TwilightPrincessRandomizer.cer','SHA256SUMS.txt']}
+          notes=(root/'INSTALL_XBOX-756.md').read_text(encoding='utf-8-sig')
+          releases=api('repos/'+repo+'/releases?per_page=15')
+          release=next((v for v in releases if v['tag_name']==tag),None)
+          if release is None:
+              payload=Path('release-request.json')
+              payload.write_text(json.dumps({'name':'Xbox UWP 1.4.1.756 - World Lighting','tag_name':tag,'target_commitish':source,'draft':True,'body':notes}))
+              release=api('repos/'+repo+'/releases','--method','POST','--input',str(payload))
+          assert release['draft'] and release['tag_name']==tag and release['target_commitish']==source
+          release_id=release['id']
+          existing={v['name']:v for v in release['assets']}
+          for name,path in assets.items():
+              if name in existing:
+                  assert existing[name]['digest']=='sha256:'+digest(path)
+                  continue
+              endpoint='https://uploads.github.com/repos/'+repo+'/releases/'+str(release_id)+'/assets?name='+quote(name,safe='')
+              result=api(endpoint,'--method','POST','--input',str(path),'-H','Content-Type: application/octet-stream')
+              assert result['name']==name and result['size']==path.stat().st_size and result['digest']=='sha256:'+digest(path)
+          check=api('repos/'+repo+'/releases/'+str(release_id))
+          for v in check['assets']:
+              if v['name'] in assets:
+                  assert v['state']=='uploaded' and v['digest']=='sha256:'+digest(assets[v['name']])
+          assert assets.keys()<={v['name'] for v in check['assets']}
+          print('Signed Xbox delivery verified',release_id)
+          PY
