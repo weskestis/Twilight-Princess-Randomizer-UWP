@@ -7613,5 +7613,5 @@ jobs:
           $main = Get-Item "$out\TwilightPrincessRandomizer_1.4.1.756_x64.msix"
           $dep = Get-ChildItem $out -Recurse -Filter Microsoft.VCLibs.x64.14.00.appx | Select-Object -First 1
           $tag = "xbox-1.4.1.756-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          gh release create $tag $main.FullName $dep.FullName "$out\SHA256SUMS.txt" --draft --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Xbox UWP 1.4.1.756 — World Lighting" --notes-file "$out\INSTALL_XBOX-756.md"
+          gh release create $tag $main.FullName $dep.FullName "$out\SHA256SUMS.txt" --draft --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Xbox UWP 1.4.1.756 - World Lighting" --notes-file "$out\INSTALL_XBOX-756.md"
           if ($LASTEXITCODE -ne 0) { throw 'Draft package delivery failed.' }
