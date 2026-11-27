@@ -1,5 +1,7 @@
 // Included in the Xbox world painter so both launch modes use the same render pass.
 #include "d/d_bg_s_wtr_chk.h"
+#include "d/d_bg_s_lin_chk.h"
+#include "SSystem/SComponent/c_m3d_g_pla.h"
 #include "d/d_kankyo.h"
 #include <aurora/gfx.hpp>
 #include <algorithm>
@@ -11,13 +13,15 @@
 namespace dusk::world_lighting {
 using Vec = std::array<float, 4>;
 struct Lamp { Vec positionRadius, color; };
+struct Bounce { Vec positionRadius, color, normal; };
 struct alignas(16) Frame {
     Vec projection, depth, upEye, sun, fog, sky, amounts, atmosphere;
     Vec worldX, worldZ, grid, quality;
     std::array<Lamp,8> lamps;
     std::array<Vec,4> water;
+    std::array<Bounce,8> bounces;
 };
-static_assert(sizeof(Frame) == 512);
+static_assert(sizeof(Frame) == 896);
 struct Payload {
     WGPUTextureView scene, depth, light;
     aurora::gfx::Range uniform;
@@ -136,10 +140,100 @@ static Vec rgb(const GXColorS10& c,float w) {
     return {channel(c.r),channel(c.g),channel(c.b),w};
 }
 
+struct SelectedLamp { const void* id=nullptr; cXyz position; };
+struct SurfaceHit { cXyz position,normal; float gain=0.f; };
+struct Probe {
+    const void* id=nullptr;
+    cXyz origin;
+    float radius=0.f;
+    uint32_t tick=0;
+    std::array<SurfaceHit,6> hits{};
+};
+
+// Trace one emitter per rendered frame against real world collision. A hit becomes
+// a diffuse secondary source on the lit side of the surface, even off camera.
+static void traceProbe(Probe& probe,const SelectedLamp& source,float radius,uint32_t tick) {
+    static constexpr int axes[6][3]={{0,-1,0},{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,1,0}};
+    probe.id=source.id; probe.origin=source.position; probe.radius=radius; probe.tick=tick;
+    for (int i=0;i<6;++i) {
+        auto& hit=probe.hits[i];
+        hit.gain=0.f;
+        const cXyz dir{float(axes[i][0]),float(axes[i][1]),float(axes[i][2])};
+        const cXyz end=source.position+dir*radius;
+        dBgS_LinChk query;
+        query.Set(&source.position,&end,nullptr);
+        cM3dGPla plane;
+        if (!dComIfG_Bgsp().LineCross(&query) || !dComIfG_Bgsp().GetTriPla(query,&plane)) continue;
+        cXyz n=plane.mNormal;
+        const float len=std::sqrt(n.x*n.x+n.y*n.y+n.z*n.z);
+        if (!(len>.001f)) continue;
+        n=n*(1.f/len);
+        const float facing=-(n.x*dir.x+n.y*dir.y+n.z*dir.z);
+        if (facing<.05f) continue;
+        const cXyz contact=query.GetCross();
+        const float travel=contact.abs(source.position);
+        const float incoming=std::max(0.f,1.f-travel/radius);
+        hit.position=contact+n*4.f;
+        hit.normal=n;
+        hit.gain=incoming*incoming*facing;
+    }
+}
+
+static void collectBounces(Frame& f,const view_class& v,const std::array<SelectedLamp,8>& sources) {
+    static std::array<Probe,8> cache{};
+    static std::string stage;
+    static int previousRoom=-999;
+    static unsigned cursor=0;
+    const char* current=dComIfGp_getStartStageName();
+    const int room=dComIfGp_roomControl_getStayNo();
+    if (!current || room<0) return;
+    if (previousRoom!=room || stage!=current) {
+        cache={}; cursor=0; stage=current; previousRoom=room;
+    }
+    const unsigned count=static_cast<unsigned>(f.grid[3]);
+    if (!count) return;
+    const uint32_t tick=aurora::gfx::current_frame();
+    bool traced=false;
+    for (unsigned step=0;step<count;++step) {
+        const unsigned i=(cursor+step)%count;
+        auto& probe=cache[i];
+        const auto& source=sources[i];
+        const float radius=f.lamps[i].positionRadius[3];
+        if (probe.id!=source.id || probe.origin.abs2(source.position)>32.f*32.f ||
+            std::abs(radius-probe.radius)>32.f) probe.id=nullptr;
+        if ((!probe.id || tick-probe.tick>=24) && !traced) {
+            traceProbe(probe,source,radius,tick); traced=true;
+        }
+    }
+    cursor=(cursor+1)%count;
+    const Vec tint=rgb(g_env_light.bg_amb_col[0],0);
+    std::array<float,8> scores{};
+    for (unsigned i=0;i<count;++i) {
+        if (!cache[i].id) continue;
+        for (const auto& hit:cache[i].hits) {
+            if (!(hit.gain>.01f)) continue;
+            const Vec pos=inView(v,hit.position,cache[i].radius*.85f);
+            const float distanceSquared=pos[0]*pos[0]+pos[1]*pos[1]+pos[2]*pos[2];
+            const float score=hit.gain*pos[3]*pos[3]/(1600.f+distanceSquared);
+            const auto slot=std::min_element(scores.begin(),scores.end())-scores.begin();
+            if (score<=scores[slot]) continue;
+            scores[slot]=score;
+            auto& bounce=f.bounces[slot];
+            bounce.positionRadius=pos;
+            for (int j=0;j<3;++j) {
+                bounce.normal[j]=v.viewMtx[j][0]*hit.normal.x+v.viewMtx[j][1]*hit.normal.y+
+                                 v.viewMtx[j][2]*hit.normal.z;
+                bounce.color[j]=hit.gain*f.lamps[i].color[j]*(.45f+.55f*tint[j]);
+            }
+        }
+    }
+}
+
 static void collectLamps(Frame& f,const view_class& v) {
     std::array<float,8> ranks{};
+    std::array<SelectedLamp,8> sources{};
     unsigned count=0;
-    auto add=[&](const cXyz& pos,float radius,Vec color) {
+    auto add=[&](const void* id,const cXyz& pos,float radius,Vec color) {
         if (!(radius>1.f) || !(std::max({color[0],color[1],color[2]})>0.f)) return;
         auto point=inView(v,pos,std::min(radius,2400.f));
         const float d2=point[0]*point[0]+point[1]*point[1]+point[2]*point[2];
@@ -147,16 +241,17 @@ static void collectLamps(Frame& f,const view_class& v) {
         if (!std::isfinite(rank) || rank<=0.f) return;
         auto idx=static_cast<unsigned>(std::min_element(ranks.begin(),ranks.end())-ranks.begin());
         if (rank<=ranks[idx]) return;
-        ranks[idx]=rank; f.lamps[idx]={point,color}; count=std::min(count+1,8u);
+        sources[idx]={id,pos}; ranks[idx]=rank; f.lamps[idx]={point,color}; count=std::min(count+1,8u);
     };
     for (auto* light:g_env_light.pointlight)
-        if (light) add(light->mPosition,light->mPow,rgb(light->mColor,0));
+        if (light) add(light,light->mPosition,light->mPow,rgb(light->mColor,0));
     for (auto* light:g_env_light.efplight)
-        if (light) add(light->mPosition,light->mPow,rgb(light->mColor,0));
+        if (light) add(light,light->mPosition,light->mPow,rgb(light->mColor,0));
     if (auto* player=dComIfGp_getLinkPlayer()) {
-        if (auto* flame=player->getKandelaarFlamePos()) add(*flame,300.f,{1.f,.46f,.14f,0});
+        if (auto* flame=player->getKandelaarFlamePos()) add(flame,*flame,300.f,{1.f,.46f,.14f,0});
     }
     f.grid[3]=static_cast<float>(count);
+    if (f.amounts[0]>0.f) collectBounces(f,v,sources);
 }
 
 // Sample native water collision using our own query object. Never overwrite the
@@ -222,7 +317,7 @@ static void record(const view_class& v) {
     }
     const int limit=std::clamp(settings.worldLightingHeight.getValue(),180,1080);
     f.quality={limit<=540 ? 4.f:8.f,limit<=540 ? 10.f:16.f,0,0};
-    if (f.amounts[1]>0.f) collectLamps(f,v);
+    if (f.amounts[0]>0.f || f.amounts[1]>0.f) collectLamps(f,v);
     if (f.amounts[2]>0.f && !g_env_light.camera_water_in_status) collectWater(f,v);
     using namespace aurora::gfx;
     static const auto gatherId=register_draw_type({"World Lighting Gather",draw<false>,nullptr});

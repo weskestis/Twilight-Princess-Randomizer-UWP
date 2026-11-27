@@ -1,10 +1,11 @@
 // View-space lighting. Game depth is converted with the current GX projection.
 struct Lamp { positionRadius: vec4f, color: vec4f }
+struct Bounce { positionRadius: vec4f, color: vec4f, normal: vec4f }
 struct Frame {
     projection: vec4f, depth: vec4f, upEye: vec4f, sun: vec4f,
     fog: vec4f, sky: vec4f, amounts: vec4f, atmosphere: vec4f,
     worldX: vec4f, worldZ: vec4f, grid: vec4f, quality: vec4f,
-    lamps: array<Lamp, 8>, water: array<vec4f, 4>
+    lamps: array<Lamp, 8>, water: array<vec4f, 4>, bounces: array<Bounce, 8>
 }
 @group(0) @binding(0) var<uniform> f: Frame;
 @group(0) @binding(1) var scene: texture_2d<f32>;
@@ -103,6 +104,16 @@ fn visibilityTo(p: vec3f, q: vec3f) -> f32 {
                 let delta=viewAt(sampleUV)-p; let dist=length(delta);
                 let facing=max(dot(n,delta/max(dist,.01)),0.);
                 incoming+=linear(colorAt(sampleUV))*facing*(1.-smoothstep(15.,220.,dist))*1.8/f.quality.x;
+            }
+            for(var i=0u;i<8u;i++) {
+                let hit=f.bounces[i];
+                if hit.positionRadius.w<=0. {continue;}
+                let delta=hit.positionRadius.xyz-p; let dist=length(delta);
+                let dir=delta/max(dist,.01);
+                let falloff=max(1.-dist/hit.positionRadius.w,0.);
+                let outgoing=max(dot(hit.normal.xyz,-dir),0.);
+                let receiver=max(dot(n,dir),0.);
+                incoming+=hit.color.rgb*falloff*falloff*outgoing*receiver*1.6;
             }
             radiance+=f.amounts.x*(base+.045)*incoming;
         }
