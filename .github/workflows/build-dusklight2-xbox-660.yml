@@ -1,16 +1,16 @@
-name: Build Dusklight 2.0.3 Xbox 755
+name: Build Dusklight Xbox 756 World Lighting
 
 on:
   push:
     branches:
-      - codex/xbox-680-from-679
+      - codex/xbox-global-lighting-756
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: xbox-755-release-${{ github.ref }}
+  group: xbox-756-lighting-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -6473,6 +6473,8 @@ jobs:
           }
           python "$env:TPR_CONTROL\scripts\apply-755-release-identity.py"
           if ($LASTEXITCODE -ne 0) { throw '.755 identity verification failed.' }
+          python "$env:TPR_CONTROL\scripts\apply-756-world-lighting.py" "$env:TPR_SRC"
+          if ($LASTEXITCODE -ne 0) { throw 'Global lighting integration failed.' }
 
       - name: Save reusable hash-verified mod downloads
         if: always() && steps.mod-download-cache.outputs.cache-hit != 'true'
@@ -7014,7 +7016,7 @@ jobs:
             Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $sourcePackage) { throw 'The UWP build produced no MSIX.' }
-          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.755_x64.msix'
+          $package = Join-Path $out 'TwilightPrincessRandomizer_1.4.1.756_x64.msix'
           Copy-Item $sourcePackage.FullName $package -Force
 
           New-Item -ItemType Directory -Force "$env:TPR_MSIX_INSPECT" | Out-Null
@@ -7028,7 +7030,7 @@ jobs:
           foreach ($identity in @(
             'Name="TwilightPrincessRandomizer"',
             'Publisher="CN=TwilightPrincessRandomizer"',
-            'Version="1.4.1.755"',
+            'Version="1.4.1.756"',
             'Name="internetClient"',
             'Name="internetClientServer"',
             'Name="privateNetworkClientServer"',
@@ -7170,7 +7172,11 @@ jobs:
           }
           $exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
           foreach ($releaseFixMarker742 in @(
-            '1.4.1.755',
+            '1.4.1.756',
+            'xbox-startup-stage-756.txt',
+            'game.worldLighting',
+            'World Lighting Gather',
+            'Water and Rain Reflections',
             'xbox-startup-stage-755.txt',
             'xbox-startup-stage-749.txt',
             'xbox-startup-stage-747.txt',
@@ -7388,7 +7394,7 @@ jobs:
           Copy-Item "$env:TPR_CONTROL\BUNDLED_MODS-736.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\APP_IDENTITY-755.json" $out -Force
           Copy-Item "$env:TPR_CONTROL\MOD_UPDATES-755.json" $out -Force
-          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-755.md" $out -Force
+          Copy-Item "$env:TPR_CONTROL\INSTALL_XBOX-756.md" $out -Force
           python "$env:TPR_CONTROL\scripts\verify-755-mod-updates.py" "$env:TPR_SRC" --package "$env:TPR_MSIX_INSPECT"
           if ($LASTEXITCODE -ne 0) { throw '.755 installed mod source/resource proof failed.' }
           python "$env:TPR_CONTROL\scripts\verify-744-ui-thumbnails.py" "$env:TPR_MSIX_INSPECT" "$env:TPR_SRC"
@@ -7407,7 +7413,7 @@ jobs:
             Copy-Item $cacheStatsPath739 $out -Force
           }
           $sourceManifest = [ordered]@{
-            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.755'
+            package = 'Twilight Princess Randomizer Xbox/UWP 1.4.1.756'
             upstreamRelease = 'Dusklight v2.0.3'
             dusklight = '40457c6adb381928e4b5fef6ed459ed291edd5e2 + reviewed Xbox stability ports'
             aurora = '3227d76c60e1e782ca576610bce61c9e7744d8be + reviewed UWP and Xbox patches'
@@ -7557,13 +7563,13 @@ jobs:
             sourceRevision = $env:GITHUB_SHA
           }
           $sourceManifest | ConvertTo-Json | Set-Content `
-            (Join-Path $out 'SOURCE-MANIFEST-755.json') -Encoding UTF8
+            (Join-Path $out 'SOURCE-MANIFEST-756.json') -Encoding UTF8
           Get-ChildItem $out -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Sort-Object | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ASCII
 
-          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.755-Xbox-Support.zip'
+          $supportZip = Join-Path $out 'Twilight-Princess-Randomizer-UWP-1.4.1.756-Xbox-Support.zip'
           $supportFiles = Get-ChildItem $out -File | Where-Object { $_.Name -ne (Split-Path $supportZip -Leaf) -and $_.Extension -ne '.msix' }
           Compress-Archive -Path $supportFiles.FullName -DestinationPath $supportZip -CompressionLevel Optimal
           Remove-Item "$env:GITHUB_WORKSPACE\TPR-build-signing.pfx" -Force
@@ -7573,7 +7579,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: Xbox755-Unverified-Package-Diagnostics
+          name: Xbox756-Unverified-Package-Diagnostics
           path: |
             TPR-Xbox-Package-735/*
             !TPR-Xbox-Package-735/*.pfx
@@ -7583,75 +7589,29 @@ jobs:
       - name: Upload verified Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: Twilight-Princess-Randomizer-UWP-1.4.1.755-Xbox
+          name: Twilight-Princess-Randomizer-UWP-1.4.1.756-Xbox
           path: TPR-Xbox-Package-735/*
           if-no-files-found: error
           retention-days: 30
 
 
-      - name: Prepare verified MSIX transfer parts and recovered source
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\prepare-755-delivery.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:TPR_SRC" "$env:GITHUB_WORKSPACE\TPR-755-Delivery"
-          if ($LASTEXITCODE -ne 0) { throw 'Verified MSIX transfer/source preservation failed.' }
+      - name: Upload single dependency
+        uses: actions/upload-artifact@v4
+        with:
+          name: Microsoft-VCLibs-x64-Xbox756
+          path: TPR-Xbox-Package-735/**/Microsoft.VCLibs.x64.14.00.appx
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Deliver verified MSIX draft release
-        shell: powershell
+      - name: Save signed installers in a draft release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python "$env:TPR_CONTROL\scripts\publish-755-draft.py" "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735" "$env:GITHUB_WORKSPACE\TPR-755-Delivery\evidence"
-          if ($LASTEXITCODE -ne 0) { throw 'GitHub MSIX delivery/digest verification failed.' }
-
-      - name: Upload verified MSIX transfer part 1
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Xbox755-MSIX-Part-1
-          path: TPR-755-Delivery/part1/*
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload verified MSIX transfer part 2
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Xbox755-MSIX-Part-2
-          path: TPR-755-Delivery/part2/*
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload verified MSIX transfer part 3
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Xbox755-MSIX-Part-3
-          path: TPR-755-Delivery/part3/*
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload verified MSIX transfer part 4 if needed
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Xbox755-MSIX-Part-4
-          path: TPR-755-Delivery/part4/*
-          compression-level: 0
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Upload package delivery evidence and support
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Xbox755-Delivery-Evidence
-          path: TPR-755-Delivery/evidence/*
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 30
-
+          $out = "$env:GITHUB_WORKSPACE\TPR-Xbox-Package-735"
+          $main = Get-Item "$out\TwilightPrincessRandomizer_1.4.1.756_x64.msix"
+          $dep = Get-ChildItem $out -Recurse -Filter Microsoft.VCLibs.x64.14.00.appx | Select-Object -First 1
+          $tag = "xbox-1.4.1.756-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          gh release create $tag $main.FullName $dep.FullName "$out\SHA256SUMS.txt" --draft --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Xbox UWP 1.4.1.756 — World Lighting" --notes-file "$out\INSTALL_XBOX-756.md"
+          if ($LASTEXITCODE -ne 0) { throw 'Draft package delivery failed.' }
